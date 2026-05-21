@@ -258,8 +258,9 @@ class FormulaTransformer(nn.Module):
         if self.pairwise_featurization:
             # Make sure to _only_ consider subset fragments
             same_sign = torch.all(form_diffs >= 0, -1) | torch.all(form_diffs <= 0, -1)
-            form_diffs[~same_sign].fill_(0)
-            form_diffs = torch.abs(form_diffs)
+            form_diffs = torch.where(
+                same_sign.unsqueeze(-1), form_diffs.abs(), torch.zeros_like(form_diffs)
+            )
             pairwise_features = self.pairwise_featurizer(
                 self.form_embedder_mod(form_diffs)
             )
