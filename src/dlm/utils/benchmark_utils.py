@@ -272,6 +272,7 @@ def generate_with_formula_filter(
     is_ngboost: bool = False,
     sigma_lambda: float = 3.0,
     profile_generation: bool = False,
+    num_tokens_unmask: int = 1,
 ) -> Tuple:
     """
     Generate molecules with formula filtering.
@@ -383,6 +384,8 @@ def generate_with_formula_filter(
             # Use unified generation with both formula and fingerprint
             if profile_generation:
                 setattr(sampler, 'profile_generation', True)
+            previous_num_tokens_unmask = getattr(sampler, 'num_tokens_unmask', 1)
+            setattr(sampler, 'num_tokens_unmask', num_tokens_unmask)
             if hasattr(sampler, 'unified_conditioned_generation'):
                 gen_start = time.time()
                 samples = sampler.unified_conditioned_generation(
@@ -414,6 +417,8 @@ def generate_with_formula_filter(
                 generation_time += time.time() - gen_start
             if profile_generation:
                 setattr(sampler, 'profile_generation', previous_profile_generation)
+            setattr(sampler, 'num_tokens_unmask', previous_num_tokens_unmask)
+            if profile_generation:
                 profile = getattr(sampler, 'last_generation_profile', None)
                 if isinstance(profile, dict):
                     generation_profile_batches += 1
@@ -423,6 +428,7 @@ def generate_with_formula_filter(
         except Exception as exc:
             if profile_generation:
                 setattr(sampler, 'profile_generation', previous_profile_generation)
+            setattr(sampler, 'num_tokens_unmask', previous_num_tokens_unmask)
             print(f"\nWarning: Batch generation failed: {exc}")
             samples = [None] * current_batch
         
@@ -720,10 +726,19 @@ def compute_aggregate_statistics(
         'avg_formula_matches': float(np.mean([r.get('total_formula_matched', 0) for r in results])),
         'avg_predictions_collected': float(np.mean([r.get('formula_matches_collected', 0) for r in results])),
         'avg_total_generated': float(np.mean([r.get('total_generated', 0) for r in results])),
+        'avg_total_valid': float(np.mean([r.get('total_valid', 0) for r in results])),
         'avg_unique_valid_smiles': float(np.mean([r.get('unique_valid_smiles', 0) for r in results])),
         'avg_duplicate_valid_smiles': float(np.mean([r.get('duplicate_valid_smiles', 0) for r in results])),
         'avg_valid_duplicate_rate': float(np.mean([r.get('valid_duplicate_rate', 0.0) for r in results])),
         'avg_formula_duplicate_matches': float(np.mean([r.get('formula_duplicate_matches', 0) for r in results])),
+        'avg_formula_match_fraction_among_valid': float(np.mean([
+            (r.get('total_formula_matched', 0) / r.get('total_valid', 1)) if r.get('total_valid', 0) else 0.0
+            for r in results
+        ])),
+        'avg_unique_valid_fraction_among_valid': float(np.mean([
+            (r.get('unique_valid_smiles', 0) / r.get('total_valid', 1)) if r.get('total_valid', 0) else 0.0
+            for r in results
+        ])),
         'formula_match_success_rate': float(np.mean([
             1.0 if r.get('total_formula_matched', 0) > 0 else 0.0 for r in results
         ])),

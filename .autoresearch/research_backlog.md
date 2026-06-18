@@ -21,6 +21,10 @@
   estimated padding, so length grouping is not yet evidence-backed. Do not burn
   a scorer slot on outer length scheduling until a mixed-length sample proves
   there is real padding waste to remove.
+- The 32-case aggregate shows only about `8.6%` of valid generations hit the
+  target formula (`7.53125` formula matches out of `87.09375` valid samples on
+  average). That is enough to justify a logging-only formula-aware pruning
+  audit before any further outer scheduling idea.
 
 ## P0 Correctness And Comparability
 

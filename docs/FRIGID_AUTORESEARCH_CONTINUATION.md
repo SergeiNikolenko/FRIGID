@@ -137,6 +137,10 @@ New diagnostic support:
   predicted token length is flat at `120` and estimated padding is `0` in the
   stored generation profiles. Do not spend the next scorer slot on length
   grouping until a real mixed-length sample shows padding waste.
+- The current 32-case aggregate also shows formula waste directly:
+  `avg_total_valid = 87.09375` while `avg_formula_matches = 7.53125`, so only
+  about `8.6%` of valid generations hit the target formula. That is the first
+  concrete reason to keep formula-aware pruning as the next audit target.
 
 Do not revert unrelated dirty files, especially pre-existing changes in
 `src/dlm/iceberg_sampler.py`, unless explicitly requested.

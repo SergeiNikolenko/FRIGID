@@ -261,6 +261,12 @@ is `0`. That means length grouping is not evidence-backed on the current
 sample, so the next mechanism should stay focused on the inner generation path
 or exact pruning rather than outer scheduling.
 
+The 32-case aggregate gives a concrete formula waste signal too:
+`avg_total_valid = 87.09375` and `avg_formula_matches = 7.53125`, which is
+about an `8.6%` formula-hit rate among valid generations. That is the first
+hard number that makes a logging-only formula-aware pruning audit worth doing
+before another scheduling experiment.
+
 ## Notes from ideation threads
 
 - The local ideation thread suggested the same direction: shared encoder/KV
