@@ -138,6 +138,12 @@ def parse_args():
         default=None,
         help='Optional generation chunk size for formula-aware early stopping diagnostics'
     )
+    parser.add_argument(
+        '--formula-pruning-tail-after-unique',
+        type=int,
+        default=None,
+        help='Optional number of extra generations to allow after the first unique formula match'
+    )
     return parser.parse_args()
 
 
@@ -397,6 +403,7 @@ def _worker_process_spectra(
     token_features=None,
     is_ngboost: bool = False,
     sigma_lambda: float = 3.0,
+    formula_pruning_tail_after_unique: Optional[int] = None,
 ):
     """
     Worker function for multi-GPU processing.
@@ -469,6 +476,7 @@ def _worker_process_spectra(
                 token_features=token_features,
                 is_ngboost=is_ngboost,
                 sigma_lambda=sigma_lambda,
+                formula_pruning_tail_after_unique=formula_pruning_tail_after_unique,
             )
         
         # Build predictions list
@@ -535,6 +543,7 @@ def run_benchmark_multi_gpu(
     is_ngboost: bool = False,
     sigma_lambda: float = 3.0,
     formula_pruning_chunk_size: Optional[int] = None,
+    formula_pruning_tail_after_unique: Optional[int] = None,
 ) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
     """
     Run the benchmark across multiple GPUs using multiprocessing.
@@ -597,6 +606,7 @@ def run_benchmark_multi_gpu(
                 token_features,
                 is_ngboost,
                 sigma_lambda,
+                formula_pruning_tail_after_unique,
             )
         )
         p.start()
@@ -652,6 +662,7 @@ def run_benchmark(
     profile_generation: bool = False,
     num_tokens_unmask: int = 1,
     formula_pruning_chunk_size: Optional[int] = None,
+    formula_pruning_tail_after_unique: Optional[int] = None,
     encoder_batch_size: int = 1,
 ) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
     """Run the benchmark."""
@@ -734,6 +745,7 @@ def run_benchmark(
                 profile_generation=profile_generation,
                 num_tokens_unmask=num_tokens_unmask,
                 formula_pruning_chunk_size=formula_pruning_chunk_size,
+                formula_pruning_tail_after_unique=formula_pruning_tail_after_unique,
             )
             if profile_generation:
                 (
@@ -1019,6 +1031,7 @@ def main():
             n_gpus, args.use_shared_cross_attention, max_spectra,
             token_model, token_features, is_ngboost, args.sigma_lambda,
             args.formula_pruning_chunk_size,
+            args.formula_pruning_tail_after_unique,
         )
     else:
         # Single GPU mode: load models in main process
@@ -1031,6 +1044,7 @@ def main():
             args.profile_generation,
             args.num_tokens_unmask,
             args.formula_pruning_chunk_size,
+            args.formula_pruning_tail_after_unique,
             args.encoder_batch_size,
         )
 

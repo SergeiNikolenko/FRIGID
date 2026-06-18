@@ -273,6 +273,8 @@ def generate_with_formula_filter(
     sigma_lambda: float = 3.0,
     profile_generation: bool = False,
     num_tokens_unmask: int = 1,
+    formula_pruning_chunk_size: Optional[int] = None,
+    formula_pruning_tail_after_unique: Optional[int] = None,
 ) -> Tuple:
     """
     Generate molecules with formula filtering.
@@ -330,6 +332,8 @@ def generate_with_formula_filter(
     estimated_padding_tokens = 0
     first_formula_match_at: Optional[int] = None
     first_unique_formula_match_at: Optional[int] = None
+    formula_pruning_tail_stop_at: Optional[int] = None
+    formula_pruning_batches = 0
     
     # Convert fingerprint_array to RDKit DataStructs for Tanimoto calculation
     # This is the PREDICTED fingerprint from the encoder - NOT the ground truth molecule
@@ -354,162 +358,167 @@ def generate_with_formula_filter(
         
         if current_batch <= 0:
             break
+        chunk_size = current_batch if formula_pruning_chunk_size is None else max(1, int(formula_pruning_chunk_size))
+        batch_remaining = current_batch
+        while batch_remaining > 0 and not stop_generation:
+            current_sub_batch = min(batch_remaining, chunk_size)
+            formula_pruning_batches += 1
 
-        previous_profile_generation = getattr(sampler, 'profile_generation', False)
-        try:
-            # Determine target lengths if token model is available
-            target_lengths = None
-            if predicted_len is not None:
-                if is_ngboost and predicted_sigma is not None:
-                    # NGBoost: sample from normal distribution N(mean, variance=sigma*lambda)
-                    std_dev = np.sqrt(predicted_sigma * sigma_lambda)
-                    target_lengths = [
-                        max(1, int(round(np.random.normal(predicted_len, std_dev))))
-                        for _ in range(current_batch)
-                    ]
-                else:
-                    # sklearn: sample from fixed range (mean-3, mean+3)
-                    low = max(1, predicted_len - 3)
-                    high = predicted_len + 3
-                    target_lengths = [
-                        random.randint(low, high)
-                        for _ in range(current_batch)
-                    ]
-
-            if target_lengths:
-                target_length_values.extend(target_lengths)
-                max_target_length = max(target_lengths)
-                estimated_padding_tokens += sum(max_target_length - length for length in target_lengths)
-            
-            # Use unified generation with both formula and fingerprint
-            if profile_generation:
-                setattr(sampler, 'profile_generation', True)
-            previous_num_tokens_unmask = getattr(sampler, 'num_tokens_unmask', 1)
-            setattr(sampler, 'num_tokens_unmask', num_tokens_unmask)
-            if hasattr(sampler, 'unified_conditioned_generation'):
-                gen_start = time.time()
-                samples = sampler.unified_conditioned_generation(
-                    formula=target_formula,
-                    fingerprint=fingerprint_array,
-                    num_samples=current_batch,
-                    softmax_temp=softmax_temp,
-                    randomness=randomness,
-                    target_lengths=target_lengths,
-                    min_add_len=2
-                )
-                generation_time += time.time() - gen_start
-            elif sampler.model.use_fingerprint_conditioning:
-                gen_start = time.time()
-                samples = sampler.fingerprint_conditioned_generation(
-                    fingerprint=fingerprint_array,
-                    num_samples=current_batch,
-                    softmax_temp=softmax_temp,
-                    randomness=randomness,
-                )
-                generation_time += time.time() - gen_start
-            else:
-                gen_start = time.time()
-                samples = sampler.de_novo_generation(
-                    num_samples=current_batch,
-                    softmax_temp=softmax_temp,
-                    randomness=randomness
-                )
-                generation_time += time.time() - gen_start
-            if profile_generation:
-                setattr(sampler, 'profile_generation', previous_profile_generation)
-            setattr(sampler, 'num_tokens_unmask', previous_num_tokens_unmask)
-            if profile_generation:
-                profile = getattr(sampler, 'last_generation_profile', None)
-                if isinstance(profile, dict):
-                    generation_profile_batches += 1
-                    for key, value in profile.items():
-                        if isinstance(value, (int, float, np.integer, np.floating)):
-                            generation_profile_totals[key] += float(value)
-        except Exception as exc:
-            if profile_generation:
-                setattr(sampler, 'profile_generation', previous_profile_generation)
-            setattr(sampler, 'num_tokens_unmask', previous_num_tokens_unmask)
-            print(f"\nWarning: Batch generation failed: {exc}")
-            samples = [None] * current_batch
-        
-        batch_start_generated = total_generated
-        total_generated += len(samples)
-        
-        for sample_offset, smiles in enumerate(samples):
-            sample_number = batch_start_generated + sample_offset + 1
-            if not smiles or (isinstance(smiles, float) and pd.isna(smiles)):
-                continue
-            
+            previous_profile_generation = getattr(sampler, 'profile_generation', False)
             try:
-                mol = Chem.MolFromSmiles(str(smiles))
-                if mol is None:
-                    continue
-                
-                total_valid += 1
-                canonical = Chem.MolToSmiles(mol)
-                last_valid_smiles = canonical
-                global_smiles_counter[canonical] += 1
-                if global_smiles_counter[canonical] > 1:
-                    continue
+                # Determine target lengths if token model is available
+                target_lengths = None
+                if predicted_len is not None:
+                    if is_ngboost and predicted_sigma is not None:
+                        std_dev = np.sqrt(predicted_sigma * sigma_lambda)
+                        target_lengths = [
+                            max(1, int(round(np.random.normal(predicted_len, std_dev))))
+                            for _ in range(current_sub_batch)
+                        ]
+                    else:
+                        low = max(1, predicted_len - 3)
+                        high = predicted_len + 3
+                        target_lengths = [
+                            random.randint(low, high)
+                            for _ in range(current_sub_batch)
+                        ]
 
-                # Compute Tanimoto similarity to PREDICTED fingerprint (not ground truth)
-                # This avoids data leakage - we only use information available at inference time
-                gen_fp = AllChem.GetMorganFingerprintAsBitVect(mol, fp_radius, nBits=fp_bits)
-                similarity = DataStructs.TanimotoSimilarity(pred_fp_bitvect, gen_fp)
-                
-                # Get InChI key first block for uniqueness check (connectivity, no stereochemistry)
-                try:
-                    inchi_key = Chem.MolToInchiKey(mol)
-                    inchi_key_first_block = get_inchikey_first_block(inchi_key) if inchi_key else None
-                except Exception:
-                    inchi_key_first_block = None
+                if target_lengths:
+                    target_length_values.extend(target_lengths)
+                    max_target_length = max(target_lengths)
+                    estimated_padding_tokens += sum(max_target_length - length for length in target_lengths)
 
-                # Check formula match
-                gen_formula = normalize_formula(rdMolDescriptors.CalcMolFormula(mol))
-                if gen_formula == target_formula:
-                    total_formula_matched += 1
-                    if first_formula_match_at is None:
-                        first_formula_match_at = sample_number
-                    
-                    # Only add if this is a unique molecule (by InChI key first block)
-                    if inchi_key_first_block is not None and inchi_key_first_block not in matched_inchi_keys:
-                        matched_inchi_keys.add(inchi_key_first_block)
-                        matched_smiles.append(canonical)
-                        matched_similarities.append(float(similarity))
-                        if first_unique_formula_match_at is None:
-                            first_unique_formula_match_at = sample_number
-                        
-                        # Stop when we have enough UNIQUE formula-matched molecules
-                        if len(matched_smiles) >= n_required:
-                            stop_generation = True
-                            break
-                    elif inchi_key_first_block is None:
-                        # If we can't compute InChI key, add the molecule anyway
-                        matched_smiles.append(canonical)
-                        matched_similarities.append(float(similarity))
-                        if first_unique_formula_match_at is None:
-                            first_unique_formula_match_at = sample_number
-                        
-                        if len(matched_smiles) >= n_required:
-                            stop_generation = True
-                            break
+                if profile_generation:
+                    setattr(sampler, 'profile_generation', True)
+                previous_num_tokens_unmask = getattr(sampler, 'num_tokens_unmask', 1)
+                setattr(sampler, 'num_tokens_unmask', num_tokens_unmask)
+                if hasattr(sampler, 'unified_conditioned_generation'):
+                    gen_start = time.time()
+                    samples = sampler.unified_conditioned_generation(
+                        formula=target_formula,
+                        fingerprint=fingerprint_array,
+                        num_samples=current_sub_batch,
+                        softmax_temp=softmax_temp,
+                        randomness=randomness,
+                        target_lengths=target_lengths,
+                        min_add_len=2
+                    )
+                    generation_time += time.time() - gen_start
+                elif sampler.model.use_fingerprint_conditioning:
+                    gen_start = time.time()
+                    samples = sampler.fingerprint_conditioned_generation(
+                        fingerprint=fingerprint_array,
+                        num_samples=current_sub_batch,
+                        softmax_temp=softmax_temp,
+                        randomness=randomness,
+                    )
+                    generation_time += time.time() - gen_start
                 else:
-                    # Track non-matched samples for potential padding (also unique)
-                    if inchi_key_first_block is not None:
-                        if inchi_key_first_block not in non_matched_inchi_keys:
-                            non_matched_inchi_keys.add(inchi_key_first_block)
+                    gen_start = time.time()
+                    samples = sampler.de_novo_generation(
+                        num_samples=current_sub_batch,
+                        softmax_temp=softmax_temp,
+                        randomness=randomness
+                    )
+                    generation_time += time.time() - gen_start
+                if profile_generation:
+                    setattr(sampler, 'profile_generation', previous_profile_generation)
+                setattr(sampler, 'num_tokens_unmask', previous_num_tokens_unmask)
+                if profile_generation:
+                    profile = getattr(sampler, 'last_generation_profile', None)
+                    if isinstance(profile, dict):
+                        generation_profile_batches += 1
+                        for key, value in profile.items():
+                            if isinstance(value, (int, float, np.integer, np.floating)):
+                                generation_profile_totals[key] += float(value)
+            except Exception as exc:
+                if profile_generation:
+                    setattr(sampler, 'profile_generation', previous_profile_generation)
+                setattr(sampler, 'num_tokens_unmask', previous_num_tokens_unmask)
+                print(f"\nWarning: Batch generation failed: {exc}")
+                samples = [None] * current_sub_batch
+
+            batch_start_generated = total_generated
+            total_generated += len(samples)
+
+            for sample_offset, smiles in enumerate(samples):
+                sample_number = batch_start_generated + sample_offset + 1
+                if not smiles or (isinstance(smiles, float) and pd.isna(smiles)):
+                    continue
+
+                try:
+                    mol = Chem.MolFromSmiles(str(smiles))
+                    if mol is None:
+                        continue
+
+                    total_valid += 1
+                    canonical = Chem.MolToSmiles(mol)
+                    last_valid_smiles = canonical
+                    global_smiles_counter[canonical] += 1
+                    if global_smiles_counter[canonical] > 1:
+                        continue
+
+                    gen_fp = AllChem.GetMorganFingerprintAsBitVect(mol, fp_radius, nBits=fp_bits)
+                    similarity = DataStructs.TanimotoSimilarity(pred_fp_bitvect, gen_fp)
+
+                    try:
+                        inchi_key = Chem.MolToInchiKey(mol)
+                        inchi_key_first_block = get_inchikey_first_block(inchi_key) if inchi_key else None
+                    except Exception:
+                        inchi_key_first_block = None
+
+                    gen_formula = normalize_formula(rdMolDescriptors.CalcMolFormula(mol))
+                    if gen_formula == target_formula:
+                        total_formula_matched += 1
+                        if first_formula_match_at is None:
+                            first_formula_match_at = sample_number
+
+                        if inchi_key_first_block is not None and inchi_key_first_block not in matched_inchi_keys:
+                            matched_inchi_keys.add(inchi_key_first_block)
+                            matched_smiles.append(canonical)
+                            matched_similarities.append(float(similarity))
+                            if first_unique_formula_match_at is None:
+                                first_unique_formula_match_at = sample_number
+                                if formula_pruning_tail_after_unique is not None:
+                                    formula_pruning_tail_stop_at = sample_number + max(0, int(formula_pruning_tail_after_unique))
+
+                            if len(matched_smiles) >= n_required:
+                                stop_generation = True
+                                break
+                        elif inchi_key_first_block is None:
+                            matched_smiles.append(canonical)
+                            matched_similarities.append(float(similarity))
+                            if first_unique_formula_match_at is None:
+                                first_unique_formula_match_at = sample_number
+
+                            if len(matched_smiles) >= n_required:
+                                stop_generation = True
+                                break
+                    else:
+                        if inchi_key_first_block is not None:
+                            if inchi_key_first_block not in non_matched_inchi_keys:
+                                non_matched_inchi_keys.add(inchi_key_first_block)
+                                non_matched_smiles.append(canonical)
+                                non_matched_similarities.append(float(similarity))
+                        else:
                             non_matched_smiles.append(canonical)
                             non_matched_similarities.append(float(similarity))
-                    else:
-                        # If we can't compute InChI key, add the molecule anyway
-                        non_matched_smiles.append(canonical)
-                        non_matched_similarities.append(float(similarity))
-                        
-            except Exception:
-                continue
-        
-        if stop_generation:
-            break
+
+                except Exception:
+                    continue
+
+                if (
+                    not stop_generation
+                    and formula_pruning_tail_stop_at is not None
+                    and len(matched_smiles) >= n_required
+                    and total_generated >= formula_pruning_tail_stop_at
+                ):
+                    stop_generation = True
+                    break
+
+            batch_remaining -= current_sub_batch
+            if stop_generation:
+                break
 
     # reorder the matched lists by similarity descending
     if matched_smiles:
@@ -567,7 +576,11 @@ def generate_with_formula_filter(
         'predicted_token_sigma': predicted_sigma,
         'first_formula_match_at': first_formula_match_at,
         'first_unique_formula_match_at': first_unique_formula_match_at,
+        'formula_pruning_tail_after_unique': formula_pruning_tail_after_unique,
+        'formula_pruning_tail_stop_at': formula_pruning_tail_stop_at,
         'profile_batches': generation_profile_batches,
+        'formula_pruning_chunk_size': formula_pruning_chunk_size,
+        'formula_pruning_batches': formula_pruning_batches,
     }
     if target_length_values:
         diagnostics.update({
@@ -739,6 +752,26 @@ def compute_aggregate_statistics(
             (r.get('unique_valid_smiles', 0) / r.get('total_valid', 1)) if r.get('total_valid', 0) else 0.0
             for r in results
         ])),
+        'avg_first_formula_match_at': float(np.mean([
+            r.get('generation_first_formula_match_at', 0)
+            for r in results
+            if r.get('generation_first_formula_match_at') is not None
+        ])) if any(r.get('generation_first_formula_match_at') is not None for r in results) else 0.0,
+        'avg_first_unique_formula_match_at': float(np.mean([
+            r.get('generation_first_unique_formula_match_at', 0)
+            for r in results
+            if r.get('generation_first_unique_formula_match_at') is not None
+        ])) if any(r.get('generation_first_unique_formula_match_at') is not None for r in results) else 0.0,
+        'avg_wasted_generated_after_first_formula_match': float(np.mean([
+            max(r.get('total_generated', 0) - r.get('generation_first_formula_match_at', 0), 0)
+            for r in results
+            if r.get('generation_first_formula_match_at') is not None
+        ])) if any(r.get('generation_first_formula_match_at') is not None for r in results) else 0.0,
+        'avg_wasted_generated_after_first_unique_formula_match': float(np.mean([
+            max(r.get('total_generated', 0) - r.get('generation_first_unique_formula_match_at', 0), 0)
+            for r in results
+            if r.get('generation_first_unique_formula_match_at') is not None
+        ])) if any(r.get('generation_first_unique_formula_match_at') is not None for r in results) else 0.0,
         'formula_match_success_rate': float(np.mean([
             1.0 if r.get('total_formula_matched', 0) > 0 else 0.0 for r in results
         ])),
