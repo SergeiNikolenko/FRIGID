@@ -1,0 +1,12 @@
+editable_paths:
+  - scripts/benchmark_spec2mol.py
+  - scripts/spec2mol_scaling.py
+  - scripts/run_scaling_multi_gpu.py
+  - scripts/train.py
+  - src/dlm/
+  - src/mist/
+  - configs/
+  - .autoresearch/
+notes:
+  - Keep changes hypothesis-scoped.
+  - Do not edit evaluator metric definitions during throughput iterations.

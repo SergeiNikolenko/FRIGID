@@ -1,0 +1,11 @@
+{
+  "status": "prepared",
+  "stage": "project_discovery",
+  "current_best": null,
+  "active_iteration": null,
+  "notes": [
+    "MCP init_task failed because this Codex worktree stores .git as a gitdir file.",
+    "Manual binding was created without running a scorer.",
+    "A full base benchmark may already be running on spectrum; scorer script refuses to run concurrently by default."
+  ]
+}

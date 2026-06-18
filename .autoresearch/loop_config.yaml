@@ -1,0 +1,22 @@
+stage: project_discovery
+frontier_size: 3
+branch_factor: 2
+max_debug_depth: 1
+baseline_required: true
+confirmation_required_for_promotion: true
+hypothesis_card_required: true
+diagnosis_refs_required: true
+policy:
+  require_material_hypothesis: true
+  reject_resource_only_tuning: true
+  allow_debug_repairs_without_gpu_score: true
+gpu_policy:
+  host: spectrum
+  mode: single_gpu
+  max_visible_devices: 1
+  max_concurrent_scorers: 1
+  cuda_visible_devices_env: FRIGID_SCORER_CUDA_VISIBLE_DEVICES
+  candidate_hosts:
+    - spectrum
+    - kolmogorov
+  allow_during_full_run_env: ALLOW_CONCURRENT_FRIGID_SCORER

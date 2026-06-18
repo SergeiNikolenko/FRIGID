@@ -1,0 +1,104 @@
+{
+  "schema_version": 1,
+  "task": {
+    "name": "frigid_throughput_quality",
+    "type": "autonomous_research_loop",
+    "objective": "Improve FRIGID training and inference throughput while preserving spectrum-to-molecule quality on MassSpecGym."
+  },
+  "objective": {
+    "primary_metric": "seconds_per_case",
+    "direction": "minimize",
+    "candidate_eps": 0.0,
+    "candidate_eps_policy": "manual_or_baseline_variance"
+  },
+  "guards": [
+    {
+      "name": "exact_top1",
+      "direction": "maximize",
+      "max_regression": 0.03,
+      "source": "json:.autoresearch/artifacts/current/metrics.json:exact_top1"
+    },
+    {
+      "name": "tanimoto_top1",
+      "direction": "maximize",
+      "max_regression": 0.05,
+      "source": "json:.autoresearch/artifacts/current/metrics.json:tanimoto_top1"
+    },
+    {
+      "name": "formula_success",
+      "direction": "maximize",
+      "max_regression": 0.10,
+      "source": "json:.autoresearch/artifacts/current/metrics.json:formula_success"
+    }
+  ],
+  "constraints": {
+    "wall_time_seconds": {
+      "direction": "max",
+      "max_value": null,
+      "source": "internal:wall_time_seconds"
+    }
+  },
+  "scorer": {
+    "mode": "command_adapter",
+    "experiment_command": "bash .autoresearch/scorers/frigid_speed_quality_scorer.sh",
+    "metric_source": "json:.autoresearch/artifacts/current/metrics.json:seconds_per_case",
+    "required_outputs": [
+      "metrics.json",
+      "aggregate_statistics.json",
+      "detailed_results.csv",
+      "stdout.log",
+      "stderr.log"
+    ],
+    "timeout_seconds": null
+  },
+  "runtime": {
+    "target": "ssh:spectrum",
+    "require_gpu_for_scored_candidates": true,
+    "local_cuda_is_authoritative": false
+  },
+  "campaign": {
+    "mode": "campaign",
+    "continuation": "goal_first",
+    "allow_large_refactors": true,
+    "allow_subagents": true,
+    "termination": "until_done_stop_budget_or_repeated_real_blocker"
+  },
+  "policy": {
+    "strategy": "staged_hybrid",
+    "stage": "baseline_validation",
+    "max_debug_depth": 1,
+    "frontier_size": 3,
+    "branch_factor": 2,
+    "promotion_repeats": 3,
+    "candidate_is_not_promotion": true,
+    "priority_backlog": ".autoresearch/research_backlog.md",
+    "quality_guard": "reject_weak_hypotheses",
+    "require_material_hypothesis": true,
+    "require_diagnosis_report": true
+  },
+  "loop": {
+    "max_iterations": 25,
+    "profile": "campaign",
+    "agent_command": null,
+    "critic_command": null,
+    "goal_first": true
+  },
+  "protected_paths": [
+    "repro_cache/**",
+    "data/**",
+    "results/**",
+    "repro_runs/**",
+    "checkpoints/**",
+    ".venv/**"
+  ],
+  "editable_paths": [
+    "scripts/benchmark_spec2mol.py",
+    "scripts/spec2mol_scaling.py",
+    "scripts/run_scaling_multi_gpu.py",
+    "scripts/train.py",
+    "src/dlm/**",
+    "src/mist/**",
+    "configs/**",
+    ".autoresearch/**"
+  ]
+}
