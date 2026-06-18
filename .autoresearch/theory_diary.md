@@ -224,6 +224,18 @@ Profiler instrumentation has been added behind an opt-in flag:
 current hot-path code. Treat profiler runs as diagnostic because CUDA
 synchronization changes timing overhead.
 
+The first diagnostic probe
+`kolmogorov-profile-generation-probe` used 2 spectra on Kolmogorov with
+`batch_size = 32`, `formula_matches = 1`, `max_attempts = 32`, and
+`sigma_lambda = 0.0`. It is not a comparable candidate. It showed
+`generation_time_percentage = 97.83771326722832`, with
+`total_generation_profile_model_forward_time = 8.801494488492608`,
+`total_generation_profile_sampling_step_time = 0.24337605107575655`,
+`total_generation_profile_decode_time = 0.23280819039791822`, and
+`total_generation_profile_conditioning_setup_time = 0.01683588419109583`.
+This points the next optimization at reducing model forward work across
+diffusion steps, not RDKit post-processing or conditioning setup.
+
 ## Notes from ideation threads
 
 - The local ideation thread suggested the same direction: shared encoder/KV

@@ -111,6 +111,11 @@ New diagnostic support:
 - Profile mode is diagnostic-only. It records per-case generation anatomy and
   sampler timing fields; it should not be treated as a comparable speed
   candidate because CUDA synchronization adds measurement overhead.
+- First diagnostic artifact:
+  `.autoresearch/iterations/kolmogorov-profile-generation-probe/`.
+  On 2 spectra, model forward dominated the profiled generation time:
+  `8.801494488492608s` model forward versus `0.24337605107575655s` sampling,
+  `0.23280819039791822s` decode, and `0.01683588419109583s` conditioning setup.
 
 Do not revert unrelated dirty files, especially pre-existing changes in
 `src/dlm/iceberg_sampler.py`, unless explicitly requested.

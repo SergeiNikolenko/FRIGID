@@ -1,0 +1,9 @@
+{
+  "iteration": "kolmogorov-profile-generation-probe",
+  "decision": "diagnostic",
+  "primary_metric": null,
+  "primary_metric_name": "seconds_per_case",
+  "guard_status": "not_applicable",
+  "reason": "Opt-in profiler run with CUDA synchronization over 2 spectra. Use for hot-path diagnosis only; do not compare as a speed candidate.",
+  "source": ".autoresearch/artifacts/current"
+}
