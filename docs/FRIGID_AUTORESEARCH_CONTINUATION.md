@@ -101,6 +101,17 @@ Unvalidated change:
 - `extended_attention_mask` can be precomputed and passed into the model, but
   the comparable scorer run was interrupted before completion.
 
+New diagnostic support:
+
+- `scripts/benchmark_spec2mol.py` accepts `--profile-generation`.
+- `.autoresearch/scorers/frigid_speed_quality_scorer.sh` passes that flag when
+  `FRIGID_SCORER_PROFILE_GENERATION=1`.
+- The scorer now syncs `src/dlm/sampler.py` and `src/dlm/utils/spec2mol.py`
+  in addition to the benchmark script, `model.py`, and `benchmark_utils.py`.
+- Profile mode is diagnostic-only. It records per-case generation anatomy and
+  sampler timing fields; it should not be treated as a comparable speed
+  candidate because CUDA synchronization adds measurement overhead.
+
 Do not revert unrelated dirty files, especially pre-existing changes in
 `src/dlm/iceberg_sampler.py`, unless explicitly requested.
 
@@ -132,6 +143,7 @@ Do not revert unrelated dirty files, especially pre-existing changes in
      masking/sampling, formula filtering, RDKit validation, fingerprint scoring,
      and result assembly.
    - Keep this as a diagnostic run unless the scorer contract says otherwise.
+   - Use `FRIGID_SCORER_PROFILE_GENERATION=1` on the scorer for this diagnostic.
 
 3. Add per-case generation anatomy.
    - Record attempts, valid candidates, unique valid candidates, duplicate

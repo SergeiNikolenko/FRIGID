@@ -475,6 +475,7 @@ class DLM(L.LightningModule):
         return embeddings
 
     def _encode_with_backbone(self, embeddings, attention_mask, x,
+                              extended_attention_mask=None,
                               condition_embeddings=None, condition_mask=None,
                               fingerprint_embeddings=None, fingerprint_mask=None):
         """
@@ -493,9 +494,10 @@ class DLM(L.LightningModule):
         embeddings = self.backbone.bert.embeddings.dropout(embeddings)
         if attention_mask is None:
             attention_mask = torch.ones_like(x)
-        extended_attention_mask = self.backbone.get_extended_attention_mask(
-            attention_mask, x.shape, x.device
-        )
+        if extended_attention_mask is None:
+            extended_attention_mask = self.backbone.get_extended_attention_mask(
+                attention_mask, x.shape, x.device
+            )
         encoder_kwargs = {}
         # Pass formula conditioning if provided
         if condition_embeddings is not None and condition_mask is not None:
@@ -673,7 +675,19 @@ class DLM(L.LightningModule):
         
         return loss
 
-    def forward(self, x, attention_mask=None, formula=None, fingerprint=None, fingerprint_mask=None):
+    def forward(
+        self,
+        x,
+        attention_mask=None,
+        formula=None,
+        fingerprint=None,
+        fingerprint_mask=None,
+        formula_embeddings=None,
+        formula_condition_mask=None,
+        fingerprint_embeddings=None,
+        fingerprint_condition_mask=None,
+        extended_attention_mask=None,
+    ):
         """
         Forward pass through the model with optional formula and fingerprint conditioning.
         
@@ -698,13 +712,21 @@ class DLM(L.LightningModule):
             formula_cond_embeddings = None
             formula_cond_mask = None
             if self.use_formula_conditioning and self.conditioner_type == 'cross_attention':
-                formula_cond_embeddings, formula_cond_mask = self._prepare_formula_sequence_embeddings(formula, x)
+                if formula_embeddings is not None and formula_condition_mask is not None:
+                    formula_cond_embeddings = formula_embeddings
+                    formula_cond_mask = formula_condition_mask
+                else:
+                    formula_cond_embeddings, formula_cond_mask = self._prepare_formula_sequence_embeddings(formula, x)
 
             # Prepare fingerprint conditioning (if using cross-attention) - INDEPENDENT from formula
             fp_cond_embeddings = None
             fp_cond_mask = None
             if self.use_fingerprint_conditioning and self.fingerprint_conditioner_type == 'cross_attention':
-                fp_cond_embeddings, fp_cond_mask = self._prepare_fingerprint_sequence_embeddings(fingerprint, x)
+                if fingerprint_embeddings is not None and fingerprint_condition_mask is not None:
+                    fp_cond_embeddings = fingerprint_embeddings
+                    fp_cond_mask = fingerprint_condition_mask
+                else:
+                    fp_cond_embeddings, fp_cond_mask = self._prepare_fingerprint_sequence_embeddings(fingerprint, x)
 
             # If any cross-attention conditioning is used
             if formula_cond_embeddings is not None or fp_cond_embeddings is not None:
@@ -741,6 +763,7 @@ class DLM(L.LightningModule):
                         embeddings,
                         attention_mask,
                         x,
+                        extended_attention_mask=extended_attention_mask,
                         condition_embeddings=condition_embeddings,
                         condition_mask=condition_mask,
                         fingerprint_embeddings=None,  # Not used in shared mode
@@ -752,6 +775,7 @@ class DLM(L.LightningModule):
                         embeddings,
                         attention_mask,
                         x,
+                        extended_attention_mask=extended_attention_mask,
                         condition_embeddings=formula_cond_embeddings,
                         condition_mask=formula_cond_mask,
                         fingerprint_embeddings=fp_cond_embeddings,
@@ -772,7 +796,12 @@ class DLM(L.LightningModule):
                 if fingerprint_global_embeddings is not None:
                     embeddings = embeddings + fingerprint_global_embeddings.unsqueeze(1)
 
-                logits = self._encode_with_backbone(embeddings, attention_mask, x)
+                logits = self._encode_with_backbone(
+                    embeddings,
+                    attention_mask,
+                    x,
+                    extended_attention_mask=extended_attention_mask,
+                )
                 return logits
 
             # Standard forward pass without conditioning

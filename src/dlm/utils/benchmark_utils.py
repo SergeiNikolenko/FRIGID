@@ -271,7 +271,8 @@ def generate_with_formula_filter(
     token_features=None,
     is_ngboost: bool = False,
     sigma_lambda: float = 3.0,
-) -> Tuple[List[str], List[float], int, int, int, Counter, Optional[str], float]:
+    profile_generation: bool = False,
+) -> Tuple:
     """
     Generate molecules with formula filtering.
     
@@ -307,6 +308,7 @@ def generate_with_formula_filter(
         - global_counter: Counter of all valid SMILES
         - last_valid_smiles: Last valid SMILES (fallback)
         - generation_time: Total time spent in generation functions (seconds)
+        - generation_diagnostics: Optional diagnostics dict when profile_generation=True
     """
     matched_smiles = []
     matched_similarities = []
@@ -321,6 +323,12 @@ def generate_with_formula_filter(
     global_smiles_counter: Counter = Counter()
     last_valid_smiles: Optional[str] = None
     generation_time: float = 0.0
+    generation_profile_totals: Counter = Counter()
+    generation_profile_batches = 0
+    target_length_values: List[int] = []
+    estimated_padding_tokens = 0
+    first_formula_match_at: Optional[int] = None
+    first_unique_formula_match_at: Optional[int] = None
     
     # Convert fingerprint_array to RDKit DataStructs for Tanimoto calculation
     # This is the PREDICTED fingerprint from the encoder - NOT the ground truth molecule
@@ -345,7 +353,8 @@ def generate_with_formula_filter(
         
         if current_batch <= 0:
             break
-            
+
+        previous_profile_generation = getattr(sampler, 'profile_generation', False)
         try:
             # Determine target lengths if token model is available
             target_lengths = None
@@ -365,8 +374,15 @@ def generate_with_formula_filter(
                         random.randint(low, high)
                         for _ in range(current_batch)
                     ]
+
+            if target_lengths:
+                target_length_values.extend(target_lengths)
+                max_target_length = max(target_lengths)
+                estimated_padding_tokens += sum(max_target_length - length for length in target_lengths)
             
             # Use unified generation with both formula and fingerprint
+            if profile_generation:
+                setattr(sampler, 'profile_generation', True)
             if hasattr(sampler, 'unified_conditioned_generation'):
                 gen_start = time.time()
                 samples = sampler.unified_conditioned_generation(
@@ -396,13 +412,25 @@ def generate_with_formula_filter(
                     randomness=randomness
                 )
                 generation_time += time.time() - gen_start
+            if profile_generation:
+                setattr(sampler, 'profile_generation', previous_profile_generation)
+                profile = getattr(sampler, 'last_generation_profile', None)
+                if isinstance(profile, dict):
+                    generation_profile_batches += 1
+                    for key, value in profile.items():
+                        if isinstance(value, (int, float, np.integer, np.floating)):
+                            generation_profile_totals[key] += float(value)
         except Exception as exc:
+            if profile_generation:
+                setattr(sampler, 'profile_generation', previous_profile_generation)
             print(f"\nWarning: Batch generation failed: {exc}")
             samples = [None] * current_batch
         
+        batch_start_generated = total_generated
         total_generated += len(samples)
         
-        for smiles in samples:
+        for sample_offset, smiles in enumerate(samples):
+            sample_number = batch_start_generated + sample_offset + 1
             if not smiles or (isinstance(smiles, float) and pd.isna(smiles)):
                 continue
             
@@ -415,6 +443,8 @@ def generate_with_formula_filter(
                 canonical = Chem.MolToSmiles(mol)
                 last_valid_smiles = canonical
                 global_smiles_counter[canonical] += 1
+                if global_smiles_counter[canonical] > 1:
+                    continue
 
                 # Compute Tanimoto similarity to PREDICTED fingerprint (not ground truth)
                 # This avoids data leakage - we only use information available at inference time
@@ -432,12 +462,16 @@ def generate_with_formula_filter(
                 gen_formula = normalize_formula(rdMolDescriptors.CalcMolFormula(mol))
                 if gen_formula == target_formula:
                     total_formula_matched += 1
+                    if first_formula_match_at is None:
+                        first_formula_match_at = sample_number
                     
                     # Only add if this is a unique molecule (by InChI key first block)
                     if inchi_key_first_block is not None and inchi_key_first_block not in matched_inchi_keys:
                         matched_inchi_keys.add(inchi_key_first_block)
                         matched_smiles.append(canonical)
                         matched_similarities.append(float(similarity))
+                        if first_unique_formula_match_at is None:
+                            first_unique_formula_match_at = sample_number
                         
                         # Stop when we have enough UNIQUE formula-matched molecules
                         if len(matched_smiles) >= n_required:
@@ -447,6 +481,8 @@ def generate_with_formula_filter(
                         # If we can't compute InChI key, add the molecule anyway
                         matched_smiles.append(canonical)
                         matched_similarities.append(float(similarity))
+                        if first_unique_formula_match_at is None:
+                            first_unique_formula_match_at = sample_number
                         
                         if len(matched_smiles) >= n_required:
                             stop_generation = True
@@ -498,7 +534,7 @@ def generate_with_formula_filter(
             matched_smiles.append(smi)
             matched_similarities.append(sim)
     
-    return (
+    result = (
         matched_smiles,
         matched_similarities,
         total_generated,
@@ -508,6 +544,39 @@ def generate_with_formula_filter(
         last_valid_smiles,
         generation_time
     )
+    if not profile_generation:
+        return result
+
+    if len(matched_smiles) >= n_required:
+        stop_reason = 'required_formula_matches'
+    elif total_generated >= max_attempts:
+        stop_reason = 'max_attempts'
+    else:
+        stop_reason = 'generation_exhausted'
+
+    diagnostics: Dict[str, Any] = {
+        'profile_enabled': True,
+        'stop_reason': stop_reason,
+        'predicted_token_length': predicted_len,
+        'predicted_token_sigma': predicted_sigma,
+        'first_formula_match_at': first_formula_match_at,
+        'first_unique_formula_match_at': first_unique_formula_match_at,
+        'profile_batches': generation_profile_batches,
+    }
+    if target_length_values:
+        diagnostics.update({
+            'target_length_min': min(target_length_values),
+            'target_length_max': max(target_length_values),
+            'target_length_mean': float(np.mean(target_length_values)),
+            'target_length_std': float(np.std(target_length_values)),
+            'estimated_padding_tokens': int(estimated_padding_tokens),
+        })
+    for key, value in generation_profile_totals.items():
+        diagnostics[f'profile_{key}'] = float(value)
+        if generation_profile_batches:
+            diagnostics[f'profile_avg_{key}'] = float(value) / generation_profile_batches
+
+    return result + (diagnostics,)
 
 
 def build_prediction_entry(
@@ -651,6 +720,10 @@ def compute_aggregate_statistics(
         'avg_formula_matches': float(np.mean([r.get('total_formula_matched', 0) for r in results])),
         'avg_predictions_collected': float(np.mean([r.get('formula_matches_collected', 0) for r in results])),
         'avg_total_generated': float(np.mean([r.get('total_generated', 0) for r in results])),
+        'avg_unique_valid_smiles': float(np.mean([r.get('unique_valid_smiles', 0) for r in results])),
+        'avg_duplicate_valid_smiles': float(np.mean([r.get('duplicate_valid_smiles', 0) for r in results])),
+        'avg_valid_duplicate_rate': float(np.mean([r.get('valid_duplicate_rate', 0.0) for r in results])),
+        'avg_formula_duplicate_matches': float(np.mean([r.get('formula_duplicate_matches', 0) for r in results])),
         'formula_match_success_rate': float(np.mean([
             1.0 if r.get('total_formula_matched', 0) > 0 else 0.0 for r in results
         ])),
@@ -672,5 +745,28 @@ def compute_aggregate_statistics(
         agg['avg_attempts_to_match'] = avg_attempts
     
     agg['never_matched_rate'] = len(failed) / n if n > 0 else 0.0
+
+    generation_numeric_keys = set()
+    for row in results:
+        for key, value in row.items():
+            if not key.startswith('generation_') or isinstance(value, bool):
+                continue
+            if isinstance(value, (int, float, np.integer, np.floating)):
+                generation_numeric_keys.add(key)
+
+    for key in sorted(generation_numeric_keys):
+        values = []
+        for row in results:
+            value = row.get(key)
+            if isinstance(value, bool) or value is None:
+                continue
+            if isinstance(value, (int, float, np.integer, np.floating)):
+                value = float(value)
+                if np.isfinite(value):
+                    values.append(value)
+        if values:
+            agg[f'avg_{key}'] = float(np.mean(values))
+            if key.startswith('generation_profile_') and not key.startswith('generation_profile_avg_'):
+                agg[f'total_{key}'] = float(np.sum(values))
     
     return agg

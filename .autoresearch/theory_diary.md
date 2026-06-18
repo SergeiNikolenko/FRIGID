@@ -217,6 +217,13 @@ The next useful work is not another sigma sweep. The campaign needs a
 generation micro-profile and per-case anatomy first, then a scored patch chosen
 from measured hot paths.
 
+Profiler instrumentation has been added behind an opt-in flag:
+`scripts/benchmark_spec2mol.py --profile-generation`, or
+`FRIGID_SCORER_PROFILE_GENERATION=1` through the scorer. The scorer also syncs
+`src/dlm/sampler.py` and `src/dlm/utils/spec2mol.py`, so remote runs use the
+current hot-path code. Treat profiler runs as diagnostic because CUDA
+synchronization changes timing overhead.
+
 ## Notes from ideation threads
 
 - The local ideation thread suggested the same direction: shared encoder/KV

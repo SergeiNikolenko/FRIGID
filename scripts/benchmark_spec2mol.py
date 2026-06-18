@@ -115,6 +115,11 @@ def parse_args():
         default=3.0,
         help='Lambda multiplier for NGBoost sigma-based sampling range (mean ± sigma*lambda)'
     )
+    parser.add_argument(
+        '--profile-generation',
+        action='store_true',
+        help='Record opt-in per-case generation timing diagnostics'
+    )
     return parser.parse_args()
 
 
@@ -429,7 +434,7 @@ def _worker_process_spectra(
         pred_fp_binary = binarize_fingerprint(pred_fp_probs, fp_threshold)
         
         # Generate with formula filtering
-        matched_smiles, matched_sims, total_gen, total_valid, total_matched, counter, last_valid = \
+        matched_smiles, matched_sims, total_gen, total_valid, total_matched, counter, last_valid, gen_time = \
             generate_with_formula_filter(
                 sampler=sampler,
                 fingerprint_array=pred_fp_binary,
@@ -483,6 +488,13 @@ def _worker_process_spectra(
         result['total_generated'] = total_gen
         result['total_valid'] = total_valid
         result['total_formula_matched'] = total_matched
+        unique_valid = len(counter)
+        result['unique_valid_smiles'] = unique_valid
+        result['duplicate_valid_smiles'] = max(total_valid - unique_valid, 0)
+        result['valid_duplicate_rate'] = (
+            result['duplicate_valid_smiles'] / total_valid if total_valid else 0.0
+        )
+        result['formula_duplicate_matches'] = max(total_matched - len(matched_smiles), 0)
         result['generation_time'] = gen_time
         result['original_idx'] = idx  # Track original index for ordering
         # Store all matched SMILES (already sorted by similarity descending)
@@ -618,6 +630,7 @@ def run_benchmark(
     token_features=None,
     is_ngboost: bool = False,
     sigma_lambda: float = 3.0,
+    profile_generation: bool = False,
 ) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
     """Run the benchmark."""
     gen_cfg = config['generation']
@@ -672,24 +685,48 @@ def run_benchmark(
         pred_fp_binary = binarize_fingerprint(pred_fp_probs, fp_threshold)
 
         # Generate with formula filtering
-        matched_smiles, matched_sims, total_gen, total_valid, total_matched, counter, last_valid, gen_time = \
-            generate_with_formula_filter(
-                sampler=sampler,
-                fingerprint_array=pred_fp_binary,
-                target_formula=target_formula,
-                target_smiles=target_smiles,
-                n_required=filter_cfg['n_required'],
-                max_attempts=filter_cfg['max_attempts'],
-                batch_size=batch_size,
-                softmax_temp=softmax_temp,
-                randomness=randomness,
-                fp_bits=fp_bits,
-                fp_radius=fp_radius,
-                token_model=token_model,
-                token_features=token_features,
-                is_ngboost=is_ngboost,
-                sigma_lambda=sigma_lambda,
-            )
+        generation_result = generate_with_formula_filter(
+            sampler=sampler,
+            fingerprint_array=pred_fp_binary,
+            target_formula=target_formula,
+            target_smiles=target_smiles,
+            n_required=filter_cfg['n_required'],
+            max_attempts=filter_cfg['max_attempts'],
+            batch_size=batch_size,
+            softmax_temp=softmax_temp,
+            randomness=randomness,
+            fp_bits=fp_bits,
+            fp_radius=fp_radius,
+            token_model=token_model,
+            token_features=token_features,
+            is_ngboost=is_ngboost,
+            sigma_lambda=sigma_lambda,
+            profile_generation=profile_generation,
+        )
+        if profile_generation:
+            (
+                matched_smiles,
+                matched_sims,
+                total_gen,
+                total_valid,
+                total_matched,
+                counter,
+                last_valid,
+                gen_time,
+                generation_diagnostics,
+            ) = generation_result
+        else:
+            (
+                matched_smiles,
+                matched_sims,
+                total_gen,
+                total_valid,
+                total_matched,
+                counter,
+                last_valid,
+                gen_time,
+            ) = generation_result
+            generation_diagnostics = {}
 
         # Build predictions list
         sim_records = defaultdict(list)
@@ -726,7 +763,17 @@ def run_benchmark(
         result['total_generated'] = total_gen
         result['total_valid'] = total_valid
         result['total_formula_matched'] = total_matched
+        unique_valid = len(counter)
+        result['unique_valid_smiles'] = unique_valid
+        result['duplicate_valid_smiles'] = max(total_valid - unique_valid, 0)
+        result['valid_duplicate_rate'] = (
+            result['duplicate_valid_smiles'] / total_valid if total_valid else 0.0
+        )
+        result['formula_duplicate_matches'] = max(total_matched - len(matched_smiles), 0)
         result['generation_time'] = gen_time
+        for diag_key, diag_value in generation_diagnostics.items():
+            if diag_value is None or isinstance(diag_value, (str, bool, int, float, np.integer, np.floating)):
+                result[f'generation_{diag_key}'] = diag_value
         # Store all matched SMILES (already sorted by similarity descending)
         result['all_matched_smiles'] = matched_smiles
 
@@ -834,6 +881,14 @@ def print_summary(aggregate: Dict[str, Any]):
     print(f"\n--- Generation Timing ---")
     print(f"Time in generation functions: {aggregate.get('total_generation_time', 0):.1f}s")
     print(f"Percentage of total time: {aggregate.get('generation_time_percentage', 0):.1f}%")
+    if 'total_generation_profile_model_forward_time' in aggregate:
+        print("\n--- Generation Profile ---")
+        print(f"Model forward time: {aggregate.get('total_generation_profile_model_forward_time', 0):.1f}s")
+        print(f"Sampling step time: {aggregate.get('total_generation_profile_sampling_step_time', 0):.1f}s")
+        print(f"Decode time: {aggregate.get('total_generation_profile_decode_time', 0):.1f}s")
+        print(f"Conditioning setup time: {aggregate.get('total_generation_profile_conditioning_setup_time', 0):.1f}s")
+        print(f"Avg target length: {aggregate.get('avg_generation_target_length_mean', 0):.1f}")
+        print(f"Avg estimated padding tokens/case: {aggregate.get('avg_generation_estimated_padding_tokens', 0):.1f}")
     
     print(f"\n--- MIST Encoder Quality ---")
     print(f"Mean Tanimoto (pred vs GT FP): {aggregate.get('mist_tanimoto_mean', 0):.4f}")
@@ -851,6 +906,10 @@ def print_summary(aggregate: Dict[str, Any]):
     print(f"Avg predictions collected (incl. padding): {aggregate.get('avg_predictions_collected', 0):.1f}")
     print(f"Avg generations: {aggregate.get('avg_total_generated', 0):.1f}")
     print(f"Avg attempts per match (successful only): {aggregate.get('avg_attempts_to_match', 0):.1f}")
+    print(f"Avg unique valid SMILES: {aggregate.get('avg_unique_valid_smiles', 0):.1f}")
+    print(f"Avg duplicate valid SMILES: {aggregate.get('avg_duplicate_valid_smiles', 0):.1f}")
+    print(f"Avg valid duplicate rate: {aggregate.get('avg_valid_duplicate_rate', 0)*100:.1f}%")
+    print(f"Avg formula duplicate matches: {aggregate.get('avg_formula_duplicate_matches', 0):.1f}")
     
     print(f"{'='*70}")
 
@@ -912,7 +971,8 @@ def main():
         aggregate, results = run_benchmark(
             mist_encoder, sampler, dataset, split_data,
             config, device, max_spectra,
-            token_model, token_features, is_ngboost, args.sigma_lambda
+            token_model, token_features, is_ngboost, args.sigma_lambda,
+            args.profile_generation
         )
 
     # Save and print results
