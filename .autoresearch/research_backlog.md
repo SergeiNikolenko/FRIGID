@@ -41,6 +41,9 @@
   `formula_success = 1.0`. The quality trade-off is mild but real:
   `tanimoto_top1` went from `0.4742` to `0.4682`. Keep `16` as the best fixed
   pruning candidate, but do not present it as quality-neutral.
+- `num_tokens_unmask = 2` on the same 32-case path is also a negative result:
+  slower than control, `formula_success = 96.88%`, and `tanimoto_top1 = 0.4552`.
+  Do not spend another scorer slot on larger unmask counts for this branch.
 - Use `scripts/audit_formula_waste.py` on every meaningful scorer run so formula
   waste is captured from `detailed_results.csv` immediately instead of being
   recomputed manually.
@@ -97,6 +100,9 @@
   Tanimoto while retaining the 32-case speed gain from `16`. Otherwise, move
   the next scorer slot to a different hot path instead of squeezing fixed chunk
   sizes further.
+- Because the step-count knob is now closed, the next measurable lever should
+  come from a different mechanism: adaptive pruning, backbone-call reduction,
+  or a new cache path.
 - Add per-case anatomy output: attempts, valid candidates, unique valid
   candidates, duplicate candidates, formula matches, stop reason, generated
   lengths, padding estimate, and wall time.

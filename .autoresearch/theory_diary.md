@@ -128,6 +128,10 @@ for the FRIGID throughput/quality campaign.
   trade-off is still present, though: `tanimoto_top1` dropped from `0.4742` to
   `0.4682`, while `formula_success` stayed at `1.0`. So pruning is now a valid
   speed candidate, but not yet a clean chemistry-preserving improvement.
+- The 32-case `num_tokens_unmask = 2` run was a negative result. It took
+  `154.9s` versus `152.8s` for the current control, `formula_success` fell to
+  `96.88%`, and `tanimoto_top1` dropped to `0.4552`. Treat larger unmask counts
+  as closed for this path unless a new model change changes the picture.
 
 ## High-priority theories
 
