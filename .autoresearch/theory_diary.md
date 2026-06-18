@@ -267,6 +267,12 @@ about an `8.6%` formula-hit rate among valid generations. That is the first
 hard number that makes a logging-only formula-aware pruning audit worth doing
 before another scheduling experiment.
 
+The local helper `scripts/audit_formula_waste.py` now turns that into a stable
+snapshot from `detailed_results.csv`. On the current 32-case run it reports
+`avg_formula_match_fraction_among_valid = 10.37%` and
+`avg_unique_valid_fraction_among_valid = 80.84%`, which is the cleaner summary
+to carry into the next remote audit.
+
 ## Notes from ideation threads
 
 - The local ideation thread suggested the same direction: shared encoder/KV

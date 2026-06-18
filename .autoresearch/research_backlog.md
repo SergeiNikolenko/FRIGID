@@ -25,6 +25,9 @@
   target formula (`7.53125` formula matches out of `87.09375` valid samples on
   average). That is enough to justify a logging-only formula-aware pruning
   audit before any further outer scheduling idea.
+- Use `scripts/audit_formula_waste.py` on every meaningful scorer run so formula
+  waste is captured from `detailed_results.csv` immediately instead of being
+  recomputed manually.
 
 ## P0 Correctness And Comparability
 

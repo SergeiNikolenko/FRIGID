@@ -141,6 +141,19 @@ New diagnostic support:
   `avg_total_valid = 87.09375` while `avg_formula_matches = 7.53125`, so only
   about `8.6%` of valid generations hit the target formula. That is the first
   concrete reason to keep formula-aware pruning as the next audit target.
+- Local audit helper:
+
+```bash
+python3 scripts/audit_formula_waste.py \
+  --input .autoresearch/iterations/kolmogorov-conditioning-cache-sigma0-batch32-32cases/detailed_results.csv \
+  --output-json .autoresearch/iterations/kolmogorov-formula-waste-audit-local/audit.json \
+  --output-md .autoresearch/iterations/kolmogorov-formula-waste-audit-local/audit.md
+```
+
+The current local snapshot from that helper reports:
+`avg_total_valid = 87.09375`, `avg_formula_matches = 7.53125`,
+`avg_formula_match_fraction_among_valid = 10.37%`, and
+`avg_unique_valid_fraction_among_valid = 80.84%`.
 
 Do not revert unrelated dirty files, especially pre-existing changes in
 `src/dlm/iceberg_sampler.py`, unless explicitly requested.

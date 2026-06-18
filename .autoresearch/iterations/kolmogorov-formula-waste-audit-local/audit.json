@@ -1,0 +1,12 @@
+{
+  "input": ".autoresearch/iterations/kolmogorov-conditioning-cache-sigma0-batch32-32cases/detailed_results.csv",
+  "total_spectra": 32,
+  "avg_total_generated": 90.59375,
+  "avg_total_valid": 87.09375,
+  "avg_formula_matches": 7.53125,
+  "avg_unique_valid_smiles": 70.25,
+  "avg_duplicate_valid_smiles": 16.84375,
+  "avg_valid_duplicate_rate": 0.19158275187727353,
+  "avg_formula_match_fraction_among_valid": 0.10374208591979264,
+  "avg_unique_valid_fraction_among_valid": 0.8084172481227265
+}
