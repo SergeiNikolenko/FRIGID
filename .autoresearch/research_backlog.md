@@ -25,12 +25,24 @@
   target formula (`7.53125` formula matches out of `87.09375` valid samples on
   average). That is enough to justify a logging-only formula-aware pruning
   audit before any further outer scheduling idea.
+- The pruning experiments now have a clearer split:
+  `formula_pruning_chunk_size = 8` is a negative result because it reduced
+  wall time but also dropped `formula_match_success_rate` to `66.67%` on the
+  3-spectrum diagnostic. `formula_pruning_chunk_size = 16` is the first real
+  speed candidate because it kept `formula_match_success_rate = 1.0` on the
+  same diagnostic and reduced wall time to about `10.8s`, but it also pulled
+  `tanimoto_top1` down from about `0.525` to `0.498`. Do not promote either as
+  a final solution yet.
+- `formula_pruning_chunk_size = 12` did not find a better trade-off. It was
+  slower than `16` and slightly worse on `tanimoto_top1`, so the pruning sweep
+  should not keep probing the middle blindly.
 - Use `scripts/audit_formula_waste.py` on every meaningful scorer run so formula
   waste is captured from `detailed_results.csv` immediately instead of being
   recomputed manually.
-- Remote execution is currently blocked from this workstation. Do not keep
-  retrying Kolmogorov/Spectrum SSH until the network or VPN route changes; use
-  the local audit helper and docs until then.
+- Remote execution is currently usable via direct `ssh kolmogorov`, but
+  `rsync`/`scp` are flaky from this workstation and may fail DNS resolution.
+  Prefer direct SSH commands for runs and avoid assuming the file-transfer
+  helpers are reliable until the route stabilizes.
 
 ## P0 Correctness And Comparability
 
@@ -51,6 +63,31 @@
   conditioning setup, backbone forward calls, masking/sampling, formula
   filtering, RDKit validation, fingerprint scoring, and result assembly with
   CUDA synchronization around GPU regions.
+- The latest 3-spectrum diagnostic profile already shows the backbone encoder
+  dominates the generation path (`13.32s` of `14.17s` generation time) while
+  conditioning, decode, sampling, and padding are tiny. The next patch should
+  target backbone-call reduction or decode-step reduction, not padding or
+  length grouping.
+- The `torch.inference_mode()` swap was neutral on the same 3-spectrum
+  diagnostic profile. Do not spend another scorer slot on `no_grad` vs
+  `inference_mode`; the bottleneck is elsewhere.
+- `num_tokens_unmask = 4` was a negative signal on the same 3-spectrum
+  diagnostic profile: slower wall time, worse Tanimoto, and formula success
+  dropped below 100%. Do not treat larger unmask counts as a free reduction in
+  backbone work.
+- `num_tokens_unmask = 3` also failed to improve on the `1`-token setting:
+  speed was not better, Tanimoto worsened, and the duplicate-valid rate rose.
+  Keep the step-loop unmask knob closed for now.
+- The current pruning audit shows `avg_first_unique_formula_match_at = 11.67`
+  and `avg_wasted_generated_after_first_unique_formula_match = 19.0` on the
+  recent 3-spectrum diagnostic. That is the next meaningful signal to use for a
+  formula-aware pruning or earlier batch-stop audit.
+- The new pruning chunking result says the next experiment should not be another
+  blind speed sweep. Either recover the lost Tanimoto with a smarter stop rule or
+  abandon this branch and move to a backbone-call reduction idea.
+- Because `12` is dominated, the next pruning attempt should be adaptive rather
+  than another fixed chunk-size point. If no adaptive rule is available, stop
+  spending scorer slots on this branch.
 - Add per-case anatomy output: attempts, valid candidates, unique valid
   candidates, duplicate candidates, formula matches, stop reason, generated
   lengths, padding estimate, and wall time.

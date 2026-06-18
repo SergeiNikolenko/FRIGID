@@ -126,6 +126,12 @@ def parse_args():
         default=1,
         help='Number of masked tokens to unmask per diffusion step'
     )
+    parser.add_argument(
+        '--formula-pruning-chunk-size',
+        type=int,
+        default=None,
+        help='Optional generation chunk size for formula-aware early stopping diagnostics'
+    )
     return parser.parse_args()
 
 
@@ -522,6 +528,7 @@ def run_benchmark_multi_gpu(
     token_features=None,
     is_ngboost: bool = False,
     sigma_lambda: float = 3.0,
+    formula_pruning_chunk_size: Optional[int] = None,
 ) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
     """
     Run the benchmark across multiple GPUs using multiprocessing.
@@ -638,6 +645,7 @@ def run_benchmark(
     sigma_lambda: float = 3.0,
     profile_generation: bool = False,
     num_tokens_unmask: int = 1,
+    formula_pruning_chunk_size: Optional[int] = None,
 ) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
     """Run the benchmark."""
     gen_cfg = config['generation']
@@ -710,6 +718,7 @@ def run_benchmark(
             sigma_lambda=sigma_lambda,
             profile_generation=profile_generation,
             num_tokens_unmask=num_tokens_unmask,
+            formula_pruning_chunk_size=formula_pruning_chunk_size,
         )
         if profile_generation:
             (
@@ -929,6 +938,14 @@ def print_summary(aggregate: Dict[str, Any]):
         print(f"Avg formula match fraction among valid: {aggregate.get('avg_formula_match_fraction_among_valid', 0)*100:.1f}%")
     if 'avg_unique_valid_fraction_among_valid' in aggregate:
         print(f"Avg unique valid fraction among valid: {aggregate.get('avg_unique_valid_fraction_among_valid', 0)*100:.1f}%")
+    if 'avg_first_formula_match_at' in aggregate:
+        print(f"Avg first formula match at: {aggregate.get('avg_first_formula_match_at', 0):.1f}")
+    if 'avg_first_unique_formula_match_at' in aggregate:
+        print(f"Avg first unique formula match at: {aggregate.get('avg_first_unique_formula_match_at', 0):.1f}")
+    if 'avg_wasted_generated_after_first_formula_match' in aggregate:
+        print(f"Avg wasted generated after first formula match: {aggregate.get('avg_wasted_generated_after_first_formula_match', 0):.1f}")
+    if 'avg_wasted_generated_after_first_unique_formula_match' in aggregate:
+        print(f"Avg wasted generated after first unique formula match: {aggregate.get('avg_wasted_generated_after_first_unique_formula_match', 0):.1f}")
     
     print(f"{'='*70}")
 
@@ -981,7 +998,8 @@ def main():
         aggregate, results = run_benchmark_multi_gpu(
             config, dataset, split_data,
             n_gpus, args.use_shared_cross_attention, max_spectra,
-            token_model, token_features, is_ngboost, args.sigma_lambda
+            token_model, token_features, is_ngboost, args.sigma_lambda,
+            args.formula_pruning_chunk_size,
         )
     else:
         # Single GPU mode: load models in main process
@@ -993,6 +1011,7 @@ def main():
             token_model, token_features, is_ngboost, args.sigma_lambda,
             args.profile_generation,
             args.num_tokens_unmask,
+            args.formula_pruning_chunk_size,
         )
 
     # Save and print results

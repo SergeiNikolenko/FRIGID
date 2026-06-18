@@ -75,6 +75,53 @@ for the FRIGID throughput/quality campaign.
 - Increasing the outer batch size alone did not move the metric materially.
 - Multi-GPU is out of scope for this campaign; the optimization target is
   single-GPU behavior on a controlled remote GPU.
+- The latest 3-spectrum diagnostic profile on Kolmogorov (`batch_size = 32`,
+  `formula_matches = 1`, `max_attempts = 32`, `sigma_lambda = 0.0`,
+  `num_tokens_unmask = 1`) produced `14.463257551193237s` total and
+  `generation_time_percentage = 97.98252317270118%`. The breakdown kept
+  pointing at backbone work inside generation: `model_forward_time =
+  13.319700931198895s`, `sampling_step_time = 0.40032156370580196s`,
+  `decode_time = 0.3904726840555668s`, `conditioning_setup_time =
+  0.03468880895525217s`, and estimated padding stayed at `0.0`. Quality stayed
+  green (`formula_success = 1.0`), but the case-level anatomy still showed only
+  `4.333333333333333` unique valid SMILES and `31` attempts per match on
+  average.
+- Switching the generation entrypoints from `torch.no_grad()` to
+  `torch.inference_mode()` did not produce a measurable shift on the same
+  3-spectrum diagnostic profile: wall time stayed at about `14.4s`,
+  `generation_time_percentage` stayed at about `98%`, and the backbone-forward
+  breakdown remained the same. Treat `inference_mode` as a confirmed
+  non-lever for this campaign unless a different code path is identified.
+- Raising `num_tokens_unmask` to `4` on the same 3-spectrum diagnostic made
+  things worse: wall time grew to about `16.0s`, generation time rose to about
+  `97.4%`, model-forward time grew to about `14.5s`, `formula_success` dropped
+  to `66.67%`, and `tanimoto_top1` fell to `0.4568`. Treat larger unmask counts
+  as a negative signal for this path, not a free throughput win.
+- `num_tokens_unmask = 3` also failed to beat the `1`-token setting on the same
+  3-spectrum diagnostic. Wall time was about `14.8s`, `generation_time_percentage`
+  stayed around `97.8%`, `formula_success` remained `100%`, but `tanimoto_top1`
+  fell to `0.4306` and duplicate valid rate rose to about `24%`. So the
+  per-step unmask knob is not the next throughput lever either.
+- The latest pruning-oriented audit on the current 3-spectrum diagnostic shows
+  `avg_first_unique_formula_match_at = 11.67` and
+  `avg_wasted_generated_after_first_unique_formula_match = 19.0`. That is a
+  direct signal that many generated candidates are still spent after the first
+  useful unique formula hit inside the batch, so formula-aware pruning or
+  earlier batch termination is now the next concrete hypothesis.
+- The first active pruning chunk probe with `formula_pruning_chunk_size = 8`
+  is not safe as-is: it cut `seconds_per_case` on the 3-spectrum diagnostic but
+  dropped `formula_success` to `66.67%` and changed the sampling path enough to
+  lose the control outcome on one spectrum. Treat this as a negative signal for
+  naive sub-batching, not as a candidate.
+- A larger `formula_pruning_chunk_size = 16` preserved `formula_success = 1.0`
+  on the same 3-spectrum diagnostic and reduced `seconds_per_case` from about
+  `14.6` to `10.8`, but it also pulled `tanimoto_top1` down from about `0.525`
+  to `0.498`. That is the first real speed win from the pruning experiment, but
+  it is not yet an output-preserving optimization.
+- An intermediate `formula_pruning_chunk_size = 12` did not improve the picture.
+  It stayed above the no-pruning control on throughput, but it was slower than
+  `16` and also slightly worse on `tanimoto_top1`. Treat `16` as the current
+  best pruning candidate and `12` as a dominated point.
 
 ## High-priority theories
 

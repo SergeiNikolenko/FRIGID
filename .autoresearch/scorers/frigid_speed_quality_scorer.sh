@@ -17,6 +17,8 @@ TOKEN_MODEL="${FRIGID_SCORER_TOKEN_MODEL:-token_models/models/best_ngboost_MSG.j
 SIGMA_LAMBDA="${FRIGID_SCORER_SIGMA_LAMBDA:-3.0}"
 SYNC_LOCAL_SOURCE="${FRIGID_SCORER_SYNC_LOCAL_SOURCE:-1}"
 PROFILE_GENERATION="${FRIGID_SCORER_PROFILE_GENERATION:-0}"
+NUM_TOKENS_UNMASK="${FRIGID_SCORER_NUM_TOKENS_UNMASK:-1}"
+FORMULA_PRUNING_CHUNK_SIZE="${FRIGID_SCORER_FORMULA_PRUNING_CHUNK_SIZE:-}"
 
 if [[ "${ALLOW_CONCURRENT_FRIGID_SCORER:-0}" != "1" ]]; then
   if ssh -o StrictHostKeyChecking=accept-new "$REMOTE_HOST" -- "tmux has-session -t frigid_spectrum_base 2>/dev/null"; then
@@ -67,9 +69,13 @@ cmd=(
   --use-shared-cross-attention
   --token-model "$TOKEN_MODEL"
   --sigma-lambda "$SIGMA_LAMBDA"
+  --num-tokens-unmask "$NUM_TOKENS_UNMASK"
 )
 if [[ "$PROFILE_GENERATION" == "1" ]]; then
   cmd+=(--profile-generation)
+fi
+if [[ -n "$FORMULA_PRUNING_CHUNK_SIZE" ]]; then
+  cmd+=(--formula-pruning-chunk-size "$FORMULA_PRUNING_CHUNK_SIZE")
 fi
 "\${cmd[@]}"
 python - <<'PY'
@@ -88,6 +94,7 @@ metrics = {
     "max_attempts": int("$MAX_ATTEMPTS"),
     "sigma_lambda": float("$SIGMA_LAMBDA"),
     "profile_generation": "$PROFILE_GENERATION" == "1",
+    "num_tokens_unmask": int("$NUM_TOKENS_UNMASK"),
     "token_model": "$TOKEN_MODEL",
     "seconds_per_case": elapsed / total,
     "elapsed_time_seconds": elapsed,
