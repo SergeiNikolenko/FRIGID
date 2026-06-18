@@ -1,0 +1,1 @@
+Adaptive tail-after-unique check with formula_pruning_chunk_size=24. tail=6 was slightly faster than tail=8, but chemistry stayed unchanged and the first unique formula match happened immediately, so keep this as a diagnostic only.

@@ -16,7 +16,7 @@
   },
   "incumbent_patch_iteration": "kolmogorov-single-gpu-baseline",
   "incumbent_patch_hash": "d39fcb2c61123082aa650e35140c4cdf9e74da0de17ae9dd6889866cad528b6c",
-  "updated_at": "2026-06-19T02:40:00Z",
+  "updated_at": "2026-06-18T23:51:37Z",
   "failed_in_row": 1,
   "current_iteration": "kolmogorov-formula-pruning-32case-24",
   "frontier": [

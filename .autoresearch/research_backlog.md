@@ -50,6 +50,11 @@
   both kept `formula_success = 0.96875` with `tanimoto_top1 = 0.4552`. Keep
   confidence calibration diagnostic-only unless a different backbone schedule
   changes the baseline.
+- A repeat of the adaptive tail-after-unique check did not open a new frontier.
+  `tail = 6` was a little faster than `tail = 8`, but both stayed at
+  `formula_success = 0.9375` and `tanimoto_top1 = 0.4975`, and the first
+  unique formula match happened immediately. That means the tail rule is still
+  just a timing knob here, not a quality-preserving optimization.
 - `encoder_batch_size = 8` did not help either. The 32-case run was slightly
   slower than control (`154.7s` vs `152.8s`) and kept the same quality numbers,
   so MIST batching is not the next likely speed lever in this exact path.

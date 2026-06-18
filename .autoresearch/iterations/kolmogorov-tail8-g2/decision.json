@@ -1,0 +1,9 @@
+{
+  "iteration": "kolmogorov-tail8-g2",
+  "decision": "diagnostic",
+  "primary_metric": 4.113221548497677,
+  "primary_metric_name": "seconds_per_case",
+  "guard_status": "not_applicable",
+  "decision_reason": "Adaptive tail-after-unique check with formula_pruning_chunk_size=24. tail=8 was slower than tail=6, but chemistry stayed unchanged and the first unique formula match happened immediately, so keep this as a diagnostic only.",
+  "reason": "Adaptive tail-after-unique check with formula_pruning_chunk_size=24. tail=8 was slower than tail=6, but chemistry stayed unchanged and the first unique formula match happened immediately, so keep this as a diagnostic only."
+}

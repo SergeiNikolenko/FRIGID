@@ -109,6 +109,12 @@ for the FRIGID throughput/quality campaign.
   `tanimoto_top1 = 0.45518521405756474`, which is worse than the current
   control. The small speed delta between `0.7` and `0.5` is not strong enough
   to promote this knob.
+- The adaptive tail-after-unique check repeated on `tail = 6` and `tail = 8`
+  stayed in the same chemistry regime as the earlier tail sweep:
+  `formula_success = 0.9375`, `tanimoto_top1 = 0.49754720740020275`, and the
+  first unique formula match happened immediately. `tail = 6` was slightly
+  faster than `tail = 8`, but that is only a timing difference, not a new
+  frontier.
 - The latest pruning-oriented audit on the current 3-spectrum diagnostic shows
   `avg_first_unique_formula_match_at = 11.67` and
   `avg_wasted_generated_after_first_unique_formula_match = 19.0`. That is a
@@ -198,6 +204,11 @@ for the FRIGID throughput/quality campaign.
   control-shaped 32-case run still landed at `formula_success = 1.0`,
   `tanimoto_top1 = 0.47418925538659096`, and about `4.74 sec/case`, which
   confirms that generation remains the bottleneck.
+- The tail-after-unique variant did not reveal a better causal lever. Because
+  the first unique formula match was already at `0.0`, the tail setting never
+  had to rescue a late-match case, so the measured differences are too small to
+  promote. The next meaningful candidate remains backbone-call reduction or a
+  different generation-side mechanism.
 - `MDLM.get_num_steps_confidence` simply divides the masked-token count by
   `num_tokens_unmask`, and `step_confidence` already has a separate
   `confidence_temperature` knob. The combined `num_tokens_unmask = 2`
