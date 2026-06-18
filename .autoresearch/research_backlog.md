@@ -52,6 +52,21 @@
   `formula_success = 93.75%`. It beats the control on both throughput and
   Tanimoto, but it still loses one case on formula success, so it is not a
   final answer yet.
+- `formula_pruning_chunk_size = 28` is dominated by `24`: slower, lower
+  `tanimoto_top1 = 0.4590`, and no better success than `24`. Do not probe
+  fixed-size chunks above `24` on this path.
+- The pruning frontier is now fixed-size bounded: `24` is the best fixed chunk
+  so far, and `28` adds no value. Any further pruning work on this branch
+  should be adaptive or should be replaced by a different generation-side
+  mechanism. The reconciler also marked the `24` run as `quarantine` because
+  its `tanimoto_top1` regressed too far versus the baseline guard, so there is
+  no accepted supervisor candidate yet.
+- The next pruning hypothesis should be adaptive, not another fixed sweep.
+  Use the existing diagnostic runs as evidence: `8` reached the first unique
+  formula match earlier but needed more pruning batches, `16` reduced batches
+  and preserved formula success, and `12` was intermediate. A sensible next
+  check is a stop rule keyed to first unique formula hit plus a small tail,
+  measured against the same 32-case guard set.
 - Use `scripts/audit_formula_waste.py` on every meaningful scorer run so formula
   waste is captured from `detailed_results.csv` immediately instead of being
   recomputed manually.
@@ -117,6 +132,9 @@
   be to recover the missing formula success case rather than continuing a blind
   fixed-size sweep. If that is not practical, keep `24` as the best known
   frontier and move to a different hot path.
+- Fixed-size pruning is now bounded: `24` is the winner, `28` is dominated.
+  Any further work in this branch should be adaptive, not another fixed chunk
+  interpolation.
 - Add per-case anatomy output: attempts, valid candidates, unique valid
   candidates, duplicate candidates, formula matches, stop reason, generated
   lengths, padding estimate, and wall time.

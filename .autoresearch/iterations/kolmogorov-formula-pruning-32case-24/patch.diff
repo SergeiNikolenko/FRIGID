@@ -1,0 +1,1704 @@
+diff --git a/.autoresearch/artifacts/current/aggregate_statistics.json b/.autoresearch/artifacts/current/aggregate_statistics.json
+index a8f5ca5..2ba45c9 100644
+--- a/.autoresearch/artifacts/current/aggregate_statistics.json
++++ b/.autoresearch/artifacts/current/aggregate_statistics.json
+@@ -1,25 +1,38 @@
+ {
+-  "total_spectra": 16,
+-  "elapsed_time_seconds": 296.1297311782837,
+-  "spectra_per_second": 0.054030373567479674,
++  "total_spectra": 32,
++  "elapsed_time_seconds": 132.40949487686157,
++  "spectra_per_second": 0.24167451155794695,
+   "exact_match_top1": 0.0,
+   "exact_match_top10": 0.0,
+-  "tanimoto_top1_mean": 0.6610685214400291,
+-  "tanimoto_top10_mean": 0.6641156747937202,
+-  "mist_tanimoto_mean": 0.8610142096877098,
+-  "avg_formula_matches": 8.0,
+-  "avg_predictions_collected": 10.0,
+-  "avg_total_generated": 85.5625,
+-  "formula_match_success_rate": 1.0,
+-  "avg_attempts_to_match": 12.393055555555556,
+-  "never_matched_rate": 0.0,
+-  "total_generation_time": 293.8092231750488,
+-  "generation_time_percentage": 99.21638803574308,
+-  "total_elapsed_time_seconds": 296.1297311782837,
++  "tanimoto_top1_mean": 0.49754720740020275,
++  "tanimoto_top10_mean": 0.49754720740020275,
++  "mist_tanimoto_mean": 0.8562775142490864,
++  "avg_formula_matches": 0.9375,
++  "avg_predictions_collected": 1.0,
++  "avg_total_generated": 23.9375,
++  "avg_total_valid": 10.65625,
++  "avg_unique_valid_smiles": 9.03125,
++  "avg_duplicate_valid_smiles": 1.625,
++  "avg_valid_duplicate_rate": 0.08797022322685055,
++  "avg_formula_duplicate_matches": 0.0,
++  "avg_formula_match_fraction_among_valid": 0.20685824269899344,
++  "avg_unique_valid_fraction_among_valid": 0.9120297767731493,
++  "avg_first_formula_match_at": 0.0,
++  "avg_first_unique_formula_match_at": 0.0,
++  "avg_wasted_generated_after_first_formula_match": 0.0,
++  "avg_wasted_generated_after_first_unique_formula_match": 0.0,
++  "formula_match_success_rate": 0.9375,
++  "avg_attempts_to_match": 23.4,
++  "never_matched_rate": 0.0625,
++  "avg_generation_time": 4.070404842495918,
++  "total_generation_time": 130.25295495986938,
++  "generation_time_percentage": 98.37131021533031,
++  "total_elapsed_time_seconds": 132.40949487686157,
++  "encoder_batch_size": 1,
+   "proposal_source_counts": [
+     [
+       "formula",
+-      16
++      32
+     ]
+   ]
+ }
+\ No newline at end of file
+diff --git a/.autoresearch/artifacts/current/detailed_results.csv b/.autoresearch/artifacts/current/detailed_results.csv
+index 653ddb8..0483144 100644
+--- a/.autoresearch/artifacts/current/detailed_results.csv
++++ b/.autoresearch/artifacts/current/detailed_results.csv
+@@ -1,17 +1,33 @@
+-target_smiles,target_inchi_key,num_predictions,exact_match_top1,exact_match_top10,tanimoto_top1,tanimoto_top10,tanimoto_mean,mist_tanimoto,spec_name,proposal_smiles,proposal_source,formula_matches_collected,total_generated,total_valid,total_formula_matched,generation_time,top_prediction_smiles
+-CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,GYSCAQFHASJXRS,10,0.0,0.0,0.7291666865348816,0.7291666865348816,0.5442555218935012,0.8333333134651184,MassSpecGymID0000201,CCC(C)[C@@H]1OC(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@H]2[C@@H](C(=O)N2C)N(C)C(=O)[C@H](C(C)C)OC1=O,formula,10,100,100,6,19.06819486618042,"['CCC(C)[C@@H]1OC(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@H]2[C@@H](C(=O)N2C)N(C)C(=O)[C@H](C(C)C)OC1=O', 'CC[C@H](C)[C@@H]1C(=O)O[C@H](C(C)C)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)O[C@H](Cc2ccccc2)C(=O)N(C)[C@H](Cc2ccccc2)C(=O)O[C@H](C(C)C)C(=O)N1C', 'CCC(C)C1C(=O)OC(C(C)C)C(=O)N(C)C(Cc2ccccc2)C(=O)OC(Cc2ccccc2)C(=O)N(C)C(C(C)C)C(=O)OC(Cc2ccccc2)C(=O)N1C', 'CC[C@@H](C)[C@H]1OC(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@H](C(C)C)N(C)C(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@@H](C)OC1=O', 'CC[C@H](C)[C@H]1OC(=O)[C@H](Cc2ccccc2)N(C)CC(=O)[C@@H](C(C)C)OC(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@@H](Cc2ccccc2)OC(=O)[C@H](C)C(=O)N1C']"
+-CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,GYSCAQFHASJXRS,10,0.0,0.0,0.5645161271095276,0.5645161271095276,0.4122217118740082,0.7291666865348816,MassSpecGymID0000202,CCC(C)[C@H]1OC(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@@H](C(C)C)N(C)C(=O)C(Oc2ccccc2)C(Cc2ccccc2)N(C)C(=O)C(C(C)C)OC(=O)C1=O,formula,10,79,79,10,17.10163140296936,"['CCC(C)[C@H]1OC(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@@H](C(C)C)N(C)C(=O)C(Oc2ccccc2)C(Cc2ccccc2)N(C)C(=O)C(C(C)C)OC(=O)C1=O', 'CC[C@H](C)[C@@H]1OC(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@H]([C@@H](C)CC)N(C)C(=O)[C@H](C)OC(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@@H](Cc2ccccc2)OC1=O', 'CC[C@H]1OC(=O)[C@H](C(C)C)N(C)C(=O)[C@H](Cc2ccccc2)OC(=O)N(C)C(=O)[C@H](Cc2ccccc2)[C@@H]([C@@H](C)CC)OC(=O)[C@@H](Cc2ccccc2)N(C)C1=O', 'CCC(C)C1C(=O)OC(Cc2ccccc2)C(=O)N(C)C(Cc2ccccc2)C(=O)CN(C)C(=O)C(C(C)C)OC(=O)OC(Cc2ccccc2)C(=O)N1C(C)C', 'CC[C@@H](C)N1C(=O)[C@@H](Cc2ccccc2)OC(=O)N(C)C(=O)[C@@H](Cc2ccccc2)OC(=O)[C@H](C(C)C)N(C)C(=O)[C@H](Cc2ccccc2)OC(=O)[C@H]1[C@@H](C)CC']"
+-CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,GYSCAQFHASJXRS,10,0.0,0.0,0.515625,0.5161290168762207,0.4563282519578934,0.875,MassSpecGymID0000203,CCC(C)C1OC(=O)C(Cc2ccccc2)N(C)C(=O)C(Cc2ccccc2)OC(=O)C(Cc2ccccc2)OC(=O)CCCN(C)C(=O)C(C(C)C)N(C)C1=O,formula,10,64,61,10,16.76031184196472,"['CCC(C)C1OC(=O)C(Cc2ccccc2)N(C)C(=O)C(Cc2ccccc2)OC(=O)C(Cc2ccccc2)OC(=O)CCCN(C)C(=O)C(C(C)C)N(C)C1=O', 'CC[C@H](C)[C@@H]1C(=O)O[C@H](C(C)C)C(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@@H](Cc2ccccc2)N(C)C(=O)[C@@H](C)OCOC(=O)[C@H](Cc2ccccc2)N(C)C1=O', 'CC[C@H]1OC(=O)O[C@H](Cc2ccccc2)N(C)C(=O)[C@@H](C(C)C)OC(=O)[C@H]([C@@H](C)CC)N(C)C(=O)[C@@H](Cc2ccccc2)C(=O)[C@H](Cc2ccccc2)N(C)C1=O', 'CCC(C)C1OC(=O)[C@H](Cc2ccccc2)OC(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@@H](CC)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)N(C)[C@@H](C(C)C)C(=O)O1', 'CC[C@H](C)[C@H]1C(=O)O[C@H](C(C)C)C(=O)N(C)C(Cc2ccccc2)C(=O)N(C)C(=O)O[C@](N)(Cc2ccccc2)C(=O)O[C@@H](C(C)C)C(=O)C1Cc1ccccc1']"
+-CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,GYSCAQFHASJXRS,10,0.0,0.0,0.625,0.6481481194496155,0.5503232926130295,0.875,MassSpecGymID0000204,CC[C@H](C)[C@@H]1OC(=O)[C@H](C(C)C)N(C)C(=O)C(Cc2ccccc2)C(=O)N(C)[C@@H](Cc2ccccc2)OC(=O)C(Cc2ccccc2)N(C)C(=O)[C@@H](C(C)C)OC1=O,formula,10,100,100,4,26.851134061813354,"['CC[C@H](C)[C@@H]1OC(=O)[C@H](C(C)C)N(C)C(=O)C(Cc2ccccc2)C(=O)N(C)[C@@H](Cc2ccccc2)OC(=O)C(Cc2ccccc2)N(C)C(=O)[C@@H](C(C)C)OC1=O', 'CC[C@H](C)[C@H]1OC(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@H](C(C)C)OC(=O)[C@H](Cc2ccccc2)N(C)C(=O)O[C@@H](C)C(=O)N1C', 'CC[C@H](C)[C@@H]1OC(=O)[C@@H](C(C)C)N(C)C(=O)[C@H](Cc2ccccc2)OC(=O)[C@@H](C(C)C)OC(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@H](Cc2ccccc2)N(C)C1=O', 'CCC(C)C1C(=O)OC(Cc2ccccc2)C(=O)OC(Cc2ccccc2)C(=O)N(C)C(=O)C(C)C(=O)N(C)C(Cc2ccccc2)C(=O)OC(C(C)C)C(=O)N1C', 'CCC(C)C1OC(=O)[C@H](Cc2ccccc2)N(C)C(=O)CCN(C)C(=O)[C@H](Cc2ccccc2)N(C)C(=O)C(C(C)C)OC(=O)[C@@H](Cc2ccccc2)CN(C)C1=O']"
+-CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,GYSCAQFHASJXRS,10,0.0,0.0,0.6730769276618958,0.6730769276618958,0.5167241334915161,0.875,MassSpecGymID0000205,CCC1OC(=O)C(C(C)CC)N(C)C(=O)C(C(C)C)OC(=O)C(Cc2ccccc2)N(C)C(=O)C(Cc2ccccc2)OC(=O)C(Cc2ccccc2)N(C)C1=O,formula,10,100,100,9,27.766140937805176,"['CCC1OC(=O)C(C(C)CC)N(C)C(=O)C(C(C)C)OC(=O)C(Cc2ccccc2)N(C)C(=O)C(Cc2ccccc2)OC(=O)C(Cc2ccccc2)N(C)C1=O', 'CC[C@@H](C)[C@H]1OC(=O)[C@@H](Cc2ccccc2)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)O[C@H](C(C)C)C(=O)N(C)[C@@H](CC)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)O1', 'CCC(C)C1OC(=O)C(Cc2ccccc2)N(C)C(=O)C(Cc2ccccc2)N(C)C(=O)N(C)C(=O)C(C(C)C)OC(=O)C(C)C(Cc2ccccc2)N(C)C1=O', 'CCC(C)[C@@H]1OC(=O)[C@H](Cc2ccccc2)N(C)C(=O)O[C@@H](C(C)C)C(=O)[C@H](Cc2ccccc2)OC(=O)[C@@H](CC)N(C)C(=O)[C@H](Cc2ccccc2)N(C)C1=O', 'CC[C@@H](C)[C@H]1C(=O)O[C@H](N)C(=O)N(C)[C@H](Cc2ccccc2)C(=O)O[C@H](Cc2ccccc2)C(=O)[C@H](CC)[C@@H](Cc2ccccc2)C(=O)O[C@@H](C(C)C)C(=O)N1C']"
+-CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,GYSCAQFHASJXRS,10,0.0,0.0,0.6363636255264282,0.6363636255264282,0.5151799589395523,0.8536585569381714,MassSpecGymID0000206,CC[C@H](C)[C@H]1OC(=O)[C@H](Cc2ccccc2)N(C)C(=O)N(C)C(=O)[C@@H](Cc2ccccc2)N(C)C(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@@H](C(C)C)OC(=O)[C@@H]1C,formula,10,100,100,6,25.43701410293579,"['CC[C@H](C)[C@H]1OC(=O)[C@H](Cc2ccccc2)N(C)C(=O)N(C)C(=O)[C@@H](Cc2ccccc2)N(C)C(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@@H](C(C)C)OC(=O)[C@@H]1C', 'CC[C@H](C)[C@@H]1C(=O)O[C@H](C(C)C)C(=O)N(C)CC(=O)N(C)[C@@H](Cc2ccccc2)OC(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@@H](C(C)C)OC1=O', 'CCC(C)C1OC(=O)C(C(C)C)N(C)C(=O)C(Cc2ccccc2)N(C)C(=O)C(C(C)C)C(=O)C(Cc2ccccc2)OC(=O)C(Cc2ccccc2)N(C)C1=O', 'CCC(C)C1OC(=O)N(C)C(=O)C(Cc2ccccc2)N(C)C(=O)C(C(C)CC)OC(=O)C(Cc2ccccc2)N(C)C(=O)C(Cc2ccccc2)OC1=O', 'CC[C@H](C)[C@@H]1OC(=O)[C@H](Cc2ccccc2)OC(=O)[C@@H](C(C)C)N(C)C(=O)[C@H](c2ccccc2)N(C)C(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@@H](C(C)C)OC1=O']"
+-CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,GYSCAQFHASJXRS,10,0.0,0.0,0.6730769276618958,0.686274528503418,0.47903984040021896,0.875,MassSpecGymID0000207,CC[C@H](C)[C@H]1OC(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@H](C(C)C)N(C)C(=O)[C@H](C(C)C)OC(=O)C1=O,formula,10,100,100,8,19.253662824630737,"['CC[C@H](C)[C@H]1OC(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@H](C(C)C)N(C)C(=O)[C@H](C(C)C)OC(=O)C1=O', 'CCC(C)C1OC(=O)C(Cc2ccccc2)N(C)C(=O)C(C(C)C)OC(=O)C(C)OC(=O)C(Cc2ccccc2)N(C)C(=O)N(C)C(Cc2ccccc2)C(=O)O1', 'CCC(C)[C@H]1C(=O)C(C)OC(O)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)O[C@@H](C(C)C)C(=O)N(C)C(Cc2ccccc2)C(=O)N(C)[C@@H](Cc2ccccc2)C1=O', 'CCC(C)C1C(=O)OC(C(C)C)C(=O)N(C)C(Cc2ccccc2)C(=O)OC(C(=O)c2ccccc2)N(C)C(C(C)C)C(=O)OC(Cc2ccccc2)C(=O)N1C', 'CCC(C)C1OC(=O)C(Cc2ccccc2)N(C)C(=O)C(Cc2ccccc2)N(C)CC(=O)OC(Cc2ccccc2)N(C)C(=O)C(=O)C(C(C)C)OC(=O)C1C']"
+-CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,GYSCAQFHASJXRS,10,0.0,0.0,0.6730769276618958,0.6730769276618958,0.5405964702367783,0.8333333134651184,MassSpecGymID0000208,CCC1OC(=O)C(C(C)CC)N(C)C(=O)C(C(C)C)OC(=O)C(Cc2ccccc2)N(C)C(=O)C(Cc2ccccc2)N(C)C(=O)C(Cc2ccccc2)N(C)C1=O,formula,10,100,100,6,19.189286708831787,"['CCC1OC(=O)C(C(C)CC)N(C)C(=O)C(C(C)C)OC(=O)C(Cc2ccccc2)N(C)C(=O)C(Cc2ccccc2)N(C)C(=O)C(Cc2ccccc2)N(C)C1=O', 'CCCC1C(=O)O[C@H]([C@@H](C)CC)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)O[C@H](C(C)C)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)N(C)N(C)C1=O', 'CC[C@H](C)[C@H]1C(=O)O[C@@H](Cc2ccccc2)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)O[C@@H](C(C)C)C(=O)O[C@H](C(C)C)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)N1C', 'CC[C@H](C)[C@@H]1C(=O)O[C@H](Cc2ccccc2)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)O[C@H](C(C)C)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)N(C)OC1=O', 'CCC(C)C1C(=O)OC(C(C)C)C(=O)N(C)C(Cc2ccccc2)C(=O)OC(Cc2ccccc2)C(=O)OC(C)C(=O)N(C)C(C(C)C)C(=O)N1c1ccccc1']"
+-CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,GYSCAQFHASJXRS,10,0.0,0.0,0.6730769276618958,0.6730769276618958,0.5088947743177414,0.875,MassSpecGymID0000209,CC[C@H]1OC(=O)[C@H]([C@@H](C)CC)N(C)C(=O)[C@@H](C(C)C)OC(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@@H](Cc2ccccc2)OC(=O)[C@@H](Cc2ccccc2)N(C)C1=O,formula,10,31,29,10,5.9021313190460205,"['CC[C@H]1OC(=O)[C@H]([C@@H](C)CC)N(C)C(=O)[C@@H](C(C)C)OC(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@@H](Cc2ccccc2)OC(=O)[C@@H](Cc2ccccc2)N(C)C1=O', 'CC[C@H](C)[C@@H]1C(=O)O[C@H](Cc2ccccc2)C(=O)N(C)C(=O)[C@@H](C(C)C)OC(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@@H](C(C)C)OC(=O)N[C@@H]1Cc1ccccc1', 'CC[C@H](C)[C@@H]1C(=O)O[C@@H](C(C)C)C(=O)N(C)[C@@H](c2ccccc2)C(=O)OC(Cc2ccccc2)C(=O)O[C@H](C(C)C)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)N1C', 'CC[C@H](C)[C@@H]1C(=O)O[C@H](C(C)C)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@H](Cc2ccccc2)OC(=O)C[C@@H](C)OC(=O)N1C', 'CCC(C)C1OC(=O)C(C(C)CC)N(C(C)C)C(=O)N(C)C(Cc2ccccc2)OC(=O)C(Cc2ccccc2)C(=O)OC(=O)C(Cc2ccccc2)N(C)C1=O']"
+-CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,GYSCAQFHASJXRS,10,0.0,0.0,0.6140350699424744,0.6140350699424744,0.4833358258008957,0.8536585569381714,MassSpecGymID0000210,CCC(C)[C@H]1C(=O)O[C@H](C(C)C)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)O[C@H](C(C)C)C(=O)O[C@H](Cc2ccccc2)N(C)C(=O)C(c2ccccc2)C(=O)N1C,formula,10,91,81,10,18.055978775024414,"['CCC(C)[C@H]1C(=O)O[C@H](C(C)C)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)O[C@H](C(C)C)C(=O)O[C@H](Cc2ccccc2)N(C)C(=O)C(c2ccccc2)C(=O)N1C', 'CC[C@@H](C)[C@H]1C(=O)O[C@H](C(C)C)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)O[C@H](Cc2ccccc2)C(=O)N([C@H](C)c2ccccc2)C(=O)O[C@H](C(C)C)C(=O)N1C', 'CCC(C)[C@H]1C(=O)O[C@H](C(C)C)C(=O)N(C)[C@@H](CC)C(=O)O[C@H](Cc2ccccc2)C(=O)[C@@H](Cc2ccccc2)OC(=O)N(C)[C@@H](Cc2ccccc2)C(=O)N1C', 'CCC(C)C1C(=O)OC(C(C)C)C(=O)N(C)C(Cc2ccccc2)C(=O)OC(Cc2ccccc2)C(=O)N(C)C(Cc2ccccc2)C(C2OC(C)O2)C(=O)N1C', 'CC[C@H](C)[C@H]1C(=O)O[C@H](Cc2ccccc2)C(=O)O[C@H](Cc2ccccc2)N(C(C)C)C(=O)CC(=O)N(C)[C@H](Cc2ccccc2)C(=O)O[C@H](C(C)C)C(=O)N1C']"
+-CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,GYSCAQFHASJXRS,10,0.0,0.0,0.686274528503418,0.686274528503418,0.47314689457416537,0.8333333134651184,MassSpecGymID0000211,CC(C)C1COC(=O)C(c2ccccc2)N(C)C(=O)C(C(C)C)OC(=O)C(Cc2ccccc2)N(C)C(=O)C(C(C)C)OC(=O)C(Cc2ccccc2)N(C)C1=O,formula,10,32,29,10,5.728420972824097,"['CC(C)C1COC(=O)C(c2ccccc2)N(C)C(=O)C(C(C)C)OC(=O)C(Cc2ccccc2)N(C)C(=O)C(C(C)C)OC(=O)C(Cc2ccccc2)N(C)C1=O', 'CC(C)[C@@H]1NCC(=O)O[C@@H](Cc2ccccc2)C(=O)O[C@H](C(C)C)C(=O)[C@@H](C(C)C)OC(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@H](Cc2ccccc2)N(C)C1=O', 'CCC[C@H]1C(=O)[C@H](CCc2ccccc2)N(C)C(=O)O[C@@H](CC)C(=O)O[C@H](C(C)C)C(=O)O[C@@H](Cc2ccccc2)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)N1C', 'CC(C)[C@@H]1OC(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@H](Cc2ccccc2)N(C(C)C)C(=O)N(C)[C@@H](Cc2ccccc2)OC(=O)[C@H](C(C)C)OC(=O)CCC1=O', 'CC(C)[C@@H]1C(=O)O[C@H](C(C)C)C(=O)N(C)OC[C@H](Cc2ccccc2)C(=O)N(C)[C@H](Cc2ccccc2)C(=O)N(C)[C@@H](c2ccccc2)C(=O)O[C@H](C(C)C)C1=O']"
+-CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,GYSCAQFHASJXRS,10,0.0,0.0,0.5714285969734192,0.5833333134651184,0.5005821138620377,0.8974359035491943,MassSpecGymID0000212,CC[C@H](C)[C@@H]1OC(=O)[C@H]([C@@H](C)CC)N(C)C(=O)[C@@H](C)OC(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@@H](Cc2ccccc2)OC(=O)[C@H](Cc2ccccc2)N(C)C1=O,formula,10,80,79,10,14.757183074951172,"['CC[C@H](C)[C@@H]1OC(=O)[C@H]([C@@H](C)CC)N(C)C(=O)[C@@H](C)OC(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@@H](Cc2ccccc2)OC(=O)[C@H](Cc2ccccc2)N(C)C1=O', 'CC[C@H](C)[C@@H]1C(=O)O[C@@H](C(C)C)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)O[C@@H](C(C)C)C(=O)O[C@H](Cc2ccccc2)C(=O)N(C)[C@H](C)C(=O)N1c1ccccc1', 'CC[C@@H](C)[C@H]1C(=O)O[C@H](C(C)C)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)OC[C@@H](Cc2ccccc2)C(=O)O[C@@H](C)C(=O)N(C)[C@H](Cc2ccccc2)C(=O)N1C', 'CC[C@@H](C)[C@H]1C(=O)O[C@H](Cc2ccccc2)C(=O)N(C)[C@H](Cc2ccccc2)C(=O)N(C)C(=O)N(C)[C@H](Cc2ccccc2)C(=O)O[C@H](C(C)C)C(=O)OCC1C', 'CC[C@@H](C)[C@H]1OC(=O)[C@H](C(C)C)N(C)C(=O)[C@@H](Cc2ccccc2)N(C)C(=O)C(Cc2ccccc2)C(=O)[C@H](C(C)C)OOC(=O)[C@H](c2ccccc2)N(C)C1=O']"
+-CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,GYSCAQFHASJXRS,10,0.0,0.0,0.7954545617103577,0.7954545617103577,0.5005918055772781,0.8974359035491943,MassSpecGymID0000213,CCC(C)C1OC(=O)C(Cc2ccccc2)N(C)C(=O)C(Cc2ccccc2)N(C)C(=O)C(C(C)C)OC1=O,formula,10,100,100,9,19.223244667053223,"['CCC(C)C1OC(=O)C(Cc2ccccc2)N(C)C(=O)C(Cc2ccccc2)N(C)C(=O)C(C(C)C)OC1=O', 'CCC(C)C1OC(=O)N(C(C)CC)C(=O)C(C(C)C)OC(=O)C(Cc2ccccc2)N(C)C(=O)C(Cc2ccccc2)OC(=O)C(Cc2ccccc2)N(C)C1=O', 'CC[C@@H](C)[C@H]1OC(=O)[C@H](C)N(C)C(=O)[C@@H](Cc2ccccc2)OC(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@@H]([C@@H](C)CC)OC1=O', 'CC[C@@H](C)[C@@H]1OC(=O)[C@H](C(C)C)OC(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@H](C(C)C)NC(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@@H](Cc2ccccc2)OC1=O', 'CCC(C)C1C(=O)OC(Cc2ccccc2)C(=O)OC(C)C(=O)COC(C(C)C)C(=O)N(C)C(Cc2ccccc2)C(=O)N(C)C(Cc2ccccc2)C(=O)N1C']"
+-CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,GYSCAQFHASJXRS,10,0.0,0.0,0.6730769276618958,0.6730769276618958,0.5127855867147446,0.875,MassSpecGymID0000214,CCC1OC(=O)C(Cc2ccccc2)N(C)C(=O)C(C(C)C)OC(=O)C(C(C)CC)N(C)C(=O)C(Cc2ccccc2)OC(=O)C(Cc2ccccc2)N(C)C1=O,formula,10,92,87,10,18.153752326965332,"['CCC1OC(=O)C(Cc2ccccc2)N(C)C(=O)C(C(C)C)OC(=O)C(C(C)CC)N(C)C(=O)C(Cc2ccccc2)OC(=O)C(Cc2ccccc2)N(C)C1=O', 'CC[C@H](c1ccccc1)[C@H]1C(=O)O[C@H](C(C)C)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)O[C@@H](C)C(=O)O[C@@H](Cc2ccccc2)C(=O)N(C)[C@@H](C(C)C)C(=O)N1C', 'CCC(C)C1OC(=O)C(Cc2ccccc2)N(C)C(=O)C(C)C(C)C(=O)C(C(C)C)N(CCc2ccccc2)OC(=O)OC(=O)C(Cc2ccccc2)N(C)C1=O', 'CCC(C)C1OC(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@@H](Cc2ccccc2)OC(=O)[C@H](N)C(=O)[C@@H](C(C)CC)OC(=O)C(Cc2ccccc2)N(C)C(=O)C1C', 'CCC(C)[C@H]1C(=O)O[C@H](C(C)C)C(=O)N(C)[C@@H](C(C)C)C(=O)O[C@H](Cc2ccccc2)C(=O)N(C)[C@@H](c2ccccc2)C(=O)O[C@@H](Cc2ccccc2)C(=O)N1C']"
+-CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,GYSCAQFHASJXRS,10,0.0,0.0,0.7291666865348816,0.7291666865348816,0.5602721482515335,0.8974359035491943,MassSpecGymID0000215,CC[C@@H](C)[C@H]1C(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@H]([C@@H](C)CC)OC(=O)[C@@H](Cc2ccccc2)N(C)C(=O)[C@@H](C(C)C)OC(=O)[C@H](Cc2ccccc2)N(C)C1=O,formula,10,100,100,6,20.431477785110474,"['CC[C@@H](C)[C@H]1C(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@H]([C@@H](C)CC)OC(=O)[C@@H](Cc2ccccc2)N(C)C(=O)[C@@H](C(C)C)OC(=O)[C@H](Cc2ccccc2)N(C)C1=O', 'CCC(C)C1C(=O)OC(C(C)C)C(=O)N(C)C(Cc2ccccc2)C(=O)OC(Cc2ccccc2)C(=O)N1C', 'CCC(C)C1OC(=O)C(Cc2ccccc2)OC(=O)C(Cc2ccccc2)N(C)C(=O)C(Cc2ccccc2)OC1=O', 'CC[C@H](C)[C@H]1C(=O)O[C@H](C(C)C)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)O[C@H](Cc2ccccc2)C(=O)N(C)C(=O)O[C@H](C(C)C)C(=O)N1C', 'CC[C@@H](C)[C@@H]1C(=O)O[C@H](C(C)C)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)O[C@H](CC)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)O[C@H](Cc2ccccc2)N(C)C1=O']"
+-CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,GYSCAQFHASJXRS,10,0.0,0.0,0.7446808218955994,0.7446808218955994,0.5731825411319733,0.8974359035491943,MassSpecGymID0000216,CCC(C)C1OC(=O)C(Cc2ccccc2)N(C)C(=O)C(C(C)C)OC(=O)C(Cc2ccccc2)OC(=O)C(Cc2ccccc2)N(C)C(=O)C(C(C)C)OC1=O,formula,10,100,100,4,20.12965750694275,"['CCC(C)C1OC(=O)C(Cc2ccccc2)N(C)C(=O)C(C(C)C)OC(=O)C(Cc2ccccc2)OC(=O)C(Cc2ccccc2)N(C)C(=O)C(C(C)C)OC1=O', 'CC[C@H](C)[C@H]1C(=O)O[C@H](C(C)C)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)O[C@H](C(C)C)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)O[C@@H](Cc2ccccc2)C(=O)N1C', 'CCC(C)C1C(=O)OC(C(C)C)C(=O)N(C)C(Cc2ccccc2)C(=O)OC(Cc2ccccc2)C(=O)OC(C(C)C)C(=O)N(C)C(Cc2ccccc2)C(=O)N1C', 'CC[C@H](C)[C@H]1C(=O)O[C@H](Cc2ccccc2)C(=O)N(C)[C@@H](C(C)C)C(=O)O[C@H](Cc2ccccc2)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)O[C@@H](C(C)C)C(=O)N1C', 'CCC(C)C1OC(=O)C(Cc2ccccc2)N(C)C(=O)N(C)C(=O)C(C(C)C)C(Cc2ccccc2)OC(=O)C(Cc2ccccc2)N(C)C(=O)C(C(C)C)OC1=O']"
++target_smiles,target_inchi_key,num_predictions,exact_match_top1,exact_match_top10,tanimoto_top1,tanimoto_top10,tanimoto_mean,mist_tanimoto,spec_name,proposal_smiles,proposal_source,formula_matches_collected,total_generated,total_valid,total_formula_matched,unique_valid_smiles,duplicate_valid_smiles,valid_duplicate_rate,formula_duplicate_matches,formula_match_fraction_among_valid,unique_valid_fraction_among_valid,generation_time,num_tokens_unmask,encoder_batch_size,top_prediction_smiles
++CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,GYSCAQFHASJXRS,1,0.0,0.0,0.5593220591545105,0.5593220591545105,0.5593220591545105,0.8333333134651184,MassSpecGymID0000201,CCC(C)[C@H]1OC(=O)[C@H](Cc2ccccc2)N(C)C(=O)O[C@H](Cc2ccccc2)C(=O)N(C(C)(C)C)[C@H](Cc2ccccc2)C(=O)O[C@H](C(C)C)C(=O)N(C)C1=O,formula,1,23,4,1,4,0,0.0,0,0.25,1.0,3.8340048789978027,1,1,['CCC(C)[C@H]1OC(=O)[C@H](Cc2ccccc2)N(C)C(=O)O[C@H](Cc2ccccc2)C(=O)N(C(C)(C)C)[C@H](Cc2ccccc2)C(=O)O[C@H](C(C)C)C(=O)N(C)C1=O']
++CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,GYSCAQFHASJXRS,1,0.0,0.0,0.40909090638160706,0.40909090638160706,0.40909090638160706,0.7291666865348816,MassSpecGymID0000202,CCC(C)C1OC(=O)C(Cc2ccccc2)OC(=O)C(C(C)CC)N(Cc2ccccc2)C(=O)N(C)C(=O)C(C(C)C)N(C)C(=O)C(Cc2ccccc2)OC1=O,formula,1,24,2,1,2,0,0.0,0,0.5,1.0,3.8369333744049072,1,1,['CCC(C)C1OC(=O)C(Cc2ccccc2)OC(=O)C(C(C)CC)N(Cc2ccccc2)C(=O)N(C)C(=O)C(C(C)C)N(C)C(=O)C(Cc2ccccc2)OC1=O']
++CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,GYSCAQFHASJXRS,1,0.0,0.0,0.6938775777816772,0.6938775777816772,0.6938775777816772,0.875,MassSpecGymID0000203,CC[C@@H](C)[C@H]1OC(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@H]([C@@H](C)CC)OC(=O)[C@H](C(C)C)OC(=O)[C@H](Cc2ccccc2)N(C)C(=O)N(C)C1=O,formula,1,32,32,0,25,7,0.21875,0,0.0,0.78125,5.968374729156494,1,1,['CC[C@@H](C)[C@H]1OC(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@H]([C@@H](C)CC)OC(=O)[C@H](C(C)C)OC(=O)[C@H](Cc2ccccc2)N(C)C(=O)N(C)C1=O']
++CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,GYSCAQFHASJXRS,1,0.0,0.0,0.3835616409778595,0.3835616409778595,0.3835616409778595,0.875,MassSpecGymID0000204,CCC(C)C1C(=O)OC(Cc2ccccc2)C(=O)[N+](C)([O-])C(C(C)C)C(=O)OC(c2ccccc2)C(=O)C(C(C)C)C(=O)N(C)C(Cc2ccccc2)C(=O)N1C,formula,1,24,22,1,22,0,0.0,0,0.045454545454545456,1.0,3.7956454753875732,1,1,['CCC(C)C1C(=O)OC(Cc2ccccc2)C(=O)[N+](C)([O-])C(C(C)C)C(=O)OC(c2ccccc2)C(=O)C(C(C)C)C(=O)N(C)C(Cc2ccccc2)C(=O)N1C']
++CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,GYSCAQFHASJXRS,1,0.0,0.0,0.4848484992980957,0.4848484992980957,0.4848484992980957,0.875,MassSpecGymID0000205,CCC(C)C1C(=O)OC(Cc2ccccc2)C(=O)N(C)CC(=O)N(C)C(Cc2ccccc2)C(=O)OC(C(C)C)C(=O)OC(C)C(Cc2ccccc2)C(=O)N1C,formula,1,23,15,1,13,2,0.13333333333333333,0,0.06666666666666667,0.8666666666666667,3.7955403327941895,1,1,['CCC(C)C1C(=O)OC(Cc2ccccc2)C(=O)N(C)CC(=O)N(C)C(Cc2ccccc2)C(=O)OC(C(C)C)C(=O)OC(C)C(Cc2ccccc2)C(=O)N1C']
++CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,GYSCAQFHASJXRS,1,0.0,0.0,0.4202898442745209,0.4202898442745209,0.4202898442745209,0.8536585569381714,MassSpecGymID0000206,CCC(C)C1C(=O)OC(Cc2ccccc2)C(=O)N(C)C(=O)N(C)C(C(C)C)C(=O)OC(Cc2ccccc2)(C(C)C)OC(=O)C(Cc2ccccc2)N(C)C1=O,formula,1,24,6,1,6,0,0.0,0,0.16666666666666666,1.0,3.9360904693603516,1,1,['CCC(C)C1C(=O)OC(Cc2ccccc2)C(=O)N(C)C(=O)N(C)C(C(C)C)C(=O)OC(Cc2ccccc2)(C(C)C)OC(=O)C(Cc2ccccc2)N(C)C1=O']
++CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,GYSCAQFHASJXRS,1,0.0,0.0,0.36000001430511475,0.36000001430511475,0.36000001430511475,0.875,MassSpecGymID0000207,CC[C@H](C)[C@H]1C(=O)O[C@@H](C(=O)O)[C@@H](Cc2ccccc2)OC(=O)N(C)[C@@H](Cc2ccccc2)C(=O)N(C)[C@@H](C)C(=O)[C@H](C(C)C)[C@@H](Cc2ccccc2)C(=O)N1C,formula,1,24,16,1,14,2,0.125,0,0.0625,0.875,3.9275851249694824,1,1,['CC[C@H](C)[C@H]1C(=O)O[C@@H](C(=O)O)[C@@H](Cc2ccccc2)OC(=O)N(C)[C@@H](Cc2ccccc2)C(=O)N(C)[C@@H](C)C(=O)[C@H](C(C)C)[C@@H](Cc2ccccc2)C(=O)N1C']
++CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,GYSCAQFHASJXRS,1,0.0,0.0,0.46875,0.46875,0.46875,0.8333333134651184,MassSpecGymID0000208,CCC1OC(=O)C(C(C)C)N(C)C(=O)C(Cc2ccccc2)OC(=O)C(C(C)CC)N(Cc2ccccc2)C(=O)C(C)OC(=O)C(Cc2ccccc2)N(C)C1=O,formula,1,23,10,1,10,0,0.0,0,0.1,1.0,4.26741099357605,1,1,['CCC1OC(=O)C(C(C)C)N(C)C(=O)C(Cc2ccccc2)OC(=O)C(C(C)CC)N(Cc2ccccc2)C(=O)C(C)OC(=O)C(Cc2ccccc2)N(C)C1=O']
++CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,GYSCAQFHASJXRS,1,0.0,0.0,0.5384615659713745,0.5384615659713745,0.5384615659713745,0.875,MassSpecGymID0000209,CCC(C)C1C(=O)OC(C(C)C)C(=O)N(C)C(Cc2ccccc2)C(=O)OC(Cc2ccccc2)C(=O)N(C)C(C(C)C)OC(=O)C(N)(Cc2ccccc2)C1=O,formula,1,24,8,1,7,1,0.125,0,0.125,0.875,3.8400275707244873,1,1,['CCC(C)C1C(=O)OC(C(C)C)C(=O)N(C)C(Cc2ccccc2)C(=O)OC(Cc2ccccc2)C(=O)N(C)C(C(C)C)OC(=O)C(N)(Cc2ccccc2)C1=O']
++CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,GYSCAQFHASJXRS,1,0.0,0.0,0.43939393758773804,0.43939393758773804,0.43939393758773804,0.8536585569381714,MassSpecGymID0000210,CC[C@H](C)[C@H]1C(=O)N(Cc2ccccc2)[C@@H]([C@@H](C)CC)C(=O)O[C@H](Cc2ccccc2)C(=O)OC(=O)[C@H](C(C)C)OC(=O)N(C)[C@@H](Cc2ccccc2)C(=O)N1C,formula,1,23,3,1,3,0,0.0,0,0.3333333333333333,1.0,3.8204989433288574,1,1,['CC[C@H](C)[C@H]1C(=O)N(Cc2ccccc2)[C@@H]([C@@H](C)CC)C(=O)O[C@H](Cc2ccccc2)C(=O)OC(=O)[C@H](C(C)C)OC(=O)N(C)[C@@H](Cc2ccccc2)C(=O)N1C']
++CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,GYSCAQFHASJXRS,1,0.0,0.0,0.5714285969734192,0.5714285969734192,0.5714285969734192,0.8333333134651184,MassSpecGymID0000211,CC(C)[C@H]1OC(=O)N(C)[C@@H](Cc2ccccc2)C(=O)N(C)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)O[C@H](C(C)C)C(=O)[C@@H](C(C)C)OC(=O)[C@@H]1Cc1ccccc1,formula,1,23,4,1,4,0,0.0,0,0.25,1.0,3.896226406097412,1,1,['CC(C)[C@H]1OC(=O)N(C)[C@@H](Cc2ccccc2)C(=O)N(C)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)O[C@H](C(C)C)C(=O)[C@@H](C(C)C)OC(=O)[C@@H]1Cc1ccccc1']
++CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,GYSCAQFHASJXRS,1,0.0,0.0,0.5645161271095276,0.5645161271095276,0.5645161271095276,0.8974359035491943,MassSpecGymID0000212,CCC1OC(=O)N(C)C(=O)[C@@H](Cc2ccccc2)[C@@H](C(C)CC)C(=O)O[C@H](C(C)C)C(=O)N(C)[C@@H](Cc2ccccc2)OC(=O)[C@H](Cc2ccccc2)N(C)C1=O,formula,1,23,2,1,2,0,0.0,0,0.5,1.0,3.861585855484009,1,1,['CCC1OC(=O)N(C)C(=O)[C@@H](Cc2ccccc2)[C@@H](C(C)CC)C(=O)O[C@H](C(C)C)C(=O)N(C)[C@@H](Cc2ccccc2)OC(=O)[C@H](Cc2ccccc2)N(C)C1=O']
++CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,GYSCAQFHASJXRS,1,0.0,0.0,0.6111111044883728,0.6111111044883728,0.6111111044883728,0.8974359035491943,MassSpecGymID0000213,CC[C@@H](C)[C@H]1OC(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@@H](Cc2ccccc2)OC(=O)[C@H]([C@@H](C)CC)OC(=O)[C@H](C(C)C)C(=O)[C@@H](Cc2ccccc2)N(C)C1=O,formula,1,32,32,0,19,13,0.40625,0,0.0,0.59375,6.026288032531738,1,1,['CC[C@@H](C)[C@H]1OC(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@@H](Cc2ccccc2)OC(=O)[C@H]([C@@H](C)CC)OC(=O)[C@H](C(C)C)C(=O)[C@@H](Cc2ccccc2)N(C)C1=O']
++CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,GYSCAQFHASJXRS,1,0.0,0.0,0.484375,0.484375,0.484375,0.875,MassSpecGymID0000214,CCC(C)C1OC(=O)C(C(C)C)OC(=O)N(C)CC(=O)C(Cc2ccccc2)N(C(C)C)C(=O)C(Cc2ccccc2)N(C)C(=O)C(Cc2ccccc2)OC1=O,formula,1,23,19,1,16,3,0.15789473684210525,0,0.05263157894736842,0.8421052631578947,3.8287124633789062,1,1,['CCC(C)C1OC(=O)C(C(C)C)OC(=O)N(C)CC(=O)C(Cc2ccccc2)N(C(C)C)C(=O)C(Cc2ccccc2)N(C)C(=O)C(Cc2ccccc2)OC1=O']
++CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,GYSCAQFHASJXRS,1,0.0,0.0,0.6730769276618958,0.6730769276618958,0.6730769276618958,0.8974359035491943,MassSpecGymID0000215,CC[C@H](C)[C@H]1OC(=O)[C@@H](C(C)C)OC(=O)[C@@H](Cc2ccccc2)N(C)C(=O)[C@H](c2ccccc2)N(C)C(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@@H](C(C)C)OC1=O,formula,1,22,22,1,17,5,0.22727272727272727,0,0.045454545454545456,0.7727272727272727,3.9898996353149414,1,1,['CC[C@H](C)[C@H]1OC(=O)[C@@H](C(C)C)OC(=O)[C@@H](Cc2ccccc2)N(C)C(=O)[C@H](c2ccccc2)N(C)C(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@@H](C(C)C)OC1=O']
++CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,GYSCAQFHASJXRS,1,0.0,0.0,0.5230769515037537,0.5230769515037537,0.5230769515037537,0.8974359035491943,MassSpecGymID0000216,CCC(C)[C@@H]1C(=O)O[C@H](C(C)C)C(=O)N(C)[C@@H](Cc2ccccc2)N(C)C(=O)O[C@H](c2ccccc2)C(=O)C(=O)N(C)C(Cc2ccccc2)C(=O)O[C@@H]1C(C)C,formula,1,23,6,1,6,0,0.0,0,0.16666666666666666,1.0,3.910496711730957,1,1,['CCC(C)[C@@H]1C(=O)O[C@H](C(C)C)C(=O)N(C)[C@@H](Cc2ccccc2)N(C)C(=O)O[C@H](c2ccccc2)C(=O)C(=O)N(C)C(Cc2ccccc2)C(=O)O[C@@H]1C(C)C']
++CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,GYSCAQFHASJXRS,1,0.0,0.0,0.350649356842041,0.350649356842041,0.350649356842041,0.8536585569381714,MassSpecGymID0000217,CC[C@H](C)[C@@H]1C(=O)OC(Cc2ccccc2)(C(C)C)C(=O)N(C)[C@H](Cc2ccccc2)C(=O)N(C)[C@H](C(C)C)C(=O)N(CO)C(=O)O[C@@H](Cc2ccccc2)C1=O,formula,1,23,4,1,4,0,0.0,0,0.25,1.0,3.8367016315460205,1,1,['CC[C@H](C)[C@@H]1C(=O)OC(Cc2ccccc2)(C(C)C)C(=O)N(C)[C@H](Cc2ccccc2)C(=O)N(C)[C@H](C(C)C)C(=O)N(CO)C(=O)O[C@@H](Cc2ccccc2)C1=O']
++CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,GYSCAQFHASJXRS,1,0.0,0.0,0.6938775777816772,0.6938775777816772,0.6938775777816772,0.8333333134651184,MassSpecGymID0000218,CC(C)C1OC(=O)C(C(C)C)OC(=O)C(Cc2ccccc2)N(Cc2ccccc2)C(=O)C(Cc2ccccc2)N(C)C(=O)C(C)N(C)C(=O)C(C(C)C)OC1=O,formula,1,24,1,1,1,0,0.0,0,1.0,1.0,3.8804898262023926,1,1,['CC(C)C1OC(=O)C(C(C)C)OC(=O)C(Cc2ccccc2)N(Cc2ccccc2)C(=O)C(Cc2ccccc2)N(C)C(=O)C(C)N(C)C(=O)C(C(C)C)OC1=O']
++CC(C)C1C(=O)N(C(C(=O)OC(C(=O)N(C(C(=O)OC(C(=O)N(C(C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,GYSCAQFHASJXRS,1,0.0,0.0,0.3561643958091736,0.3561643958091736,0.3561643958091736,0.7446808218955994,MassSpecGymID0000219,CC[C@H](C)[C@H]1C(=O)N(C)C(Cc2ccccc2)C(=O)N(C)C(Cc2ccccc2)C(=O)C(=O)OC(C(C)C)(C(C)C)C(=O)O[C@H](Oc2ccccc2C)C(=O)N1C,formula,1,24,4,1,4,0,0.0,0,0.25,1.0,3.899916172027588,1,1,['CC[C@H](C)[C@H]1C(=O)N(C)C(Cc2ccccc2)C(=O)N(C)C(Cc2ccccc2)C(=O)C(=O)OC(C(C)C)(C(C)C)C(=O)O[C@H](Oc2ccccc2C)C(=O)N1C']
++CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,GYSCAQFHASJXRS,1,0.0,0.0,0.4833333194255829,0.4833333194255829,0.4833333194255829,0.8974359035491943,MassSpecGymID0000220,CC(C)[C@H]1C(=O)O[C@H](Cc2ccccc2)C(=O)O[C@H](Cc2ccccc2)C(=O)[C@@H](C(C)C)N(C)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)O[C@H](C(C)C)N(C)C1=O,formula,1,22,2,1,2,0,0.0,0,0.5,1.0,3.8733279705047607,1,1,['CC(C)[C@H]1C(=O)O[C@H](Cc2ccccc2)C(=O)O[C@H](Cc2ccccc2)C(=O)[C@@H](C(C)C)N(C)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)O[C@H](C(C)C)N(C)C1=O']
++CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,GYSCAQFHASJXRS,1,0.0,0.0,0.4000000059604645,0.4000000059604645,0.4000000059604645,0.875,MassSpecGymID0000221,CC(C)C[C@H]1OC(=O)O[C@@H](Cc2ccccc2)C(=O)C(=O)N(C)[C@@H](CC(C)C)C(=O)O[C@H](Cc2ccccc2)C(=O)N(C)C(Cc2ccccc2)N(C(C)C)C1=O,formula,1,24,8,1,6,2,0.25,0,0.125,0.75,3.845512866973877,1,1,['CC(C)C[C@H]1OC(=O)O[C@@H](Cc2ccccc2)C(=O)C(=O)N(C)[C@@H](CC(C)C)C(=O)O[C@H](Cc2ccccc2)C(=O)N(C)C(Cc2ccccc2)N(C(C)C)C1=O']
++CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,GYSCAQFHASJXRS,1,0.0,0.0,0.5,0.5,0.5,0.8333333134651184,MassSpecGymID0000222,CC[C@H]1C(=O)O[C@H](Cc2ccccc2)C(=O)N(C)OC(=O)N(C)[C@H](Cc2ccccc2)[C@@H]([C@@H](C)CC)C(=O)O[C@H](C(C)C)C(=O)N(C)[C@H](Cc2ccccc2)C1=O,formula,1,24,12,1,10,2,0.16666666666666666,0,0.08333333333333333,0.8333333333333334,3.8808116912841797,1,1,['CC[C@H]1C(=O)O[C@H](Cc2ccccc2)C(=O)N(C)OC(=O)N(C)[C@H](Cc2ccccc2)[C@@H]([C@@H](C)CC)C(=O)O[C@H](C(C)C)C(=O)N(C)[C@H](Cc2ccccc2)C1=O']
++CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,GYSCAQFHASJXRS,1,0.0,0.0,0.5666666626930237,0.5666666626930237,0.5666666626930237,0.875,MassSpecGymID0000223,CC[C@@H](C)[C@H]1C(=O)O[C@H](C(C)C)C(=O)N(C)[C@@H](CC)C(=O)O[C@@H](Cc2ccccc2)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)N(C)OC(=O)[C@@H]1Cc1ccccc1,formula,1,24,6,1,6,0,0.0,0,0.16666666666666666,1.0,3.850233793258667,1,1,['CC[C@@H](C)[C@H]1C(=O)O[C@H](C(C)C)C(=O)N(C)[C@@H](CC)C(=O)O[C@@H](Cc2ccccc2)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)N(C)OC(=O)[C@@H]1Cc1ccccc1']
++CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,GYSCAQFHASJXRS,1,0.0,0.0,0.4000000059604645,0.4000000059604645,0.4000000059604645,0.7291666865348816,MassSpecGymID0000224,CCC(C)[C@H]1C(=O)O[C@H](Cc2ccccc2)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)N(C(C)C)C(=O)C(C(C(=O)O)C(C)C)O[C@@H](Cc2ccccc2)C(=O)N1C,formula,1,24,11,1,10,1,0.09090909090909091,0,0.09090909090909091,0.9090909090909091,3.9127159118652344,1,1,['CCC(C)[C@H]1C(=O)O[C@H](Cc2ccccc2)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)N(C(C)C)C(=O)C(C(C(=O)O)C(C)C)O[C@@H](Cc2ccccc2)C(=O)N1C']
++CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,GYSCAQFHASJXRS,1,0.0,0.0,0.5614035129547119,0.5614035129547119,0.5614035129547119,0.875,MassSpecGymID0000226,CC[C@H]1OC(=O)[C@@H]([C@@H](C)CC)OC(=O)[C@H](C(C)C)N(C)C(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@@H](Cc2ccccc2)OC(=O)[C@H](Cc2ccccc2)N(C)C1=O,formula,1,24,17,1,14,3,0.17647058823529413,0,0.058823529411764705,0.8235294117647058,3.8592982292175293,1,1,['CC[C@H]1OC(=O)[C@@H]([C@@H](C)CC)OC(=O)[C@H](C(C)C)N(C)C(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@@H](Cc2ccccc2)OC(=O)[C@H](Cc2ccccc2)N(C)C1=O']
++CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,GYSCAQFHASJXRS,1,0.0,0.0,0.36986300349235535,0.36986300349235535,0.36986300349235535,0.875,MassSpecGymID0000227,CCC(C)[C@H]1OC(=O)[C@@H](C)C(=O)[C@H](C(C)C)N(C)C(=O)[C@@H](Cc2ccccc2)N(C)[C@@H](Cc2ccccc2)C(=O)OCOC(=O)N(C)C(=O)[C@H]1Cc1ccccc1,formula,1,24,7,1,7,0,0.0,0,0.14285714285714285,1.0,3.86509108543396,1,1,['CCC(C)[C@H]1OC(=O)[C@@H](C)C(=O)[C@H](C(C)C)N(C)C(=O)[C@@H](Cc2ccccc2)N(C)[C@@H](Cc2ccccc2)C(=O)OCOC(=O)N(C)C(=O)[C@H]1Cc1ccccc1']
++CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,GYSCAQFHASJXRS,1,0.0,0.0,0.5333333611488342,0.5333333611488342,0.5333333611488342,0.875,MassSpecGymID0000228,CC[C@@H](C)[C@H]1OC(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@H]([C@@H](C)CC)OC(=O)[C@H](Cc2ccccc2)N(C)C(=O)C1(O)C(C)=O,formula,1,24,2,1,2,0,0.0,0,0.5,1.0,3.8493499755859375,1,1,['CC[C@@H](C)[C@H]1OC(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@H]([C@@H](C)CC)OC(=O)[C@H](Cc2ccccc2)N(C)C(=O)C1(O)C(C)=O']
++CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,GYSCAQFHASJXRS,1,0.0,0.0,0.3571428656578064,0.3571428656578064,0.3571428656578064,0.8536585569381714,MassSpecGymID0000229,CC[C@H](C)[C@@H]1C(=O)N(C)C(=O)O[C@@H](Cc2ccccc2)OC(=O)[C@H](C(C)C)N(C)C(=O)[C@@H](Cc2ccccc2)OC(=O)[C@H]([C@@H](C)CC)N(Cc2ccccc2)C1=O,formula,1,24,24,1,19,5,0.20833333333333334,0,0.041666666666666664,0.7916666666666666,3.8693902492523193,1,1,['CC[C@H](C)[C@@H]1C(=O)N(C)C(=O)O[C@@H](Cc2ccccc2)OC(=O)[C@H](C(C)C)N(C)C(=O)[C@@H](Cc2ccccc2)OC(=O)[C@H]([C@@H](C)CC)N(Cc2ccccc2)C1=O']
++CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,GYSCAQFHASJXRS,1,0.0,0.0,0.6481481194496155,0.6481481194496155,0.6481481194496155,0.8333333134651184,MassSpecGymID0000230,CCC(C)C1OC(=O)C(Cc2ccccc2)N(C)C(=O)C(Cc2ccccc2)N(C)C(=O)CC(C)OC(=O)C(Cc2ccccc2)N(C)C(=O)C(C(C)C)OC1=O,formula,1,21,12,1,10,2,0.16666666666666666,0,0.08333333333333333,0.8333333333333334,3.888589859008789,1,1,['CCC(C)C1OC(=O)C(Cc2ccccc2)N(C)C(=O)C(Cc2ccccc2)N(C)C(=O)CC(C)OC(=O)C(Cc2ccccc2)N(C)C(=O)C(C(C)C)OC1=O']
++CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,GYSCAQFHASJXRS,1,0.0,0.0,0.39726027846336365,0.39726027846336365,0.39726027846336365,0.875,MassSpecGymID0000231,CCC(C)[C@@H]1C(=O)O[C@H](Cc2ccccc2)C(=O)N(C)[C@H](C(C)C)C(=O)O[C@](Cc2ccccc2)(C(C)C)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)O[C@H](N)C1=O,formula,1,23,10,1,7,3,0.3,0,0.1,0.7,3.884504795074463,1,1,['CCC(C)[C@@H]1C(=O)O[C@H](Cc2ccccc2)C(=O)N(C)[C@H](C(C)C)C(=O)O[C@](Cc2ccccc2)(C(C)C)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)O[C@H](N)C1=O']
++CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,GYSCAQFHASJXRS,1,0.0,0.0,0.4714285731315613,0.4714285731315613,0.4714285731315613,0.875,MassSpecGymID0000232,CCC(Cc1ccccc1)C1OC(=O)C(C)C(=O)CN(C)C(=O)C(Cc2ccccc2)N(C)OC(C)=C(O)C(Cc2ccccc2)N(C)C(=O)C(C(C)C)OC1=O,formula,1,23,16,1,15,1,0.0625,0,0.0625,0.9375,5.640777349472046,1,1,['CCC(Cc1ccccc1)C1OC(=O)C(C)C(=O)CN(C)C(=O)C(Cc2ccccc2)N(C)OC(C)=C(O)C(Cc2ccccc2)N(C)C(=O)C(C(C)C)OC1=O']
++CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,GYSCAQFHASJXRS,1,0.0,0.0,0.6470588445663452,0.6470588445663452,0.6470588445663452,0.9210526347160339,MassSpecGymID0000233,CC(C)[C@H]1OC(=O)[C@@H](C(C)C)N(C)C(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@@H](C(C)C)OC(=O)[C@@H](Cc2ccccc2)C(=O)O[C@@H](Cc2ccccc2)N(C)C1=O,formula,1,24,2,1,2,0,0.0,0,0.5,1.0,3.880922555923462,1,1,['CC(C)[C@H]1OC(=O)[C@@H](C(C)C)N(C)C(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@@H](C(C)C)OC(=O)[C@@H](Cc2ccccc2)C(=O)O[C@@H](Cc2ccccc2)N(C)C1=O']
+diff --git a/.autoresearch/artifacts/current/metrics.json b/.autoresearch/artifacts/current/metrics.json
+index 9982094..eb9e703 100644
+--- a/.autoresearch/artifacts/current/metrics.json
++++ b/.autoresearch/artifacts/current/metrics.json
+@@ -1,12 +1,42 @@
+ {
+-  "seconds_per_case": 18.50810819864273,
+-  "elapsed_time_seconds": 296.1297311782837,
+-  "total_spectra": 16,
+-  "exact_top1": 0.0,
+-  "exact_top10": 0.0,
+-  "tanimoto_top1": 0.6610685214400291,
+-  "tanimoto_top10": 0.6641156747937202,
+-  "formula_success": 1.0,
+-  "avg_total_generated": 85.5625,
+-  "generation_time_percentage": 99.21638803574308
+-}
+\ No newline at end of file
++  "total_spectra": 32,
++  "elapsed_time_seconds": 132.40949487686157,
++  "spectra_per_second": 0.24167451155794695,
++  "exact_match_top1": 0.0,
++  "exact_match_top10": 0.0,
++  "tanimoto_top1_mean": 0.49754720740020275,
++  "tanimoto_top10_mean": 0.49754720740020275,
++  "mist_tanimoto_mean": 0.8562775142490864,
++  "avg_formula_matches": 0.9375,
++  "avg_predictions_collected": 1.0,
++  "avg_total_generated": 23.9375,
++  "avg_total_valid": 10.65625,
++  "avg_unique_valid_smiles": 9.03125,
++  "avg_duplicate_valid_smiles": 1.625,
++  "avg_valid_duplicate_rate": 0.08797022322685055,
++  "avg_formula_duplicate_matches": 0.0,
++  "avg_formula_match_fraction_among_valid": 0.20685824269899344,
++  "avg_unique_valid_fraction_among_valid": 0.9120297767731493,
++  "avg_first_formula_match_at": 0.0,
++  "avg_first_unique_formula_match_at": 0.0,
++  "avg_wasted_generated_after_first_formula_match": 0.0,
++  "avg_wasted_generated_after_first_unique_formula_match": 0.0,
++  "formula_match_success_rate": 0.9375,
++  "avg_attempts_to_match": 23.4,
++  "never_matched_rate": 0.0625,
++  "avg_generation_time": 4.070404842495918,
++  "total_generation_time": 130.25295495986938,
++  "generation_time_percentage": 98.37131021533031,
++  "total_elapsed_time_seconds": 132.40949487686157,
++  "encoder_batch_size": 1,
++  "proposal_source_counts": [
++    [
++      "formula",
++      32
++    ]
++  ],
++  "seconds_per_case": 4.137796714901924,
++  "tanimoto_top1": 0.49754720740020275,
++  "formula_success": 0.9375,
++  "exact_top1": 0.0
++}
+diff --git a/.autoresearch/artifacts/current/predictions.csv b/.autoresearch/artifacts/current/predictions.csv
+index c389186..7133873 100644
+--- a/.autoresearch/artifacts/current/predictions.csv
++++ b/.autoresearch/artifacts/current/predictions.csv
+@@ -1,17 +1,33 @@
+-true_smiles,name,pred_smiles_1,pred_smiles_2,pred_smiles_3,pred_smiles_4,pred_smiles_5,pred_smiles_6,pred_smiles_7,pred_smiles_8,pred_smiles_9,pred_smiles_10
+-CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,MassSpecGymID0000201,CC[C@H](C)[C@H]1OC(=O)[C@H](Cc2ccccc2)N(C)CC(=O)[C@@H](C(C)C)OC(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@@H](Cc2ccccc2)OC(=O)[C@H](C)C(=O)N1C,CC[C@H](C)[C@H]1OC(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@@H](C(C)C)OC(=O)[C@H](c2ccccc2)C(=O)[C@H](C(C)C)N(C)C(=O)[C@H](C)OC(=O)N1Cc1ccccc1,CCC(C)C1C(=O)O[C@H](C(C)C)C(=O)N(C)[C@@H](C(C)CC)C(=O)N(C#Cc2ccccc2)[C@@H](Cc2ccccc2)C(=O)[C@@H]2C(=O)ON(C)C(=O)[C@@H](C(C)C)[C@H]2C1=O,CCC(C)[C@@H]1OC(=O)[C@H](Cc2ccccc2)OC(=O)N(C)C(C)C(=O)C(C)(C(C)C)C(=O)N(C)[C@H](Cc2ccccc2)C(=O)N(C)[C@@H](Cc2ccccc2)OC1=O,CC[C@H](C)N1C(=O)O[C@@H](C(C)C)C(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@@H](Cc2ccccc2)OC(=O)COC(=O)[C@H](C(C)C)N(C)C(=O)[C@H]1Cc1ccccc1,CCC(C)C1C(=O)OC(Cc2ccccc2)C(=O)N(C)C(=O)C(Cc2ccccc2)N(C)C(=O)C(C(C)C)N(C)C(=O)OCC(Cc2ccccc2)OC(=O)C1C,CCC(C)[C@@H]1OC(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@H]2[C@@H](C(=O)N2C)N(C)C(=O)[C@H](C(C)C)OC1=O,CC[C@H](C)[C@@H]1C(=O)O[C@H](C(C)C)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)O[C@H](Cc2ccccc2)C(=O)N(C)[C@H](Cc2ccccc2)C(=O)O[C@H](C(C)C)C(=O)N1C,CCC(C)C1C(=O)OC(C(C)C)C(=O)N(C)C(Cc2ccccc2)C(=O)OC(Cc2ccccc2)C(=O)N(C)C(C(C)C)C(=O)OC(Cc2ccccc2)C(=O)N1C,CC[C@@H](C)[C@H]1OC(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@H](C(C)C)N(C)C(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@@H](C)OC1=O
+-CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,MassSpecGymID0000202,CCC(C)[C@H]1OC(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@@H](C(C)C)N(C)C(=O)C(Oc2ccccc2)C(Cc2ccccc2)N(C)C(=O)C(C(C)C)OC(=O)C1=O,CC[C@H](C)[C@@H]1OC(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@H]([C@@H](C)CC)N(C)C(=O)[C@H](C)OC(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@@H](Cc2ccccc2)OC1=O,CC[C@H]1OC(=O)[C@H](C(C)C)N(C)C(=O)[C@H](Cc2ccccc2)OC(=O)N(C)C(=O)[C@H](Cc2ccccc2)[C@@H]([C@@H](C)CC)OC(=O)[C@@H](Cc2ccccc2)N(C)C1=O,CCC(C)C1C(=O)OC(Cc2ccccc2)C(=O)N(C)C(Cc2ccccc2)C(=O)CN(C)C(=O)C(C(C)C)OC(=O)OC(Cc2ccccc2)C(=O)N1C(C)C,CC[C@@H](C)N1C(=O)[C@@H](Cc2ccccc2)OC(=O)N(C)C(=O)[C@@H](Cc2ccccc2)OC(=O)[C@H](C(C)C)N(C)C(=O)[C@H](Cc2ccccc2)OC(=O)[C@H]1[C@@H](C)CC,CC[C@H](C)[C@@H]1OC(=O)[C@H](C(=O)c2ccccc2)N(C)C(=O)[C@H](C(C)C)N(C)C(=O)[C@@H](Cc2ccccc2)N(C)C(=O)[C@@H](Cc2ccccc2)OC(=O)O[C@H]1C(C)C,CCC(C)C1C(=O)OC(Cc2ccccc2)C(=O)N(C)C(Cc2ccccc2)OC(=O)COCC(=O)C(Cc2ccccc2)N(C)C(=O)N(C)C(C(C)CC)C1=O,CCC(C)C1C(=O)OC(Cc2ccccc2)C(=O)N(C)C2=CCC(=O)N(C)C(C(C)C)C(=O)OC=C(C(=O)N1C)C(C(C)C)C(=O)OC(Cc1ccccc1)C=C2,CC[C@H](C)[C@@H]1C(=O)O[C@H](Cc2ccccc2)N(C)C(=O)[C@H](Cc2ccccc2)C(=O)O[C@@]2(OC(C)C)N(C)[C@@H](Cc3ccccc3)C(=O)O[C@@]2(C)C(=O)N1C(C)C,CCC(C)O[C@H]1C(=O)C(=O)N(C(=O)[C@@H](N)Cc2ccccc2)[C@@H](Cc2ccccc2)C(=O)C(C)C(=O)O[C@H](C(C)CC)[C@H](C)C(=O)O[C@H](Cc2ccccc2)N1C
+-CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,MassSpecGymID0000203,CCC(C)C1OC(=O)C(Cc2ccccc2)N(C)C(=O)C(Cc2ccccc2)OC(=O)C(Cc2ccccc2)OC(=O)CCCN(C)C(=O)C(C(C)C)N(C)C1=O,CC[C@H](C)[C@@H]1C(=O)O[C@H](C(C)C)C(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@@H](Cc2ccccc2)N(C)C(=O)[C@@H](C)OCOC(=O)[C@H](Cc2ccccc2)N(C)C1=O,CC[C@H]1OC(=O)O[C@H](Cc2ccccc2)N(C)C(=O)[C@@H](C(C)C)OC(=O)[C@H]([C@@H](C)CC)N(C)C(=O)[C@@H](Cc2ccccc2)C(=O)[C@H](Cc2ccccc2)N(C)C1=O,CCC(C)C1OC(=O)[C@H](Cc2ccccc2)OC(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@@H](CC)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)N(C)[C@@H](C(C)C)C(=O)O1,CC[C@H](C)[C@H]1C(=O)O[C@H](C(C)C)C(=O)N(C)C(Cc2ccccc2)C(=O)N(C)C(=O)O[C@](N)(Cc2ccccc2)C(=O)O[C@@H](C(C)C)C(=O)C1Cc1ccccc1,CCC(C)C1C(=O)OC(Cc2ccccc2)C(=O)N(C)CC(=O)N(C)C(Cc2ccccc2)C(=O)OC(Cc2ccccc2)C(=O)N(C)C(C(C)C)C(=O)OC1C,CC[C@@H](C)[C@H]1OC(=O)[C@@H]([C@@H](C)CC)N(C)C(=O)[C@@H](Cc2ccccc2)N(C)C(=O)C(C=C2C(=O)O[C@H]2C(=O)[C@@H](C)CC)=CC(=O)[C@@H](Cc2ccccc2)N(C)C1=O,CC[C@H](C)[C@H]1C(=O)OC(c2ccccc2)C(=O)N(C)[C@H](C(C)C)OC(=O)O[C@H](Cc2ccccc2)[C@@H](C(C)C)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)N(C)C1=O,CCC(C)C1C(=O)OC(C(C)C(=O)O)N(C)C(=O)C(Cc2ccccc2)OC(=O)C(C(C)C)N(C)C(=O)C(Cc2ccccc2)N(C)C(=O)C1Cc1ccccc1,CC[C@H](C)[C@@H]1C(=O)O[C@H](c2ccccc2)N(C)C(=O)[C@@](C)(Cc2ccccc2)N(C(C)C)C(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@@H](C(C)C)C(O)OC(=O)C1=O
+-CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,MassSpecGymID0000204,CC[C@H](C)[C@H]1OC(=O)N(C)C(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@@H](Cc2ccccc2)[C@H](C)COC(=O)[C@@H](Cc2ccccc2)N(C)C(=O)[C@@H](C(C)C)OC1=O,CCC(C)C1OC(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@H](C)N(C)C(=O)[C@@H](Cc2ccccc2)OC(=O)[C@H](Cc2ccccc2)N(C)C(=O)CC(C(C)C)OC1=O,CCC(C)C1C(=O)OC(Cc2ccccc2)C(=O)N(C)C(Cc2ccccc2)C(=O)OCC(=O)OC(C)C(=O)N(C)C(Cc2ccccc2)C(=O)N(C)C1C(C)C,CCC(C)C1OC(=O)C(C(C)CC)C(Cc2ccccc2)C(=O)N(C)N(C)C(=O)C(Cc2ccccc2)OC(=O)C(Cc2ccccc2)OC(=O)N(C)C(=O)C1C,CC[C@H](C)[C@@H]1OC(=O)[C@H](C(C)C)N(C)C(=O)C(Cc2ccccc2)C(=O)N(C)[C@@H](Cc2ccccc2)OC(=O)C(Cc2ccccc2)N(C)C(=O)[C@@H](C(C)C)OC1=O,CC[C@H](C)[C@H]1OC(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@H](C(C)C)OC(=O)[C@H](Cc2ccccc2)N(C)C(=O)O[C@@H](C)C(=O)N1C,CC[C@H](C)[C@@H]1OC(=O)[C@@H](C(C)C)N(C)C(=O)[C@H](Cc2ccccc2)OC(=O)[C@@H](C(C)C)OC(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@H](Cc2ccccc2)N(C)C1=O,CCC(C)C1C(=O)OC(Cc2ccccc2)C(=O)OC(Cc2ccccc2)C(=O)N(C)C(=O)C(C)C(=O)N(C)C(Cc2ccccc2)C(=O)OC(C(C)C)C(=O)N1C,CCC(C)C1OC(=O)[C@H](Cc2ccccc2)N(C)C(=O)CCN(C)C(=O)[C@H](Cc2ccccc2)N(C)C(=O)C(C(C)C)OC(=O)[C@@H](Cc2ccccc2)CN(C)C1=O,CCC(C)C1OC(=O)C(Cc2ccccc2)N(C)C(=O)C(Cc2ccccc2)N(C)C(=O)OCOC(=O)C(C(C)C)N(C)C(=O)C(Cc2ccccc2)N(C)C1=O
+-CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,MassSpecGymID0000205,CCC1OC(=O)C(C(C)CC)N(C)C(=O)C(C(C)C)OC(=O)C(Cc2ccccc2)N(C)C(=O)C(Cc2ccccc2)OC(=O)C(Cc2ccccc2)N(C)C1=O,CC[C@@H](C)[C@H]1OC(=O)[C@@H](Cc2ccccc2)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)O[C@H](C(C)C)C(=O)N(C)[C@@H](CC)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)O1,CCC(C)[C@@H]1OC(=O)[C@H](Cc2ccccc2)N(C)C(=O)O[C@@H](C(C)C)C(=O)[C@H](Cc2ccccc2)OC(=O)[C@@H](CC)N(C)C(=O)[C@H](Cc2ccccc2)N(C)C1=O,CC[C@@H](C)[C@H]1C(=O)O[C@H](N)C(=O)N(C)[C@H](Cc2ccccc2)C(=O)O[C@H](Cc2ccccc2)C(=O)[C@H](CC)[C@@H](Cc2ccccc2)C(=O)O[C@@H](C(C)C)C(=O)N1C,CC[C@H](C)[C@H]1OC(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@@H](C)C(=O)[C@@H](C(C)C)N(C)C(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@@H](Cc2ccccc2)COOC1=O,CC[C@H](C)[C@H]1C(=O)O[C@H](C(C)C)C(C)=N[C@H](c2ccccc2)C(=O)N(C)C(Cc2ccccc2)OC(=O)[C@H](Cc2ccccc2)OC(=O)O[C@H](C(C)C)C(=O)N1C,CC[C@@H](C)[C@H]1C(=O)[C@H](Cc2ccccc2)[C@H](C)C(=O)CO[C@@H](C(C)C)OC(=O)[C@@H](Cc2ccccc2)OC(=O)[C@H](Cc2ccccc2)N(C)C(=O)N(C)C(=O)N1C,CCC(=O)N(C)C(Cc1ccccc1)C(=O)C(Cc1ccccc1)C(=O)OOC1C(=O)N(C)C(Cc2ccccc2)C(=O)OC(C(C)CC)C(C(C)C)C(=O)N1C,CCC(C)C1C(=O)OC(C(C)(C)C)CC(=O)C(Cc2ccccc2)N(C)C(=O)OC(Cc2ccccc2)C(=O)N(C)C(=O)OC(CCc2ccccc2)C(=O)N1C,CCC(C)C1OC(=O)C(Cc2ccccc2)N(C)C(=O)C(Cc2ccccc2)N(C)C(=O)N(C)C(=O)C(C(C)C)OC(=O)C(C)C(Cc2ccccc2)N(C)C1=O
+-CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,MassSpecGymID0000206,CC[C@H](C)[C@@H]1OC(=O)[C@H](Cc2ccccc2)OC(=O)[C@@H](C(C)C)N(C)C(=O)[C@H](c2ccccc2)N(C)C(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@@H](C(C)C)OC1=O,CC[C@H](C)[C@@H]1OC(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@@H](Cc2ccccc2)N(C)C(=O)C(Cc2ccccc2)C(=O)[C@H](C(C)C)N(C)C(=O)[C@@H](CCO)OC1=O,CCC(C)C1OC(=O)C(Cc2ccccc2)N(C)C(=O)C(Cc2ccccc2)N(C)C(=O)C(C(C)C)C(=O)OCC(=O)N(C)C(Cc2ccccc2)C(=O)OC1C,CC[C@@H](C)[C@H]1OC(=O)[C@H](Cc2ccccc2)N(C)C(=O)N(C)C(=O)[C@@H](Cc2ccccc2)OC(=O)[C@H](Cc2ccccc2)N(C(C)C)C(=O)OC(C(C)(C)C)C1=O,CC[C@H](C)[C@H]1C(=O)O[C@H](Cc2ccccc2)C(=O)N(C)[C@H](Cc2ccccc2)OC(=O)CN(C)[C@@H](C(C)C)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)OC(=O)[C@H]1C,CC[C@H](C)[C@H]1C(=O)O[C@@H](Cc2ccccc2)C(=O)N(C)O[C@H](c2ccccc2)C(=O)O[C@H](Cc2ccccc2)C(=O)[C@H](C(C)C)N(C)C(=O)[C@@H](C)C(=O)N1C(C)C,CC[C@H](C)[C@H]1OC(=O)[C@H](Cc2ccccc2)N(C)C(=O)N(C)C(=O)[C@@H](Cc2ccccc2)N(C)C(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@@H](C(C)C)OC(=O)[C@@H]1C,CC[C@H](C)[C@@H]1C(=O)O[C@H](C(C)C)C(=O)N(C)CC(=O)N(C)[C@@H](Cc2ccccc2)OC(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@@H](C(C)C)OC1=O,CCC(C)C1OC(=O)C(C(C)C)N(C)C(=O)C(Cc2ccccc2)N(C)C(=O)C(C(C)C)C(=O)C(Cc2ccccc2)OC(=O)C(Cc2ccccc2)N(C)C1=O,CCC(C)C1OC(=O)N(C)C(=O)C(Cc2ccccc2)N(C)C(=O)C(C(C)CC)OC(=O)C(Cc2ccccc2)N(C)C(=O)C(Cc2ccccc2)OC1=O
+-CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,MassSpecGymID0000207,CCC(C)[C@H]1C(=O)C(C)OC(O)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)O[C@@H](C(C)C)C(=O)N(C)C(Cc2ccccc2)C(=O)N(C)[C@@H](Cc2ccccc2)C1=O,CCC(C)C1C(=O)OC(C(C)C)C(=O)N(C)C(Cc2ccccc2)C(=O)OC(C(=O)c2ccccc2)N(C)C(C(C)C)C(=O)OC(Cc2ccccc2)C(=O)N1C,CCC(C)C1OC(=O)C(Cc2ccccc2)N(C)C(=O)C(Cc2ccccc2)N(C)CC(=O)OC(Cc2ccccc2)N(C)C(=O)C(=O)C(C(C)C)OC(=O)C1C,CC[C@H](C)[C@H]1OC(=O)[C@H](C(C)C)N(C)C(=O)[C@H](Cc2ccccc2)OC(=O)CC(=O)N(C)[C@H](Cc2ccccc2)C(=O)O[C@H](Cc2ccccc2)N(C)C(=O)[C@@H]1C,CCC(C)C1OC(=O)C(C(C)C)N(C)C(=O)C(Cc2ccccc2)C(=O)C(Cc2ccccc2)OC(=O)C(C(C)(C)N)OC(Cc2ccccc2)C(=O)N(C)C1=O,CCC(C)C1OC(=O)N(C)C(=O)C(Cc2ccccc2)OC(=O)N(C)C(C(C)C)(C(C)CC)C(=O)C(Cc2ccccc2)N(C)C(=O)C(c2ccccc2)OC1=O,CC[C@H](C)[C@@H]1C(=O)O[C@H](C)C(=O)[C@H]([C@@H](C)CC)N(C)C(=O)[C@@H](C)C(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@@H](Cn2cccc2)OC(=O)[C@@H](Cc2ccccc2)C1=O,CCC(C)C(OC(=O)C(Cc1ccccc1)N(C)C(=O)C(Cc1ccccc1)N(C)C(=O)C(OC(=O)C(C)=O)C(C)C)C(=O)N(C)C(=O)C(C)Cc1ccccc1,CC[C@H](C)[C@H]1OC(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@H](C(C)C)N(C)C(=O)[C@H](C(C)C)OC(=O)C1=O,CCC(C)C1OC(=O)C(Cc2ccccc2)N(C)C(=O)C(C(C)C)OC(=O)C(C)OC(=O)C(Cc2ccccc2)N(C)C(=O)N(C)C(Cc2ccccc2)C(=O)O1
+-CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,MassSpecGymID0000208,CCC(C)C1C(=O)OC(C(C)C)C(=O)N(C)C(Cc2ccccc2)C(=O)OC(Cc2ccccc2)C(=O)OC(C)C(=O)N(C)C(C(C)C)C(=O)N1c1ccccc1,CC[C@H](C)[C@H]1C(=O)O[C@H](Cc2ccccc2)C(=O)O[C@H](Cc2ccccc2)C(=O)N(C)C[C@@H](C)C(=O)O[C@@H](C(C)C)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)N1C,CC[C@H](C)[C@H]1C(=O)O[C@H](Cc2ccccc2)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)O[C@H](C(C)C)C(=O)O[C@H](c2ccccc2)C(=O)N(C)[C@@H](C(C)C)C(=O)N1C,CC[C@@H](C)[C@@H]1C(=O)O[C@H](Cc2ccccc2)C(=O)N(C)[C@@H](C(C)C)C(=O)O[C@H](Cc2ccccc2)[C@H](C)C(=O)OCC(=O)N(C)[C@H](Cc2ccccc2)C(=O)N1C,CC[C@H](C)[C@@H]1C(=O)OC[C@@H](CCc2ccccc2)OC(=O)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)N(C)C[C@H](C(C)C)N(C)C(=O)[C@@H](Cc2ccccc2)OC1=O,CC[C@@H](C)[C@@H]1C(=O)O[C@H](C(Cc2ccccc2)c2ccccc2)C(=O)O[C@@H](c2ccccc2)N(C)C(=O)N(C)C(=O)[C@@H](C(C)C)N(C)C(=O)[C@@H]([C@@H](C)CC)OC1=O,CCC1OC(=O)C(C(C)CC)N(C)C(=O)C(C(C)C)OC(=O)C(Cc2ccccc2)N(C)C(=O)C(Cc2ccccc2)N(C)C(=O)C(Cc2ccccc2)N(C)C1=O,CCCC1C(=O)O[C@H]([C@@H](C)CC)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)O[C@H](C(C)C)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)N(C)N(C)C1=O,CC[C@H](C)[C@H]1C(=O)O[C@@H](Cc2ccccc2)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)O[C@@H](C(C)C)C(=O)O[C@H](C(C)C)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)N1C,CC[C@H](C)[C@@H]1C(=O)O[C@H](Cc2ccccc2)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)O[C@H](C(C)C)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)N(C)OC1=O
+-CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,MassSpecGymID0000209,CC[C@H]1OC(=O)[C@H]([C@@H](C)CC)N(C)C(=O)[C@@H](C(C)C)OC(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@@H](Cc2ccccc2)OC(=O)[C@@H](Cc2ccccc2)N(C)C1=O,CC[C@H](C)[C@@H]1C(=O)O[C@H](Cc2ccccc2)C(=O)N(C)C(=O)[C@@H](C(C)C)OC(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@@H](C(C)C)OC(=O)N[C@@H]1Cc1ccccc1,CC[C@H](C)[C@@H]1C(=O)O[C@@H](C(C)C)C(=O)N(C)[C@@H](c2ccccc2)C(=O)OC(Cc2ccccc2)C(=O)O[C@H](C(C)C)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)N1C,CC[C@H](C)[C@@H]1C(=O)O[C@H](C(C)C)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@H](Cc2ccccc2)OC(=O)C[C@@H](C)OC(=O)N1C,CCC(C)C1OC(=O)C(C(C)CC)N(C(C)C)C(=O)N(C)C(Cc2ccccc2)OC(=O)C(Cc2ccccc2)C(=O)OC(=O)C(Cc2ccccc2)N(C)C1=O,CC[C@H](C)[C@H]1C(=O)O[C@H](CC2OCO2)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)O[C@@H]1C(C)C,CCC(C)C1C(=O)O[C@@H](Cc2ccccc2)C(=O)N(C)[C@@H](C(C)C)C(=O)ON(C)[C@H](CC)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)O[C@H](Cc2ccccc2)C1=O,CCC(C)C1C(=O)OC(C(C)C)C(=O)OC(c2ccccc2)C(=O)N(C)C(=O)C(Cc2ccccc2)N(C)C(=O)OC(Cc2ccccc2)C(=O)N(C)C1C(C)C,CCC(C)[C@H]1C(=O)O[C@H](Cc2ccccc2)C(=O)N(C)[C@H](C(C)C)C(=O)O[C@H](c2ccccc2)C(=O)N(C)[C@@H](C(C)C)C(=O)O[C@H](Cc2ccccc2)C(=O)N1C,CCC(C)[C@H]1C(=O)O[C@@H](C(C)c2ccccc2)C(=O)N(C)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)O[C@H](C(C)C)CCC(=O)O[C@H](Cc2ccccc2)C(=O)N1C
+-CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,MassSpecGymID0000210,CCC(C)[C@H]1C(=O)O[C@H](C(C)C)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)O[C@H](C(C)C)C(=O)O[C@H](Cc2ccccc2)N(C)C(=O)C(c2ccccc2)C(=O)N1C,CC[C@@H](C)[C@H]1C(=O)O[C@H](C(C)C)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)O[C@H](Cc2ccccc2)C(=O)N([C@H](C)c2ccccc2)C(=O)O[C@H](C(C)C)C(=O)N1C,CCC(C)[C@H]1C(=O)O[C@H](C(C)C)C(=O)N(C)[C@@H](CC)C(=O)O[C@H](Cc2ccccc2)C(=O)[C@@H](Cc2ccccc2)OC(=O)N(C)[C@@H](Cc2ccccc2)C(=O)N1C,CCC(C)C1C(=O)OC(C(C)C)C(=O)N(C)C(Cc2ccccc2)C(=O)OC(Cc2ccccc2)C(=O)N(C)C(Cc2ccccc2)C(C2OC(C)O2)C(=O)N1C,CC[C@H](C)[C@H]1C(=O)O[C@H](Cc2ccccc2)C(=O)O[C@H](Cc2ccccc2)N(C(C)C)C(=O)CC(=O)N(C)[C@H](Cc2ccccc2)C(=O)O[C@H](C(C)C)C(=O)N1C,CC[C@H](C)[C@@H]1OC(=O)[C@H]([C@@H](C)CC)N(Cc2ccccc2)C(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@@H](Cc2ccccc2)OC(=O)[C@@H](C(C)C)OC(=O)N(C)C1=O,CCC(C)C1C(=O)OC(Cc2ccccc2)C(=O)N(C)C(Cc2ccccc2)C(=O)N(C)C(=O)N(C)C(C(C)C)C(=O)OC(Cc2ccccc2)C(=O)OCC1C,CC[C@@H](C)[C@@H]1C(=O)O[C@H](Cc2ccccc2)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)N(C)C(=O)O[C@H](Cc2ccccc2)OC(=O)[C@H](C(C)C)N(C)CC(=O)[C@@H]1C,CC[C@H](C)[C@H]1C(=O)O[C@@H](Cc2ccccc2)C(=O)N(C)[C@@H](C(C)=O)C(=O)N(C)[C@@H](C(C)C)C(=O)[C@@H](C(C)C)OC(=O)C2C=C=C2[C@@H](Cc2ccccc2)C(=O)N1C,CCC(C)C1C(=O)OC(Cc2ccccc2)C(=O)N(C)C(Cc2ccccc2)OC(=O)C(Cc2ccccc2)(C(C)C)C(=O)N(C)OC(=O)N(C)C(C(C)C)C1=O
+-CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,MassSpecGymID0000211,CC(C)C1COC(=O)C(c2ccccc2)N(C)C(=O)C(C(C)C)OC(=O)C(Cc2ccccc2)N(C)C(=O)C(C(C)C)OC(=O)C(Cc2ccccc2)N(C)C1=O,CC(C)[C@@H]1NCC(=O)O[C@@H](Cc2ccccc2)C(=O)O[C@H](C(C)C)C(=O)[C@@H](C(C)C)OC(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@H](Cc2ccccc2)N(C)C1=O,CCC[C@H]1C(=O)[C@H](CCc2ccccc2)N(C)C(=O)O[C@@H](CC)C(=O)O[C@H](C(C)C)C(=O)O[C@@H](Cc2ccccc2)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)N1C,CC(C)[C@@H]1OC(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@H](Cc2ccccc2)N(C(C)C)C(=O)N(C)[C@@H](Cc2ccccc2)OC(=O)[C@H](C(C)C)OC(=O)CCC1=O,CC(C)[C@@H]1C(=O)O[C@H](C(C)C)C(=O)N(C)OC[C@H](Cc2ccccc2)C(=O)N(C)[C@H](Cc2ccccc2)C(=O)N(C)[C@@H](c2ccccc2)C(=O)O[C@H](C(C)C)C1=O,CC(C)C1CONC(=O)[C@H](Cc2ccccc2)OC(=O)[C@@H](C(C)C)N(C)C(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@@H](Cc2ccccc2)OC(=O)[C@@H](C(C)C)C1=O,CCCC1C(=O)C(Oc2ccccc2)NN(C)C(=O)C(Cc2ccccc2)C(=O)OC(C(CC)c2ccccc2)C(=O)OC(=O)C(C(C)C)C(C(C)C)C(=O)N1C,CCCC1C(=O)OC(CC)N(C)C(Cc2ccccc2)C(=O)OC(Cc2ccccc2)C(=O)C(=O)C(O)(c2ccccc2)C(=O)C(C(C)C)N(C)C(=O)N1C(C)C,CC(C)C1OC(=O)C2(Cc3ccccc3)C(C)C(=O)N(C)CC(=O)N(C)C(Cc3ccccc3)C(=O)C(Cc3ccccc3)N(C)C(O)OC(C(C)C)C2OC1=O,CC(C)[C@@H]1C(Cc2ccccc2)C(=O)C(ON[C@H]2C(=O)N(C)[C@H](C(C)C)C(=O)O[C@H]2C(C)C)C(=O)[C@H](Cc2ccccc2)OC(=O)[C@H](Cc2ccccc2)ON1C
+-CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,MassSpecGymID0000212,CC[C@H](C)[C@@H]1OC(=O)[C@H]([C@@H](C)CC)N(C)C(=O)[C@@H](C)OC(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@@H](Cc2ccccc2)OC(=O)[C@H](Cc2ccccc2)N(C)C1=O,CC[C@H](C)[C@@H]1C(=O)O[C@@H](C(C)C)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)O[C@@H](C(C)C)C(=O)O[C@H](Cc2ccccc2)C(=O)N(C)[C@H](C)C(=O)N1c1ccccc1,CC[C@@H](C)[C@H]1C(=O)O[C@H](C(C)C)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)OC[C@@H](Cc2ccccc2)C(=O)O[C@@H](C)C(=O)N(C)[C@H](Cc2ccccc2)C(=O)N1C,CC[C@@H](C)[C@H]1C(=O)O[C@H](Cc2ccccc2)C(=O)N(C)[C@H](Cc2ccccc2)C(=O)N(C)C(=O)N(C)[C@H](Cc2ccccc2)C(=O)O[C@H](C(C)C)C(=O)OCC1C,CC[C@@H](C)[C@H]1OC(=O)[C@H](C(C)C)N(C)C(=O)[C@@H](Cc2ccccc2)N(C)C(=O)C(Cc2ccccc2)C(=O)[C@H](C(C)C)OOC(=O)[C@H](c2ccccc2)N(C)C1=O,CCC(C)[C@H]1C(=O)O[C@H](Cc2ccccc2)N(C)C(=O)[C@H](Cc2ccccc2)[C@@H](C)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)OCC(=O)O[C@H](C(C)C)C(=O)N1C,CCC(C)C1C(=O)OC(Cc2ccccc2)C(=O)N(C)C(Cc2ccccc2)C(=O)C(Cc2ccccc2)OC(=O)C(N)CC(=O)OC(C(C)C)C(=O)N(C)C1C,CCC(C)C1C(=O)OC(C(C)C)C(=O)N(C)CC(=O)OC(c2ccccc2)C(=O)N(C)C(Cc2ccccc2)C(=O)N(C)C(C(C)C)C(=O)OC1c1ccccc1,CCC(C)C1C(=O)OC(Cc2ccccc2)C(=O)N(C)C(Cc2ccccc2)C(=O)OC(C(C)C)COC(=O)N(C(C)C)C(Cc2ccccc2)C(=O)N(C)C1=O,CC[C@H](C)[C@H]1C(=O)O[C@@H](Cc2ccccc2)C(=O)N(C)[C@@H](C(C)C)C(=O)N[C@@H](Cc2ccccc2)C(=O)[C@H](C(C)C)OC(=O)[C@@H](Cc2ccccc2)OC(=O)N1C
+-CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,MassSpecGymID0000213,CCC(C)C1OC(=O)N(C(C)CC)C(=O)C(C(C)C)OC(=O)C(Cc2ccccc2)N(C)C(=O)C(Cc2ccccc2)OC(=O)C(Cc2ccccc2)N(C)C1=O,CC[C@@H](C)[C@H]1OC(=O)[C@H](C)N(C)C(=O)[C@@H](Cc2ccccc2)OC(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@@H]([C@@H](C)CC)OC1=O,CC[C@@H](C)[C@@H]1OC(=O)[C@H](C(C)C)OC(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@H](C(C)C)NC(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@@H](Cc2ccccc2)OC1=O,CCC(C)C1C(=O)OC(Cc2ccccc2)C(=O)OC(C)C(=O)COC(C(C)C)C(=O)N(C)C(Cc2ccccc2)C(=O)N(C)C(Cc2ccccc2)C(=O)N1C,CCC(C)C1C(=O)OC(C(C)C)C(=O)N(C)C(c2ccccc2)C(=O)OC(Cc2ccccc2)C(=O)N(C)C(C(C)C)C(=O)OC(C)C(=O)N1Cc1ccccc1,CC[C@H](C)[C@H]1C(=O)O[C@H](C(C)C)C(=O)N(C)CC(=O)N(Cc2ccccc2)[C@@H](C(C)C)C(=O)O[C@H](Cc2ccccc2)C(=O)O[C@H](Cc2ccccc2)C(=O)N1C,CCC(C)[C@H]1C(=O)O[C@H](Cc2ccccc2)C(=O)N(C)C(=O)[C@@H](C)[C@@H](Cc2ccccc2)C(=O)O[C@@H](C(C)C)COC(=O)N(C)[C@@H](Cc2ccccc2)C(=O)N1C,[3H]C1OC(=O)N(C)C(Cc2ccccc2)C(=O)[C@H](C(C)C)[C@@H](C(C)C)OC(=O)[C@H]([C@@H](C)CC)N(Cc2ccccc2)OC(=O)C(=O)N(C)[C@@H](Cc2ccccc2)C1=O,CCC(C)C1C(=O)OC(=O)C(N(C)Cc2ccccc2)C(C(C)C)OC(=O)C(c2ccccc2)N(C)C(=O)C(C(C)C)N(C)C(=O)C(Cc2ccccc2)OC1=O,CCC(C)C1OC(=O)C(Cc2ccccc2)N(C)C(=O)C(Cc2ccccc2)N(C)C(=O)C(C(C)C)OC1=O
+-CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,MassSpecGymID0000214,CCC1OC(=O)C(Cc2ccccc2)N(C)C(=O)C(C(C)C)OC(=O)C(C(C)CC)N(C)C(=O)C(Cc2ccccc2)OC(=O)C(Cc2ccccc2)N(C)C1=O,CC[C@H](c1ccccc1)[C@H]1C(=O)O[C@H](C(C)C)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)O[C@@H](C)C(=O)O[C@@H](Cc2ccccc2)C(=O)N(C)[C@@H](C(C)C)C(=O)N1C,CCC(C)C1OC(=O)C(Cc2ccccc2)N(C)C(=O)C(C)C(C)C(=O)C(C(C)C)N(CCc2ccccc2)OC(=O)OC(=O)C(Cc2ccccc2)N(C)C1=O,CCC(C)C1OC(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@@H](Cc2ccccc2)OC(=O)[C@H](N)C(=O)[C@@H](C(C)CC)OC(=O)C(Cc2ccccc2)N(C)C(=O)C1C,CCC(C)[C@H]1C(=O)O[C@H](C(C)C)C(=O)N(C)[C@@H](C(C)C)C(=O)O[C@H](Cc2ccccc2)C(=O)N(C)[C@@H](c2ccccc2)C(=O)O[C@@H](Cc2ccccc2)C(=O)N1C,CC[C@H](C)[C@@H]1OC(=O)[C@H](CCc2ccccc2)N(C)C(=O)[C@H](C)N(C)C(=O)[C@H](Cc2ccccc2)OC(=O)[C@@H](Cc2ccccc2)OC(=O)[C@H](C(C)C)N(C)C1=O,CCC(C)N1C(=O)OC(Cc2ccccc2)C(=O)OC(C(C)C)C(=O)N(C)C(C(C)C)C(=O)OCC(Cc2ccccc2)C(=O)N(C)C(Cc2ccccc2)C1=O,CC[C@H](C)[C@H]1C(=O)O[C@H](C(C)C)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)[C@@H](Cc2ccccc2)COC(=O)[C@H](C(C)C)C(=O)ON(C)C(=O)N1Cc1ccccc1,CCC(C)C1OC(=O)C(Cc2ccccc2)N(C)C(=O)[C@@H](C)C(=O)OC(Cc2ccccc2)CC(=O)N(C)[C@@H](Cc2ccccc2)C(=O)N(C)C(C(C)C)C(=O)O1,CCC(C)[C@@H]1C(=O)OC(CC2OO2)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)N(C)[C@H](CC(C)C)C(=O)N(C)[C@@H](Cc2ccccc2)OC(=O)[C@@H]1Cc1ccccc1
+-CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,MassSpecGymID0000215,CC[C@@H](C)[C@@H]1C(=O)O[C@H](C(C)C)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)O[C@H](CC)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)O[C@H](Cc2ccccc2)N(C)C1=O,CCC1OC(=O)C(Cc2ccccc2)N(C)C(=O)C(Cc2ccccc2)OC(=O)C(C(C)C)N(C)C(=O)C(Cc2ccccc2)OC(=O)C(C(C)CC)N(C)C1=O,CC[C@@H](C)[C@H]1C(=O)O[C@H](Cc2ccccc2)C(=O)N(C)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)O[C@H](Cc2ccccc2)O[C@H](C(C)C)C(=O)N(C)[C@@H](C=O)[C@@H]1C,CC[C@H](C)[C@@H]1OC(=O)[C@H](Cc2ccccc2)C(=O)N(C)[C@@H](C(C)C)C(=O)N[C@@H](Cc2ccccc2)OC(=O)[C@@H](C(C)C)N(C)C(=O)[C@@H](Cc2ccccc2)OC1=O,CCC(C)C1C(=O)OC(Cc2ccccc2)C(=O)N(C)C(Cc2ccccc2)C(=O)OC(O)C(C)C(=O)C(C(C)C)C(=O)N(C)C(C)C(=O)N1Cc1ccccc1,CC[C@H](C)[C@H]1C(=O)O[C@@H](Cc2ccccc2)C(=O)N(C)[C@@H](CC)C(=O)O[C@H](c2ccccc2)CC(=O)N(C)[C@H](Cc2ccccc2)C(=O)N(C)C(=O)O[C@@H]1C(C)C,CC[C@@H](C)[C@H]1C(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@H]([C@@H](C)CC)OC(=O)[C@@H](Cc2ccccc2)N(C)C(=O)[C@@H](C(C)C)OC(=O)[C@H](Cc2ccccc2)N(C)C1=O,CCC(C)C1C(=O)OC(C(C)C)C(=O)N(C)C(Cc2ccccc2)C(=O)OC(Cc2ccccc2)C(=O)N1C,CCC(C)C1OC(=O)C(Cc2ccccc2)OC(=O)C(Cc2ccccc2)N(C)C(=O)C(Cc2ccccc2)OC1=O,CC[C@H](C)[C@H]1C(=O)O[C@H](C(C)C)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)O[C@H](Cc2ccccc2)C(=O)N(C)C(=O)O[C@H](C(C)C)C(=O)N1C
+-CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,MassSpecGymID0000216,CC[C@H](C)[C@H]1C(=O)O[C@H](Cc2ccccc2)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)O[C@H](C(C)C)C(=O)O[C@H](Cc2ccccc2)[C@H](C)C(=O)N(C)CC(=O)N1C,CCC(C)C1C(=O)OC(Cc2ccccc2)C(=O)N(C)C(=O)OC(C(C)C)C(=O)N(C)C(=O)C(C)C(Cc2ccccc2)COC(Cc2ccccc2)C(=O)N1C,CCC(C)C1C(=O)OC(Cc2ccccc2)C(=O)N(C)C(C(C)C)C(=O)OC(Cc2ccccc2)C(=O)OC(C(Cc2ccccc2)C(=O)NC)C(C)C(=O)N1C,CC[C@H](C)[C@H]1C(=O)O[C@H](Cc2ccccc2)C(=O)N(C)C(=O)[C@H](Cc2ccccc2)[C@H](C)C(=O)O[C@H](C(C)(C)C)N(C)C(=O)[C@@H](Cc2ccccc2)OC(=O)N1C,CCC(C)C1OC(=O)C(Cc2ccccc2)N(C)C(=O)C(C(C)C)OC(=O)C(Cc2ccccc2)OC(=O)C(Cc2ccccc2)N(C)C(=O)C(C(C)C)OC1=O,CC[C@H](C)[C@H]1C(=O)O[C@H](C(C)C)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)O[C@H](C(C)C)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)O[C@@H](Cc2ccccc2)C(=O)N1C,CCC(C)C1C(=O)OC(C(C)C)C(=O)N(C)C(Cc2ccccc2)C(=O)OC(Cc2ccccc2)C(=O)OC(C(C)C)C(=O)N(C)C(Cc2ccccc2)C(=O)N1C,CC[C@H](C)[C@H]1C(=O)O[C@H](Cc2ccccc2)C(=O)N(C)[C@@H](C(C)C)C(=O)O[C@H](Cc2ccccc2)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)O[C@@H](C(C)C)C(=O)N1C,CCC(C)C1OC(=O)C(Cc2ccccc2)N(C)C(=O)N(C)C(=O)C(C(C)C)C(Cc2ccccc2)OC(=O)C(Cc2ccccc2)N(C)C(=O)C(C(C)C)OC1=O,CCC(C)C1C(=O)OC(C(C)C)C(=O)N(C)C(Cc2ccccc2)C(=O)OC(C(C)C)C(=O)OC(Cc2ccccc2)C(=O)N(C)C(Cc2ccccc2)C(=O)N1C
++true_smiles,name,pred_smiles_1
++CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,MassSpecGymID0000201,CCC(C)[C@H]1OC(=O)[C@H](Cc2ccccc2)N(C)C(=O)O[C@H](Cc2ccccc2)C(=O)N(C(C)(C)C)[C@H](Cc2ccccc2)C(=O)O[C@H](C(C)C)C(=O)N(C)C1=O
++CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,MassSpecGymID0000202,CCC(C)C1OC(=O)C(Cc2ccccc2)OC(=O)C(C(C)CC)N(Cc2ccccc2)C(=O)N(C)C(=O)C(C(C)C)N(C)C(=O)C(Cc2ccccc2)OC1=O
++CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,MassSpecGymID0000203,CC[C@@H](C)[C@H]1OC(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@H]([C@@H](C)CC)OC(=O)[C@H](C(C)C)OC(=O)[C@H](Cc2ccccc2)N(C)C(=O)N(C)C1=O
++CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,MassSpecGymID0000204,CCC(C)C1C(=O)OC(Cc2ccccc2)C(=O)[N+](C)([O-])C(C(C)C)C(=O)OC(c2ccccc2)C(=O)C(C(C)C)C(=O)N(C)C(Cc2ccccc2)C(=O)N1C
++CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,MassSpecGymID0000205,CCC(C)C1C(=O)OC(Cc2ccccc2)C(=O)N(C)CC(=O)N(C)C(Cc2ccccc2)C(=O)OC(C(C)C)C(=O)OC(C)C(Cc2ccccc2)C(=O)N1C
++CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,MassSpecGymID0000206,CCC(C)C1C(=O)OC(Cc2ccccc2)C(=O)N(C)C(=O)N(C)C(C(C)C)C(=O)OC(Cc2ccccc2)(C(C)C)OC(=O)C(Cc2ccccc2)N(C)C1=O
++CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,MassSpecGymID0000207,CC[C@H](C)[C@H]1C(=O)O[C@@H](C(=O)O)[C@@H](Cc2ccccc2)OC(=O)N(C)[C@@H](Cc2ccccc2)C(=O)N(C)[C@@H](C)C(=O)[C@H](C(C)C)[C@@H](Cc2ccccc2)C(=O)N1C
++CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,MassSpecGymID0000208,CCC1OC(=O)C(C(C)C)N(C)C(=O)C(Cc2ccccc2)OC(=O)C(C(C)CC)N(Cc2ccccc2)C(=O)C(C)OC(=O)C(Cc2ccccc2)N(C)C1=O
++CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,MassSpecGymID0000209,CCC(C)C1C(=O)OC(C(C)C)C(=O)N(C)C(Cc2ccccc2)C(=O)OC(Cc2ccccc2)C(=O)N(C)C(C(C)C)OC(=O)C(N)(Cc2ccccc2)C1=O
++CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,MassSpecGymID0000210,CC[C@H](C)[C@H]1C(=O)N(Cc2ccccc2)[C@@H]([C@@H](C)CC)C(=O)O[C@H](Cc2ccccc2)C(=O)OC(=O)[C@H](C(C)C)OC(=O)N(C)[C@@H](Cc2ccccc2)C(=O)N1C
++CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,MassSpecGymID0000211,CC(C)[C@H]1OC(=O)N(C)[C@@H](Cc2ccccc2)C(=O)N(C)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)O[C@H](C(C)C)C(=O)[C@@H](C(C)C)OC(=O)[C@@H]1Cc1ccccc1
++CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,MassSpecGymID0000212,CCC1OC(=O)N(C)C(=O)[C@@H](Cc2ccccc2)[C@@H](C(C)CC)C(=O)O[C@H](C(C)C)C(=O)N(C)[C@@H](Cc2ccccc2)OC(=O)[C@H](Cc2ccccc2)N(C)C1=O
++CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,MassSpecGymID0000213,CC[C@@H](C)[C@H]1OC(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@@H](Cc2ccccc2)OC(=O)[C@H]([C@@H](C)CC)OC(=O)[C@H](C(C)C)C(=O)[C@@H](Cc2ccccc2)N(C)C1=O
++CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,MassSpecGymID0000214,CCC(C)C1OC(=O)C(C(C)C)OC(=O)N(C)CC(=O)C(Cc2ccccc2)N(C(C)C)C(=O)C(Cc2ccccc2)N(C)C(=O)C(Cc2ccccc2)OC1=O
++CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,MassSpecGymID0000215,CC[C@H](C)[C@H]1OC(=O)[C@@H](C(C)C)OC(=O)[C@@H](Cc2ccccc2)N(C)C(=O)[C@H](c2ccccc2)N(C)C(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@@H](C(C)C)OC1=O
++CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,MassSpecGymID0000216,CCC(C)[C@@H]1C(=O)O[C@H](C(C)C)C(=O)N(C)[C@@H](Cc2ccccc2)N(C)C(=O)O[C@H](c2ccccc2)C(=O)C(=O)N(C)C(Cc2ccccc2)C(=O)O[C@@H]1C(C)C
++CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,MassSpecGymID0000217,CC[C@H](C)[C@@H]1C(=O)OC(Cc2ccccc2)(C(C)C)C(=O)N(C)[C@H](Cc2ccccc2)C(=O)N(C)[C@H](C(C)C)C(=O)N(CO)C(=O)O[C@@H](Cc2ccccc2)C1=O
++CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,MassSpecGymID0000218,CC(C)C1OC(=O)C(C(C)C)OC(=O)C(Cc2ccccc2)N(Cc2ccccc2)C(=O)C(Cc2ccccc2)N(C)C(=O)C(C)N(C)C(=O)C(C(C)C)OC1=O
++CC(C)C1C(=O)N(C(C(=O)OC(C(=O)N(C(C(=O)OC(C(=O)N(C(C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,MassSpecGymID0000219,CC[C@H](C)[C@H]1C(=O)N(C)C(Cc2ccccc2)C(=O)N(C)C(Cc2ccccc2)C(=O)C(=O)OC(C(C)C)(C(C)C)C(=O)O[C@H](Oc2ccccc2C)C(=O)N1C
++CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,MassSpecGymID0000220,CC(C)[C@H]1C(=O)O[C@H](Cc2ccccc2)C(=O)O[C@H](Cc2ccccc2)C(=O)[C@@H](C(C)C)N(C)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)O[C@H](C(C)C)N(C)C1=O
++CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,MassSpecGymID0000221,CC(C)C[C@H]1OC(=O)O[C@@H](Cc2ccccc2)C(=O)C(=O)N(C)[C@@H](CC(C)C)C(=O)O[C@H](Cc2ccccc2)C(=O)N(C)C(Cc2ccccc2)N(C(C)C)C1=O
++CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,MassSpecGymID0000222,CC[C@H]1C(=O)O[C@H](Cc2ccccc2)C(=O)N(C)OC(=O)N(C)[C@H](Cc2ccccc2)[C@@H]([C@@H](C)CC)C(=O)O[C@H](C(C)C)C(=O)N(C)[C@H](Cc2ccccc2)C1=O
++CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,MassSpecGymID0000223,CC[C@@H](C)[C@H]1C(=O)O[C@H](C(C)C)C(=O)N(C)[C@@H](CC)C(=O)O[C@@H](Cc2ccccc2)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)N(C)OC(=O)[C@@H]1Cc1ccccc1
++CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,MassSpecGymID0000224,CCC(C)[C@H]1C(=O)O[C@H](Cc2ccccc2)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)N(C(C)C)C(=O)C(C(C(=O)O)C(C)C)O[C@@H](Cc2ccccc2)C(=O)N1C
++CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,MassSpecGymID0000226,CC[C@H]1OC(=O)[C@@H]([C@@H](C)CC)OC(=O)[C@H](C(C)C)N(C)C(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@@H](Cc2ccccc2)OC(=O)[C@H](Cc2ccccc2)N(C)C1=O
++CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,MassSpecGymID0000227,CCC(C)[C@H]1OC(=O)[C@@H](C)C(=O)[C@H](C(C)C)N(C)C(=O)[C@@H](Cc2ccccc2)N(C)[C@@H](Cc2ccccc2)C(=O)OCOC(=O)N(C)C(=O)[C@H]1Cc1ccccc1
++CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,MassSpecGymID0000228,CC[C@@H](C)[C@H]1OC(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@H]([C@@H](C)CC)OC(=O)[C@H](Cc2ccccc2)N(C)C(=O)C1(O)C(C)=O
++CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,MassSpecGymID0000229,CC[C@H](C)[C@@H]1C(=O)N(C)C(=O)O[C@@H](Cc2ccccc2)OC(=O)[C@H](C(C)C)N(C)C(=O)[C@@H](Cc2ccccc2)OC(=O)[C@H]([C@@H](C)CC)N(Cc2ccccc2)C1=O
++CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,MassSpecGymID0000230,CCC(C)C1OC(=O)C(Cc2ccccc2)N(C)C(=O)C(Cc2ccccc2)N(C)C(=O)CC(C)OC(=O)C(Cc2ccccc2)N(C)C(=O)C(C(C)C)OC1=O
++CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,MassSpecGymID0000231,CCC(C)[C@@H]1C(=O)O[C@H](Cc2ccccc2)C(=O)N(C)[C@H](C(C)C)C(=O)O[C@](Cc2ccccc2)(C(C)C)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)O[C@H](N)C1=O
++CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,MassSpecGymID0000232,CCC(Cc1ccccc1)C1OC(=O)C(C)C(=O)CN(C)C(=O)C(Cc2ccccc2)N(C)OC(C)=C(O)C(Cc2ccccc2)N(C)C(=O)C(C(C)C)OC1=O
++CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,MassSpecGymID0000233,CC(C)[C@H]1OC(=O)[C@@H](C(C)C)N(C)C(=O)[C@H](Cc2ccccc2)N(C)C(=O)[C@@H](C(C)C)OC(=O)[C@@H](Cc2ccccc2)C(=O)O[C@@H](Cc2ccccc2)N(C)C1=O
+diff --git a/.autoresearch/editable_paths.yaml b/.autoresearch/editable_paths.yaml
+index 06ecc02..b087b43 100644
+--- a/.autoresearch/editable_paths.yaml
++++ b/.autoresearch/editable_paths.yaml
+@@ -7,6 +7,7 @@ editable_paths:
+   - src/mist/
+   - configs/
+   - .autoresearch/
++  - .codegraph/.gitignore
+ notes:
+   - Keep changes hypothesis-scoped.
+   - Do not edit evaluator metric definitions during throughput iterations.
+diff --git a/.autoresearch/journal.sqlite b/.autoresearch/journal.sqlite
+index a30a48383480502884b201592aa5ef3df659fb05..b6cb131495da5265fd31672e3d65766eff75a730 100644
+GIT binary patch
+literal 20480
+zcmeI4O>f*p7=Z13H*JztB@|Uim79pFN!QWL*faj<g@SrO>H%mkl*4LbPj=mS?TzgX
+zi4Z~w@DungaN)oSi33-z{0I(k<Fz*->&-Ta1*ht@){gC2&pz|)JM-GgBriUB9u>;i
+zOS8T#3`=Wix~{!%7@DTtg>@d*^JNBh=FSh`r#`m-rro>R&iB8rto^0Ut^B5~{<!w@
+zssTH=paC?12G9T+Km%w14WI!ufCkXOe>Cv%+`{_f$NFc5+>KR!5W}NgCszkUl?0QA
+z^B;ct?CHyA#>=N4Jbz|Py!TNe`>G9BZk@a{ySRSuo_;!C)u|3uQskrUT&;%DIpa|j
+z8c|ZHuF8x-7WHLzZ0xIJLk^2HN`g%Fp@Ozi<VK;63L{Bj9ma9n*pHHM^4vfk$EgfE
+zuk$pimu;Oc=!@%{oBB5|MqEb&1)o;IUF^=(2`>sN%nD$Pv26@w1~qh`31wN^$O~Bv
+zFOl|+2Win$c{D01FDrsxrzi8?*>z`?cKWKwqQJ<Mga(Exi1O&HA#DRx$U=o3c<P=o
+zF&u<%D3Mta?a83XFN|#QnT7R_Hgyg3siU*6aU>g#JL;m%9XfU}3xT#&2HQ%xX_XsX
+z&;S}h184vZpaC?12G9T+Km%w14WNOy)xdJuFns=hTfbgx7aBkVXaEhM0W^RH&;S}h
+z184vZpn=Lj`TPIY{1a{M)#@*+4_Cgs^T!?M_P5KwFF&{yE&a6AS_~I{nExBzfD0Nx
+z184vZoEtcK(pu2?<5S8A6DAQRbzf4~=bq2lt4!s?xai2iK*7YU@XHODikHa(=6`MY
+z#>Rdc_tS2grH5vaCSg>bkCLt#$e^dpJnHr(F?Y*pWfn6n7RX%X8*O7_G@%S?pnQi=
+zhZEaj)O9?Mdr*2l!>s&-Kti?UJhJk#(LA>5blM-p3eJ9Y@?>oqz3us&{GaqxOr>`z
+z^_b(?w#}#`+{X0Vs}=oP-M!`c#JM^BNc4bRr`qu-vpA#N6V$V;#;{u}73@kKmI18W
+z7?xfQD|UqAFiu>HSzuT+X5GFsO)Ry1DjKsgejTi1QJXMoTdpMtYYe+}`?6T4>VXYn
+z_$&&pVRd#Ww_N7A)FQ;<c4Jn)T(Q149t4hWbD!8Z7rPf7snCp7(k*&79Va};bs-oy
+zrviqH#@yDeiu*yG8-kZLaC{Ya-cR?dVQPGIb0LNyD7edoM{VAidVA?|7&|_rzTKe9
+zDVfE`CJf)h!M}k#g%(1?CLX0OjL4jb=6#MVR<Q5Z6;tLD@8+Q~!VDwXP13xGg8XV^
+zW)tDLwoP4Ok><z`7b@h%Ix?|*yFu>T-J`<Hk706pXhzAQjH9rY<;V_$F2@L@H;+)4
+zc+Nx|91LY9lOjsqoaQ#>OVE?A$3cb9h0hu!iVE~RA5V<{LIv{#<4nNNJ3)DUF1|lk
+zL4Hw(gj{Sj2!M)D*ydC|=5fKG{|lQqq<MF`KRXrB@`-ix2)$Y$cObjE(0#b=H8<Fr
+zsQ^E(8?;1ogK)=n+2H7J6l!-^SsKT?GT5)*U}fsH3SeG8++c0$CDN%rj>LW2@kygh
+znsj4jb_YY~&bf-uLj7W>bax=xQ+Ro<u$ePyZv3KYw}IvJzrOaT1}|LD02)98XaEhM
+e0W^RH&;S}h184vZpn<o@z_LDjPaplihSooo;y0uK
+
+delta 57
+zcmZozz}T>Wae_1>^F$eEM&^wPOZ3?o`J)*4qc#f)1n^IevR}jUm4W{&koTIOo0E}Q
+Mk~6g|HLs)?0Mi~2NB{r;
+
+diff --git a/.autoresearch/research_backlog.md b/.autoresearch/research_backlog.md
+index 6891020..d8b7ab1 100644
+--- a/.autoresearch/research_backlog.md
++++ b/.autoresearch/research_backlog.md
+@@ -52,6 +52,13 @@
+   `formula_success = 93.75%`. It beats the control on both throughput and
+   Tanimoto, but it still loses one case on formula success, so it is not a
+   final answer yet.
++- `formula_pruning_chunk_size = 28` is dominated by `24`: slower, lower
++  `tanimoto_top1 = 0.4590`, and no better success than `24`. Do not probe
++  fixed-size chunks above `24` on this path.
++- The pruning frontier is now fixed-size bounded: `24` is the best fixed chunk
++  so far, and `28` adds no value. Any further pruning work on this branch
++  should be adaptive or should be replaced by a different generation-side
++  mechanism.
+ - Use `scripts/audit_formula_waste.py` on every meaningful scorer run so formula
+   waste is captured from `detailed_results.csv` immediately instead of being
+   recomputed manually.
+@@ -117,6 +124,9 @@
+   be to recover the missing formula success case rather than continuing a blind
+   fixed-size sweep. If that is not practical, keep `24` as the best known
+   frontier and move to a different hot path.
++- Fixed-size pruning is now bounded: `24` is the winner, `28` is dominated.
++  Any further work in this branch should be adaptive, not another fixed chunk
++  interpolation.
+ - Add per-case anatomy output: attempts, valid candidates, unique valid
+   candidates, duplicate candidates, formula matches, stop reason, generated
+   lengths, padding estimate, and wall time.
+diff --git a/.autoresearch/theory_diary.md b/.autoresearch/theory_diary.md
+index 7ad16db..5635482 100644
+--- a/.autoresearch/theory_diary.md
++++ b/.autoresearch/theory_diary.md
+@@ -143,6 +143,15 @@ for the FRIGID throughput/quality campaign.
+   `0.4975` and keeping `formula_success = 0.9375`. This is a better Pareto
+   point than `16` if we care about chemistry quality, but it is still not fully
+   guard-clean because one case never matched.
++- `formula_pruning_chunk_size = 28` did not improve that frontier. It kept
++  `formula_success = 1.0`, but it was slower than `24` and dropped
++  `tanimoto_top1` to `0.4590`. Treat `24` as the final fixed-size pruning
++  winner on the current code path and stop probing higher chunk sizes.
++- The latest 28-chunk follow-up confirmed the frontier did not move. It
++  produced `142.2s` total, `tanimoto_top1 = 0.4590`, and
++  `formula_success = 1.0`, so it is dominated by the `24`-chunk result. Fixed
++  chunk interpolation is now done on this branch; the next pruning move, if any,
++  should be adaptive or should give way to a different generation-side idea.
+ 
+ ## High-priority theories
+ 
+@@ -262,9 +271,12 @@ speed gain.
+ 3. Add per-case generation anatomy: attempts, valid candidates, unique valid
+    candidates, duplicates, formula matches, stop reason, generated lengths,
+    padding estimate, and wall time.
+-4. Run formula-aware pruning as a logging-only audit before changing outputs.
++4. Formula-aware pruning is now past the blind fixed-size sweep stage. Keep
++   the `24`-chunk point as the current fixed-size winner and only continue if an
++   adaptive stop rule can preserve `formula_success`.
+ 5. Audit length and padding waste, then test length grouping or exact pruning
+-   only if the profiler supports it.
++   only if the profiler supports it. Do not expect more fixed chunk sweeps to
++   help.
+ 6. Keep ICEBERG worker persistence as a separate scaling-path campaign after
+    the base generator bottleneck is understood.
+ 7. Do not spend more scorer slots on batch-size-only, multi-GPU, or naive bf16
+diff --git a/docs/FRIGID_AUTORESEARCH_CONTINUATION.md b/docs/FRIGID_AUTORESEARCH_CONTINUATION.md
+index 7981814..f72da5a 100644
+--- a/docs/FRIGID_AUTORESEARCH_CONTINUATION.md
++++ b/docs/FRIGID_AUTORESEARCH_CONTINUATION.md
+@@ -12,6 +12,10 @@ for FRIGID. The campaign is not complete. It is paused at a safe boundary.
+ - Primary active host for the latest speed campaign: `ssh:kolmogorov`.
+ - Do not use multi-GPU for this campaign. The target is global single-GPU
+   throughput, not sharding across devices.
++- Remote access is intermittently usable: direct `ssh kolmogorov` works from
++  this workstation, but `rsync`/`scp` currently fail unpredictably with DNS
++  resolution errors. Use direct SSH commands for remote runs and treat file
++  sync helpers as flaky until the route is stable.
+ - Optimize `seconds_per_case` as the primary metric.
+ - Track `exact_top1`, `tanimoto_top1`, and `formula_success` as quality guards.
+ - Do not treat a speed-only result as a chemistry-quality improvement.
+@@ -54,6 +58,29 @@ Interpretation: the conditioning cache is a valid global speed improvement over
+ the fixed-length `sigma_lambda=0.0` 32-case run, but the gain is small. The main
+ bottleneck is still the generation path.
+ 
++## Latest Diagnostic Profile
++
++The most recent 3-spectrum diagnostic profile on Kolmogorov used
++`batch_size = 32`, `formula_matches = 1`, `max_attempts = 32`,
++`sigma_lambda = 0.0`, and `num_tokens_unmask = 1`.
++
++It completed in `14.463257551193237s` total and confirmed the same hot path:
++
++- `generation_time_percentage = 97.98252317270118`
++- `total_generation_time = 14.171464681625366`
++- `total_generation_profile_model_forward_time = 13.319700931198895`
++- `total_generation_profile_sampling_step_time = 0.40032156370580196`
++- `total_generation_profile_decode_time = 0.3904726840555668`
++- `total_generation_profile_conditioning_setup_time = 0.03468880895525217`
++- `avg_generation_estimated_padding_tokens = 0.0`
++- `formula_success = 1.0`
++- `avg_unique_valid_smiles = 4.333333333333333`
++- `avg_valid_duplicate_rate = 0.06666666666666667`
++- `avg_attempts_to_match = 31.0`
++
++Interpretation: the backbone encoder work inside generation remains the main
++hot spot. Conditioning setup and padding are not the next lever.
++
+ ## Key Valid Results
+ 
+ | Iteration | Cases | sec/case | exact_top1 | tanimoto_top1 | formula_success | Decision |
+diff --git a/scripts/audit_formula_waste.py b/scripts/audit_formula_waste.py
+index f1a167c..1405b3c 100644
+--- a/scripts/audit_formula_waste.py
++++ b/scripts/audit_formula_waste.py
+@@ -41,6 +41,16 @@ def _float_or_zero(row: dict[str, str], key: str) -> float:
+         return 0.0
+ 
+ 
++def _int_or_none(row: dict[str, str], key: str) -> int | None:
++    value = row.get(key, "")
++    if value in ("", None):
++        return None
++    try:
++        return int(float(value))
++    except ValueError:
++        return None
++
++
+ def main() -> int:
+     args = parse_args()
+     input_path = Path(args.input)
+@@ -55,6 +65,8 @@ def main() -> int:
+         total_formula_matched = [_float_or_zero(r, "total_formula_matched") for r in rows]
+         unique_valid = [_float_or_zero(r, "unique_valid_smiles") for r in rows]
+         duplicate_valid = [_float_or_zero(r, "duplicate_valid_smiles") for r in rows]
++        first_formula_match_at = [_int_or_none(r, "generation_first_formula_match_at") for r in rows]
++        first_unique_formula_match_at = [_int_or_none(r, "generation_first_unique_formula_match_at") for r in rows]
+         formula_match_fraction_among_valid = [
+             (matched / valid) if valid else 0.0
+             for matched, valid in zip(total_formula_matched, total_valid)
+@@ -67,6 +79,24 @@ def main() -> int:
+             (dup / valid) if valid else 0.0
+             for dup, valid in zip(duplicate_valid, total_valid)
+         ]
++        successful_first_unique = [
++            first_unique for first_unique in first_unique_formula_match_at
++            if first_unique is not None
++        ]
++        successful_first_formula = [
++            first_formula for first_formula in first_formula_match_at
++            if first_formula is not None
++        ]
++        wasted_after_first_unique = [
++            max(gen - first_unique, 0)
++            for gen, first_unique in zip(total_generated, first_unique_formula_match_at)
++            if first_unique is not None
++        ]
++        wasted_after_first_formula = [
++            max(gen - first_formula, 0)
++            for gen, first_formula in zip(total_generated, first_formula_match_at)
++            if first_formula is not None
++        ]
+         summary = {
+             "input": str(input_path),
+             "total_spectra": len(rows),
+@@ -78,6 +108,10 @@ def main() -> int:
+             "avg_valid_duplicate_rate": mean(valid_duplicate_rate),
+             "avg_formula_match_fraction_among_valid": mean(formula_match_fraction_among_valid),
+             "avg_unique_valid_fraction_among_valid": mean(unique_valid_fraction_among_valid),
++            "avg_first_formula_match_at": mean(successful_first_formula) if successful_first_formula else 0.0,
++            "avg_first_unique_formula_match_at": mean(successful_first_unique) if successful_first_unique else 0.0,
++            "avg_wasted_generated_after_first_formula_match": mean(wasted_after_first_formula) if wasted_after_first_formula else 0.0,
++            "avg_wasted_generated_after_first_unique_formula_match": mean(wasted_after_first_unique) if wasted_after_first_unique else 0.0,
+         }
+ 
+     output_json = Path(args.output_json)
+@@ -98,6 +132,10 @@ def main() -> int:
+                     f"- Avg formula matches / case: `{summary.get('avg_formula_matches', 0):.2f}`",
+                     f"- Avg formula match fraction among valid: `{summary.get('avg_formula_match_fraction_among_valid', 0)*100:.2f}%`",
+                     f"- Avg unique valid fraction among valid: `{summary.get('avg_unique_valid_fraction_among_valid', 0)*100:.2f}%`",
++                    f"- Avg first formula match at: `{summary.get('avg_first_formula_match_at', 0):.1f}`",
++                    f"- Avg first unique formula match at: `{summary.get('avg_first_unique_formula_match_at', 0):.1f}`",
++                    f"- Avg wasted generated after first formula match: `{summary.get('avg_wasted_generated_after_first_formula_match', 0):.1f}`",
++                    f"- Avg wasted generated after first unique formula match: `{summary.get('avg_wasted_generated_after_first_unique_formula_match', 0):.1f}`",
+                     f"- Avg valid duplicate rate: `{summary.get('avg_valid_duplicate_rate', 0)*100:.2f}%`",
+                     "",
+                 ]
+diff --git a/src/dlm/iceberg_sampler.py b/src/dlm/iceberg_sampler.py
+index a47f233..f1b5601 100644
+--- a/src/dlm/iceberg_sampler.py
++++ b/src/dlm/iceberg_sampler.py
+@@ -20,6 +20,7 @@ import re
+ import uuid
+ import shutil
+ import tempfile
++import json
+ from pathlib import Path
+ from dataclasses import dataclass, field
+ from typing import List, Dict, Set, Optional, Tuple, Any, Callable, Union
+@@ -45,11 +46,153 @@ import ms_pred.common as common
+ from ms_pred.dag_pred.iceberg_elucidation import iceberg_prediction, load_real_spec
+ from ms_pred.common.chem_utils import VALID_ELEMENTS
+ 
++
++class _CompatMassSpec:
++    """Adapter for the array-based spectra returned by the pinned ms-pred submodule."""
++
++    def __init__(
++        self,
++        spec: Any,
++        int_frags: Optional[Any] = None,
++        collision_energy: Optional[Any] = None,
++        root_canonical_smiles: Optional[str] = None,
++    ):
++        spec_arr = np.asarray(spec, dtype=float)
++        if spec_arr.size == 0:
++            spec_arr = np.empty((0, 2), dtype=float)
++        elif spec_arr.ndim != 2 or spec_arr.shape[1] != 2:
++            raise ValueError(f"Expected spectrum array with shape (n, 2), got {spec_arr.shape}")
++
++        self.spec = spec_arr
++        self.masses = spec_arr[:, 0]
++        self.intens = spec_arr[:, 1]
++        self.int_frags = None if int_frags is None else np.asarray(int_frags)
++        self.collision_energy = collision_energy
++        self.root_canonical_smiles = root_canonical_smiles
++        self.precursor_mz = None
++
++
++class _CompatCompositeMassSpec(dict):
++    """Small mapping wrapper compatible with FRIGID's masking utilities."""
++
++    def __init__(self, specs: Any):
++        super().__init__()
++
++        if isinstance(specs, dict):
++            for ce, spec in specs.items():
++                self[ce] = _ensure_mass_spec(spec, collision_energy=ce)
++        else:
++            for idx, spec in enumerate(specs):
++                mass_spec = _ensure_mass_spec(spec)
++                ce = mass_spec.collision_energy
++                if ce is None:
++                    ce = idx
++                    mass_spec.collision_energy = ce
++                self[ce] = mass_spec
++
++    def similarity(
++        self,
++        real_spec: _CompatMassSpec,
++        merge_method: str = "unknown",
++        ignore_mass: Optional[float] = None,
++        return_ce: bool = False,
++    ):
++        best_ce = None
++        best_score = -1.0
++        for ce, pred_spec in self.items():
++            score = _spectrum_cosine_similarity(real_spec, pred_spec, ignore_mass=ignore_mass)
++            if score > best_score:
++                best_score = score
++                best_ce = ce
++        if return_ce:
++            return best_score, best_ce
++        return best_score
++
++
++def _spectrum_cosine_similarity(
++    real_spec: _CompatMassSpec,
++    pred_spec: _CompatMassSpec,
++    ignore_mass: Optional[float] = None,
++    decimals: int = 1,
++) -> float:
++    """Approximate similarity used only to choose a CE when the real CE is unknown."""
++    real_bins: Dict[float, float] = {}
++    pred_bins: Dict[float, float] = {}
++
++    for mz, inten in real_spec.spec:
++        if ignore_mass is not None and abs(mz - ignore_mass) <= ignore_mass * 20e-6:
++            continue
++        key = round(float(mz), decimals)
++        real_bins[key] = real_bins.get(key, 0.0) + float(inten)
++
++    for mz, inten in pred_spec.spec:
++        if ignore_mass is not None and abs(mz - ignore_mass) <= ignore_mass * 20e-6:
++            continue
++        key = round(float(mz), decimals)
++        pred_bins[key] = pred_bins.get(key, 0.0) + float(inten)
++
++    common_bins = set(real_bins).intersection(pred_bins)
++    numerator = sum(real_bins[k] * pred_bins[k] for k in common_bins)
++    real_norm = np.sqrt(sum(v * v for v in real_bins.values()))
++    pred_norm = np.sqrt(sum(v * v for v in pred_bins.values()))
++    if real_norm == 0 or pred_norm == 0:
++        return 0.0
++    return float(numerator / (real_norm * pred_norm))
++
++
++def _ensure_mass_spec(
++    spec: Any,
++    int_frags: Optional[Any] = None,
++    collision_energy: Optional[Any] = None,
++    root_canonical_smiles: Optional[str] = None,
++) -> _CompatMassSpec:
++    if hasattr(spec, "masses") and hasattr(spec, "intens"):
++        if collision_energy is not None and getattr(spec, "collision_energy", None) is None:
++            spec.collision_energy = collision_energy
++        if root_canonical_smiles is not None:
++            spec.root_canonical_smiles = root_canonical_smiles
++        return spec
++    return _CompatMassSpec(
++        spec=spec,
++        int_frags=int_frags,
++        collision_energy=collision_energy,
++        root_canonical_smiles=root_canonical_smiles,
++    )
++
++
++def ensure_composite_mass_spec(
++    specs: Any,
++    frag_dict: Optional[Dict[Any, Any]] = None,
++    root_canonical_smiles: Optional[str] = None,
++) -> _CompatCompositeMassSpec:
++    if hasattr(specs, "keys") and all(hasattr(v, "masses") and hasattr(v, "intens") for v in specs.values()):
++        return specs
++
++    if isinstance(specs, dict):
++        converted = {}
++        for ce, spec in specs.items():
++            converted[ce] = _ensure_mass_spec(
++                spec,
++                int_frags=None if frag_dict is None else frag_dict.get(ce),
++                collision_energy=ce,
++                root_canonical_smiles=root_canonical_smiles,
++            )
++        return _CompatCompositeMassSpec(converted)
++
++    return _CompatCompositeMassSpec(specs)
++
++
++if not hasattr(common, "MassSpec"):
++    common.MassSpec = _CompatMassSpec
++if not hasattr(common, "CompositeMassSpec"):
++    common.CompositeMassSpec = _CompatCompositeMassSpec
++
+ from dlm.sampler import Sampler
+ from dlm.utils.masking_utils import (
+     BaseMaskingStrategy,
+     SimpleMaskingStrategy,
+     create_masking_strategy,
++    _map_smiles_chars_to_atoms,
+ )
+ from dlm.utils.benchmark_utils import (
+     normalize_formula,
+@@ -319,7 +462,7 @@ class SampleState:
+         candidate_formulas: Optional[List[Tuple[str, float]]] = None,
+     ):
+         self.name = name
+-        self.real_specs = real_specs
++        self.real_specs = ensure_composite_mass_spec(real_specs)
+         self.target_fp = target_fp
+         self.target_formula = target_formula
+         self.instrument = normalize_instrument_type(instrument)
+@@ -712,6 +855,25 @@ class IcebergSampler:
+         results: Dict[str, common.CompositeMassSpec] = {}
+         
+         try:
++            python_path = self.iceberg_config.python_path
++            if python_path and not os.path.isabs(python_path):
++                python_path = os.path.abspath(python_path)
++            gen_ckpt = os.path.abspath(self.iceberg_config.gen_ckpt)
++            inten_ckpt = os.path.abspath(self.iceberg_config.inten_ckpt)
++            resolved_results_dir = str(batch_results_dir.resolve())
++
++            # ms-pred launches src/ms_pred/dag_pred/predict_smis.py relative to
++            # the current working directory, so run that helper from the
++            # submodule root while keeping all FRIGID paths absolute.
++            prev_cwd = os.getcwd()
++            ms_pred_root = os.path.join(project_root, "ms-pred")
++            prev_pythonpath = os.environ.get("PYTHONPATH")
++            os.environ["PYTHONPATH"] = (
++                ms_pred_src_path
++                if not prev_pythonpath
++                else ms_pred_src_path + os.pathsep + prev_pythonpath
++            )
++            os.chdir(ms_pred_root)
+             save_dir, _ = iceberg_prediction(
+                 candidate_smiles=valid_smiles,
+                 collision_energies=collision_energies,
+@@ -720,9 +882,9 @@ class IcebergSampler:
+                 instrument=instrument,
+                 incl_unknown_instrument=self.incl_unknown_instrument,
+                 exp_name=exp_name,
+-                python_path=self.iceberg_config.python_path,
+-                gen_ckpt=self.iceberg_config.gen_ckpt,
+-                inten_ckpt=self.iceberg_config.inten_ckpt,
++                python_path=python_path,
++                gen_ckpt=gen_ckpt,
++                inten_ckpt=inten_ckpt,
+                 cuda_devices=self.iceberg_config.cuda_devices,
+                 batch_size=self.iceberg_config.batch_size,
+                 num_cpu_workers=self.iceberg_config.num_cpu_workers,
+@@ -733,18 +895,39 @@ class IcebergSampler:
+                 binned_out=False,
+                 ppm=self.iceberg_config.ppm,
+                 num_bins=self.iceberg_config.num_bins,
+-                results_dir=str(batch_results_dir),
++                results_dir=resolved_results_dir,
+             )
++            os.chdir(prev_cwd)
++            if prev_pythonpath is None:
++                os.environ.pop("PYTHONPATH", None)
++            else:
++                os.environ["PYTHONPATH"] = prev_pythonpath
+             
+-            # Load predicted spectra
+-            smiles_arr, pred_specs_list = load_pred_spec(save_dir)
++            # Load predicted spectra. The pinned ms-pred submodule returns
++            # array dictionaries plus fragment dictionaries.
++            smiles_arr, pred_specs_list, pred_frags_list = load_pred_spec(save_dir, merge_spec=False)
+             
+             # Build results dict
+-            for smi, pred_spec in zip(smiles_arr, pred_specs_list):
+-                results[smi] = pred_spec
+-            
++            for smi, pred_spec, pred_frags in zip(smiles_arr, pred_specs_list, pred_frags_list):
++                results[smi] = ensure_composite_mass_spec(
++                    pred_spec,
++                    frag_dict=pred_frags,
++                    root_canonical_smiles=smi,
++                )
++
+         except Exception as e:
+             print(f"Warning: ICEBERG prediction failed: {e}")
++            try:
++                os.chdir(prev_cwd)
++            except Exception:
++                pass
++            try:
++                if prev_pythonpath is None:
++                    os.environ.pop("PYTHONPATH", None)
++                else:
++                    os.environ["PYTHONPATH"] = prev_pythonpath
++            except Exception:
++                pass
+         finally:
+             # Clean up temporary directory
+             try:
+@@ -862,6 +1045,8 @@ class IcebergSampler:
+         """
+         masked_inputs: List[torch.Tensor] = []
+         source_smiles: List[str] = []
++        trace_dir = os.environ.get("FRIGID_TRACE_DIR")
++        trace_sample = os.environ.get("FRIGID_TRACE_SAMPLE")
+         
+         for smiles in smiles_to_refine:
+             pred_spec = pred_specs.get(smiles)
+@@ -881,6 +1066,14 @@ class IcebergSampler:
+             
+             # Create M masked versions
+             try:
++                trace_record = None
++                if trace_dir and (not trace_sample or trace_sample == state.name):
++                    trace_record = self._build_mask_trace_record(
++                        state=state,
++                        smiles=smiles,
++                        halluc_peaks=halluc_peaks,
++                    )
++
+                 masks = self._masking_strategy.create_masked_inputs(
+                     smiles=smiles,
+                     hallucinated_peaks=halluc_peaks,
+@@ -888,6 +1081,12 @@ class IcebergSampler:
+                     num_masks=self.scaling_config.masks_per_molecule,
+                     mask_prob=self.scaling_config.mask_prob,
+                 )
++
++                if trace_record is not None:
++                    trace_record["masked_variants"] = [
++                        self._describe_mask_tensor(mask_tensor) for mask_tensor in masks
++                    ]
++                    self._write_mask_trace_record(trace_dir, state.name, trace_record)
+                 
+                 for mask_tensor in masks:
+                     masked_inputs.append(mask_tensor)
+@@ -898,6 +1097,120 @@ class IcebergSampler:
+                 continue
+         
+         return masked_inputs, source_smiles
++
++    @staticmethod
++    def _jsonable(value: Any) -> Any:
++        """Convert numpy/torch/bytes values from spectrum traces into JSON-safe data."""
++        if isinstance(value, dict):
++            return {str(k): IcebergSampler._jsonable(v) for k, v in value.items()}
++        if isinstance(value, (list, tuple, set)):
++            return [IcebergSampler._jsonable(v) for v in value]
++        if isinstance(value, np.ndarray):
++            return IcebergSampler._jsonable(value.tolist())
++        if isinstance(value, torch.Tensor):
++            return IcebergSampler._jsonable(value.detach().cpu().tolist())
++        if isinstance(value, np.generic):
++            return value.item()
++        if isinstance(value, bytes):
++            return value.decode("utf-8", errors="replace")
++        return value
++
++    def _build_mask_trace_record(
++        self,
++        state: SampleState,
++        smiles: str,
++        halluc_peaks: List[Dict[str, Any]],
++    ) -> Dict[str, Any]:
++        try:
++            atom_scores = self._masking_strategy._get_atom_scores(
++                smiles,
++                halluc_peaks,
++                mol_str_canonicalized=True,
++            )
++        except Exception:
++            atom_scores = np.array([])
++
++        try:
++            bad_atoms = sorted(
++                self._masking_strategy.get_bad_atoms(
++                    smiles,
++                    halluc_peaks,
++                    mol_str_canonicalized=True,
++                )
++            )
++        except Exception:
++            bad_atoms = []
++
++        try:
++            char_to_atom = _map_smiles_chars_to_atoms(smiles)
++        except Exception:
++            char_to_atom = []
++
++        tokens = []
++        try:
++            encoding = self._tokenizer(smiles, return_offsets_mapping=True, return_tensors="pt")
++            input_ids = encoding["input_ids"][0].detach().cpu().tolist()
++            offsets = encoding["offset_mapping"][0].detach().cpu().tolist()
++            token_strings = self._tokenizer.convert_ids_to_tokens(input_ids)
++            for token_idx, (token_id, token_str, offset) in enumerate(zip(input_ids, token_strings, offsets)):
++                start_char, end_char = int(offset[0]), int(offset[1])
++                covered_atoms = []
++                max_atom_score = 0.0
++                for char_idx in range(start_char, end_char):
++                    if char_idx < len(char_to_atom):
++                        atom_idx = char_to_atom[char_idx]
++                        if atom_idx != -1:
++                            covered_atoms.append(int(atom_idx))
++                            if atom_idx < len(atom_scores):
++                                max_atom_score = max(max_atom_score, float(atom_scores[atom_idx]))
++                tokens.append({
++                    "token_index": token_idx,
++                    "token_id": int(token_id),
++                    "token": token_str,
++                    "char_start": start_char,
++                    "char_end": end_char,
++                    "covered_atoms": sorted(set(covered_atoms)),
++                    "max_atom_score": max_atom_score,
++                    "is_bad_token": bool(set(covered_atoms) & set(bad_atoms)),
++                })
++        except Exception as exc:
++            tokens.append({"tokenization_error": str(exc)})
++
++        return {
++            "round_index": int(getattr(self, "_trace_round_idx", -1)),
++            "round_number": int(getattr(self, "_trace_round_idx", -1)) + 1,
++            "sample_name": state.name,
++            "instrument": state.instrument,
++            "ionization": state.ionization,
++            "source_smiles": smiles,
++            "target_formula": state.target_formula,
++            "hallucinated_peaks": self._jsonable(halluc_peaks),
++            "bad_atoms": bad_atoms,
++            "atom_scores": self._jsonable(atom_scores),
++            "tokens": tokens,
++        }
++
++    def _describe_mask_tensor(self, mask_tensor: torch.Tensor) -> Dict[str, Any]:
++        ids = mask_tensor.detach().cpu().view(-1).tolist()
++        mask_token_id = self._tokenizer.mask_token_id
++        mask_positions = [idx for idx, token_id in enumerate(ids) if token_id == mask_token_id]
++        tokens = self._tokenizer.convert_ids_to_tokens(ids)
++        try:
++            decoded = self._tokenizer.decode(ids, skip_special_tokens=False)
++        except Exception:
++            decoded = ""
++        return {
++            "input_ids": [int(x) for x in ids],
++            "tokens": tokens,
++            "mask_positions": mask_positions,
++            "decoded": decoded,
++        }
++
++    def _write_mask_trace_record(self, trace_dir: str, sample_name: str, record: Dict[str, Any]) -> None:
++        path = Path(trace_dir) / sample_name / f"round_{record['round_number']:02d}_mask_trace.jsonl"
++        path.parent.mkdir(parents=True, exist_ok=True)
++        with path.open("a") as handle:
++            handle.write(json.dumps(self._jsonable(record), sort_keys=True) + "\n")
+     
+     def _run_single_round(
+         self,
+@@ -966,6 +1279,7 @@ class IcebergSampler:
+                 top_k_smiles = state.get_top_k_smiles(K)
+                 
+                 # Create masked inputs for top K
++                self._trace_round_idx = round_idx
+                 masked_inputs, source_smiles = self._create_masked_inputs_for_sample(
+                     state,
+                     top_k_smiles,
+diff --git a/src/dlm/model.py b/src/dlm/model.py
+index 950d4bd..9b193f7 100644
+--- a/src/dlm/model.py
++++ b/src/dlm/model.py
+@@ -17,6 +17,7 @@
+ import itertools
+ import hydra.utils
+ import lightning as L
++import time
+ import torch
+ from transformers import BertForMaskedLM
+ from transformers.models.bert.configuration_bert import BertConfig
+@@ -707,8 +708,31 @@ class DLM(L.LightningModule):
+         Returns:
+             Logits of shape (batch_size, seq_len, vocab_size)
+         """
++        profile_enabled = bool(getattr(self, 'profile_forward', False))
++        forward_profile = None
++        if profile_enabled:
++            forward_profile = {
++                'forward_total_time': 0.0,
++                'formula_conditioning_time': 0.0,
++                'fingerprint_conditioning_time': 0.0,
++                'build_embeddings_time': 0.0,
++                'global_conditioning_time': 0.0,
++                'backbone_time': 0.0,
++                'output_path': None,
++            }
++            forward_start = time.perf_counter()
++            if torch.cuda.is_available():
++                torch.cuda.synchronize(x.device)
++
++        def sync_if_profiled():
++            if profile_enabled and torch.cuda.is_available():
++                torch.cuda.synchronize(x.device)
++
+         with torch.amp.autocast('cuda', dtype=torch.float32):
+             # Prepare formula conditioning (if using cross-attention)
++            if profile_enabled:
++                sync_if_profiled()
++                segment_start = time.perf_counter()
+             formula_cond_embeddings = None
+             formula_cond_mask = None
+             if self.use_formula_conditioning and self.conditioner_type == 'cross_attention':
+@@ -717,8 +741,14 @@ class DLM(L.LightningModule):
+                     formula_cond_mask = formula_condition_mask
+                 else:
+                     formula_cond_embeddings, formula_cond_mask = self._prepare_formula_sequence_embeddings(formula, x)
++            if profile_enabled:
++                sync_if_profiled()
++                forward_profile['formula_conditioning_time'] += time.perf_counter() - segment_start
+ 
+             # Prepare fingerprint conditioning (if using cross-attention) - INDEPENDENT from formula
++            if profile_enabled:
++                sync_if_profiled()
++                segment_start = time.perf_counter()
+             fp_cond_embeddings = None
+             fp_cond_mask = None
+             if self.use_fingerprint_conditioning and self.fingerprint_conditioner_type == 'cross_attention':
+@@ -727,12 +757,24 @@ class DLM(L.LightningModule):
+                     fp_cond_mask = fingerprint_condition_mask
+                 else:
+                     fp_cond_embeddings, fp_cond_mask = self._prepare_fingerprint_sequence_embeddings(fingerprint, x)
++            if profile_enabled:
++                sync_if_profiled()
++                forward_profile['fingerprint_conditioning_time'] += time.perf_counter() - segment_start
+ 
+             # If any cross-attention conditioning is used
+             if formula_cond_embeddings is not None or fp_cond_embeddings is not None:
++                if profile_enabled:
++                    sync_if_profiled()
++                    segment_start = time.perf_counter()
+                 embeddings = self._build_token_embeddings(x)
++                if profile_enabled:
++                    sync_if_profiled()
++                    forward_profile['build_embeddings_time'] += time.perf_counter() - segment_start
+ 
+                 # Add global formula embeddings (if not using cross-attention for formula)
++                if profile_enabled:
++                    sync_if_profiled()
++                    segment_start = time.perf_counter()
+                 if self.use_formula_conditioning and self.conditioner_type != 'cross_attention':
+                     formula_global_embeddings = self._prepare_formula_global_embeddings(formula, x)
+                     if formula_global_embeddings is not None:
+@@ -743,6 +785,9 @@ class DLM(L.LightningModule):
+                     fingerprint_global_embeddings = self._prepare_fingerprint_embeddings(fingerprint, fingerprint_mask, x)
+                     if fingerprint_global_embeddings is not None:
+                         embeddings = embeddings + fingerprint_global_embeddings.unsqueeze(1)
++                if profile_enabled:
++                    sync_if_profiled()
++                    forward_profile['global_conditioning_time'] += time.perf_counter() - segment_start
+ 
+                 # Handle shared vs independent cross-attention modes
+                 if self.use_shared_cross_attention:
+@@ -759,6 +804,9 @@ class DLM(L.LightningModule):
+                             condition_embeddings = torch.cat([condition_embeddings, fp_cond_embeddings], dim=1)
+                             condition_mask = torch.cat([condition_mask, fp_cond_mask], dim=1)
+                     
++                    if profile_enabled:
++                        sync_if_profiled()
++                        segment_start = time.perf_counter()
+                     logits = self._encode_with_backbone(
+                         embeddings,
+                         attention_mask,
+@@ -769,8 +817,14 @@ class DLM(L.LightningModule):
+                         fingerprint_embeddings=None,  # Not used in shared mode
+                         fingerprint_mask=None
+                     )
++                    if profile_enabled:
++                        sync_if_profiled()
++                        forward_profile['backbone_time'] += time.perf_counter() - segment_start
+                 else:
+                     # INDEPENDENT MODE: Pass formula and fingerprint separately
++                    if profile_enabled:
++                        sync_if_profiled()
++                        segment_start = time.perf_counter()
+                     logits = self._encode_with_backbone(
+                         embeddings,
+                         attention_mask,
+@@ -781,10 +835,21 @@ class DLM(L.LightningModule):
+                         fingerprint_embeddings=fp_cond_embeddings,
+                         fingerprint_mask=fp_cond_mask
+                     )
++                    if profile_enabled:
++                        sync_if_profiled()
++                        forward_profile['backbone_time'] += time.perf_counter() - segment_start
++                if profile_enabled:
++                    sync_if_profiled()
++                    forward_profile['output_path'] = 'cross_attention'
++                    forward_profile['forward_total_time'] = time.perf_counter() - forward_start
++                    self.last_forward_profile = forward_profile
+                 return logits
+ 
+             # Non-cross-attention conditioning path
+             if self.use_formula_conditioning or self.use_fingerprint_conditioning:
++                if profile_enabled:
++                    sync_if_profiled()
++                    segment_start = time.perf_counter()
+                 embeddings = self._build_token_embeddings(x)
+ 
+                 if self.use_formula_conditioning:
+@@ -795,17 +860,39 @@ class DLM(L.LightningModule):
+                 fingerprint_global_embeddings = self._prepare_fingerprint_embeddings(fingerprint, fingerprint_mask, x)
+                 if fingerprint_global_embeddings is not None:
+                     embeddings = embeddings + fingerprint_global_embeddings.unsqueeze(1)
++                if profile_enabled:
++                    sync_if_profiled()
++                    forward_profile['global_conditioning_time'] += time.perf_counter() - segment_start
+ 
++                if profile_enabled:
++                    sync_if_profiled()
++                    segment_start = time.perf_counter()
+                 logits = self._encode_with_backbone(
+                     embeddings,
+                     attention_mask,
+                     x,
+                     extended_attention_mask=extended_attention_mask,
+                 )
++                if profile_enabled:
++                    sync_if_profiled()
++                    forward_profile['backbone_time'] += time.perf_counter() - segment_start
++                    forward_profile['output_path'] = 'global_conditioning'
++                    forward_profile['forward_total_time'] = time.perf_counter() - forward_start
++                    self.last_forward_profile = forward_profile
+                 return logits
+ 
+             # Standard forward pass without conditioning
+-            return self.backbone(x, attention_mask)['logits']
++            if profile_enabled:
++                sync_if_profiled()
++                segment_start = time.perf_counter()
++            logits = self.backbone(x, attention_mask)['logits']
++            if profile_enabled:
++                sync_if_profiled()
++                forward_profile['backbone_time'] += time.perf_counter() - segment_start
++                forward_profile['output_path'] = 'backbone_only'
++                forward_profile['forward_total_time'] = time.perf_counter() - forward_start
++                self.last_forward_profile = forward_profile
++            return logits
+     
+     def training_step(self, batch, batch_idx):
+         input_ids = batch['input_ids']
+diff --git a/src/dlm/sampler.py b/src/dlm/sampler.py
+index 382a42d..c110aea 100644
+--- a/src/dlm/sampler.py
++++ b/src/dlm/sampler.py
+@@ -266,7 +266,7 @@ class Sampler:
+         except Exception:
+             return None
+         
+-    @torch.no_grad()
++    @torch.inference_mode()
+     def generate(self, x, softmax_temp=1.2, randomness=2, fix=True, gamma=0, w=2, formula=None, fingerprint=None):
+         """
+         Generate molecules from masked input.
+@@ -285,6 +285,7 @@ class Sampler:
+             List of generated SMILES strings
+         """
+         x = x.to(self.model.device)
++        num_tokens_unmask = int(getattr(self, 'num_tokens_unmask', 1))
+         profile_enabled = bool(getattr(self, 'profile_generation', False))
+         profile = None
+ 
+@@ -358,6 +359,9 @@ class Sampler:
+             # Use model's forward method which supports formula conditioning
+             sync_cuda_if_needed()
+             forward_start = time.perf_counter()
++            previous_forward_profile = getattr(self.model, 'profile_forward', False)
++            if profile_enabled:
++                self.model.profile_forward = True
+             logits = self.model(
+                 x,
+                 attention_mask,
+@@ -370,9 +374,19 @@ class Sampler:
+                 fingerprint_condition_mask=fingerprint_cond_mask,
+                 extended_attention_mask=extended_attention_mask,
+             )
++            if profile_enabled:
++                self.model.profile_forward = previous_forward_profile
+             sync_cuda_if_needed()
+             if profile is not None:
+                 profile['model_forward_time'] += time.perf_counter() - forward_start
++                forward_profile = getattr(self.model, 'last_forward_profile', None)
++                if isinstance(forward_profile, dict):
++                    profile['model_forward_total_time'] = profile.get('model_forward_total_time', 0.0) + float(
++                        forward_profile.get('forward_total_time', 0.0)
++                    )
++                    for key, value in forward_profile.items():
++                        if isinstance(value, (int, float)) and key not in {'forward_total_time'}:
++                            profile[f'model_forward_{key}'] = profile.get(f'model_forward_{key}', 0.0) + float(value)
+ 
+             if gamma and w:
+                 x_poor = x.clone()
+@@ -387,6 +401,9 @@ class Sampler:
+                 x_poor[:, mask_idx_poor] = self.model.mask_index
+                 sync_cuda_if_needed()
+                 guidance_start = time.perf_counter()
++                previous_forward_profile = getattr(self.model, 'profile_forward', False)
++                if profile_enabled:
++                    self.model.profile_forward = True
+                 logits_poor = self.model(
+                     x_poor,
+                     attention_mask=attention_mask,
+@@ -399,14 +416,29 @@ class Sampler:
+                     fingerprint_condition_mask=fingerprint_cond_mask,
+                     extended_attention_mask=extended_attention_mask,
+                 )
++                if profile_enabled:
++                    self.model.profile_forward = previous_forward_profile
+                 sync_cuda_if_needed()
+                 if profile is not None:
+                     profile['guidance_forward_time'] += time.perf_counter() - guidance_start
++                    guidance_forward_profile = getattr(self.model, 'last_forward_profile', None)
++                    if isinstance(guidance_forward_profile, dict):
++                        profile['guidance_forward_total_time'] = profile.get('guidance_forward_total_time', 0.0) + float(
++                            guidance_forward_profile.get('forward_total_time', 0.0)
++                        )
+                 logits = w * logits + (1 - w) * logits_poor
+ 
+             sync_cuda_if_needed()
+             sampling_start = time.perf_counter()
+-            x = self.mdlm.step_confidence(logits, x, i, num_steps, softmax_temp, randomness)
++            x = self.mdlm.step_confidence(
++                logits,
++                x,
++                i,
++                num_steps,
++                softmax_temp,
++                randomness,
++                num_tokens_unmask=num_tokens_unmask,
++            )
+             sync_cuda_if_needed()
+             if profile is not None:
+                 profile['sampling_step_time'] += time.perf_counter() - sampling_start
+@@ -505,7 +537,7 @@ class Sampler:
+         ]
+         return torch.stack(x_new)
+     
+-    @torch.no_grad()
++    @torch.inference_mode()
+     def de_novo_generation(self, num_samples=1, softmax_temp=0.8, randomness=0.5):
+         # Prepare Fully Masked Inputs
+         x = torch.hstack([torch.full((1, 1), self.model.bos_index),
+@@ -514,7 +546,7 @@ class Sampler:
+         x = x.to(self.model.device)
+         return self.generate(x, softmax_temp, randomness)
+     
+-    @torch.no_grad()
++    @torch.inference_mode()
+     def formula_conditioned_generation(self, formula, num_samples=1, softmax_temp=0.8, randomness=0.5, sequence_lengths=None, min_add_len=40):
+         """
+         Generate molecules conditioned on a molecular formula.
+@@ -550,7 +582,7 @@ class Sampler:
+         
+         return samples
+ 
+-    @torch.no_grad()
++    @torch.inference_mode()
+     def fingerprint_conditioned_generation(
+         self,
+         fingerprint,
+@@ -591,7 +623,7 @@ class Sampler:
+             self.model.train()
+         return samples
+     
+-    @torch.no_grad()
++    @torch.inference_mode()
+     def unified_conditioned_generation(
+         self,
+         formula: Optional[str] = None,
+@@ -659,7 +691,7 @@ class Sampler:
+         
+         return samples
+     
+-    @torch.no_grad()
++    @torch.inference_mode()
+     def formula_and_fingerprint_conditioned_generation(
+         self,
+         formula: str,
+diff --git a/src/dlm/utils/benchmark_utils.py b/src/dlm/utils/benchmark_utils.py
+index 23bc566..74cce30 100644
+--- a/src/dlm/utils/benchmark_utils.py
++++ b/src/dlm/utils/benchmark_utils.py
+@@ -273,6 +273,7 @@ def generate_with_formula_filter(
+     sigma_lambda: float = 3.0,
+     profile_generation: bool = False,
+     num_tokens_unmask: int = 1,
++    formula_pruning_chunk_size: Optional[int] = None,
+ ) -> Tuple:
+     """
+     Generate molecules with formula filtering.
+@@ -330,6 +331,7 @@ def generate_with_formula_filter(
+     estimated_padding_tokens = 0
+     first_formula_match_at: Optional[int] = None
+     first_unique_formula_match_at: Optional[int] = None
++    formula_pruning_batches = 0
+     
+     # Convert fingerprint_array to RDKit DataStructs for Tanimoto calculation
+     # This is the PREDICTED fingerprint from the encoder - NOT the ground truth molecule
+@@ -354,162 +356,156 @@ def generate_with_formula_filter(
+         
+         if current_batch <= 0:
+             break
++        chunk_size = current_batch if formula_pruning_chunk_size is None else max(1, int(formula_pruning_chunk_size))
++        batch_remaining = current_batch
++        while batch_remaining > 0 and not stop_generation:
++            current_sub_batch = min(batch_remaining, chunk_size)
++            formula_pruning_batches += 1
+ 
+-        previous_profile_generation = getattr(sampler, 'profile_generation', False)
+-        try:
+-            # Determine target lengths if token model is available
+-            target_lengths = None
+-            if predicted_len is not None:
+-                if is_ngboost and predicted_sigma is not None:
+-                    # NGBoost: sample from normal distribution N(mean, variance=sigma*lambda)
+-                    std_dev = np.sqrt(predicted_sigma * sigma_lambda)
+-                    target_lengths = [
+-                        max(1, int(round(np.random.normal(predicted_len, std_dev))))
+-                        for _ in range(current_batch)
+-                    ]
+-                else:
+-                    # sklearn: sample from fixed range (mean-3, mean+3)
+-                    low = max(1, predicted_len - 3)
+-                    high = predicted_len + 3
+-                    target_lengths = [
+-                        random.randint(low, high)
+-                        for _ in range(current_batch)
+-                    ]
+-
+-            if target_lengths:
+-                target_length_values.extend(target_lengths)
+-                max_target_length = max(target_lengths)
+-                estimated_padding_tokens += sum(max_target_length - length for length in target_lengths)
+-            
+-            # Use unified generation with both formula and fingerprint
+-            if profile_generation:
+-                setattr(sampler, 'profile_generation', True)
+-            previous_num_tokens_unmask = getattr(sampler, 'num_tokens_unmask', 1)
+-            setattr(sampler, 'num_tokens_unmask', num_tokens_unmask)
+-            if hasattr(sampler, 'unified_conditioned_generation'):
+-                gen_start = time.time()
+-                samples = sampler.unified_conditioned_generation(
+-                    formula=target_formula,
+-                    fingerprint=fingerprint_array,
+-                    num_samples=current_batch,
+-                    softmax_temp=softmax_temp,
+-                    randomness=randomness,
+-                    target_lengths=target_lengths,
+-                    min_add_len=2
+-                )
+-                generation_time += time.time() - gen_start
+-            elif sampler.model.use_fingerprint_conditioning:
+-                gen_start = time.time()
+-                samples = sampler.fingerprint_conditioned_generation(
+-                    fingerprint=fingerprint_array,
+-                    num_samples=current_batch,
+-                    softmax_temp=softmax_temp,
+-                    randomness=randomness,
+-                )
+-                generation_time += time.time() - gen_start
+-            else:
+-                gen_start = time.time()
+-                samples = sampler.de_novo_generation(
+-                    num_samples=current_batch,
+-                    softmax_temp=softmax_temp,
+-                    randomness=randomness
+-                )
+-                generation_time += time.time() - gen_start
+-            if profile_generation:
+-                setattr(sampler, 'profile_generation', previous_profile_generation)
+-            setattr(sampler, 'num_tokens_unmask', previous_num_tokens_unmask)
+-            if profile_generation:
+-                profile = getattr(sampler, 'last_generation_profile', None)
+-                if isinstance(profile, dict):
+-                    generation_profile_batches += 1
+-                    for key, value in profile.items():
+-                        if isinstance(value, (int, float, np.integer, np.floating)):
+-                            generation_profile_totals[key] += float(value)
+-        except Exception as exc:
+-            if profile_generation:
+-                setattr(sampler, 'profile_generation', previous_profile_generation)
+-            setattr(sampler, 'num_tokens_unmask', previous_num_tokens_unmask)
+-            print(f"\nWarning: Batch generation failed: {exc}")
+-            samples = [None] * current_batch
+-        
+-        batch_start_generated = total_generated
+-        total_generated += len(samples)
+-        
+-        for sample_offset, smiles in enumerate(samples):
+-            sample_number = batch_start_generated + sample_offset + 1
+-            if not smiles or (isinstance(smiles, float) and pd.isna(smiles)):
+-                continue
+-            
++            previous_profile_generation = getattr(sampler, 'profile_generation', False)
+             try:
+-                mol = Chem.MolFromSmiles(str(smiles))
+-                if mol is None:
+-                    continue
+-                
+-                total_valid += 1
+-                canonical = Chem.MolToSmiles(mol)
+-                last_valid_smiles = canonical
+-                global_smiles_counter[canonical] += 1
+-                if global_smiles_counter[canonical] > 1:
++                # Determine target lengths if token model is available
++                target_lengths = None
++                if predicted_len is not None:
++                    if is_ngboost and predicted_sigma is not None:
++                        std_dev = np.sqrt(predicted_sigma * sigma_lambda)
++                        target_lengths = [
++                            max(1, int(round(np.random.normal(predicted_len, std_dev))))
++                            for _ in range(current_sub_batch)
++                        ]
++                    else:
++                        low = max(1, predicted_len - 3)
++                        high = predicted_len + 3
++                        target_lengths = [
++                            random.randint(low, high)
++                            for _ in range(current_sub_batch)
++                        ]
++
++                if target_lengths:
++                    target_length_values.extend(target_lengths)
++                    max_target_length = max(target_lengths)
++                    estimated_padding_tokens += sum(max_target_length - length for length in target_lengths)
++
++                if profile_generation:
++                    setattr(sampler, 'profile_generation', True)
++                previous_num_tokens_unmask = getattr(sampler, 'num_tokens_unmask', 1)
++                setattr(sampler, 'num_tokens_unmask', num_tokens_unmask)
++                if hasattr(sampler, 'unified_conditioned_generation'):
++                    gen_start = time.time()
++                    samples = sampler.unified_conditioned_generation(
++                        formula=target_formula,
++                        fingerprint=fingerprint_array,
++                        num_samples=current_sub_batch,
++                        softmax_temp=softmax_temp,
++                        randomness=randomness,
++                        target_lengths=target_lengths,
++                        min_add_len=2
++                    )
++                    generation_time += time.time() - gen_start
++                elif sampler.model.use_fingerprint_conditioning:
++                    gen_start = time.time()
++                    samples = sampler.fingerprint_conditioned_generation(
++                        fingerprint=fingerprint_array,
++                        num_samples=current_sub_batch,
++                        softmax_temp=softmax_temp,
++                        randomness=randomness,
++                    )
++                    generation_time += time.time() - gen_start
++                else:
++                    gen_start = time.time()
++                    samples = sampler.de_novo_generation(
++                        num_samples=current_sub_batch,
++                        softmax_temp=softmax_temp,
++                        randomness=randomness
++                    )
++                    generation_time += time.time() - gen_start
++                if profile_generation:
++                    setattr(sampler, 'profile_generation', previous_profile_generation)
++                setattr(sampler, 'num_tokens_unmask', previous_num_tokens_unmask)
++                if profile_generation:
++                    profile = getattr(sampler, 'last_generation_profile', None)
++                    if isinstance(profile, dict):
++                        generation_profile_batches += 1
++                        for key, value in profile.items():
++                            if isinstance(value, (int, float, np.integer, np.floating)):
++                                generation_profile_totals[key] += float(value)
++            except Exception as exc:
++                if profile_generation:
++                    setattr(sampler, 'profile_generation', previous_profile_generation)
++                setattr(sampler, 'num_tokens_unmask', previous_num_tokens_unmask)
++                print(f"\nWarning: Batch generation failed: {exc}")
++                samples = [None] * current_sub_batch
++
++            batch_start_generated = total_generated
++            total_generated += len(samples)
++
++            for sample_offset, smiles in enumerate(samples):
++                sample_number = batch_start_generated + sample_offset + 1
++                if not smiles or (isinstance(smiles, float) and pd.isna(smiles)):
+                     continue
+ 
+-                # Compute Tanimoto similarity to PREDICTED fingerprint (not ground truth)
+-                # This avoids data leakage - we only use information available at inference time
+-                gen_fp = AllChem.GetMorganFingerprintAsBitVect(mol, fp_radius, nBits=fp_bits)
+-                similarity = DataStructs.TanimotoSimilarity(pred_fp_bitvect, gen_fp)
+-                
+-                # Get InChI key first block for uniqueness check (connectivity, no stereochemistry)
+                 try:
+-                    inchi_key = Chem.MolToInchiKey(mol)
+-                    inchi_key_first_block = get_inchikey_first_block(inchi_key) if inchi_key else None
+-                except Exception:
+-                    inchi_key_first_block = None
+-
+-                # Check formula match
+-                gen_formula = normalize_formula(rdMolDescriptors.CalcMolFormula(mol))
+-                if gen_formula == target_formula:
+-                    total_formula_matched += 1
+-                    if first_formula_match_at is None:
+-                        first_formula_match_at = sample_number
+-                    
+-                    # Only add if this is a unique molecule (by InChI key first block)
+-                    if inchi_key_first_block is not None and inchi_key_first_block not in matched_inchi_keys:
+-                        matched_inchi_keys.add(inchi_key_first_block)
+-                        matched_smiles.append(canonical)
+-                        matched_similarities.append(float(similarity))
+-                        if first_unique_formula_match_at is None:
+-                            first_unique_formula_match_at = sample_number
+-                        
+-                        # Stop when we have enough UNIQUE formula-matched molecules
+-                        if len(matched_smiles) >= n_required:
+-                            stop_generation = True
+-                            break
+-                    elif inchi_key_first_block is None:
+-                        # If we can't compute InChI key, add the molecule anyway
+-                        matched_smiles.append(canonical)
+-                        matched_similarities.append(float(similarity))
+-                        if first_unique_formula_match_at is None:
+-                            first_unique_formula_match_at = sample_number
+-                        
+-                        if len(matched_smiles) >= n_required:
+-                            stop_generation = True
+-                            break
+-                else:
+-                    # Track non-matched samples for potential padding (also unique)
+-                    if inchi_key_first_block is not None:
+-                        if inchi_key_first_block not in non_matched_inchi_keys:
+-                            non_matched_inchi_keys.add(inchi_key_first_block)
++                    mol = Chem.MolFromSmiles(str(smiles))
++                    if mol is None:
++                        continue
++
++                    total_valid += 1
++                    canonical = Chem.MolToSmiles(mol)
++                    last_valid_smiles = canonical
++                    global_smiles_counter[canonical] += 1
++                    if global_smiles_counter[canonical] > 1:
++                        continue
++
++                    gen_fp = AllChem.GetMorganFingerprintAsBitVect(mol, fp_radius, nBits=fp_bits)
++                    similarity = DataStructs.TanimotoSimilarity(pred_fp_bitvect, gen_fp)
++
++                    try:
++                        inchi_key = Chem.MolToInchiKey(mol)
++                        inchi_key_first_block = get_inchikey_first_block(inchi_key) if inchi_key else None
++                    except Exception:
++                        inchi_key_first_block = None
++
++                    gen_formula = normalize_formula(rdMolDescriptors.CalcMolFormula(mol))
++                    if gen_formula == target_formula:
++                        total_formula_matched += 1
++                        if first_formula_match_at is None:
++                            first_formula_match_at = sample_number
++
++                        if inchi_key_first_block is not None and inchi_key_first_block not in matched_inchi_keys:
++                            matched_inchi_keys.add(inchi_key_first_block)
++                            matched_smiles.append(canonical)
++                            matched_similarities.append(float(similarity))
++                            if first_unique_formula_match_at is None:
++                                first_unique_formula_match_at = sample_number
++
++                            if len(matched_smiles) >= n_required:
++                                stop_generation = True
++                                break
++                        elif inchi_key_first_block is None:
++                            matched_smiles.append(canonical)
++                            matched_similarities.append(float(similarity))
++                            if first_unique_formula_match_at is None:
++                                first_unique_formula_match_at = sample_number
++
++                            if len(matched_smiles) >= n_required:
++                                stop_generation = True
++                                break
++                    else:
++                        if inchi_key_first_block is not None:
++                            if inchi_key_first_block not in non_matched_inchi_keys:
++                                non_matched_inchi_keys.add(inchi_key_first_block)
++                                non_matched_smiles.append(canonical)
++                                non_matched_similarities.append(float(similarity))
++                        else:
+                             non_matched_smiles.append(canonical)
+                             non_matched_similarities.append(float(similarity))
+-                    else:
+-                        # If we can't compute InChI key, add the molecule anyway
+-                        non_matched_smiles.append(canonical)
+-                        non_matched_similarities.append(float(similarity))
+-                        
+-            except Exception:
+-                continue
+-        
+-        if stop_generation:
+-            break
++
++                except Exception:
++                    continue
++
++            batch_remaining -= current_sub_batch
++            if stop_generation:
++                break
+ 
+     # reorder the matched lists by similarity descending
+     if matched_smiles:
+@@ -568,6 +564,8 @@ def generate_with_formula_filter(
+         'first_formula_match_at': first_formula_match_at,
+         'first_unique_formula_match_at': first_unique_formula_match_at,
+         'profile_batches': generation_profile_batches,
++        'formula_pruning_chunk_size': formula_pruning_chunk_size,
++        'formula_pruning_batches': formula_pruning_batches,
+     }
+     if target_length_values:
+         diagnostics.update({
+@@ -739,6 +737,26 @@ def compute_aggregate_statistics(
+             (r.get('unique_valid_smiles', 0) / r.get('total_valid', 1)) if r.get('total_valid', 0) else 0.0
+             for r in results
+         ])),
++        'avg_first_formula_match_at': float(np.mean([
++            r.get('generation_first_formula_match_at', 0)
++            for r in results
++            if r.get('generation_first_formula_match_at') is not None
++        ])) if any(r.get('generation_first_formula_match_at') is not None for r in results) else 0.0,
++        'avg_first_unique_formula_match_at': float(np.mean([
++            r.get('generation_first_unique_formula_match_at', 0)
++            for r in results
++            if r.get('generation_first_unique_formula_match_at') is not None
++        ])) if any(r.get('generation_first_unique_formula_match_at') is not None for r in results) else 0.0,
++        'avg_wasted_generated_after_first_formula_match': float(np.mean([
++            max(r.get('total_generated', 0) - r.get('generation_first_formula_match_at', 0), 0)
++            for r in results
++            if r.get('generation_first_formula_match_at') is not None
++        ])) if any(r.get('generation_first_formula_match_at') is not None for r in results) else 0.0,
++        'avg_wasted_generated_after_first_unique_formula_match': float(np.mean([
++            max(r.get('total_generated', 0) - r.get('generation_first_unique_formula_match_at', 0), 0)
++            for r in results
++            if r.get('generation_first_unique_formula_match_at') is not None
++        ])) if any(r.get('generation_first_unique_formula_match_at') is not None for r in results) else 0.0,
+         'formula_match_success_rate': float(np.mean([
+             1.0 if r.get('total_formula_matched', 0) > 0 else 0.0 for r in results
+         ])),
+diff --git a/src/dlm/utils/spec2mol.py b/src/dlm/utils/spec2mol.py
+index b717002..c506e02 100644
+--- a/src/dlm/utils/spec2mol.py
++++ b/src/dlm/utils/spec2mol.py
+@@ -85,7 +85,7 @@ class Spec2MolSampler:
+         """Check if formula conditioning is enabled."""
+         return self.decoder.use_formula_conditioning
+ 
+-    @torch.no_grad()
++    @torch.inference_mode()
+     def generate(
+         self,
+         x: torch.Tensor,
+@@ -103,6 +103,7 @@ class Spec2MolSampler:
+         from dlm.utils.bracket_safe_converter import bracketsafe2safe
+ 
+         x = x.to(self.device)
++        num_tokens_unmask = int(getattr(self, 'num_tokens_unmask', 1))
+         profile_enabled = bool(getattr(self, 'profile_generation', False))
+         profile = None
+ 
+@@ -171,6 +172,9 @@ class Spec2MolSampler:
+         for i in range(num_steps):
+             sync_cuda_if_needed()
+             forward_start = time.perf_counter()
++            previous_forward_profile = getattr(self.decoder, 'profile_forward', False)
++            if profile_enabled:
++                self.decoder.profile_forward = True
+             logits = self.decoder(
+                 x,
+                 attention_mask,
+@@ -183,9 +187,19 @@ class Spec2MolSampler:
+                 fingerprint_condition_mask=fingerprint_cond_mask,
+                 extended_attention_mask=extended_attention_mask,
+             )
++            if profile_enabled:
++                self.decoder.profile_forward = previous_forward_profile
+             sync_cuda_if_needed()
+             if profile is not None:
+                 profile['model_forward_time'] += time.perf_counter() - forward_start
++                forward_profile = getattr(self.decoder, 'last_forward_profile', None)
++                if isinstance(forward_profile, dict):
++                    profile['model_forward_total_time'] = profile.get('model_forward_total_time', 0.0) + float(
++                        forward_profile.get('forward_total_time', 0.0)
++                    )
++                    for key, value in forward_profile.items():
++                        if isinstance(value, (int, float)) and key not in {'forward_total_time'}:
++                            profile[f'model_forward_{key}'] = profile.get(f'model_forward_{key}', 0.0) + float(value)
+ 
+             if gamma and w:
+                 x_poor = x.clone()
+@@ -199,6 +213,9 @@ class Spec2MolSampler:
+                 x_poor[:, mask_idx_poor] = self.mask_index
+                 sync_cuda_if_needed()
+                 guidance_start = time.perf_counter()
++                previous_forward_profile = getattr(self.decoder, 'profile_forward', False)
++                if profile_enabled:
++                    self.decoder.profile_forward = True
+                 logits_poor = self.decoder(
+                     x_poor,
+                     attention_mask=attention_mask,
+@@ -211,14 +228,29 @@ class Spec2MolSampler:
+                     fingerprint_condition_mask=fingerprint_cond_mask,
+                     extended_attention_mask=extended_attention_mask,
+                 )
++                if profile_enabled:
++                    self.decoder.profile_forward = previous_forward_profile
+                 sync_cuda_if_needed()
+                 if profile is not None:
+                     profile['guidance_forward_time'] += time.perf_counter() - guidance_start
++                    guidance_forward_profile = getattr(self.decoder, 'last_forward_profile', None)
++                    if isinstance(guidance_forward_profile, dict):
++                        profile['guidance_forward_total_time'] = profile.get('guidance_forward_total_time', 0.0) + float(
++                            guidance_forward_profile.get('forward_total_time', 0.0)
++                        )
+                 logits = w * logits + (1 - w) * logits_poor
+ 
+             sync_cuda_if_needed()
+             sampling_start = time.perf_counter()
+-            x = self.mdlm.step_confidence(logits, x, i, num_steps, softmax_temp, randomness)
++            x = self.mdlm.step_confidence(
++                logits,
++                x,
++                i,
++                num_steps,
++                softmax_temp,
++                randomness,
++                num_tokens_unmask=num_tokens_unmask,
++            )
+             sync_cuda_if_needed()
+             if profile is not None:
+                 profile['sampling_step_time'] += time.perf_counter() - sampling_start
+@@ -297,7 +329,7 @@ class Spec2MolSampler:
+         ]
+         return torch.stack(x_new)
+ 
+-    @torch.no_grad()
++    @torch.inference_mode()
+     def fingerprint_conditioned_generation(
+         self,
+         fingerprint: np.ndarray,
+@@ -328,7 +360,7 @@ class Spec2MolSampler:
+             self.decoder.train()
+         return samples
+     
+-    @torch.no_grad()
++    @torch.inference_mode()
+     def unified_conditioned_generation(
+         self,
+         formula: Optional[str] = None,
+@@ -504,7 +536,7 @@ class Spec2MolModel(nn.Module):
+         print(f"✓ Spec2Mol model loaded on {device}")
+         return model
+ 
+-    @torch.no_grad()
++    @torch.inference_mode()
+     def encode_spectra(self, batch: Dict[str, torch.Tensor]) -> Tuple[np.ndarray, np.ndarray]:
+         """
+         Encode spectra batch to fingerprint predictions.
+@@ -526,7 +558,7 @@ class Spec2MolModel(nn.Module):
+ 
+         return fp_probs, fp_binary
+ 
+-    @torch.no_grad()
++    @torch.inference_mode()
+     def generate_from_fingerprint(
+         self,
+         fingerprint: np.ndarray,
+@@ -542,7 +574,7 @@ class Spec2MolModel(nn.Module):
+             randomness=randomness,
+         )
+ 
+-    @torch.no_grad()
++    @torch.inference_mode()
+     def predict(
+         self,
+         batch: Dict[str, torch.Tensor],

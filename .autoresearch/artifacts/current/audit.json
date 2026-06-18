@@ -1,0 +1,16 @@
+{
+  "input": ".autoresearch/iterations/kolmogorov-formula-pruning-diagnostic-v3/detailed_results.csv",
+  "total_spectra": 3,
+  "avg_total_generated": 20.333333333333332,
+  "avg_total_valid": 11.0,
+  "avg_formula_matches": 1.0,
+  "avg_unique_valid_smiles": 10.0,
+  "avg_duplicate_valid_smiles": 1.0,
+  "avg_valid_duplicate_rate": 0.11278195488721804,
+  "avg_formula_match_fraction_among_valid": 0.11278195488721804,
+  "avg_unique_valid_fraction_among_valid": 0.8872180451127819,
+  "avg_first_formula_match_at": 11,
+  "avg_first_unique_formula_match_at": 11,
+  "avg_wasted_generated_after_first_formula_match": 9.333333333333334,
+  "avg_wasted_generated_after_first_unique_formula_match": 9.333333333333334
+}

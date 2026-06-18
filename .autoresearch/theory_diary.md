@@ -143,6 +143,28 @@ for the FRIGID throughput/quality campaign.
   `0.4975` and keeping `formula_success = 0.9375`. This is a better Pareto
   point than `16` if we care about chemistry quality, but it is still not fully
   guard-clean because one case never matched.
+- `formula_pruning_chunk_size = 28` did not improve that frontier. It kept
+  `formula_success = 1.0`, but it was slower than `24` and dropped
+  `tanimoto_top1` to `0.4590`. Treat `24` as the final fixed-size pruning
+  winner on the current code path and stop probing higher chunk sizes.
+- The latest 28-chunk follow-up confirmed the frontier did not move. It
+  produced `142.2s` total, `tanimoto_top1 = 0.4590`, and
+  `formula_success = 1.0`, so it is dominated by the `24`-chunk result. Fixed
+  chunk interpolation is now done on this branch; the next pruning move, if any,
+  should be adaptive or should give way to a different generation-side idea.
+- The `24`-chunk run is not guard-clean under the reconciler. When its current
+  snapshot was reconciled through the supervisor, the run was classified as
+  `quarantine` because `tanimoto_top1 = 0.4975` regressed past the allowed
+  guard margin from the baseline `0.6611`. So the raw throughput win is real,
+  but it is not yet an accepted supervisor candidate.
+- The diagnostic sweep suggests the next experiment should be adaptive rather
+  than another fixed chunk interpolation. On the existing diagnostic runs,
+  `formula_pruning_chunk_size = 8` needed about `3.0` pruning batches and hit
+  first unique formula match around `7`, `16` needed about `1.33` batches and
+  first unique around `11`, and `12` sat in between with about `2.0` batches
+  and first unique around `14.3`. That is enough to justify a cutoff rule that
+  reacts to the first unique formula hit instead of hard-coding one more chunk
+  size.
 
 ## High-priority theories
 
@@ -262,9 +284,12 @@ speed gain.
 3. Add per-case generation anatomy: attempts, valid candidates, unique valid
    candidates, duplicates, formula matches, stop reason, generated lengths,
    padding estimate, and wall time.
-4. Run formula-aware pruning as a logging-only audit before changing outputs.
+4. Formula-aware pruning is now past the blind fixed-size sweep stage. Keep
+   the `24`-chunk point as the current fixed-size winner and only continue if an
+   adaptive stop rule can preserve `formula_success`.
 5. Audit length and padding waste, then test length grouping or exact pruning
-   only if the profiler supports it.
+   only if the profiler supports it. Do not expect more fixed chunk sweeps to
+   help.
 6. Keep ICEBERG worker persistence as a separate scaling-path campaign after
    the base generator bottleneck is understood.
 7. Do not spend more scorer slots on batch-size-only, multi-GPU, or naive bf16
