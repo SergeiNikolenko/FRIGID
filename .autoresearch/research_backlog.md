@@ -36,6 +36,11 @@
 - `formula_pruning_chunk_size = 12` did not find a better trade-off. It was
   slower than `16` and slightly worse on `tanimoto_top1`, so the pruning sweep
   should not keep probing the middle blindly.
+- On the current 32-case comparison, `formula_pruning_chunk_size = 16` beat the
+  no-pruning control on throughput (`105.0s` vs `152.8s`) while keeping
+  `formula_success = 1.0`. The quality trade-off is mild but real:
+  `tanimoto_top1` went from `0.4742` to `0.4682`. Keep `16` as the best fixed
+  pruning candidate, but do not present it as quality-neutral.
 - Use `scripts/audit_formula_waste.py` on every meaningful scorer run so formula
   waste is captured from `detailed_results.csv` immediately instead of being
   recomputed manually.
@@ -88,6 +93,10 @@
 - Because `12` is dominated, the next pruning attempt should be adaptive rather
   than another fixed chunk-size point. If no adaptive rule is available, stop
   spending scorer slots on this branch.
+- If pruning is continued, the next experiment should try to preserve
+  Tanimoto while retaining the 32-case speed gain from `16`. Otherwise, move
+  the next scorer slot to a different hot path instead of squeezing fixed chunk
+  sizes further.
 - Add per-case anatomy output: attempts, valid candidates, unique valid
   candidates, duplicate candidates, formula matches, stop reason, generated
   lengths, padding estimate, and wall time.

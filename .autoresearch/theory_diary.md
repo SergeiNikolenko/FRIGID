@@ -122,6 +122,12 @@ for the FRIGID throughput/quality campaign.
   It stayed above the no-pruning control on throughput, but it was slower than
   `16` and also slightly worse on `tanimoto_top1`. Treat `16` as the current
   best pruning candidate and `12` as a dominated point.
+- The 32-case comparison on the same current code path sharpened the picture:
+  `formula_pruning_chunk_size = 16` finished in `105.0s` total versus
+  `152.8s` for the no-pruning control, which is a real throughput gain. The
+  trade-off is still present, though: `tanimoto_top1` dropped from `0.4742` to
+  `0.4682`, while `formula_success` stayed at `1.0`. So pruning is now a valid
+  speed candidate, but not yet a clean chemistry-preserving improvement.
 
 ## High-priority theories
 
