@@ -1,0 +1,12 @@
+{
+  "ok": true,
+  "changed_files": [
+    ".autoresearch/loop_config.yaml",
+    ".autoresearch/scorers/frigid_speed_quality_scorer.sh",
+    ".autoresearch/task.yaml",
+    "src/dlm/iceberg_sampler.py"
+  ],
+  "protected_hits": [],
+  "outside_editable": [],
+  "patch_hash": "4d94f03d2b4889b7a9122566f5d04043a16d13091789d29390c3d8fe80235c5b"
+}

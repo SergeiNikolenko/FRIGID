@@ -2,19 +2,318 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>FRIGID Autoresearch</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta http-equiv="refresh" content="30">
+  <title>Autoresearch Dashboard</title>
   <style>
-    body { font-family: system-ui, sans-serif; margin: 2rem; background: #111; color: #eee; }
-    code { color: #9fd; }
-    .card { border: 1px solid #333; padding: 1rem; margin: 1rem 0; border-radius: 8px; }
+    :root {
+      color-scheme: light;
+      --bg: #f6f8fb;
+      --surface: #ffffff;
+      --surface-2: #fbfcff;
+      --text: #111827;
+      --muted: #667085;
+      --faint: #98a2b3;
+      --line: #d9e1ec;
+      --line-soft: #edf1f6;
+      --blue: #2f6df6;
+      --blue-soft: #eaf1ff;
+      --green: #079455;
+      --green-soft: #e7f8ef;
+      --red: #d92d20;
+      --red-soft: #fff0ef;
+      --amber: #b54708;
+      --amber-soft: #fff4e5;
+      --shadow: 0 14px 40px rgba(15, 23, 42, .06);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font: 12px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background:
+        radial-gradient(circle at top left, rgba(47,109,246,.08), transparent 32rem),
+        linear-gradient(180deg, #fbfcff 0%, var(--bg) 34rem);
+      color: var(--text);
+    }
+    header {
+      max-width: 1480px;
+      margin: 0 auto;
+      padding: 16px 18px 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+    h1 { margin: 0; font-size: 15px; font-weight: 700; letter-spacing: 0; }
+    main { max-width: 1480px; margin: 0 auto; padding: 0 18px 28px; }
+    .updated { color: var(--muted); font-size: 11px; white-space: nowrap; }
+    .frame {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: rgba(255,255,255,.74);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+    .cards {
+      display: grid;
+      grid-template-columns: 1.25fr .85fr .8fr .8fr;
+      gap: 10px;
+      padding: 10px;
+      border-bottom: 1px solid var(--line-soft);
+    }
+    .card, .chart-card {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      min-width: 0;
+    }
+    .card-title, .chart-title, .section-title {
+      color: #182230;
+      font-size: 11px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+    .label { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .02em; }
+    .value { font-size: 12px; font-weight: 700; overflow-wrap: anywhere; }
+    .big-value { font-size: 26px; line-height: 1; font-weight: 760; letter-spacing: 0; margin: 10px 0 6px; }
+    .mono, code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .muted, .small { color: var(--muted); }
+    .small { font-size: 11px; }
+    .clamp {
+      overflow: hidden;
+      overflow-wrap: anywhere;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+    }
+    .status-line > div { min-width: 0; }
+    .status-line { display: flex; align-items: flex-start; gap: 9px; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-top: 5px; flex: 0 0 auto; }
+    .dot.good { background: var(--green); box-shadow: 0 0 0 4px rgba(7,148,85,.12); }
+    .dot.bad { background: var(--red); box-shadow: 0 0 0 4px rgba(217,45,32,.12); }
+    .dot.warn { background: var(--amber); box-shadow: 0 0 0 4px rgba(181,71,8,.12); }
+    .dot.run { background: var(--blue); box-shadow: 0 0 0 4px rgba(47,109,246,.14); }
+    .chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+    .chip, .badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 20px;
+      padding: 2px 7px;
+      border-radius: 999px;
+      font-size: 10.5px;
+      font-weight: 650;
+      white-space: nowrap;
+    }
+    .chip { background: #f2f4f7; color: #344054; }
+    .chip.good, .badge-good { background: var(--green-soft); color: var(--green); }
+    .chip.bad, .badge-bad { background: var(--red-soft); color: var(--red); }
+    .chip.warn, .badge-warn { background: var(--amber-soft); color: var(--amber); }
+    .chip.run, .badge-run { background: var(--blue-soft); color: var(--blue); }
+    .charts {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      padding: 0 10px 10px;
+    }
+    .chart-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 2px; }
+    .chart-title { margin: 0; }
+    .chart-stat { text-align: right; color: #101828; font-weight: 750; }
+    .chart-direction { color: var(--muted); font-weight: 500; }
+    .chart { width: 100%; height: 152px; display: block; }
+    .gridline { stroke: var(--line-soft); stroke-width: 1; }
+    .line { fill: none; stroke: var(--blue); stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+    .pt { cursor: pointer; stroke: var(--surface); stroke-width: 2; outline: none; }
+    .pt:hover, .pt:focus, .pt.selected { stroke: #101828; stroke-width: 2.3; }
+    .pt.best { fill: var(--green); }
+    .pt.ok { fill: var(--blue); }
+    .pt.bad { fill: var(--red); }
+    .chart text { font-size: 10px; fill: var(--muted); }
+    .chart-foot { font-size: 11px; color: var(--muted); display: flex; justify-content: space-between; margin-top: -3px; }
+    .empty { height: 132px; display: flex; align-items: center; color: var(--muted); }
+    .detail {
+      margin: 0 10px 10px;
+      padding: 8px 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface-2);
+      min-height: 34px;
+    }
+    .table-panel {
+      margin: 0 10px 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface);
+      overflow: hidden;
+    }
+    .table-toolbar {
+      height: 44px;
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--line-soft);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .toolbar-actions { display: flex; align-items: center; gap: 8px; }
+    .input-fake, .select-fake {
+      height: 28px;
+      display: inline-flex;
+      align-items: center;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      color: var(--muted);
+      background: #fff;
+      padding: 0 9px;
+      font-size: 11px;
+    }
+    .toggle-btn {
+      height: 28px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: #fff;
+      color: #344054;
+      padding: 0 10px;
+      font: inherit;
+      font-size: 11px;
+      font-weight: 650;
+      cursor: pointer;
+    }
+    .toggle-btn[aria-pressed="true"] {
+      background: var(--blue-soft);
+      border-color: #b8cdfb;
+      color: var(--blue);
+    }
+    .table-wrap { overflow: auto; }
+    table { width: 100%; min-width: 1040px; border-collapse: collapse; table-layout: fixed; }
+    th, td { padding: 7px 10px; border-bottom: 1px solid var(--line-soft); text-align: left; vertical-align: middle; }
+    th { font-size: 10.5px; color: #475467; background: #f9fafb; position: sticky; top: 0; z-index: 1; font-weight: 700; }
+    td { font-size: 11px; color: #182230; overflow-wrap: anywhere; }
+    td.metric { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: #101828; font-weight: 650; }
+    col.iter { width: 108px; }
+    col.dec { width: 96px; }
+    col.cluster { width: 128px; }
+    col.metric { width: 104px; }
+    col.summary { width: auto; }
+    tr.good td:first-child { border-left: 3px solid var(--green); }
+    tr.bad td:first-child { border-left: 3px solid var(--red); }
+    tr.warn td:first-child { border-left: 3px solid var(--amber); }
+    tr.is-best td { background: #effaf5; }
+    .hide-unsuccessful tr.bad { display: none; }
+    .tooltip {
+      position: fixed;
+      display: none;
+      z-index: 20;
+      max-width: 380px;
+      padding: 8px 9px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      box-shadow: 0 10px 28px rgba(15,23,42,.16);
+      pointer-events: none;
+    }
+    @media(max-width:1100px) {
+      .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .charts { grid-template-columns: 1fr; }
+    }
+    @media(max-width:700px) {
+      header { align-items: flex-start; flex-direction: column; gap: 4px; }
+      main { padding-left: 10px; padding-right: 10px; }
+      .cards { grid-template-columns: 1fr; }
+      .table-toolbar { height: auto; align-items: flex-start; flex-direction: column; }
+      .toolbar-actions { flex-wrap: wrap; }
+    }
   </style>
 </head>
 <body>
-  <h1>FRIGID Throughput And Quality</h1>
-  <div class="card">
-    <p>Status: prepared. No scorer baseline has been run from this binding yet.</p>
-    <p>Primary metric: <code>seconds_per_case</code> minimize.</p>
-    <p>Metric source: <code>.autoresearch/artifacts/current/metrics.json</code>.</p>
-  </div>
+  <header>
+    <h1>Autoresearch · frigid_throughput_quality</h1>
+    <div class="updated">Updated every 30s · 2026-06-18T15:47:06Z</div>
+  </header>
+  <main>
+    <div class="frame">
+      <section class="cards">
+        <div class="card">
+          <div class="card-title">Current status</div>
+          <div class="status-line">
+            <span class="dot good"></span>
+            <div>
+              <div class="value">ready_for_next_iteration · kolmogorov-single-gpu-baseline</div>
+              <div class="small clamp">baseline_validation · Reconciled external scorer run into supervisor tracking. Primary metric: seconds_per_case=18.50810819864273 Decision: baseline Source: /Users/nikolenko/.codex/worktrees/f017/FRIGID/.autores...</div>
+              <div class="chips"><span class="chip good">Ready</span><span class="chip">baseline_validation</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">Best metric</div>
+          <div class="big-value mono">18.508</div>
+          <div class="small">seconds_per_case · minimize</div>
+          <div class="chips"><span class="chip good">+0.00% vs baseline</span><span class="chip">kolmogorov-single-gpu-baseline</span></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Resources</div>
+          <div class="value">ssh:kolmogorov</div>
+          <div class="small">unbounded · batch ? · hidden ? · n ?</div>
+          <div class="chips"><span class="chip run">unbounded</span></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Guards</div>
+          <div class="value">ok</div>
+          <div class="small">no blockers</div>
+          <div class="chips"><span class="chip good">OK</span></div>
+        </div>
+      </section>
+      <section class="charts"><div class="chart-card"><div class="chart-head"><div><div class="chart-title">seconds_per_case</div><div class="chart-direction">minimize</div></div><div class="chart-stat">18.508</div></div><svg class="chart" viewBox="0 0 520 168" role="img" aria-label="seconds_per_case trend"><g><line class="gridline" x1="46" y1="14.0" x2="504" y2="14.0"/><line class="gridline" x1="46" y1="44.0" x2="504" y2="44.0"/><line class="gridline" x1="46" y1="74.0" x2="504" y2="74.0"/><line class="gridline" x1="46" y1="104.0" x2="504" y2="104.0"/><line class="gridline" x1="46" y1="134.0" x2="504" y2="134.0"/></g><text x="2" y="18">18.51</text><text x="2" y="138">18.51</text><polyline class="line" points="46.0,74.0"/><g><circle class="pt best" cx="46.0" cy="74.0" r="4" tabindex="0" role="button" aria-label="kolmogorov-single-gpu-baseline seconds_per_case=18.508108 /Users/nikolenko/.codex/worktrees/f017/FRIGID/.autoresearch/iterations/kolmogorov-single-gpu-baseline Reconciled external scorer run into supervisor tracking. Primary metric: seconds_per_case=18.50810819864273 Decision: baseline Source: /Users/nikolenko/.codex/worktrees/f017/FRIGID/.autores..." data-metric="seconds_per_case" data-iteration="kolmogorov-single-gpu-baseline" data-value="18.508108" data-decision="/Users/nikolenko/.codex/worktrees/f017/FRIGID/.autoresearch/iterations/kolmogorov-single-gpu-baseline" data-summary="Reconciled external scorer run into supervisor tracking. Primary metric: seconds_per_case=18.50810819864273 Decision: baseline Source: /Users/nikolenko/.codex/worktrees/f017/FRIGID/.autores..."><title>kolmogorov-single-gpu-baseline seconds_per_case=18.508108 /Users/nikolenko/.codex/worktrees/f017/FRIGID/.autoresearch/iterations/kolmogorov-single-gpu-baseline Reconciled external scorer run into supervisor tracking. Primary metric: seconds_per_case=18.50810819864273 Decision: baseline Source: /Users/nikolenko/.codex/worktrees/f017/FRIGID/.autores...</title></circle></g><g><text x="46.0" y="158" text-anchor="middle">kolmogorov</text></g></svg><div class="chart-foot"><span>best <code>18.508</code></span><span>1 scored points</span></div></div><div class="chart-card"><div class="chart-head"><div><div class="chart-title">exact_top1</div><div class="chart-direction">maximize</div></div><div class="chart-stat">0</div></div><svg class="chart" viewBox="0 0 520 168" role="img" aria-label="exact_top1 trend"><g><line class="gridline" x1="46" y1="14.0" x2="504" y2="14.0"/><line class="gridline" x1="46" y1="44.0" x2="504" y2="44.0"/><line class="gridline" x1="46" y1="74.0" x2="504" y2="74.0"/><line class="gridline" x1="46" y1="104.0" x2="504" y2="104.0"/><line class="gridline" x1="46" y1="134.0" x2="504" y2="134.0"/></g><text x="2" y="18">1e-06</text><text x="2" y="138">-1e-06</text><polyline class="line" points="46.0,74.0"/><g><circle class="pt best" cx="46.0" cy="74.0" r="4" tabindex="0" role="button" aria-label="kolmogorov-single-gpu-baseline exact_top1=0 /Users/nikolenko/.codex/worktrees/f017/FRIGID/.autoresearch/iterations/kolmogorov-single-gpu-baseline Reconciled external scorer run into supervisor tracking. Primary metric: seconds_per_case=18.50810819864273 Decision: baseline Source: /Users/nikolenko/.codex/worktrees/f017/FRIGID/.autores..." data-metric="exact_top1" data-iteration="kolmogorov-single-gpu-baseline" data-value="0" data-decision="/Users/nikolenko/.codex/worktrees/f017/FRIGID/.autoresearch/iterations/kolmogorov-single-gpu-baseline" data-summary="Reconciled external scorer run into supervisor tracking. Primary metric: seconds_per_case=18.50810819864273 Decision: baseline Source: /Users/nikolenko/.codex/worktrees/f017/FRIGID/.autores..."><title>kolmogorov-single-gpu-baseline exact_top1=0 /Users/nikolenko/.codex/worktrees/f017/FRIGID/.autoresearch/iterations/kolmogorov-single-gpu-baseline Reconciled external scorer run into supervisor tracking. Primary metric: seconds_per_case=18.50810819864273 Decision: baseline Source: /Users/nikolenko/.codex/worktrees/f017/FRIGID/.autores...</title></circle></g><g><text x="46.0" y="158" text-anchor="middle">kolmogorov</text></g></svg><div class="chart-foot"><span>best <code>0</code></span><span>1 scored points</span></div></div><div class="chart-card"><div class="chart-head"><div><div class="chart-title">tanimoto_top1</div><div class="chart-direction">maximize</div></div><div class="chart-stat">0.66107</div></div><svg class="chart" viewBox="0 0 520 168" role="img" aria-label="tanimoto_top1 trend"><g><line class="gridline" x1="46" y1="14.0" x2="504" y2="14.0"/><line class="gridline" x1="46" y1="44.0" x2="504" y2="44.0"/><line class="gridline" x1="46" y1="74.0" x2="504" y2="74.0"/><line class="gridline" x1="46" y1="104.0" x2="504" y2="104.0"/><line class="gridline" x1="46" y1="134.0" x2="504" y2="134.0"/></g><text x="2" y="18">0.6611</text><text x="2" y="138">0.6611</text><polyline class="line" points="46.0,74.0"/><g><circle class="pt best" cx="46.0" cy="74.0" r="4" tabindex="0" role="button" aria-label="kolmogorov-single-gpu-baseline tanimoto_top1=0.66106852 /Users/nikolenko/.codex/worktrees/f017/FRIGID/.autoresearch/iterations/kolmogorov-single-gpu-baseline Reconciled external scorer run into supervisor tracking. Primary metric: seconds_per_case=18.50810819864273 Decision: baseline Source: /Users/nikolenko/.codex/worktrees/f017/FRIGID/.autores..." data-metric="tanimoto_top1" data-iteration="kolmogorov-single-gpu-baseline" data-value="0.66106852" data-decision="/Users/nikolenko/.codex/worktrees/f017/FRIGID/.autoresearch/iterations/kolmogorov-single-gpu-baseline" data-summary="Reconciled external scorer run into supervisor tracking. Primary metric: seconds_per_case=18.50810819864273 Decision: baseline Source: /Users/nikolenko/.codex/worktrees/f017/FRIGID/.autores..."><title>kolmogorov-single-gpu-baseline tanimoto_top1=0.66106852 /Users/nikolenko/.codex/worktrees/f017/FRIGID/.autoresearch/iterations/kolmogorov-single-gpu-baseline Reconciled external scorer run into supervisor tracking. Primary metric: seconds_per_case=18.50810819864273 Decision: baseline Source: /Users/nikolenko/.codex/worktrees/f017/FRIGID/.autores...</title></circle></g><g><text x="46.0" y="158" text-anchor="middle">kolmogorov</text></g></svg><div class="chart-foot"><span>best <code>0.66107</code></span><span>1 scored points</span></div></div><div class="chart-card"><div class="chart-head"><div><div class="chart-title">formula_success</div><div class="chart-direction">maximize</div></div><div class="chart-stat">1</div></div><svg class="chart" viewBox="0 0 520 168" role="img" aria-label="formula_success trend"><g><line class="gridline" x1="46" y1="14.0" x2="504" y2="14.0"/><line class="gridline" x1="46" y1="44.0" x2="504" y2="44.0"/><line class="gridline" x1="46" y1="74.0" x2="504" y2="74.0"/><line class="gridline" x1="46" y1="104.0" x2="504" y2="104.0"/><line class="gridline" x1="46" y1="134.0" x2="504" y2="134.0"/></g><text x="2" y="18">1</text><text x="2" y="138">1</text><polyline class="line" points="46.0,74.0"/><g><circle class="pt best" cx="46.0" cy="74.0" r="4" tabindex="0" role="button" aria-label="kolmogorov-single-gpu-baseline formula_success=1 /Users/nikolenko/.codex/worktrees/f017/FRIGID/.autoresearch/iterations/kolmogorov-single-gpu-baseline Reconciled external scorer run into supervisor tracking. Primary metric: seconds_per_case=18.50810819864273 Decision: baseline Source: /Users/nikolenko/.codex/worktrees/f017/FRIGID/.autores..." data-metric="formula_success" data-iteration="kolmogorov-single-gpu-baseline" data-value="1" data-decision="/Users/nikolenko/.codex/worktrees/f017/FRIGID/.autoresearch/iterations/kolmogorov-single-gpu-baseline" data-summary="Reconciled external scorer run into supervisor tracking. Primary metric: seconds_per_case=18.50810819864273 Decision: baseline Source: /Users/nikolenko/.codex/worktrees/f017/FRIGID/.autores..."><title>kolmogorov-single-gpu-baseline formula_success=1 /Users/nikolenko/.codex/worktrees/f017/FRIGID/.autoresearch/iterations/kolmogorov-single-gpu-baseline Reconciled external scorer run into supervisor tracking. Primary metric: seconds_per_case=18.50810819864273 Decision: baseline Source: /Users/nikolenko/.codex/worktrees/f017/FRIGID/.autores...</title></circle></g><g><text x="46.0" y="158" text-anchor="middle">kolmogorov</text></g></svg><div class="chart-foot"><span>best <code>1</code></span><span>1 scored points</span></div></div></section>
+      <div id="chartDetail" class="detail small">Select a point to inspect an iteration.</div>
+      <section class="table-panel hide-unsuccessful">
+        <div class="table-toolbar">
+          <div class="section-title">Iteration history <span class="muted">· 0 archived unsuccessful</span></div>
+          <div class="toolbar-actions">
+            <div class="input-fake">Search...</div>
+            <div class="select-fake">All statuses</div>
+            <div class="select-fake">All decisions</div>
+            <button id="toggleUnsuccessful" class="toggle-btn" type="button" aria-pressed="true">Show archived</button>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <colgroup><col class="iter"><col class="dec"><col class="cluster"><col class="metric"><col class="metric"><col class="metric"><col class="metric"><col class="summary"></colgroup>
+            <thead><tr><th>iter</th><th>decision</th><th>cluster</th><th>seconds_per_case min</th><th>exact_top1 max</th><th>tanimoto_top1 max</th><th>formula_success max</th><th>change / hypothesis</th></tr></thead>
+            <tbody><tr class="warn is-best"><td>kolmogorov-single-gpu-baseline</td><td><span class="badge badge-warn">/Users/nikolenko/.codex/worktrees/f017/FRIGID/.autoresearch/iterations/kolmogorov-single-gpu-baseline</span></td><td><span class="chip">baseline</span></td><td class="metric">18.508</td><td class="metric">0</td><td class="metric">0.66107</td><td class="metric">1</td><td>Reconciled external scorer run into supervisor tracking. Primary metric: seconds_per_case=18.50810819864273 Decision: baseline Source: /Users/nikolenko/.codex/worktrees/f017/FRIGID/.autores...</td></tr></tbody>
+          </table>
+        </div>
+      </section>
+      <div id="chartTooltip" class="tooltip small"></div>
+    </div>
+  </main>
+  <script>
+    (function() {
+      const detail = document.getElementById('chartDetail');
+      const tooltip = document.getElementById('chartTooltip');
+      const tablePanel = document.querySelector('.table-panel');
+      const toggleUnsuccessful = document.getElementById('toggleUnsuccessful');
+      const points = Array.from(document.querySelectorAll('.pt[data-iteration]'));
+      function esc(s) { return String(s || '').replace(/[&<>"]/g, function(c) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+      function content(pt) { return '<b>' + esc(pt.dataset.iteration) + '</b> · ' + esc(pt.dataset.metric) + ' <code>' + esc(pt.dataset.value) + '</code> · ' + esc(pt.dataset.decision) + '<br>' + esc(pt.dataset.summary); }
+      function select(pt) { points.forEach(function(p) { p.classList.remove('selected'); }); pt.classList.add('selected'); if (detail) detail.innerHTML = content(pt); }
+      points.forEach(function(pt) {
+        pt.addEventListener('click', function() { select(pt); });
+        pt.addEventListener('focus', function() { select(pt); });
+        pt.addEventListener('keydown', function(ev) { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); select(pt); } });
+        pt.addEventListener('mouseenter', function() { if (tooltip) { tooltip.innerHTML = content(pt); tooltip.style.display = 'block'; } });
+        pt.addEventListener('mousemove', function(ev) { if (tooltip) { tooltip.style.left = (ev.clientX + 12) + 'px'; tooltip.style.top = (ev.clientY + 12) + 'px'; } });
+        pt.addEventListener('mouseleave', function() { if (tooltip) tooltip.style.display = 'none'; });
+      });
+      if (toggleUnsuccessful && tablePanel) {
+        toggleUnsuccessful.addEventListener('click', function() {
+          const enabled = !tablePanel.classList.contains('hide-unsuccessful');
+          tablePanel.classList.toggle('hide-unsuccessful', enabled);
+          toggleUnsuccessful.setAttribute('aria-pressed', String(enabled));
+          toggleUnsuccessful.textContent = enabled ? 'Show archived' : 'Hide archived';
+        });
+      }
+      if (points.length) select(points[points.length - 1]);
+    })();
+  </script>
 </body>
 </html>

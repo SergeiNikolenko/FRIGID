@@ -1,1 +1,2 @@
 iteration	metric	seconds_per_case	exact_top1	tanimoto_top1	formula_success	decision	notes
+kolmogorov-single-gpu-baseline	complete	18.50810819864273		baseline	pass	/Users/nikolenko/.codex/worktrees/f017/FRIGID/.autoresearch/iterations/kolmogorov-single-gpu-baseline	first valid scorer result

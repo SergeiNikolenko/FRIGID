@@ -1,0 +1,12 @@
+{
+  "seconds_per_case": 18.50810819864273,
+  "elapsed_time_seconds": 296.1297311782837,
+  "total_spectra": 16,
+  "exact_top1": 0.0,
+  "exact_top10": 0.0,
+  "tanimoto_top1": 0.6610685214400291,
+  "tanimoto_top10": 0.6641156747937202,
+  "formula_success": 1.0,
+  "avg_total_generated": 85.5625,
+  "generation_time_percentage": 99.21638803574308
+}

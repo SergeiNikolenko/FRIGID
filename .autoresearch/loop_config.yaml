@@ -11,12 +11,12 @@ policy:
   reject_resource_only_tuning: true
   allow_debug_repairs_without_gpu_score: true
 gpu_policy:
-  host: spectrum
+  host: kolmogorov
   mode: single_gpu
   max_visible_devices: 1
   max_concurrent_scorers: 1
   cuda_visible_devices_env: FRIGID_SCORER_CUDA_VISIBLE_DEVICES
   candidate_hosts:
-    - spectrum
     - kolmogorov
+    - spectrum
   allow_during_full_run_env: ALLOW_CONCURRENT_FRIGID_SCORER

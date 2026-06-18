@@ -1,0 +1,43 @@
+{
+  "primary_metric_name": "seconds_per_case",
+  "primary_metric": 18.50810819864273,
+  "metric_source": "/Users/nikolenko/.codex/worktrees/f017/FRIGID/.autoresearch/artifacts/current/metrics.json",
+  "guards": {
+    "observed": {
+      "exact_top1": {
+        "value": 0.0,
+        "source": "json:.autoresearch/artifacts/current/metrics.json:exact_top1",
+        "direction": "maximize",
+        "max_regression": 0.03
+      },
+      "tanimoto_top1": {
+        "value": 0.6610685214400291,
+        "source": "json:.autoresearch/artifacts/current/metrics.json:tanimoto_top1",
+        "direction": "maximize",
+        "max_regression": 0.05
+      },
+      "formula_success": {
+        "value": 1.0,
+        "source": "json:.autoresearch/artifacts/current/metrics.json:formula_success",
+        "direction": "maximize",
+        "max_regression": 0.1
+      }
+    },
+    "failures": []
+  },
+  "returncode": 0,
+  "metric_error": null,
+  "raw_metrics": {
+    "seconds_per_case": 18.50810819864273,
+    "elapsed_time_seconds": 296.1297311782837,
+    "total_spectra": 16,
+    "exact_top1": 0.0,
+    "exact_top10": 0.0,
+    "tanimoto_top1": 0.6610685214400291,
+    "tanimoto_top10": 0.6641156747937202,
+    "formula_success": 1.0,
+    "avg_total_generated": 85.5625,
+    "generation_time_percentage": 99.21638803574308
+  },
+  "source_scorer_run": "/Users/nikolenko/.codex/worktrees/f017/FRIGID/.autoresearch/artifacts/current"
+}

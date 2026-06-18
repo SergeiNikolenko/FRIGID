@@ -5,14 +5,16 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 ARTIFACT_DIR="$REPO_ROOT/.autoresearch/artifacts/current"
 mkdir -p "$ARTIFACT_DIR"
 
-REMOTE_HOST="${FRIGID_SCORER_HOST:-spectrum}"
+REMOTE_HOST="${FRIGID_SCORER_HOST:-kolmogorov}"
 REMOTE_REPO="${FRIGID_REMOTE_REPO:-/home/nikolenko/work/Projects/FRIGID}"
 REMOTE_RUN_DIR="${FRIGID_REMOTE_SCORER_DIR:-/home/nikolenko/work/Projects/FRIGID/.autoresearch_scorer_runs/current}"
 MAX_SPECTRA="${FRIGID_SCORER_MAX_SPECTRA:-16}"
 FORMULA_MATCHES="${FRIGID_SCORER_FORMULA_MATCHES:-10}"
 MAX_ATTEMPTS="${FRIGID_SCORER_MAX_ATTEMPTS:-100}"
 BATCH_SIZE="${FRIGID_SCORER_BATCH_SIZE:-16}"
-CUDA_VISIBLE_DEVICES_VALUE="${FRIGID_SCORER_CUDA_VISIBLE_DEVICES:-0}"
+CUDA_VISIBLE_DEVICES_VALUE="${FRIGID_SCORER_CUDA_VISIBLE_DEVICES:-1}"
+TOKEN_MODEL="${FRIGID_SCORER_TOKEN_MODEL:-token_models/models/best_ngboost_MSG.joblib}"
+SIGMA_LAMBDA="${FRIGID_SCORER_SIGMA_LAMBDA:-3.0}"
 
 if [[ "${ALLOW_CONCURRENT_FRIGID_SCORER:-0}" != "1" ]]; then
   if ssh "$REMOTE_HOST" -- "tmux has-session -t frigid_spectrum_base 2>/dev/null"; then
@@ -28,7 +30,6 @@ rm -rf "$REMOTE_RUN_DIR"
 mkdir -p "$REMOTE_RUN_DIR"
 source .venv/bin/activate
 export CUDA_VISIBLE_DEVICES="$CUDA_VISIBLE_DEVICES_VALUE"
-START_TS=\\\$(date +%s)
 python scripts/benchmark_spec2mol.py \\
   --config configs/spec2mol_benchmark_msg.yaml \\
   --mist-checkpoint repro_cache/mist_msg.pt \\
@@ -40,17 +41,20 @@ python scripts/benchmark_spec2mol.py \\
   --batch-size "$BATCH_SIZE" \\
   --formula-matches "$FORMULA_MATCHES" \\
   --max-attempts "$MAX_ATTEMPTS" \\
-  --seed 42
-END_TS=\\\$(date +%s)
+  --seed 42 \\
+  --use-shared-cross-attention \\
+  --token-model "$TOKEN_MODEL" \\
+  --sigma-lambda "$SIGMA_LAMBDA"
 python - <<'PY'
 import json, pathlib, csv, os
 run = pathlib.Path(os.environ.get("REMOTE_RUN_DIR", "$REMOTE_RUN_DIR"))
 stats_path = run / "output" / "aggregate_statistics.json"
 stats = json.load(open(stats_path))
 total = max(float(stats.get("total_spectra", 0) or 0), 1.0)
+elapsed = float(stats.get("elapsed_time_seconds", stats.get("total_elapsed_time_seconds", 0.0)) or 0.0)
 metrics = {
-    "seconds_per_case": float(stats.get("elapsed_time_seconds", 0.0)) / total,
-    "elapsed_time_seconds": float(stats.get("elapsed_time_seconds", 0.0)),
+    "seconds_per_case": elapsed / total,
+    "elapsed_time_seconds": elapsed,
     "total_spectra": int(stats.get("total_spectra", 0) or 0),
     "exact_top1": float(stats.get("exact_match_top1", 0.0)),
     "exact_top10": float(stats.get("exact_match_top10", 0.0)),

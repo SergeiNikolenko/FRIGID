@@ -11,26 +11,23 @@
     "candidate_eps": 0.0,
     "candidate_eps_policy": "manual_or_baseline_variance"
   },
-  "guards": [
-    {
-      "name": "exact_top1",
+  "guards": {
+    "exact_top1": {
       "direction": "maximize",
       "max_regression": 0.03,
       "source": "json:.autoresearch/artifacts/current/metrics.json:exact_top1"
     },
-    {
-      "name": "tanimoto_top1",
+    "tanimoto_top1": {
       "direction": "maximize",
       "max_regression": 0.05,
       "source": "json:.autoresearch/artifacts/current/metrics.json:tanimoto_top1"
     },
-    {
-      "name": "formula_success",
+    "formula_success": {
       "direction": "maximize",
       "max_regression": 0.10,
       "source": "json:.autoresearch/artifacts/current/metrics.json:formula_success"
     }
-  ],
+  },
   "constraints": {
     "wall_time_seconds": {
       "direction": "max",
@@ -52,7 +49,7 @@
     "timeout_seconds": null
   },
   "runtime": {
-    "target": "ssh:spectrum",
+    "target": "ssh:kolmogorov",
     "require_gpu_for_scored_candidates": true,
     "local_cuda_is_authoritative": false
   },

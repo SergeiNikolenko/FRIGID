@@ -1,11 +1,22 @@
 {
-  "status": "prepared",
+  "status": "ready_for_next_iteration",
   "stage": "project_discovery",
-  "current_best": null,
+  "current_best": 18.50810819864273,
   "active_iteration": null,
   "notes": [
     "MCP init_task failed because this Codex worktree stores .git as a gitdir file.",
     "Manual binding was created without running a scorer.",
     "A full base benchmark may already be running on spectrum; scorer script refuses to run concurrently by default."
-  ]
+  ],
+  "current_best_iteration": "kolmogorov-single-gpu-baseline",
+  "guard_baseline": {
+    "exact_top1": 0.0,
+    "tanimoto_top1": 0.6610685214400291,
+    "formula_success": 1.0
+  },
+  "incumbent_patch_iteration": "kolmogorov-single-gpu-baseline",
+  "incumbent_patch_hash": "d39fcb2c61123082aa650e35140c4cdf9e74da0de17ae9dd6889866cad528b6c",
+  "updated_at": "2026-06-18T15:47:06Z",
+  "failed_in_row": 0,
+  "current_iteration": "kolmogorov-single-gpu-baseline"
 }

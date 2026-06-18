@@ -1,0 +1,1 @@
+bash .autoresearch/scorers/frigid_speed_quality_scorer.sh

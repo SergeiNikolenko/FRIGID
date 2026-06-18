@@ -6,7 +6,7 @@ objective: >
   the configured GPU host.
 primary_metric: seconds_per_case
 direction: minimize
-runtime_target: ssh:spectrum
+runtime_target: ssh:kolmogorov
 campaign_mode: campaign
 continuation: goal_first
 termination: >
@@ -16,6 +16,6 @@ termination: >
 notes:
   - Heavy scorer runs must execute on one explicit remote GPU, not locally.
   - Optimize single-GPU throughput first; do not use multi-GPU sharding as the target path.
-  - spectrum is the default because FRIGID is already deployed there; kolmogorov is a candidate after repo/data/env deployment.
+  - kolmogorov is the default runtime for scorer runs; use one free RTX 4090 via CUDA_VISIBLE_DEVICES.
   - Test metrics are guards for throughput work, not an everyday model-selection target.
   - Do not run scorer concurrently with a full FRIGID benchmark unless explicitly allowed.
