@@ -1,5 +1,19 @@
 # Research Backlog
 
+## Current Resume Priority
+
+- Do not use multi-GPU for this campaign. The current target is global
+  single-GPU throughput measured as `seconds_per_case`.
+- Use `kolmogorov-conditioning-cache-sigma0-batch32-32cases` as the latest
+  valid speed reference: `15.017504721879959 sec/case`,
+  `tanimoto_top1 = 0.6486558560281992`, `formula_success = 1.0`.
+- Treat the `extended_attention_mask` cache as unvalidated until a complete
+  comparable 32-case scorer run finishes.
+- Before another scored optimization, add generation micro-profiling and
+  per-case anatomy so the next patch targets a measured hot path.
+- Do not spend more comparable scorer slots on batch-size-only, sigma-only,
+  multi-GPU, or naive bf16 changes unless new profiling evidence justifies it.
+
 ## P0 Correctness And Comparability
 
 - Fix or avoid the built-in multi-GPU base path before relying on it. The worker
@@ -15,6 +29,15 @@
 
 ## P0 Inference Throughput
 
+- Profile the current accepted generation path. The profile should separate
+  conditioning setup, backbone forward calls, masking/sampling, formula
+  filtering, RDKit validation, fingerprint scoring, and result assembly with
+  CUDA synchronization around GPU regions.
+- Add per-case anatomy output: attempts, valid candidates, unique valid
+  candidates, duplicate candidates, formula matches, stop reason, generated
+  lengths, padding estimate, and wall time.
+- Validate or discard the `extended_attention_mask` cache with a full comparable
+  32-case run before stacking additional sampler changes on top of it.
 - Profile `generate_with_formula_filter`: separate DLM generation time from RDKit
   validation, formula calculation, InChI key generation, Morgan fingerprint, and
   CSV/result assembly.
