@@ -17,6 +17,10 @@
   earlier `num_tokens_unmask = 1` micro-profile. Do not assume higher unmask
   counts are a free throughput gain; revisit only if a larger-profile diagnostic
   changes the picture.
+- The current generation probes all predict token length `120` with zero
+  estimated padding, so length grouping is not yet evidence-backed. Do not burn
+  a scorer slot on outer length scheduling until a mixed-length sample proves
+  there is real padding waste to remove.
 
 ## P0 Correctness And Comparability
 
@@ -45,6 +49,8 @@
 - Profile `generate_with_formula_filter`: separate DLM generation time from RDKit
   validation, formula calculation, InChI key generation, Morgan fingerprint, and
   CSV/result assembly.
+- Audit formula-aware pruning next if a generation-side change is needed; the
+  current length data does not justify a padding-scheduling detour.
 - Test larger generation batches on one GPU. Current benchmark uses
   `batch_size=16`; on A100 80GB it uses only about 4 GB VRAM, and on RTX 4090
   free memory should still allow controlled 32/64 tests. This is a material

@@ -255,6 +255,12 @@ itself. A fresh probe with `num_tokens_unmask = 2` is already in
 regressed versus the earlier `num_tokens_unmask = 1` profile on both
 throughput and quality. Treat `2` as a negative result, not a candidate.
 
+The same generation profiles also show no useful length variance yet: the
+stored `predicted_token_length` is flat at `120` and `estimated_padding_tokens`
+is `0`. That means length grouping is not evidence-backed on the current
+sample, so the next mechanism should stay focused on the inner generation path
+or exact pruning rather than outer scheduling.
+
 ## Notes from ideation threads
 
 - The local ideation thread suggested the same direction: shared encoder/KV

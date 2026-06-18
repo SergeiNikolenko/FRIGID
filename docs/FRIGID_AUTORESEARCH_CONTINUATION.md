@@ -133,6 +133,10 @@ New diagnostic support:
   sec/case` versus `4.7610132694244385 sec/case`, with lower `tanimoto_top1`
   and fewer unique valid molecules. Treat `2` as a negative signal, not a
   promotion.
+- The current profiled probes do not show meaningful length variance yet:
+  predicted token length is flat at `120` and estimated padding is `0` in the
+  stored generation profiles. Do not spend the next scorer slot on length
+  grouping until a real mixed-length sample shows padding waste.
 
 Do not revert unrelated dirty files, especially pre-existing changes in
 `src/dlm/iceberg_sampler.py`, unless explicitly requested.
