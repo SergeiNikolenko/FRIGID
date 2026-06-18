@@ -102,6 +102,13 @@ for the FRIGID throughput/quality campaign.
   stayed around `97.8%`, `formula_success` remained `100%`, but `tanimoto_top1`
   fell to `0.4306` and duplicate valid rate rose to about `24%`. So the
   per-step unmask knob is not the next throughput lever either.
+- The paired `num_tokens_unmask = 2` confidence sweep on the 32-case control
+  shape was also negative. `confidence_temperature = 0.7` produced
+  `4.802095644176006 sec/case`, while `0.5` produced
+  `4.8486208319664 sec/case`; both kept `formula_success = 0.96875` and
+  `tanimoto_top1 = 0.45518521405756474`, which is worse than the current
+  control. The small speed delta between `0.7` and `0.5` is not strong enough
+  to promote this knob.
 - The latest pruning-oriented audit on the current 3-spectrum diagnostic shows
   `avg_first_unique_formula_match_at = 11.67` and
   `avg_wasted_generated_after_first_unique_formula_match = 19.0`. That is a
@@ -128,6 +135,17 @@ for the FRIGID throughput/quality campaign.
   trade-off is still present, though: `tanimoto_top1` dropped from `0.4742` to
   `0.4682`, while `formula_success` stayed at `1.0`. So pruning is now a valid
   speed candidate, but not yet a clean chemistry-preserving improvement.
+- The live adaptive tail sweep on Kolmogorov confirmed that the signal is
+  small and quality-sensitive, not a new frontier. `tail=4`, `6`, `8`, and
+  `12` all stayed at `formula_success = 93.75%` and
+  `tanimoto_top1 = 0.49754720740020275`, while `tail=4` and `tail=12`
+  were the fastest at about `130.4-130.5s` total. That is a real micro-win
+  versus the fixed `24` frontier, but it still fails the guard-clean bar.
+- The `seed=43` repeat preserved the relative speed ordering between `tail=4`
+  and `tail=12`, but the quality picture weakened to
+  `formula_success = 81.25%` and `tanimoto_top1 = 0.5112051833420992`. That
+  makes the tail sweep a repeatable timing curiosity, not a candidate for
+  promotion without a better guard set.
 - The 32-case `num_tokens_unmask = 2` run was a negative result. It took
   `154.9s` versus `152.8s` for the current control, `formula_success` fell to
   `96.88%`, and `tanimoto_top1` dropped to `0.4552`. Treat larger unmask counts
@@ -174,6 +192,18 @@ for the FRIGID throughput/quality campaign.
   success.
 
 ## High-priority theories
+
+- The post-processing cache on `build_prediction_entry` and Morgan fingerprint
+  lookup did not move the global wall time enough to matter. The latest
+  control-shaped 32-case run still landed at `formula_success = 1.0`,
+  `tanimoto_top1 = 0.47418925538659096`, and about `4.74 sec/case`, which
+  confirms that generation remains the bottleneck.
+- `MDLM.get_num_steps_confidence` simply divides the masked-token count by
+  `num_tokens_unmask`, and `step_confidence` already has a separate
+  `confidence_temperature` knob. The combined `num_tokens_unmask = 2`
+  confidence sweep was negative on the current control path, so this is not a
+  promoted lever. The next work should move back to measured backbone-call
+  reduction or a different generation-side mechanism.
 
 ### 1. Inference cache inside the decoder path
 
@@ -373,11 +403,10 @@ snapshot from `detailed_results.csv`. On the current 32-case run it reports
 `avg_unique_valid_fraction_among_valid = 80.84%`, which is the cleaner summary
 to carry into the next remote audit.
 
-The current workstation cannot reach the remote GPU hosts right now. `ssh`
-attempts to `kolmogorov` fail on DNS resolution, and `spectrum`, `faro`, and
-`bern` fail with `Operation not permitted` on both the normal SSH port and
-`46522`. The next remote audit step should only be retried after the network
-path changes.
+The current session can reach `kolmogorov` again and is already using it for
+remote scorer runs. Earlier notes about a completely blocked path no longer
+match the live state for this thread, so rely on the current SSH result before
+planning the next audit step.
 
 ## Notes from ideation threads
 
@@ -396,3 +425,8 @@ path changes.
   path and produced a small but measurable global speedup on the 32-case fixed
   length benchmark. That makes it a valid optimization, but not the main lever
   for the remaining generation bottleneck.
+- The first live adaptive tail sweep after the unique formula hit
+  (`tail=4/6/8/12`, fixed `chunk_size=24`) did not change chemistry metrics but
+  did show a small speed spread. `tail=4` and `tail=12` were around 1.5% faster
+  than the fixed `24` frontier, so the tail rule is a plausible micro-optimization
+  candidate, but not a primary lever.

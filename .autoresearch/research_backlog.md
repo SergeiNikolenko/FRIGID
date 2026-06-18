@@ -44,6 +44,12 @@
 - `num_tokens_unmask = 2` on the same 32-case path is also a negative result:
   slower than control, `formula_success = 96.88%`, and `tanimoto_top1 = 0.4552`.
   Do not spend another scorer slot on larger unmask counts for this branch.
+- The `num_tokens_unmask = 2` plus `confidence_temperature` sweep is now also
+  a negative result on the current 32-case control shape. `ct = 0.7` was
+  slightly faster than `ct = 0.5`, but both were slower than the control and
+  both kept `formula_success = 0.96875` with `tanimoto_top1 = 0.4552`. Keep
+  confidence calibration diagnostic-only unless a different backbone schedule
+  changes the baseline.
 - `encoder_batch_size = 8` did not help either. The 32-case run was slightly
   slower than control (`154.7s` vs `152.8s`) and kept the same quality numbers,
   so MIST batching is not the next likely speed lever in this exact path.
@@ -71,6 +77,24 @@
   first unique formula match, then compare against `6` if the `8`-tail run is
   too slow. Keep the guard set unchanged so we learn whether the extra tail
   preserves formula success without collapsing the Tanimoto improvement.
+- The first live tail sweep on Kolmogorov (`4`, `6`, `8`, `12` after the first
+  unique hit, all with `chunk_size = 24`) was mostly flat on chemistry metrics
+  but did produce a small speed signal. All four runs landed at
+  `formula_success = 93.75%`, `tanimoto_top1 = 0.4975`, `exact_top1 = 0.0`,
+  and `avg_total_generated = 23.9375`; `tail=4` and `tail=12` were the fastest
+  variants at about `130.4-130.5s`, roughly 1.5% faster than the fixed `24`
+  frontier, while `tail=8` was slowest at `132.99s`. The signal is real but
+  not guard-clean yet because formula success stayed below `1.0`; treat `4`/`12`
+  as tentative micro-improvements that still need a repeat before promotion.
+- The first repeat on `seed=43` kept the relative ordering but weakened the
+  absolute chemistry picture: `tail=4` stayed faster than `tail=12`, but both
+  landed at `formula_success = 81.25%` and `tanimoto_top1 = 0.5112`. That is
+  enough to keep the tail sweep as a diagnostic, not a promoted frontier.
+- A post-processing cache on `build_prediction_entry` / Morgan fingerprint
+  lookup was also a negative result as a global throughput lever. The run kept
+  `formula_success = 1.0` and `tanimoto_top1 = 0.4742`, but `seconds_per_case`
+  stayed at about `4.74` per case on the 32-case control shape, so the
+  generation path still dominates.
 - Use `scripts/audit_formula_waste.py` on every meaningful scorer run so formula
   waste is captured from `detailed_results.csv` immediately instead of being
   recomputed manually.
@@ -78,6 +102,10 @@
   `rsync`/`scp` are flaky from this workstation and may fail DNS resolution.
   Prefer direct SSH commands for runs and avoid assuming the file-transfer
   helpers are reliable until the route stabilizes.
+- Multiple independent single-GPU runs may be launched in parallel on
+  Kolmogorov when spare devices are actually free, but the availability check
+  must be live for every batch. Query the current GPU occupancy first and only
+  schedule as many scorer jobs as free devices are confirmed at that moment.
 
 ## P0 Correctness And Comparability
 
