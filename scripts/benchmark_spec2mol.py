@@ -120,6 +120,12 @@ def parse_args():
         action='store_true',
         help='Record opt-in per-case generation timing diagnostics'
     )
+    parser.add_argument(
+        '--num-tokens-unmask',
+        type=int,
+        default=1,
+        help='Number of masked tokens to unmask per diffusion step'
+    )
     return parser.parse_args()
 
 
@@ -631,6 +637,7 @@ def run_benchmark(
     is_ngboost: bool = False,
     sigma_lambda: float = 3.0,
     profile_generation: bool = False,
+    num_tokens_unmask: int = 1,
 ) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
     """Run the benchmark."""
     gen_cfg = config['generation']
@@ -702,6 +709,7 @@ def run_benchmark(
             is_ngboost=is_ngboost,
             sigma_lambda=sigma_lambda,
             profile_generation=profile_generation,
+            num_tokens_unmask=num_tokens_unmask,
         )
         if profile_generation:
             (
@@ -770,7 +778,14 @@ def run_benchmark(
             result['duplicate_valid_smiles'] / total_valid if total_valid else 0.0
         )
         result['formula_duplicate_matches'] = max(total_matched - len(matched_smiles), 0)
+        result['formula_match_fraction_among_valid'] = (
+            total_matched / total_valid if total_valid else 0.0
+        )
+        result['unique_valid_fraction_among_valid'] = (
+            unique_valid / total_valid if total_valid else 0.0
+        )
         result['generation_time'] = gen_time
+        result['num_tokens_unmask'] = int(num_tokens_unmask)
         for diag_key, diag_value in generation_diagnostics.items():
             if diag_value is None or isinstance(diag_value, (str, bool, int, float, np.integer, np.floating)):
                 result[f'generation_{diag_key}'] = diag_value
@@ -910,6 +925,10 @@ def print_summary(aggregate: Dict[str, Any]):
     print(f"Avg duplicate valid SMILES: {aggregate.get('avg_duplicate_valid_smiles', 0):.1f}")
     print(f"Avg valid duplicate rate: {aggregate.get('avg_valid_duplicate_rate', 0)*100:.1f}%")
     print(f"Avg formula duplicate matches: {aggregate.get('avg_formula_duplicate_matches', 0):.1f}")
+    if 'avg_formula_match_fraction_among_valid' in aggregate:
+        print(f"Avg formula match fraction among valid: {aggregate.get('avg_formula_match_fraction_among_valid', 0)*100:.1f}%")
+    if 'avg_unique_valid_fraction_among_valid' in aggregate:
+        print(f"Avg unique valid fraction among valid: {aggregate.get('avg_unique_valid_fraction_among_valid', 0)*100:.1f}%")
     
     print(f"{'='*70}")
 
@@ -972,7 +991,8 @@ def main():
             mist_encoder, sampler, dataset, split_data,
             config, device, max_spectra,
             token_model, token_features, is_ngboost, args.sigma_lambda,
-            args.profile_generation
+            args.profile_generation,
+            args.num_tokens_unmask,
         )
 
     # Save and print results
