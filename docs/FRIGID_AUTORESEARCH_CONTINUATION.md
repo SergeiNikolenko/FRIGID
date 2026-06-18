@@ -116,6 +116,13 @@ New diagnostic support:
   On 2 spectra, model forward dominated the profiled generation time:
   `8.801494488492608s` model forward versus `0.24337605107575655s` sampling,
   `0.23280819039791822s` decode, and `0.01683588419109583s` conditioning setup.
+- Follow-up diagnostic artifact:
+  `.autoresearch/iterations/kolmogorov-profile-generation-breakdown-probe-v2/`.
+  This synchronized forward breakdown showed
+  `generation_profile_model_forward_time = 4.455873496830463` and
+  `generation_profile_model_forward_backbone_time = 4.403329693712294` on 1
+  spectrum, while conditioning prep stayed tiny. The next bottleneck to attack
+  is the backbone encoder work inside each diffusion step.
 
 Do not revert unrelated dirty files, especially pre-existing changes in
 `src/dlm/iceberg_sampler.py`, unless explicitly requested.

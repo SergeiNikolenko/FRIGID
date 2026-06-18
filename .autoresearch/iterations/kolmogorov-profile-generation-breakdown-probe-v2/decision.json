@@ -1,0 +1,9 @@
+{
+  "iteration": "kolmogorov-profile-generation-breakdown-probe-v2",
+  "decision": "diagnostic",
+  "primary_metric": null,
+  "primary_metric_name": "seconds_per_case",
+  "guard_status": "not_applicable",
+  "reason": "Opt-in profile run with synchronized forward breakdown. Use for diagnosis only; not comparable as a speed candidate.",
+  "source": ".autoresearch/artifacts/current"
+}

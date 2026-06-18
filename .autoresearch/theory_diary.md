@@ -236,6 +236,17 @@ The first diagnostic probe
 This points the next optimization at reducing model forward work across
 diffusion steps, not RDKit post-processing or conditioning setup.
 
+The synchronized follow-up probe
+`kolmogorov-profile-generation-breakdown-probe-v2` fixed the forward timing
+measurement and confirmed the bottleneck more precisely. On 1 spectrum it
+showed `generation_profile_model_forward_time = 4.455873496830463`, of which
+`generation_profile_model_forward_backbone_time = 4.403329693712294`.
+`generation_profile_model_forward_build_embeddings_time`,
+`generation_profile_model_forward_formula_conditioning_time`, and
+`generation_profile_model_forward_fingerprint_conditioning_time` were all tiny.
+So the next mechanism is not conditioning prep; it is the backbone encoder
+work executed on every diffusion step.
+
 ## Notes from ideation threads
 
 - The local ideation thread suggested the same direction: shared encoder/KV
