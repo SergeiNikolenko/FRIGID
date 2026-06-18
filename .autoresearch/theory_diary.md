@@ -165,6 +165,13 @@ for the FRIGID throughput/quality campaign.
   and first unique around `14.3`. That is enough to justify a cutoff rule that
   reacts to the first unique formula hit instead of hard-coding one more chunk
   size.
+- A concrete next hypothesis is an adaptive tail after the first unique formula
+  match. The diagnostic runs suggest a tail of about `8` extra generations is a
+  conservative starting point: it would have almost eliminated the residual
+  waste on `v2`, `v3`, and `v4` without relying on another fixed chunk size.
+  The next GPU check should compare `tail=6` versus `tail=8` under the same
+  guard set, then keep only the smaller tail that does not hurt formula
+  success.
 
 ## High-priority theories
 

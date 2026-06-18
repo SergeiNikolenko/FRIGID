@@ -67,6 +67,10 @@
   and preserved formula success, and `12` was intermediate. A sensible next
   check is a stop rule keyed to first unique formula hit plus a small tail,
   measured against the same 32-case guard set.
+- Start the adaptive sweep with a tail of `8` generated candidates after the
+  first unique formula match, then compare against `6` if the `8`-tail run is
+  too slow. Keep the guard set unchanged so we learn whether the extra tail
+  preserves formula success without collapsing the Tanimoto improvement.
 - Use `scripts/audit_formula_waste.py` on every meaningful scorer run so formula
   waste is captured from `detailed_results.csv` immediately instead of being
   recomputed manually.
