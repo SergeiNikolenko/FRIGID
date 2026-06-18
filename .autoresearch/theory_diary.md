@@ -132,6 +132,11 @@ for the FRIGID throughput/quality campaign.
   `154.9s` versus `152.8s` for the current control, `formula_success` fell to
   `96.88%`, and `tanimoto_top1` dropped to `0.4552`. Treat larger unmask counts
   as closed for this path unless a new model change changes the picture.
+- Batched MIST encoding at `encoder_batch_size = 8` was also a negative
+  result. The 32-case run finished in `154.7s` versus `152.8s` for control,
+  with the same `tanimoto_top1 = 0.4742` and `formula_success = 1.0`. So the
+  encoder was not the bottleneck we hoped to expose; the generation path still
+  dominates.
 
 ## High-priority theories
 

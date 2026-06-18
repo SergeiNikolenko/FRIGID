@@ -127,6 +127,12 @@ def parse_args():
         help='Number of masked tokens to unmask per diffusion step'
     )
     parser.add_argument(
+        '--encoder-batch-size',
+        type=int,
+        default=1,
+        help='Batch size for the MIST encoder pass over spectra'
+    )
+    parser.add_argument(
         '--formula-pruning-chunk-size',
         type=int,
         default=None,
@@ -646,6 +652,7 @@ def run_benchmark(
     profile_generation: bool = False,
     num_tokens_unmask: int = 1,
     formula_pruning_chunk_size: Optional[int] = None,
+    encoder_batch_size: int = 1,
 ) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
     """Run the benchmark."""
     gen_cfg = config['generation']
@@ -672,136 +679,145 @@ def run_benchmark(
     print(f"FP threshold: {fp_threshold}")
     print(f"{'='*70}\n")
 
-    dataloader = get_paired_loader(dataset, shuffle=False, batch_size=1, num_workers=0)
+    dataloader = get_paired_loader(dataset, shuffle=False, batch_size=encoder_batch_size, num_workers=0)
     all_results = []
     start_time = time.time()
     num_to_process = min(len(dataset), max_spectra) if max_spectra else len(dataset)
 
-    for idx, batch in enumerate(tqdm(dataloader, total=num_to_process, desc='Processing spectra')):
-        if max_spectra and idx >= max_spectra:
+    processed = 0
+    for batch_idx, batch in enumerate(tqdm(dataloader, total=num_to_process, desc='Processing spectra')):
+        if max_spectra and processed >= max_spectra:
             break
 
         batch = {k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in batch.items()}
-
-        spec, mol = split_data[idx]
-        target_smiles = mol.get_smiles()
-        target_inchi_key = get_inchikey_first_block(mol.get_inchikey())
-        target_formula = normalize_formula(rdMolDescriptors.CalcMolFormula(Chem.MolFromSmiles(target_smiles)))
-        target_fp = compute_morgan_fingerprint(target_smiles, fp_bits, fp_radius)
-        
-        if target_fp is None:
-            print(f"Warning: Could not compute FP for {target_smiles}, skipping")
-            continue
+        current_batch_size = next((v.size(0) for v in batch.values() if isinstance(v, torch.Tensor)), 1)
 
         # Encode spectra to fingerprint
         with torch.no_grad():
             pred_fp_probs, _ = mist_encoder(batch)
-            pred_fp_probs = pred_fp_probs.cpu().numpy()[0]
-        pred_fp_binary = binarize_fingerprint(pred_fp_probs, fp_threshold)
+            pred_fp_probs = pred_fp_probs.cpu().numpy()
 
-        # Generate with formula filtering
-        generation_result = generate_with_formula_filter(
-            sampler=sampler,
-            fingerprint_array=pred_fp_binary,
-            target_formula=target_formula,
-            target_smiles=target_smiles,
-            n_required=filter_cfg['n_required'],
-            max_attempts=filter_cfg['max_attempts'],
-            batch_size=batch_size,
-            softmax_temp=softmax_temp,
-            randomness=randomness,
-            fp_bits=fp_bits,
-            fp_radius=fp_radius,
-            token_model=token_model,
-            token_features=token_features,
-            is_ngboost=is_ngboost,
-            sigma_lambda=sigma_lambda,
-            profile_generation=profile_generation,
-            num_tokens_unmask=num_tokens_unmask,
-            formula_pruning_chunk_size=formula_pruning_chunk_size,
-        )
-        if profile_generation:
-            (
-                matched_smiles,
-                matched_sims,
-                total_gen,
-                total_valid,
-                total_matched,
-                counter,
-                last_valid,
-                gen_time,
-                generation_diagnostics,
-            ) = generation_result
-        else:
-            (
-                matched_smiles,
-                matched_sims,
-                total_gen,
-                total_valid,
-                total_matched,
-                counter,
-                last_valid,
-                gen_time,
-            ) = generation_result
-            generation_diagnostics = {}
+        for local_idx in range(current_batch_size):
+            if max_spectra and processed >= max_spectra:
+                break
+            spec, mol = split_data[processed]
+            processed += 1
 
-        # Build predictions list
-        sim_records = defaultdict(list)
-        for smi, sim in zip(matched_smiles, matched_sims):
-            sim_records[smi].append(sim)
+            target_smiles = mol.get_smiles()
+            target_inchi_key = get_inchikey_first_block(mol.get_inchikey())
+            target_formula = normalize_formula(rdMolDescriptors.CalcMolFormula(Chem.MolFromSmiles(target_smiles)))
+            target_fp = compute_morgan_fingerprint(target_smiles, fp_bits, fp_radius)
+            
+            if target_fp is None:
+                print(f"Warning: Could not compute FP for {target_smiles}, skipping")
+                continue
 
-        predictions = []
-        if sim_records:
-            for smi, sims in sim_records.items():
-                entry = build_prediction_entry(smi, np.mean(sims), len(sims), 'formula', fp_bits, fp_radius)
-                if entry:
-                    predictions.append(entry)
-            predictions.sort(key=lambda x: (x['frequency'], x['similarity']), reverse=True)
-            source = 'formula'
-        else:
-            source = 'fallback'
-            if last_valid:
-                fallback_fp = compute_morgan_fingerprint(last_valid, fp_bits, fp_radius)
-                sim = compute_tanimoto_similarity(pred_fp_binary, fallback_fp) if fallback_fp is not None else 0.0
-                entry = build_prediction_entry(last_valid, sim, 1, 'fallback', fp_bits, fp_radius)
-                if entry:
-                    predictions.append(entry)
+            pred_fp_binary = binarize_fingerprint(pred_fp_probs[local_idx], fp_threshold)
 
-        # Evaluate
-        preds_eval = predictions[:top_k] if top_k and top_k > 0 else predictions
-        result = evaluate_predictions(preds_eval, target_smiles, target_inchi_key, target_fp, fp_bits, fp_radius)
-        
-        # Add additional metrics
-        result['mist_tanimoto'] = compute_tanimoto_similarity(target_fp, pred_fp_binary)
-        result['spec_name'] = spec.get_spec_name()
-        result['proposal_smiles'] = predictions[0]['smiles'] if predictions else None
-        result['proposal_source'] = source if predictions else None
-        result['formula_matches_collected'] = len(matched_smiles)
-        result['total_generated'] = total_gen
-        result['total_valid'] = total_valid
-        result['total_formula_matched'] = total_matched
-        unique_valid = len(counter)
-        result['unique_valid_smiles'] = unique_valid
-        result['duplicate_valid_smiles'] = max(total_valid - unique_valid, 0)
-        result['valid_duplicate_rate'] = (
-            result['duplicate_valid_smiles'] / total_valid if total_valid else 0.0
-        )
-        result['formula_duplicate_matches'] = max(total_matched - len(matched_smiles), 0)
-        result['formula_match_fraction_among_valid'] = (
-            total_matched / total_valid if total_valid else 0.0
-        )
-        result['unique_valid_fraction_among_valid'] = (
-            unique_valid / total_valid if total_valid else 0.0
-        )
-        result['generation_time'] = gen_time
-        result['num_tokens_unmask'] = int(num_tokens_unmask)
-        for diag_key, diag_value in generation_diagnostics.items():
-            if diag_value is None or isinstance(diag_value, (str, bool, int, float, np.integer, np.floating)):
-                result[f'generation_{diag_key}'] = diag_value
-        # Store all matched SMILES (already sorted by similarity descending)
-        result['all_matched_smiles'] = matched_smiles
+            # Generate with formula filtering
+            generation_result = generate_with_formula_filter(
+                sampler=sampler,
+                fingerprint_array=pred_fp_binary,
+                target_formula=target_formula,
+                target_smiles=target_smiles,
+                n_required=filter_cfg['n_required'],
+                max_attempts=filter_cfg['max_attempts'],
+                batch_size=batch_size,
+                softmax_temp=softmax_temp,
+                randomness=randomness,
+                fp_bits=fp_bits,
+                fp_radius=fp_radius,
+                token_model=token_model,
+                token_features=token_features,
+                is_ngboost=is_ngboost,
+                sigma_lambda=sigma_lambda,
+                profile_generation=profile_generation,
+                num_tokens_unmask=num_tokens_unmask,
+                formula_pruning_chunk_size=formula_pruning_chunk_size,
+            )
+            if profile_generation:
+                (
+                    matched_smiles,
+                    matched_sims,
+                    total_gen,
+                    total_valid,
+                    total_matched,
+                    counter,
+                    last_valid,
+                    gen_time,
+                    generation_diagnostics,
+                ) = generation_result
+            else:
+                (
+                    matched_smiles,
+                    matched_sims,
+                    total_gen,
+                    total_valid,
+                    total_matched,
+                    counter,
+                    last_valid,
+                    gen_time,
+                ) = generation_result
+                generation_diagnostics = {}
 
-        all_results.append(result)
+            # Build predictions list
+            sim_records = defaultdict(list)
+            for smi, sim in zip(matched_smiles, matched_sims):
+                sim_records[smi].append(sim)
+
+            predictions = []
+            if sim_records:
+                for smi, sims in sim_records.items():
+                    entry = build_prediction_entry(smi, np.mean(sims), len(sims), 'formula', fp_bits, fp_radius)
+                    if entry:
+                        predictions.append(entry)
+                predictions.sort(key=lambda x: (x['frequency'], x['similarity']), reverse=True)
+                source = 'formula'
+            else:
+                source = 'fallback'
+                if last_valid:
+                    fallback_fp = compute_morgan_fingerprint(last_valid, fp_bits, fp_radius)
+                    sim = compute_tanimoto_similarity(pred_fp_binary, fallback_fp) if fallback_fp is not None else 0.0
+                    entry = build_prediction_entry(last_valid, sim, 1, 'fallback', fp_bits, fp_radius)
+                    if entry:
+                        predictions.append(entry)
+
+            # Evaluate
+            preds_eval = predictions[:top_k] if top_k and top_k > 0 else predictions
+            result = evaluate_predictions(preds_eval, target_smiles, target_inchi_key, target_fp, fp_bits, fp_radius)
+            
+            # Add additional metrics
+            result['mist_tanimoto'] = compute_tanimoto_similarity(target_fp, pred_fp_binary)
+            result['spec_name'] = spec.get_spec_name()
+            result['proposal_smiles'] = predictions[0]['smiles'] if predictions else None
+            result['proposal_source'] = source if predictions else None
+            result['formula_matches_collected'] = len(matched_smiles)
+            result['total_generated'] = total_gen
+            result['total_valid'] = total_valid
+            result['total_formula_matched'] = total_matched
+            unique_valid = len(counter)
+            result['unique_valid_smiles'] = unique_valid
+            result['duplicate_valid_smiles'] = max(total_valid - unique_valid, 0)
+            result['valid_duplicate_rate'] = (
+                result['duplicate_valid_smiles'] / total_valid if total_valid else 0.0
+            )
+            result['formula_duplicate_matches'] = max(total_matched - len(matched_smiles), 0)
+            result['formula_match_fraction_among_valid'] = (
+                total_matched / total_valid if total_valid else 0.0
+            )
+            result['unique_valid_fraction_among_valid'] = (
+                unique_valid / total_valid if total_valid else 0.0
+            )
+            result['generation_time'] = gen_time
+            result['num_tokens_unmask'] = int(num_tokens_unmask)
+            result['encoder_batch_size'] = int(encoder_batch_size)
+            for diag_key, diag_value in generation_diagnostics.items():
+                if diag_value is None or isinstance(diag_value, (str, bool, int, float, np.integer, np.floating)):
+                    result[f'generation_{diag_key}'] = diag_value
+            # Store all matched SMILES (already sorted by similarity descending)
+            result['all_matched_smiles'] = matched_smiles
+
+            all_results.append(result)
 
     elapsed = time.time() - start_time
     aggregate = compute_aggregate_statistics(all_results, elapsed)
@@ -811,6 +827,7 @@ def run_benchmark(
     aggregate['total_generation_time'] = total_gen_time
     aggregate['generation_time_percentage'] = (total_gen_time / elapsed * 100) if elapsed > 0 else 0.0
     aggregate['total_elapsed_time_seconds'] = elapsed
+    aggregate['encoder_batch_size'] = encoder_batch_size
     
     # Add source distribution
     aggregate['proposal_source_counts'] = Counter([
@@ -902,6 +919,8 @@ def print_summary(aggregate: Dict[str, Any]):
     print(f"\nTotal spectra: {aggregate.get('total_spectra', 0)}")
     print(f"Time: {aggregate.get('elapsed_time_seconds', 0):.1f}s")
     print(f"Speed: {aggregate.get('spectra_per_second', 0):.2f} spectra/s")
+    if 'encoder_batch_size' in aggregate:
+        print(f"Encoder batch size: {aggregate.get('encoder_batch_size', 1)}")
     print(f"\n--- Generation Timing ---")
     print(f"Time in generation functions: {aggregate.get('total_generation_time', 0):.1f}s")
     print(f"Percentage of total time: {aggregate.get('generation_time_percentage', 0):.1f}%")
@@ -1012,6 +1031,7 @@ def main():
             args.profile_generation,
             args.num_tokens_unmask,
             args.formula_pruning_chunk_size,
+            args.encoder_batch_size,
         )
 
     # Save and print results

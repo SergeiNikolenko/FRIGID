@@ -44,6 +44,9 @@
 - `num_tokens_unmask = 2` on the same 32-case path is also a negative result:
   slower than control, `formula_success = 96.88%`, and `tanimoto_top1 = 0.4552`.
   Do not spend another scorer slot on larger unmask counts for this branch.
+- `encoder_batch_size = 8` did not help either. The 32-case run was slightly
+  slower than control (`154.7s` vs `152.8s`) and kept the same quality numbers,
+  so MIST batching is not the next likely speed lever in this exact path.
 - Use `scripts/audit_formula_waste.py` on every meaningful scorer run so formula
   waste is captured from `detailed_results.csv` immediately instead of being
   recomputed manually.
@@ -103,6 +106,8 @@
 - Because the step-count knob is now closed, the next measurable lever should
   come from a different mechanism: adaptive pruning, backbone-call reduction,
   or a new cache path.
+- Because encoder batching did not move the metric, the next lever should stay
+  on the generation/backbone side rather than more encoder batching.
 - Add per-case anatomy output: attempts, valid candidates, unique valid
   candidates, duplicate candidates, formula matches, stop reason, generated
   lengths, padding estimate, and wall time.
