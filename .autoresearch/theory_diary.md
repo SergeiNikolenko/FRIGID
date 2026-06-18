@@ -137,6 +137,12 @@ for the FRIGID throughput/quality campaign.
   with the same `tanimoto_top1 = 0.4742` and `formula_success = 1.0`. So the
   encoder was not the bottleneck we hoped to expose; the generation path still
   dominates.
+- A larger pruning point, `formula_pruning_chunk_size = 24`, gave the best
+  overall compromise so far on the current code path. It finished in `132.4s`
+  total versus `152.8s` for the control, while improving `tanimoto_top1` to
+  `0.4975` and keeping `formula_success = 0.9375`. This is a better Pareto
+  point than `16` if we care about chemistry quality, but it is still not fully
+  guard-clean because one case never matched.
 
 ## High-priority theories
 

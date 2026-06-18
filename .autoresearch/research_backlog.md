@@ -47,6 +47,11 @@
 - `encoder_batch_size = 8` did not help either. The 32-case run was slightly
   slower than control (`154.7s` vs `152.8s`) and kept the same quality numbers,
   so MIST batching is not the next likely speed lever in this exact path.
+- `formula_pruning_chunk_size = 24` is now the best compromise point on the
+  current code path: `132.4s` total, `tanimoto_top1 = 0.4975`, and
+  `formula_success = 93.75%`. It beats the control on both throughput and
+  Tanimoto, but it still loses one case on formula success, so it is not a
+  final answer yet.
 - Use `scripts/audit_formula_waste.py` on every meaningful scorer run so formula
   waste is captured from `detailed_results.csv` immediately instead of being
   recomputed manually.
@@ -108,6 +113,10 @@
   or a new cache path.
 - Because encoder batching did not move the metric, the next lever should stay
   on the generation/backbone side rather than more encoder batching.
+- Since `24` improved both speed and Tanimoto, the next pruning action should
+  be to recover the missing formula success case rather than continuing a blind
+  fixed-size sweep. If that is not practical, keep `24` as the best known
+  frontier and move to a different hot path.
 - Add per-case anatomy output: attempts, valid candidates, unique valid
   candidates, duplicate candidates, formula matches, stop reason, generated
   lengths, padding estimate, and wall time.
