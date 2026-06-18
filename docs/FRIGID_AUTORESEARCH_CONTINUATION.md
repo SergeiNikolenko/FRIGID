@@ -154,6 +154,11 @@ The current local snapshot from that helper reports:
 `avg_total_valid = 87.09375`, `avg_formula_matches = 7.53125`,
 `avg_formula_match_fraction_among_valid = 10.37%`, and
 `avg_unique_valid_fraction_among_valid = 80.84%`.
+- Remote access status on this workstation is currently blocked:
+  `ssh kolmogorov`, `ssh spectrum`, `ssh faro`, and `ssh bern` all fail from the
+  local environment, with `kolmogorov` failing DNS resolution and the jump
+  hosts failing with `Operation not permitted` on port `22` and `46522`. Do not
+  keep retrying the same route until the network/VPN path changes.
 
 Do not revert unrelated dirty files, especially pre-existing changes in
 `src/dlm/iceberg_sampler.py`, unless explicitly requested.

@@ -28,6 +28,9 @@
 - Use `scripts/audit_formula_waste.py` on every meaningful scorer run so formula
   waste is captured from `detailed_results.csv` immediately instead of being
   recomputed manually.
+- Remote execution is currently blocked from this workstation. Do not keep
+  retrying Kolmogorov/Spectrum SSH until the network or VPN route changes; use
+  the local audit helper and docs until then.
 
 ## P0 Correctness And Comparability
 

@@ -273,6 +273,12 @@ snapshot from `detailed_results.csv`. On the current 32-case run it reports
 `avg_unique_valid_fraction_among_valid = 80.84%`, which is the cleaner summary
 to carry into the next remote audit.
 
+The current workstation cannot reach the remote GPU hosts right now. `ssh`
+attempts to `kolmogorov` fail on DNS resolution, and `spectrum`, `faro`, and
+`bern` fail with `Operation not permitted` on both the normal SSH port and
+`46522`. The next remote audit step should only be retried after the network
+path changes.
+
 ## Notes from ideation threads
 
 - The local ideation thread suggested the same direction: shared encoder/KV
