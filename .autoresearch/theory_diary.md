@@ -247,6 +247,14 @@ showed `generation_profile_model_forward_time = 4.455873496830463`, of which
 So the next mechanism is not conditioning prep; it is the backbone encoder
 work executed on every diffusion step.
 
+The code now exposes an opt-in `num_tokens_unmask` knob through the scorer and
+benchmark path. This is the next throughput hypothesis to test because it can
+reduce the number of backbone passes per spectrum without changing the model
+itself. A fresh probe with `num_tokens_unmask = 2` is already in
+`.autoresearch/iterations/kolmogorov-num-tokens-unmask-2-probe/`, but it
+regressed versus the earlier `num_tokens_unmask = 1` profile on both
+throughput and quality. Treat `2` as a negative result, not a candidate.
+
 ## Notes from ideation threads
 
 - The local ideation thread suggested the same direction: shared encoder/KV

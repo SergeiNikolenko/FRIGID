@@ -16,7 +16,37 @@
   },
   "incumbent_patch_iteration": "kolmogorov-single-gpu-baseline",
   "incumbent_patch_hash": "d39fcb2c61123082aa650e35140c4cdf9e74da0de17ae9dd6889866cad528b6c",
-  "updated_at": "2026-06-18T15:47:06Z",
+  "updated_at": "2026-06-18T20:06:39Z",
   "failed_in_row": 0,
-  "current_iteration": "kolmogorov-single-gpu-baseline"
+  "current_iteration": "kolmogorov-num-tokens-unmask-2-probe",
+  "frontier": [
+    {
+      "iteration": "kolmogorov-conditioning-cache-sigma0-batch32-32cases",
+      "primary_metric": 15.017504721879959,
+      "guard_status": "pass",
+      "artifacts": "/Users/nikolenko/.codex/worktrees/f017/FRIGID/.autoresearch/iterations/kolmogorov-conditioning-cache-sigma0-batch32-32cases",
+      "notes": "primary metric improved and guards passed",
+      "created_at": "2026-06-18T18:59:22Z"
+    },
+    {
+      "iteration": "kolmogorov-fixed-length-sigma0-batch32-32cases",
+      "primary_metric": 15.097882315516472,
+      "guard_status": "pass",
+      "artifacts": "/Users/nikolenko/.codex/worktrees/f017/FRIGID/.autoresearch/iterations/kolmogorov-fixed-length-sigma0-batch32-32cases",
+      "notes": "primary metric improved and guards passed",
+      "created_at": "2026-06-18T17:45:04Z"
+    },
+    {
+      "iteration": "kolmogorov-sigma0p2-batch32-32cases",
+      "primary_metric": 15.791235215961933,
+      "guard_status": "pass",
+      "artifacts": "/Users/nikolenko/.codex/worktrees/f017/FRIGID/.autoresearch/iterations/kolmogorov-sigma0p2-batch32-32cases",
+      "notes": "primary metric improved and guards passed",
+      "created_at": "2026-06-18T18:39:07Z"
+    }
+  ],
+  "best_observed": 15.017504721879959,
+  "best_observed_iteration": "kolmogorov-conditioning-cache-sigma0-batch32-32cases",
+  "best_observed_decision": "candidate",
+  "best_observed_artifacts": "/Users/nikolenko/.codex/worktrees/f017/FRIGID/.autoresearch/iterations/kolmogorov-conditioning-cache-sigma0-batch32-32cases"
 }

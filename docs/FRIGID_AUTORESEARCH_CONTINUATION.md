@@ -123,6 +123,16 @@ New diagnostic support:
   `generation_profile_model_forward_backbone_time = 4.403329693712294` on 1
   spectrum, while conditioning prep stayed tiny. The next bottleneck to attack
   is the backbone encoder work inside each diffusion step.
+- The next ablation knob is `num_tokens_unmask`.
+  It is now wired through the scorer and benchmark path as an opt-in setting.
+  The hypothesis is that unmasking more than one token per step can reduce the
+  number of backbone passes per spectrum. A one-spectrum probe with
+  `num_tokens_unmask = 2` is already stored in
+  `.autoresearch/iterations/kolmogorov-num-tokens-unmask-2-probe/`, but it did
+  not beat the earlier `num_tokens_unmask = 1` micro-profile: `5.055677652359009
+  sec/case` versus `4.7610132694244385 sec/case`, with lower `tanimoto_top1`
+  and fewer unique valid molecules. Treat `2` as a negative signal, not a
+  promotion.
 
 Do not revert unrelated dirty files, especially pre-existing changes in
 `src/dlm/iceberg_sampler.py`, unless explicitly requested.

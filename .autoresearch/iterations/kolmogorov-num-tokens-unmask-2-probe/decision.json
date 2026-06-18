@@ -1,0 +1,9 @@
+{
+  "iteration": "kolmogorov-num-tokens-unmask-2-probe",
+  "decision": "diagnostic",
+  "primary_metric": null,
+  "primary_metric_name": "seconds_per_case",
+  "guard_status": "not_applicable",
+  "reason": "One-spectrum opt-in generation probe for num_tokens_unmask=2. Keep as a comparative diagnostic only; do not treat it as an improvement candidate.",
+  "source": ".autoresearch/artifacts/current"
+}

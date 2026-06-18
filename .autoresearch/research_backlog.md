@@ -13,6 +13,10 @@
   per-case anatomy so the next patch targets a measured hot path.
 - Do not spend more comparable scorer slots on batch-size-only, sigma-only,
   multi-GPU, or naive bf16 changes unless new profiling evidence justifies it.
+- The `num_tokens_unmask = 2` probe is a negative signal relative to the
+  earlier `num_tokens_unmask = 1` micro-profile. Do not assume higher unmask
+  counts are a free throughput gain; revisit only if a larger-profile diagnostic
+  changes the picture.
 
 ## P0 Correctness And Comparability
 
