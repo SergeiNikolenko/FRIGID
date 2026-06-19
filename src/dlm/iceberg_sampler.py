@@ -20,6 +20,7 @@ import re
 import uuid
 import shutil
 import tempfile
+import json
 from pathlib import Path
 from dataclasses import dataclass, field
 from typing import List, Dict, Set, Optional, Tuple, Any, Callable, Union
@@ -45,11 +46,153 @@ import ms_pred.common as common
 from ms_pred.dag_pred.iceberg_elucidation import iceberg_prediction, load_real_spec
 from ms_pred.common.chem_utils import VALID_ELEMENTS
 
+
+class _CompatMassSpec:
+    """Adapter for the array-based spectra returned by the pinned ms-pred submodule."""
+
+    def __init__(
+        self,
+        spec: Any,
+        int_frags: Optional[Any] = None,
+        collision_energy: Optional[Any] = None,
+        root_canonical_smiles: Optional[str] = None,
+    ):
+        spec_arr = np.asarray(spec, dtype=float)
+        if spec_arr.size == 0:
+            spec_arr = np.empty((0, 2), dtype=float)
+        elif spec_arr.ndim != 2 or spec_arr.shape[1] != 2:
+            raise ValueError(f"Expected spectrum array with shape (n, 2), got {spec_arr.shape}")
+
+        self.spec = spec_arr
+        self.masses = spec_arr[:, 0]
+        self.intens = spec_arr[:, 1]
+        self.int_frags = None if int_frags is None else np.asarray(int_frags)
+        self.collision_energy = collision_energy
+        self.root_canonical_smiles = root_canonical_smiles
+        self.precursor_mz = None
+
+
+class _CompatCompositeMassSpec(dict):
+    """Small mapping wrapper compatible with FRIGID's masking utilities."""
+
+    def __init__(self, specs: Any):
+        super().__init__()
+
+        if isinstance(specs, dict):
+            for ce, spec in specs.items():
+                self[ce] = _ensure_mass_spec(spec, collision_energy=ce)
+        else:
+            for idx, spec in enumerate(specs):
+                mass_spec = _ensure_mass_spec(spec)
+                ce = mass_spec.collision_energy
+                if ce is None:
+                    ce = idx
+                    mass_spec.collision_energy = ce
+                self[ce] = mass_spec
+
+    def similarity(
+        self,
+        real_spec: _CompatMassSpec,
+        merge_method: str = "unknown",
+        ignore_mass: Optional[float] = None,
+        return_ce: bool = False,
+    ):
+        best_ce = None
+        best_score = -1.0
+        for ce, pred_spec in self.items():
+            score = _spectrum_cosine_similarity(real_spec, pred_spec, ignore_mass=ignore_mass)
+            if score > best_score:
+                best_score = score
+                best_ce = ce
+        if return_ce:
+            return best_score, best_ce
+        return best_score
+
+
+def _spectrum_cosine_similarity(
+    real_spec: _CompatMassSpec,
+    pred_spec: _CompatMassSpec,
+    ignore_mass: Optional[float] = None,
+    decimals: int = 1,
+) -> float:
+    """Approximate similarity used only to choose a CE when the real CE is unknown."""
+    real_bins: Dict[float, float] = {}
+    pred_bins: Dict[float, float] = {}
+
+    for mz, inten in real_spec.spec:
+        if ignore_mass is not None and abs(mz - ignore_mass) <= ignore_mass * 20e-6:
+            continue
+        key = round(float(mz), decimals)
+        real_bins[key] = real_bins.get(key, 0.0) + float(inten)
+
+    for mz, inten in pred_spec.spec:
+        if ignore_mass is not None and abs(mz - ignore_mass) <= ignore_mass * 20e-6:
+            continue
+        key = round(float(mz), decimals)
+        pred_bins[key] = pred_bins.get(key, 0.0) + float(inten)
+
+    common_bins = set(real_bins).intersection(pred_bins)
+    numerator = sum(real_bins[k] * pred_bins[k] for k in common_bins)
+    real_norm = np.sqrt(sum(v * v for v in real_bins.values()))
+    pred_norm = np.sqrt(sum(v * v for v in pred_bins.values()))
+    if real_norm == 0 or pred_norm == 0:
+        return 0.0
+    return float(numerator / (real_norm * pred_norm))
+
+
+def _ensure_mass_spec(
+    spec: Any,
+    int_frags: Optional[Any] = None,
+    collision_energy: Optional[Any] = None,
+    root_canonical_smiles: Optional[str] = None,
+) -> _CompatMassSpec:
+    if hasattr(spec, "masses") and hasattr(spec, "intens"):
+        if collision_energy is not None and getattr(spec, "collision_energy", None) is None:
+            spec.collision_energy = collision_energy
+        if root_canonical_smiles is not None:
+            spec.root_canonical_smiles = root_canonical_smiles
+        return spec
+    return _CompatMassSpec(
+        spec=spec,
+        int_frags=int_frags,
+        collision_energy=collision_energy,
+        root_canonical_smiles=root_canonical_smiles,
+    )
+
+
+def ensure_composite_mass_spec(
+    specs: Any,
+    frag_dict: Optional[Dict[Any, Any]] = None,
+    root_canonical_smiles: Optional[str] = None,
+) -> _CompatCompositeMassSpec:
+    if hasattr(specs, "keys") and all(hasattr(v, "masses") and hasattr(v, "intens") for v in specs.values()):
+        return specs
+
+    if isinstance(specs, dict):
+        converted = {}
+        for ce, spec in specs.items():
+            converted[ce] = _ensure_mass_spec(
+                spec,
+                int_frags=None if frag_dict is None else frag_dict.get(ce),
+                collision_energy=ce,
+                root_canonical_smiles=root_canonical_smiles,
+            )
+        return _CompatCompositeMassSpec(converted)
+
+    return _CompatCompositeMassSpec(specs)
+
+
+if not hasattr(common, "MassSpec"):
+    common.MassSpec = _CompatMassSpec
+if not hasattr(common, "CompositeMassSpec"):
+    common.CompositeMassSpec = _CompatCompositeMassSpec
+
 from dlm.sampler import Sampler
 from dlm.utils.masking_utils import (
     BaseMaskingStrategy,
     SimpleMaskingStrategy,
     create_masking_strategy,
+    _map_smiles_chars_to_atoms,
 )
 from dlm.utils.benchmark_utils import (
     normalize_formula,
@@ -319,7 +462,7 @@ class SampleState:
         candidate_formulas: Optional[List[Tuple[str, float]]] = None,
     ):
         self.name = name
-        self.real_specs = real_specs
+        self.real_specs = ensure_composite_mass_spec(real_specs)
         self.target_fp = target_fp
         self.target_formula = target_formula
         self.instrument = normalize_instrument_type(instrument)
@@ -712,6 +855,25 @@ class IcebergSampler:
         results: Dict[str, common.CompositeMassSpec] = {}
         
         try:
+            python_path = self.iceberg_config.python_path
+            if not python_path or not os.path.isabs(python_path):
+                python_path = sys.executable
+            gen_ckpt = os.path.abspath(self.iceberg_config.gen_ckpt)
+            inten_ckpt = os.path.abspath(self.iceberg_config.inten_ckpt)
+            resolved_results_dir = str(batch_results_dir.resolve())
+
+            # ms-pred launches src/ms_pred/dag_pred/predict_smis.py relative to
+            # the current working directory, so run that helper from the
+            # submodule root while keeping all FRIGID paths absolute.
+            prev_cwd = os.getcwd()
+            ms_pred_root = os.path.join(project_root, "ms-pred")
+            prev_pythonpath = os.environ.get("PYTHONPATH")
+            os.environ["PYTHONPATH"] = (
+                ms_pred_src_path
+                if not prev_pythonpath
+                else ms_pred_src_path + os.pathsep + prev_pythonpath
+            )
+            os.chdir(ms_pred_root)
             save_dir, _ = iceberg_prediction(
                 candidate_smiles=valid_smiles,
                 collision_energies=collision_energies,
@@ -720,9 +882,9 @@ class IcebergSampler:
                 instrument=instrument,
                 incl_unknown_instrument=self.incl_unknown_instrument,
                 exp_name=exp_name,
-                python_path=self.iceberg_config.python_path,
-                gen_ckpt=self.iceberg_config.gen_ckpt,
-                inten_ckpt=self.iceberg_config.inten_ckpt,
+                python_path=python_path,
+                gen_ckpt=gen_ckpt,
+                inten_ckpt=inten_ckpt,
                 cuda_devices=self.iceberg_config.cuda_devices,
                 batch_size=self.iceberg_config.batch_size,
                 num_cpu_workers=self.iceberg_config.num_cpu_workers,
@@ -733,18 +895,39 @@ class IcebergSampler:
                 binned_out=False,
                 ppm=self.iceberg_config.ppm,
                 num_bins=self.iceberg_config.num_bins,
-                results_dir=str(batch_results_dir),
+                results_dir=resolved_results_dir,
             )
+            os.chdir(prev_cwd)
+            if prev_pythonpath is None:
+                os.environ.pop("PYTHONPATH", None)
+            else:
+                os.environ["PYTHONPATH"] = prev_pythonpath
             
-            # Load predicted spectra
-            smiles_arr, pred_specs_list = load_pred_spec(save_dir)
+            # Load predicted spectra. The pinned ms-pred submodule returns
+            # array dictionaries plus fragment dictionaries.
+            smiles_arr, pred_specs_list, pred_frags_list = load_pred_spec(save_dir, merge_spec=False)
             
             # Build results dict
-            for smi, pred_spec in zip(smiles_arr, pred_specs_list):
-                results[smi] = pred_spec
-            
+            for smi, pred_spec, pred_frags in zip(smiles_arr, pred_specs_list, pred_frags_list):
+                results[smi] = ensure_composite_mass_spec(
+                    pred_spec,
+                    frag_dict=pred_frags,
+                    root_canonical_smiles=smi,
+                )
+
         except Exception as e:
             print(f"Warning: ICEBERG prediction failed: {e}")
+            try:
+                os.chdir(prev_cwd)
+            except Exception:
+                pass
+            try:
+                if prev_pythonpath is None:
+                    os.environ.pop("PYTHONPATH", None)
+                else:
+                    os.environ["PYTHONPATH"] = prev_pythonpath
+            except Exception:
+                pass
         finally:
             # Clean up temporary directory
             try:
@@ -763,7 +946,9 @@ class IcebergSampler:
         """
         Run batched ICEBERG predictions across all samples.
         
-        Groups predictions by (collision_energy, instrument) pairs for efficiency.
+        Groups predictions by (instrument, ionization) for efficiency. Each
+        ICEBERG subprocess receives the full collision-energy list because
+        ms-pred can emit all requested CEs in one HDF5 prediction file.
         
         Args:
             sample_states: List of sample states
@@ -784,30 +969,58 @@ class IcebergSampler:
                     smiles_instrument_ionization_triples.append(triple)
                     seen_triples.add(triple)
 
-        # Get uncached (CE, instrument, ionization) -> smiles_list
+        # Get uncached (CE, instrument, ionization) -> smiles_list, then merge
+        # those needs into one call per (instrument, ionization). This avoids
+        # launching a separate ICEBERG subprocess for every CE.
         ce_inst_ion_to_smiles = self._pred_cache.get_uncached_pairs_grouped(
             smiles_instrument_ionization_triples,
             self.scaling_config.collision_energies,
         )
+        inst_ion_to_smiles: Dict[Tuple[str, str], List[str]] = defaultdict(list)
+        inst_ion_seen_ikeys: Dict[Tuple[str, str], Set[str]] = defaultdict(set)
 
-        # Run ICEBERG predictions for each (collision_energy, instrument, ionization) group
-        for (ce, instrument, ionization), smiles_batch in ce_inst_ion_to_smiles.items():
+        for (_ce, instrument, ionization), smiles_batch in ce_inst_ion_to_smiles.items():
+            group_key = (instrument, ionization)
+            for smi in smiles_batch:
+                ikey = self._pred_cache.get_ikey(smi)
+                if ikey is None or ikey in inst_ion_seen_ikeys[group_key]:
+                    continue
+                inst_ion_to_smiles[group_key].append(smi)
+                inst_ion_seen_ikeys[group_key].add(ikey)
+
+        # Run ICEBERG predictions for each (instrument, ionization) group.
+        for (instrument, ionization), smiles_batch in inst_ion_to_smiles.items():
             if not smiles_batch:
                 continue
 
-            print(f"  Running ICEBERG for {len(smiles_batch)} molecules at CE={ce}eV, instrument={instrument}, ionization={ionization}...")
+            ces = list(self.scaling_config.collision_energies)
+            print(
+                f"  Running ICEBERG for {len(smiles_batch)} molecules at "
+                f"CEs={ces}, instrument={instrument}, ionization={ionization}..."
+            )
 
             # Run predictions
             pred_results = self._run_iceberg_batch(
                 smiles_batch,
-                [ce],  # Single CE for efficiency
+                ces,
                 instrument=instrument,
                 ionization=ionization,
             )
 
-            # Cache results with instrument and ionization
+            # Cache each CE separately so downstream lookup semantics stay the same.
             for smi, pred_spec in pred_results.items():
-                self._pred_cache.put(smi, ce, instrument, pred_spec, ionization=ionization)
+                for ce, mass_spec in pred_spec.items():
+                    try:
+                        ce_key = int(ce)
+                    except (TypeError, ValueError):
+                        ce_key = ce
+                    if ce_key not in self.scaling_config.collision_energies:
+                        continue
+                    single_ce_spec = ensure_composite_mass_spec(
+                        {ce_key: mass_spec},
+                        root_canonical_smiles=smi,
+                    )
+                    self._pred_cache.put(smi, ce_key, instrument, single_ce_spec, ionization=ionization)
         
         # Build per-sample results from cache
         results: Dict[str, Dict[str, common.CompositeMassSpec]] = {}
@@ -862,6 +1075,8 @@ class IcebergSampler:
         """
         masked_inputs: List[torch.Tensor] = []
         source_smiles: List[str] = []
+        trace_dir = os.environ.get("FRIGID_TRACE_DIR")
+        trace_sample = os.environ.get("FRIGID_TRACE_SAMPLE")
         
         for smiles in smiles_to_refine:
             pred_spec = pred_specs.get(smiles)
@@ -881,6 +1096,14 @@ class IcebergSampler:
             
             # Create M masked versions
             try:
+                trace_record = None
+                if trace_dir and (not trace_sample or trace_sample == state.name):
+                    trace_record = self._build_mask_trace_record(
+                        state=state,
+                        smiles=smiles,
+                        halluc_peaks=halluc_peaks,
+                    )
+
                 masks = self._masking_strategy.create_masked_inputs(
                     smiles=smiles,
                     hallucinated_peaks=halluc_peaks,
@@ -888,6 +1111,12 @@ class IcebergSampler:
                     num_masks=self.scaling_config.masks_per_molecule,
                     mask_prob=self.scaling_config.mask_prob,
                 )
+
+                if trace_record is not None:
+                    trace_record["masked_variants"] = [
+                        self._describe_mask_tensor(mask_tensor) for mask_tensor in masks
+                    ]
+                    self._write_mask_trace_record(trace_dir, state.name, trace_record)
                 
                 for mask_tensor in masks:
                     masked_inputs.append(mask_tensor)
@@ -898,6 +1127,120 @@ class IcebergSampler:
                 continue
         
         return masked_inputs, source_smiles
+
+    @staticmethod
+    def _jsonable(value: Any) -> Any:
+        """Convert numpy/torch/bytes values from spectrum traces into JSON-safe data."""
+        if isinstance(value, dict):
+            return {str(k): IcebergSampler._jsonable(v) for k, v in value.items()}
+        if isinstance(value, (list, tuple, set)):
+            return [IcebergSampler._jsonable(v) for v in value]
+        if isinstance(value, np.ndarray):
+            return IcebergSampler._jsonable(value.tolist())
+        if isinstance(value, torch.Tensor):
+            return IcebergSampler._jsonable(value.detach().cpu().tolist())
+        if isinstance(value, np.generic):
+            return value.item()
+        if isinstance(value, bytes):
+            return value.decode("utf-8", errors="replace")
+        return value
+
+    def _build_mask_trace_record(
+        self,
+        state: SampleState,
+        smiles: str,
+        halluc_peaks: List[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        try:
+            atom_scores = self._masking_strategy._get_atom_scores(
+                smiles,
+                halluc_peaks,
+                mol_str_canonicalized=True,
+            )
+        except Exception:
+            atom_scores = np.array([])
+
+        try:
+            bad_atoms = sorted(
+                self._masking_strategy.get_bad_atoms(
+                    smiles,
+                    halluc_peaks,
+                    mol_str_canonicalized=True,
+                )
+            )
+        except Exception:
+            bad_atoms = []
+
+        try:
+            char_to_atom = _map_smiles_chars_to_atoms(smiles)
+        except Exception:
+            char_to_atom = []
+
+        tokens = []
+        try:
+            encoding = self._tokenizer(smiles, return_offsets_mapping=True, return_tensors="pt")
+            input_ids = encoding["input_ids"][0].detach().cpu().tolist()
+            offsets = encoding["offset_mapping"][0].detach().cpu().tolist()
+            token_strings = self._tokenizer.convert_ids_to_tokens(input_ids)
+            for token_idx, (token_id, token_str, offset) in enumerate(zip(input_ids, token_strings, offsets)):
+                start_char, end_char = int(offset[0]), int(offset[1])
+                covered_atoms = []
+                max_atom_score = 0.0
+                for char_idx in range(start_char, end_char):
+                    if char_idx < len(char_to_atom):
+                        atom_idx = char_to_atom[char_idx]
+                        if atom_idx != -1:
+                            covered_atoms.append(int(atom_idx))
+                            if atom_idx < len(atom_scores):
+                                max_atom_score = max(max_atom_score, float(atom_scores[atom_idx]))
+                tokens.append({
+                    "token_index": token_idx,
+                    "token_id": int(token_id),
+                    "token": token_str,
+                    "char_start": start_char,
+                    "char_end": end_char,
+                    "covered_atoms": sorted(set(covered_atoms)),
+                    "max_atom_score": max_atom_score,
+                    "is_bad_token": bool(set(covered_atoms) & set(bad_atoms)),
+                })
+        except Exception as exc:
+            tokens.append({"tokenization_error": str(exc)})
+
+        return {
+            "round_index": int(getattr(self, "_trace_round_idx", -1)),
+            "round_number": int(getattr(self, "_trace_round_idx", -1)) + 1,
+            "sample_name": state.name,
+            "instrument": state.instrument,
+            "ionization": state.ionization,
+            "source_smiles": smiles,
+            "target_formula": state.target_formula,
+            "hallucinated_peaks": self._jsonable(halluc_peaks),
+            "bad_atoms": bad_atoms,
+            "atom_scores": self._jsonable(atom_scores),
+            "tokens": tokens,
+        }
+
+    def _describe_mask_tensor(self, mask_tensor: torch.Tensor) -> Dict[str, Any]:
+        ids = mask_tensor.detach().cpu().view(-1).tolist()
+        mask_token_id = self._tokenizer.mask_token_id
+        mask_positions = [idx for idx, token_id in enumerate(ids) if token_id == mask_token_id]
+        tokens = self._tokenizer.convert_ids_to_tokens(ids)
+        try:
+            decoded = self._tokenizer.decode(ids, skip_special_tokens=False)
+        except Exception:
+            decoded = ""
+        return {
+            "input_ids": [int(x) for x in ids],
+            "tokens": tokens,
+            "mask_positions": mask_positions,
+            "decoded": decoded,
+        }
+
+    def _write_mask_trace_record(self, trace_dir: str, sample_name: str, record: Dict[str, Any]) -> None:
+        path = Path(trace_dir) / sample_name / f"round_{record['round_number']:02d}_mask_trace.jsonl"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a") as handle:
+            handle.write(json.dumps(self._jsonable(record), sort_keys=True) + "\n")
     
     def _run_single_round(
         self,
@@ -966,6 +1309,7 @@ class IcebergSampler:
                 top_k_smiles = state.get_top_k_smiles(K)
                 
                 # Create masked inputs for top K
+                self._trace_round_idx = round_idx
                 masked_inputs, source_smiles = self._create_masked_inputs_for_sample(
                     state,
                     top_k_smiles,

@@ -16,10 +16,11 @@ dependencies:
     - omegaconf==2.3.0
     - pandas==2.1.0
     - numpy==1.26.4
-    - transformers==4.56.2
+    - transformers==4.32.0
     - wandb==0.13.5
-    - safe-mol
+    - safe-mol==0.1.13
     - PyTDC==0.4.1
     - easydict
     - openbabel-wheel
-    - bionemo-moco
+    - bionemo-moco==0.0.2.1
+    - ngboost>=0.5.1
