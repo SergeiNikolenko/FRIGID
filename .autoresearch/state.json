@@ -7,7 +7,8 @@
     "MCP init_task failed because this Codex worktree stores .git as a gitdir file.",
     "Manual binding was created without running a scorer.",
     "A full base benchmark may already be running on spectrum; scorer script refuses to run concurrently by default.",
-    "Local interpolation sweep on formula_pruning_chunk_size now has 20, 21, and 22 recorded; 22 dominates 24 on both speed and Tanimoto, while 21 drops formula_success."
+    "Local interpolation sweep on formula_pruning_chunk_size now has 20, 21, and 22 recorded; 22 dominates 24 on both speed and Tanimoto, while 21 drops formula_success.",
+    "TF32 on the current pruning=22 control stayed chemistry-neutral but did not improve throughput over the no-TF32 run."
   ],
   "current_best_iteration": "kolmogorov-single-gpu-baseline",
   "guard_baseline": {
@@ -19,7 +20,7 @@
   "incumbent_patch_hash": "d39fcb2c61123082aa650e35140c4cdf9e74da0de17ae9dd6889866cad528b6c",
   "updated_at": "2026-06-19T00:00:00Z",
   "failed_in_row": 4,
-  "current_iteration": "kolmogorov-formula-pruning-32case-21",
+  "current_iteration": "kolmogorov-tf32-pruning22",
   "frontier": [
     {
       "iteration": "kolmogorov-conditioning-cache-sigma0-batch32-32cases",

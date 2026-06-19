@@ -1,0 +1,9 @@
+{
+  "iteration": "kolmogorov-tf32-pruning22",
+  "decision": "diagnostic",
+  "primary_metric": 3.8563903272151947,
+  "primary_metric_name": "seconds_per_case",
+  "guard_status": "pass",
+  "decision_reason": "TF32 enabled on the current pruning=22 control. Chemistry stayed unchanged but throughput did not improve over the existing 22-point no-TF32 run, so keep this as a diagnostic only.",
+  "reason": "TF32 enabled on the current pruning=22 control. Chemistry stayed unchanged but throughput did not improve over the existing 22-point no-TF32 run, so keep this as a diagnostic only."
+}

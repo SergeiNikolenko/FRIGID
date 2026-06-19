@@ -92,6 +92,11 @@ for the FRIGID throughput/quality campaign.
   `generation_time_percentage` stayed at about `98%`, and the backbone-forward
   breakdown remained the same. Treat `inference_mode` as a confirmed
   non-lever for this campaign unless a different code path is identified.
+- Enabling TF32 on the current `formula_pruning_chunk_size = 22` control did
+  not improve throughput either. The TF32 run finished at `3.856s/case`,
+  slightly slower than the existing no-TF32 `22` control (`3.834s/case`),
+  while keeping `tanimoto_top1 = 0.5015` and `formula_success = 1.0`. So TF32
+  is a closed diagnostic unless a different backbone path is introduced.
 - Raising `num_tokens_unmask` to `4` on the same 3-spectrum diagnostic made
   things worse: wall time grew to about `16.0s`, generation time rose to about
   `97.4%`, model-forward time grew to about `14.5s`, `formula_success` dropped

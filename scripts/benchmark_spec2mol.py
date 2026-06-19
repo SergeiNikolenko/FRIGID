@@ -73,6 +73,16 @@ from rdkit import RDLogger
 RDLogger.DisableLog('rdApp.*')
 
 
+def configure_inference_precision() -> None:
+    """Apply optional inference precision settings from environment variables."""
+    if os.environ.get("FRIGID_ENABLE_TF32", "0") == "1":
+        if hasattr(torch, "set_float32_matmul_precision"):
+            torch.set_float32_matmul_precision("high")
+        if torch.cuda.is_available():
+            torch.backends.cuda.matmul.allow_tf32 = True
+            torch.backends.cudnn.allow_tf32 = True
+
+
 def parse_args():
     parser = argparse.ArgumentParser(
         description='Spec2Mol benchmark (separate encoder/decoder)',
@@ -125,6 +135,12 @@ def parse_args():
         type=int,
         default=1,
         help='Number of masked tokens to unmask per diffusion step'
+    )
+    parser.add_argument(
+        '--confidence-temperature',
+        type=float,
+        default=1.0,
+        help='Confidence temperature used when selecting tokens to unmask'
     )
     parser.add_argument(
         '--encoder-batch-size',
@@ -404,12 +420,15 @@ def _worker_process_spectra(
     is_ngboost: bool = False,
     sigma_lambda: float = 3.0,
     formula_pruning_tail_after_unique: Optional[int] = None,
+    confidence_temperature: float = 1.0,
 ):
     """
     Worker function for multi-GPU processing.
     Each worker processes a subset of spectra on a specific GPU.
     """
     import torch.multiprocessing as mp
+
+    configure_inference_precision()
     
     # Set device for this worker
     device = torch.device(f'cuda:{gpu_id}')
@@ -477,6 +496,7 @@ def _worker_process_spectra(
                 is_ngboost=is_ngboost,
                 sigma_lambda=sigma_lambda,
                 formula_pruning_tail_after_unique=formula_pruning_tail_after_unique,
+                confidence_temperature=confidence_temperature,
             )
         
         # Build predictions list
@@ -661,6 +681,7 @@ def run_benchmark(
     sigma_lambda: float = 3.0,
     profile_generation: bool = False,
     num_tokens_unmask: int = 1,
+    confidence_temperature: float = 1.0,
     formula_pruning_chunk_size: Optional[int] = None,
     formula_pruning_tail_after_unique: Optional[int] = None,
     encoder_batch_size: int = 1,
@@ -744,6 +765,7 @@ def run_benchmark(
                 sigma_lambda=sigma_lambda,
                 profile_generation=profile_generation,
                 num_tokens_unmask=num_tokens_unmask,
+                confidence_temperature=confidence_temperature,
                 formula_pruning_chunk_size=formula_pruning_chunk_size,
                 formula_pruning_tail_after_unique=formula_pruning_tail_after_unique,
             )
@@ -986,6 +1008,8 @@ def main():
     config = merge_config_with_args(load_config(args.config), args)
     max_spectra = args.max_spectra or config.get('evaluation', {}).get('max_spectra')
 
+    configure_inference_precision()
+
     # Set seeds
     random.seed(args.seed)
     np.random.seed(args.seed)
@@ -1043,6 +1067,7 @@ def main():
             token_model, token_features, is_ngboost, args.sigma_lambda,
             args.profile_generation,
             args.num_tokens_unmask,
+            args.confidence_temperature,
             args.formula_pruning_chunk_size,
             args.formula_pruning_tail_after_unique,
             args.encoder_batch_size,
