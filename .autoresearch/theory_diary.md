@@ -460,3 +460,5 @@ planning the next audit step.
   did show a small speed spread. `tail=4` and `tail=12` were around 1.5% faster
   than the fixed `24` frontier, so the tail rule is a plausible micro-optimization
   candidate, but not a primary lever.
+
+The current MSG ICEBERG smoke on Kolmogorov is not yet a valid forward-model scaling measurement. It gets through dataset prep and launches the ICEBERG subprocess, but the remote environment still lacks `dgl`, so the ICEBERG cache remains empty and the observed 8.51 s/case is just launch overhead plus baseline generation.

@@ -260,3 +260,5 @@
   accidentally overfit to easy high-MIST examples.
 - Add separate scorer modes for base inference and ICEBERG scaling; they should
   not share one primary metric until both are stable.
+
+- Kolmogorov MSG ICEBERG smoke reached the round-1 launch path and produced 5-case artifacts, but the remote venv is still missing `dgl`, so the forward model cache stayed empty and the 8.51 s/case measurement is baseline-only overhead until the dependency is fixed.
