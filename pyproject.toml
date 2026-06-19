@@ -10,7 +10,7 @@ authors = [
   { name = "Montgomery Bohde", email = "mbohde@tamu.edu" },
   { name = "Hongxuan Liu", email = "liuhx25@mit.edu" },
 ]
-requires-python = ">=3.10"
+requires-python = ">=3.10,<3.11"
 license = { file = "LICENSE/license_code.txt" }
 dynamic = ["version"]
 dependencies = [
@@ -30,12 +30,44 @@ dependencies = [
     'hydra-core==1.3.2',
     'lightning==2.5.1',
     'omegaconf==2.3.0',
-    'transformers==4.52.4',
+    'transformers==4.32.0',
     'safe-mol==0.1.13',
     'pytdc==0.4.1',
     'easydict==1.13',
-    'openbabel-wheel==3.1.1.22'
+    'openbabel-wheel==3.1.1.22',
+    'Cython<3',
+    'ngboost>=0.5.1',
+    'ms-pred',
+    'ray[tune]==2.44.1',
+    'pathos',
+    'pytorch-lightning==1.9.5',
+    'dgl @ https://data.dgl.ai/wheels/torch-2.4/cu124/dgl-2.4.0%2Bcu124-cp310-cp310-manylinux1_x86_64.whl ; sys_platform == "linux"',
 ]
+
+[project.scripts]
+frigid = "frigid.cli:main"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.6",
+]
+iceberg-runtime = [
+    "ray[tune]==2.44.1",
+    "pathos",
+    "pytorch-lightning==1.9.5",
+]
+
+[tool.uv]
+override-dependencies = [
+    "torch==2.6.0",
+]
+
+[tool.uv.sources]
+ms-pred = { path = "ms-pred", editable = true }
+
+[tool.uv.extra-build-dependencies]
+ms-pred = ["numpy==1.26.4", "Cython<3", "wheel"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

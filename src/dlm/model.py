@@ -17,6 +17,7 @@
 import itertools
 import hydra.utils
 import lightning as L
+import time
 import torch
 from transformers import BertForMaskedLM
 from transformers.models.bert.configuration_bert import BertConfig
@@ -463,6 +464,29 @@ class DLM(L.LightningModule):
         super().optimizer_step(*args, **kwargs)
         if self.ema:
             self.ema.update(itertools.chain(self.backbone.parameters()))
+
+    def transfer_batch_to_device(self, batch, device, dataloader_idx=0):
+        """Move tensor batch fields to device while preserving string metadata."""
+        if torch.is_tensor(batch):
+            return batch.to(device)
+        if isinstance(batch, dict):
+            return {
+                key: self.transfer_batch_to_device(value, device, dataloader_idx)
+                for key, value in batch.items()
+            }
+        if isinstance(batch, tuple):
+            return tuple(
+                self.transfer_batch_to_device(value, device, dataloader_idx)
+                for value in batch
+            )
+        if isinstance(batch, list):
+            if all(isinstance(value, str) for value in batch):
+                return batch
+            return [
+                self.transfer_batch_to_device(value, device, dataloader_idx)
+                for value in batch
+            ]
+        return batch
         
     def _build_token_embeddings(self, x):
         token_embeddings = self.backbone.bert.embeddings.word_embeddings(x)
@@ -475,6 +499,7 @@ class DLM(L.LightningModule):
         return embeddings
 
     def _encode_with_backbone(self, embeddings, attention_mask, x,
+                              extended_attention_mask=None,
                               condition_embeddings=None, condition_mask=None,
                               fingerprint_embeddings=None, fingerprint_mask=None):
         """
@@ -493,9 +518,10 @@ class DLM(L.LightningModule):
         embeddings = self.backbone.bert.embeddings.dropout(embeddings)
         if attention_mask is None:
             attention_mask = torch.ones_like(x)
-        extended_attention_mask = self.backbone.get_extended_attention_mask(
-            attention_mask, x.shape, x.device
-        )
+        if extended_attention_mask is None:
+            extended_attention_mask = self.backbone.get_extended_attention_mask(
+                attention_mask, x.shape, x.device
+            )
         encoder_kwargs = {}
         # Pass formula conditioning if provided
         if condition_embeddings is not None and condition_mask is not None:
@@ -673,7 +699,19 @@ class DLM(L.LightningModule):
         
         return loss
 
-    def forward(self, x, attention_mask=None, formula=None, fingerprint=None, fingerprint_mask=None):
+    def forward(
+        self,
+        x,
+        attention_mask=None,
+        formula=None,
+        fingerprint=None,
+        fingerprint_mask=None,
+        formula_embeddings=None,
+        formula_condition_mask=None,
+        fingerprint_embeddings=None,
+        fingerprint_condition_mask=None,
+        extended_attention_mask=None,
+    ):
         """
         Forward pass through the model with optional formula and fingerprint conditioning.
         
@@ -693,24 +731,73 @@ class DLM(L.LightningModule):
         Returns:
             Logits of shape (batch_size, seq_len, vocab_size)
         """
+        profile_enabled = bool(getattr(self, 'profile_forward', False))
+        forward_profile = None
+        if profile_enabled:
+            forward_profile = {
+                'forward_total_time': 0.0,
+                'formula_conditioning_time': 0.0,
+                'fingerprint_conditioning_time': 0.0,
+                'build_embeddings_time': 0.0,
+                'global_conditioning_time': 0.0,
+                'backbone_time': 0.0,
+                'output_path': None,
+            }
+            forward_start = time.perf_counter()
+            if torch.cuda.is_available():
+                torch.cuda.synchronize(x.device)
+
+        def sync_if_profiled():
+            if profile_enabled and torch.cuda.is_available():
+                torch.cuda.synchronize(x.device)
+
         with torch.amp.autocast('cuda', dtype=torch.float32):
             # Prepare formula conditioning (if using cross-attention)
+            if profile_enabled:
+                sync_if_profiled()
+                segment_start = time.perf_counter()
             formula_cond_embeddings = None
             formula_cond_mask = None
             if self.use_formula_conditioning and self.conditioner_type == 'cross_attention':
-                formula_cond_embeddings, formula_cond_mask = self._prepare_formula_sequence_embeddings(formula, x)
+                if formula_embeddings is not None and formula_condition_mask is not None:
+                    formula_cond_embeddings = formula_embeddings
+                    formula_cond_mask = formula_condition_mask
+                else:
+                    formula_cond_embeddings, formula_cond_mask = self._prepare_formula_sequence_embeddings(formula, x)
+            if profile_enabled:
+                sync_if_profiled()
+                forward_profile['formula_conditioning_time'] += time.perf_counter() - segment_start
 
             # Prepare fingerprint conditioning (if using cross-attention) - INDEPENDENT from formula
+            if profile_enabled:
+                sync_if_profiled()
+                segment_start = time.perf_counter()
             fp_cond_embeddings = None
             fp_cond_mask = None
             if self.use_fingerprint_conditioning and self.fingerprint_conditioner_type == 'cross_attention':
-                fp_cond_embeddings, fp_cond_mask = self._prepare_fingerprint_sequence_embeddings(fingerprint, x)
+                if fingerprint_embeddings is not None and fingerprint_condition_mask is not None:
+                    fp_cond_embeddings = fingerprint_embeddings
+                    fp_cond_mask = fingerprint_condition_mask
+                else:
+                    fp_cond_embeddings, fp_cond_mask = self._prepare_fingerprint_sequence_embeddings(fingerprint, x)
+            if profile_enabled:
+                sync_if_profiled()
+                forward_profile['fingerprint_conditioning_time'] += time.perf_counter() - segment_start
 
             # If any cross-attention conditioning is used
             if formula_cond_embeddings is not None or fp_cond_embeddings is not None:
+                if profile_enabled:
+                    sync_if_profiled()
+                    segment_start = time.perf_counter()
                 embeddings = self._build_token_embeddings(x)
+                if profile_enabled:
+                    sync_if_profiled()
+                    forward_profile['build_embeddings_time'] += time.perf_counter() - segment_start
 
                 # Add global formula embeddings (if not using cross-attention for formula)
+                if profile_enabled:
+                    sync_if_profiled()
+                    segment_start = time.perf_counter()
                 if self.use_formula_conditioning and self.conditioner_type != 'cross_attention':
                     formula_global_embeddings = self._prepare_formula_global_embeddings(formula, x)
                     if formula_global_embeddings is not None:
@@ -721,6 +808,9 @@ class DLM(L.LightningModule):
                     fingerprint_global_embeddings = self._prepare_fingerprint_embeddings(fingerprint, fingerprint_mask, x)
                     if fingerprint_global_embeddings is not None:
                         embeddings = embeddings + fingerprint_global_embeddings.unsqueeze(1)
+                if profile_enabled:
+                    sync_if_profiled()
+                    forward_profile['global_conditioning_time'] += time.perf_counter() - segment_start
 
                 # Handle shared vs independent cross-attention modes
                 if self.use_shared_cross_attention:
@@ -737,30 +827,52 @@ class DLM(L.LightningModule):
                             condition_embeddings = torch.cat([condition_embeddings, fp_cond_embeddings], dim=1)
                             condition_mask = torch.cat([condition_mask, fp_cond_mask], dim=1)
                     
+                    if profile_enabled:
+                        sync_if_profiled()
+                        segment_start = time.perf_counter()
                     logits = self._encode_with_backbone(
                         embeddings,
                         attention_mask,
                         x,
+                        extended_attention_mask=extended_attention_mask,
                         condition_embeddings=condition_embeddings,
                         condition_mask=condition_mask,
                         fingerprint_embeddings=None,  # Not used in shared mode
                         fingerprint_mask=None
                     )
+                    if profile_enabled:
+                        sync_if_profiled()
+                        forward_profile['backbone_time'] += time.perf_counter() - segment_start
                 else:
                     # INDEPENDENT MODE: Pass formula and fingerprint separately
+                    if profile_enabled:
+                        sync_if_profiled()
+                        segment_start = time.perf_counter()
                     logits = self._encode_with_backbone(
                         embeddings,
                         attention_mask,
                         x,
+                        extended_attention_mask=extended_attention_mask,
                         condition_embeddings=formula_cond_embeddings,
                         condition_mask=formula_cond_mask,
                         fingerprint_embeddings=fp_cond_embeddings,
                         fingerprint_mask=fp_cond_mask
                     )
+                    if profile_enabled:
+                        sync_if_profiled()
+                        forward_profile['backbone_time'] += time.perf_counter() - segment_start
+                if profile_enabled:
+                    sync_if_profiled()
+                    forward_profile['output_path'] = 'cross_attention'
+                    forward_profile['forward_total_time'] = time.perf_counter() - forward_start
+                    self.last_forward_profile = forward_profile
                 return logits
 
             # Non-cross-attention conditioning path
             if self.use_formula_conditioning or self.use_fingerprint_conditioning:
+                if profile_enabled:
+                    sync_if_profiled()
+                    segment_start = time.perf_counter()
                 embeddings = self._build_token_embeddings(x)
 
                 if self.use_formula_conditioning:
@@ -771,12 +883,39 @@ class DLM(L.LightningModule):
                 fingerprint_global_embeddings = self._prepare_fingerprint_embeddings(fingerprint, fingerprint_mask, x)
                 if fingerprint_global_embeddings is not None:
                     embeddings = embeddings + fingerprint_global_embeddings.unsqueeze(1)
+                if profile_enabled:
+                    sync_if_profiled()
+                    forward_profile['global_conditioning_time'] += time.perf_counter() - segment_start
 
-                logits = self._encode_with_backbone(embeddings, attention_mask, x)
+                if profile_enabled:
+                    sync_if_profiled()
+                    segment_start = time.perf_counter()
+                logits = self._encode_with_backbone(
+                    embeddings,
+                    attention_mask,
+                    x,
+                    extended_attention_mask=extended_attention_mask,
+                )
+                if profile_enabled:
+                    sync_if_profiled()
+                    forward_profile['backbone_time'] += time.perf_counter() - segment_start
+                    forward_profile['output_path'] = 'global_conditioning'
+                    forward_profile['forward_total_time'] = time.perf_counter() - forward_start
+                    self.last_forward_profile = forward_profile
                 return logits
 
             # Standard forward pass without conditioning
-            return self.backbone(x, attention_mask)['logits']
+            if profile_enabled:
+                sync_if_profiled()
+                segment_start = time.perf_counter()
+            logits = self.backbone(x, attention_mask)['logits']
+            if profile_enabled:
+                sync_if_profiled()
+                forward_profile['backbone_time'] += time.perf_counter() - segment_start
+                forward_profile['output_path'] = 'backbone_only'
+                forward_profile['forward_total_time'] = time.perf_counter() - forward_start
+                self.last_forward_profile = forward_profile
+            return logits
     
     def training_step(self, batch, batch_idx):
         input_ids = batch['input_ids']

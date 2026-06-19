@@ -150,25 +150,36 @@ frigid/
 git clone --recurse-submodules <repo-url>
 cd frigid
 
-# If you cloned without --recurse-submodules
-git submodule update --init --recursive
-
-# Create conda environment
-conda create -n frigid python=3.10
-conda activate frigid
-
-# Install dependencies
-pip install -r ms-pred/requirements.txt
-pip install -e ./ms-pred
-pip install -e .
+# Install FRIGID, NGBoost, and ICEBERG runtime dependencies
+uv sync
+source .venv/bin/activate
 
 # (Optional) Install optuna for training NGBoost token models
-pip install optuna
+uv pip --python .venv/bin/python install optuna
 ```
 
 ---
 
 ## Usage
+
+For stable project-facing commands, prefer the `frigid` CLI described in
+`docs/FRIGID_OPERATIONAL_USAGE.md`. The older scripts below remain available as
+lower-level research entrypoints.
+
+### Quick Prediction CLI
+
+```bash
+frigid predict \
+    --config configs/spec2mol_benchmark_msg.yaml \
+    --data-dir data/msg \
+    --mist-checkpoint checkpoints/mist_msg.pt \
+    --dlm-checkpoint checkpoints/DLM.ckpt \
+    --scaler ngboost \
+    --token-model token_models/models/best_ngboost_MSG.joblib \
+    --use-shared-cross-attention \
+    --max-spectra 1 \
+    --output-dir runs/example_msg_ngboost
+```
 
 ### 1. Pretraining FRIGID-base
 
@@ -215,13 +226,13 @@ Evaluate FRIGID-base end-to-end on NPLIB1 or MassSpecGym:
 python scripts/benchmark_spec2mol.py \
     --config configs/spec2mol_benchmark_canopus.yaml \
     --mist-checkpoint checkpoints/mist_canopus.pt \
-    --dlm-checkpoint checkpoints/frigid_base.ckpt
+    --dlm-checkpoint checkpoints/DLM.ckpt
 
 # MassSpecGym benchmark
 python scripts/benchmark_spec2mol.py \
     --config configs/spec2mol_benchmark_msg.yaml \
     --mist-checkpoint checkpoints/mist_msg.pt \
-    --dlm-checkpoint checkpoints/frigid_base.ckpt
+    --dlm-checkpoint checkpoints/DLM.ckpt
 ```
 
 ### 4. ICEBERG Inference-Time Scaling
@@ -232,7 +243,7 @@ Run the full FRIGID pipeline with cycle-consistent refinement over multiple roun
 python scripts/spec2mol_scaling.py \
     --config configs/spec2mol_benchmark_canopus.yaml \
     --mist-checkpoint checkpoints/mist_canopus.pt \
-    --dlm-checkpoint checkpoints/frigid_base.ckpt \
+    --dlm-checkpoint checkpoints/DLM.ckpt \
     --iceberg-gen-ckpt checkpoints/iceberg/dag_gen.ckpt \
     --iceberg-inten-ckpt checkpoints/iceberg/dag_inten.ckpt \
     --num-rounds 10 \
