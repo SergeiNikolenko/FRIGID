@@ -946,7 +946,9 @@ class IcebergSampler:
         """
         Run batched ICEBERG predictions across all samples.
         
-        Groups predictions by (collision_energy, instrument) pairs for efficiency.
+        Groups predictions by (instrument, ionization) for efficiency. Each
+        ICEBERG subprocess receives the full collision-energy list because
+        ms-pred can emit all requested CEs in one HDF5 prediction file.
         
         Args:
             sample_states: List of sample states
@@ -967,30 +969,58 @@ class IcebergSampler:
                     smiles_instrument_ionization_triples.append(triple)
                     seen_triples.add(triple)
 
-        # Get uncached (CE, instrument, ionization) -> smiles_list
+        # Get uncached (CE, instrument, ionization) -> smiles_list, then merge
+        # those needs into one call per (instrument, ionization). This avoids
+        # launching a separate ICEBERG subprocess for every CE.
         ce_inst_ion_to_smiles = self._pred_cache.get_uncached_pairs_grouped(
             smiles_instrument_ionization_triples,
             self.scaling_config.collision_energies,
         )
+        inst_ion_to_smiles: Dict[Tuple[str, str], List[str]] = defaultdict(list)
+        inst_ion_seen_ikeys: Dict[Tuple[str, str], Set[str]] = defaultdict(set)
 
-        # Run ICEBERG predictions for each (collision_energy, instrument, ionization) group
-        for (ce, instrument, ionization), smiles_batch in ce_inst_ion_to_smiles.items():
+        for (_ce, instrument, ionization), smiles_batch in ce_inst_ion_to_smiles.items():
+            group_key = (instrument, ionization)
+            for smi in smiles_batch:
+                ikey = self._pred_cache.get_ikey(smi)
+                if ikey is None or ikey in inst_ion_seen_ikeys[group_key]:
+                    continue
+                inst_ion_to_smiles[group_key].append(smi)
+                inst_ion_seen_ikeys[group_key].add(ikey)
+
+        # Run ICEBERG predictions for each (instrument, ionization) group.
+        for (instrument, ionization), smiles_batch in inst_ion_to_smiles.items():
             if not smiles_batch:
                 continue
 
-            print(f"  Running ICEBERG for {len(smiles_batch)} molecules at CE={ce}eV, instrument={instrument}, ionization={ionization}...")
+            ces = list(self.scaling_config.collision_energies)
+            print(
+                f"  Running ICEBERG for {len(smiles_batch)} molecules at "
+                f"CEs={ces}, instrument={instrument}, ionization={ionization}..."
+            )
 
             # Run predictions
             pred_results = self._run_iceberg_batch(
                 smiles_batch,
-                [ce],  # Single CE for efficiency
+                ces,
                 instrument=instrument,
                 ionization=ionization,
             )
 
-            # Cache results with instrument and ionization
+            # Cache each CE separately so downstream lookup semantics stay the same.
             for smi, pred_spec in pred_results.items():
-                self._pred_cache.put(smi, ce, instrument, pred_spec, ionization=ionization)
+                for ce, mass_spec in pred_spec.items():
+                    try:
+                        ce_key = int(ce)
+                    except (TypeError, ValueError):
+                        ce_key = ce
+                    if ce_key not in self.scaling_config.collision_energies:
+                        continue
+                    single_ce_spec = ensure_composite_mass_spec(
+                        {ce_key: mass_spec},
+                        root_canonical_smiles=smi,
+                    )
+                    self._pred_cache.put(smi, ce_key, instrument, single_ce_spec, ionization=ionization)
         
         # Build per-sample results from cache
         results: Dict[str, Dict[str, common.CompositeMassSpec]] = {}
