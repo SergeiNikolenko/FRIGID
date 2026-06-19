@@ -215,6 +215,11 @@
 - Test `torch.inference_mode()` and matmul precision settings for inference.
 - Test `torch.compile` only as a controlled hypothesis with warmup and comparable
   scorer timing; compile overhead must be excluded or amortized.
+- The encoder compile probe on the pruning=22 control was not stable across
+  fresh processes: the first cold run was slightly faster, but a repeat on
+  another GPU was much slower than the no-compile control. Treat `compile` as
+  diagnostic-only unless the worker can keep a persistent process alive long
+  enough to amortize warmup.
 - TF32 is not an automatic win on the current pruning=22 control. On
   Kolmogorov, `allow_tf32=False` already held a slightly better wall time than
   the opt-in TF32 run while leaving chemistry unchanged, so treat TF32 as a

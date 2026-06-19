@@ -97,6 +97,11 @@ for the FRIGID throughput/quality campaign.
   slightly slower than the existing no-TF32 `22` control (`3.834s/case`),
   while keeping `tanimoto_top1 = 0.5015` and `formula_success = 1.0`. So TF32
   is a closed diagnostic unless a different backbone path is introduced.
+- The encoder compile probe behaved the same way in the opposite direction:
+  the first cold run on the `22` control looked better at `3.786s/case`, but a
+  repeat on another GPU fell to `6.225s/case` with the same chemistry. That is
+  not stable enough to promote in the current per-process scorer model; only a
+  persistent worker could make `torch.compile` worth another look.
 - Raising `num_tokens_unmask` to `4` on the same 3-spectrum diagnostic made
   things worse: wall time grew to about `16.0s`, generation time rose to about
   `97.4%`, model-forward time grew to about `14.5s`, `formula_success` dropped

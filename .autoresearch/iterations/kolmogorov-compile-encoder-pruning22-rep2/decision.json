@@ -1,0 +1,9 @@
+{
+  "iteration": "kolmogorov-compile-encoder-pruning22-rep2",
+  "decision": "diagnostic",
+  "primary_metric": 6.2249229501485825,
+  "primary_metric_name": "seconds_per_case",
+  "guard_status": "pass",
+  "decision_reason": "Repeat compile run on another Kolmogorov GPU was much slower than the no-compile control, so the first-run improvement was not reproducible and should not be promoted.",
+  "reason": "Repeat compile run on another Kolmogorov GPU was much slower than the no-compile control, so the first-run improvement was not reproducible and should not be promoted."
+}

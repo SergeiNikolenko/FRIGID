@@ -1,0 +1,9 @@
+{
+  "iteration": "kolmogorov-compile-encoder-pruning22",
+  "decision": "diagnostic",
+  "primary_metric": 3.7861722633242607,
+  "primary_metric_name": "seconds_per_case",
+  "guard_status": "pass",
+  "decision_reason": "Encoder compile on the current pruning=22 control improved the first cold run slightly, but it is not yet stable enough to promote without a repeat because compile overhead may be process-specific.",
+  "reason": "Encoder compile on the current pruning=22 control improved the first cold run slightly, but it is not yet stable enough to promote without a repeat because compile overhead may be process-specific."
+}
