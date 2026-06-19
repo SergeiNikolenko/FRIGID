@@ -161,26 +161,30 @@ for the FRIGID throughput/quality campaign.
   with the same `tanimoto_top1 = 0.4742` and `formula_success = 1.0`. So the
   encoder was not the bottleneck we hoped to expose; the generation path still
   dominates.
-- A larger pruning point, `formula_pruning_chunk_size = 24`, gave the best
-  overall compromise so far on the current code path. It finished in `132.4s`
-  total versus `152.8s` for the control, while improving `tanimoto_top1` to
-  `0.4975` and keeping `formula_success = 0.9375`. This is a better Pareto
-  point than `16` if we care about chemistry quality, but it is still not fully
-  guard-clean because one case never matched.
+- A fixed pruning interpolation sweep on `formula_pruning_chunk_size` has now
+  filled in the gap between `16` and `24`. `20` is the fastest point so far at
+  `113.0s` total and `tanimoto_top1 = 0.4689`, `21` is a negative point because
+  it drops `formula_success` to `90.625%`, and `22` is the best compromise at
+  `122.7s` total with `tanimoto_top1 = 0.5015` and `formula_success = 1.0`.
+  The sweep is clearly not monotonic, so the stop rule still needs adaptation.
+- `formula_pruning_chunk_size = 24` is no longer the best fixed-size point once
+  `20/21/22` are included. It still gives a useful speed signal and remains
+  guard-failing, but it is now dominated by `22` on both speed and Tanimoto.
+  Keep it as an older quarantine reference, not as the fixed-size frontier.
 - `formula_pruning_chunk_size = 28` did not improve that frontier. It kept
-  `formula_success = 1.0`, but it was slower than `24` and dropped
-  `tanimoto_top1` to `0.4590`. Treat `24` as the final fixed-size pruning
-  winner on the current code path and stop probing higher chunk sizes.
-- The latest 28-chunk follow-up confirmed the frontier did not move. It
-  produced `142.2s` total, `tanimoto_top1 = 0.4590`, and
-  `formula_success = 1.0`, so it is dominated by the `24`-chunk result. Fixed
-  chunk interpolation is now done on this branch; the next pruning move, if any,
-  should be adaptive or should give way to a different generation-side idea.
+  `formula_success = 1.0`, but it was slower than the newer interpolation
+  points and dropped `tanimoto_top1` to `0.4590`. Treat `28` as dominated on
+  the current code path.
+- The current pruning frontier is still not guard-clean. The best fixed-size
+  compromise is now `22`, the fastest point is `20`, and `21` shows that
+  formula success can still fall off a cliff inside this narrow interval. Any
+  further work in this branch should be adaptive or should give way to a
+  different generation-side idea.
 - The `24`-chunk run is not guard-clean under the reconciler. When its current
   snapshot was reconciled through the supervisor, the run was classified as
   `quarantine` because `tanimoto_top1 = 0.4975` regressed past the allowed
   guard margin from the baseline `0.6611`. So the raw throughput win is real,
-  but it is not yet an accepted supervisor candidate.
+  but it is no longer the best compromise in this branch.
 - The diagnostic sweep suggests the next experiment should be adaptive rather
   than another fixed chunk interpolation. On the existing diagnostic runs,
   `formula_pruning_chunk_size = 8` needed about `3.0` pruning batches and hit

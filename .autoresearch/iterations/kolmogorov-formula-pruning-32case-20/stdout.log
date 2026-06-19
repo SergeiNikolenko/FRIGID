@@ -1,0 +1,35 @@
+Loading token model from token_models/models/best_ngboost_MSG.joblib
+Detected NGBoost model - will use sigma-based sampling
+Loaded 14 features from token_models/models/best_ngboost_MSG_features.json
+Using device: cuda
+
+Loading test split...
+Loaded 17082 total spectra-molecule pairs
+Using 17082 samples from test split
+
+Loading MIST encoder from: repro_cache/mist_msg.pt
+✓ Loaded MIST encoder weights
+
+Loading DLM decoder from: repro_cache/DLM.ckpt
+Using SHARED cross-attention mode
+[load_model] Removed 120 fingerprint_conditioner.cross_attention_layers keys for shared mode
+[DLM] Loading checkpoint with missing buffers (safe to skip): {'token_atom_counts'}
+[Sampler] Warning: data/len.pk not found. Using default length range.
+✓ Fingerprint conditioning: ENABLED
+✓ Formula conditioning: ENABLED
+Cross-attention mode: SHARED
+
+Total spectra: 32
+Time: 113.0s
+Speed: 0.28 spectra/s
+Encoder batch size: 1
+Percentage of total time: 98.3%
+Exact Match Top-1: 0.00%
+Exact Match Top-10: 0.00%
+Tanimoto Top-1: 0.4689
+Tanimoto Top-10: 0.4689
+Success rate: 100.00%
+Avg actual formula matches: 1.0
+Avg generations: 20.4
+Avg unique valid SMILES: 7.9
+Avg valid duplicate rate: 8.9%

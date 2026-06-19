@@ -58,20 +58,27 @@
 - `encoder_batch_size = 8` did not help either. The 32-case run was slightly
   slower than control (`154.7s` vs `152.8s`) and kept the same quality numbers,
   so MIST batching is not the next likely speed lever in this exact path.
-- `formula_pruning_chunk_size = 24` is now the best compromise point on the
-  current code path: `132.4s` total, `tanimoto_top1 = 0.4975`, and
-  `formula_success = 93.75%`. It beats the control on both throughput and
-  Tanimoto, but it still loses one case on formula success, so it is not a
-  final answer yet.
-- `formula_pruning_chunk_size = 28` is dominated by `24`: slower, lower
-  `tanimoto_top1 = 0.4590`, and no better success than `24`. Do not probe
-  fixed-size chunks above `24` on this path.
-- The pruning frontier is now fixed-size bounded: `24` is the best fixed chunk
-  so far, and `28` adds no value. Any further pruning work on this branch
-  should be adaptive or should be replaced by a different generation-side
-  mechanism. The reconciler also marked the `24` run as `quarantine` because
-  its `tanimoto_top1` regressed too far versus the baseline guard, so there is
-  no accepted supervisor candidate yet.
+- `formula_pruning_chunk_size = 20` is the fastest fixed chunk we have so far:
+  `113.0s` total, `seconds_per_case = 3.532234065234661`, `tanimoto_top1 =
+  0.4688765509054065`, and `formula_success = 1.0`. It is a real speed win,
+  but the chemistry regression is still far beyond the guard band.
+- `formula_pruning_chunk_size = 21` is a negative point on the same sweep:
+  `125.8s` total, `seconds_per_case = 3.9312159046530724`, `tanimoto_top1 =
+  0.5091927908360958`, and `formula_success = 90.625%`. That means the sweep
+  is not monotonic and the narrowest point already loses formula success.
+- `formula_pruning_chunk_size = 22` is the best compromise point in the current
+  local interpolation sweep: `122.7s` total, `seconds_per_case =
+  3.834425263106823`, `tanimoto_top1 = 0.5015192916616797`, and
+  `formula_success = 1.0`. It dominates the earlier `24` point on both speed
+  and Tanimoto, but it still fails the guard by a wide margin.
+- `formula_pruning_chunk_size = 28` is dominated by the better fixed points and
+  adds no value. Do not probe fixed-size chunks above `22` on this path unless
+  there is a new adaptive rule to test.
+- The pruning frontier is still not guard-clean. The current fixed-size sweep
+  now has a clear best compromise (`22`), a faster but weaker speed point
+  (`20`), and a quality-regression point (`21`) that shows the stop rule is
+  sensitive. Any further work in this branch should be adaptive or should be
+  replaced by a different generation-side mechanism.
 - The next pruning hypothesis should be adaptive, not another fixed sweep.
   Use the existing diagnostic runs as evidence: `8` reached the first unique
   formula match earlier but needed more pruning batches, `16` reduced batches
@@ -165,13 +172,14 @@
   or a new cache path.
 - Because encoder batching did not move the metric, the next lever should stay
   on the generation/backbone side rather than more encoder batching.
-- Since `24` improved both speed and Tanimoto, the next pruning action should
-  be to recover the missing formula success case rather than continuing a blind
-  fixed-size sweep. If that is not practical, keep `24` as the best known
-  frontier and move to a different hot path.
-- Fixed-size pruning is now bounded: `24` is the winner, `28` is dominated.
-  Any further work in this branch should be adaptive, not another fixed chunk
-  interpolation.
+- Since `22` now dominates the earlier `24` point on both speed and Tanimoto,
+  the next pruning action should be to recover the missing guard cases rather
+  than continuing a blind fixed-size sweep. If that is not practical, keep `22`
+  as the best known frontier and move to a different hot path.
+- Fixed-size pruning is now bounded by the local interpolation sweep: `22` is
+  the best compromise, `20` is the fastest, and `21` shows that formula success
+  can still fall off a cliff. Any further work in this branch should be
+  adaptive, not another blind fixed chunk interpolation.
 - Add per-case anatomy output: attempts, valid candidates, unique valid
   candidates, duplicate candidates, formula matches, stop reason, generated
   lengths, padding estimate, and wall time.

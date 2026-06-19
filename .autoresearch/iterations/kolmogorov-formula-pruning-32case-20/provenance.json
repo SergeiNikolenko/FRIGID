@@ -1,0 +1,8 @@
+{
+  "iteration": "kolmogorov-formula-pruning-32case-20",
+  "repo": "/Users/nikolenko/.codex/worktrees/f017/FRIGID",
+  "host": "kolmogorov",
+  "git_commit": "a51af134107b57b473844cca832c34ff5a351967",
+  "command": "external scorer run",
+  "created_at": "2026-06-19T00:00:00Z"
+}

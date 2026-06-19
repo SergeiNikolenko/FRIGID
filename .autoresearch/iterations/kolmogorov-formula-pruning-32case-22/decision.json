@@ -1,0 +1,44 @@
+{
+  "iteration": "kolmogorov-formula-pruning-32case-22",
+  "status": "complete",
+  "returncode": 0,
+  "primary_metric": 3.834425263106823,
+  "decision": "quarantine",
+  "decision_reason": "primary improved but guard failed",
+  "guard_status": "fail",
+  "guard_details": {
+    "observed": {
+      "exact_top1": {
+        "value": 0.0,
+        "source": "json:.autoresearch/artifacts/current/metrics.json:exact_top1",
+        "direction": "maximize",
+        "max_regression": 0.03
+      },
+      "tanimoto_top1": {
+        "value": 0.5015192916616797,
+        "source": "json:.autoresearch/artifacts/current/metrics.json:tanimoto_top1",
+        "direction": "maximize",
+        "max_regression": 0.05
+      },
+      "formula_success": {
+        "value": 1.0,
+        "source": "json:.autoresearch/artifacts/current/metrics.json:formula_success",
+        "direction": "maximize",
+        "max_regression": 0.1
+      }
+    },
+    "failures": [
+      "tanimoto_top1:regressed"
+    ]
+  },
+  "failure_type": null,
+  "patch_hash": "unknown",
+  "command": "external scorer run",
+  "stdout": "/Users/nikolenko/.codex/worktrees/f017/FRIGID/.autoresearch/iterations/kolmogorov-formula-pruning-32case-22/stdout.log",
+  "stderr": "/Users/nikolenko/.codex/worktrees/f017/FRIGID/.autoresearch/iterations/kolmogorov-formula-pruning-32case-22/stderr.log",
+  "metrics_json": "/Users/nikolenko/.codex/worktrees/f017/FRIGID/.autoresearch/iterations/kolmogorov-formula-pruning-32case-22/metrics.json",
+  "provenance_json": "/Users/nikolenko/.codex/worktrees/f017/FRIGID/.autoresearch/iterations/kolmogorov-formula-pruning-32case-22/provenance.json",
+  "artifacts_dir": "/Users/nikolenko/.codex/worktrees/f017/FRIGID/.autoresearch/iterations/kolmogorov-formula-pruning-32case-22",
+  "source_scorer_run": "/Users/nikolenko/.codex/worktrees/f017/FRIGID/.autoresearch/artifacts/current",
+  "created_at": "2026-06-19T00:00:00Z"
+}
