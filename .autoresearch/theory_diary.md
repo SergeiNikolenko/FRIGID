@@ -200,6 +200,11 @@ for the FRIGID throughput/quality campaign.
   The next GPU check should compare `tail=6` versus `tail=8` under the same
   guard set, then keep only the smaller tail that does not hurt formula
   success.
+- The later Kolmogorov rerun of that exact tail comparison stayed flat on
+  chemistry and moved only within run-to-run noise: `tail=8` finished at
+  `129.5s`, `tail=6` at `131.0s`, and both stayed at `Tanimoto Top-1 = 0.4975`
+  with `formula_success = 93.75%`. That makes the tail knob a diagnostic signal
+  only, not a new frontier to promote.
 
 ## High-priority theories
 

@@ -102,6 +102,11 @@
   absolute chemistry picture: `tail=4` stayed faster than `tail=12`, but both
   landed at `formula_success = 81.25%` and `tanimoto_top1 = 0.5112`. That is
   enough to keep the tail sweep as a diagnostic, not a promoted frontier.
+- A later rerun of the same adaptive tail idea on two free Kolmogorov GPUs
+  came back with the same chemistry shape and only noise-level time changes:
+  `tail=8 -> 129.5s`, `tail=6 -> 131.0s`, `Tanimoto Top-1 = 0.4975`, and
+  `formula_success = 93.75%` for both. This confirms the tail knob still does
+  not open a new frontier.
 - A post-processing cache on `build_prediction_entry` / Morgan fingerprint
   lookup was also a negative result as a global throughput lever. The run kept
   `formula_success = 1.0` and `tanimoto_top1 = 0.4742`, but `seconds_per_case`
