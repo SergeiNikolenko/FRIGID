@@ -1,0 +1,11 @@
+E26 oracle fingerprint balanced 200
+START_UTC 2026-06-22T14:02:03Z
+HOST spectrum
+GIT_COMMIT bcf395a249d9313b4fe1d60a5c048bce23408dbe
+PATCHED_CKPT repro_runs/20260618T_spectrum_msg_paper_repro/experiments/E24_downstream_threshold_balanced_200/DLM_local_hfcache.ckpt
+GPU_STATUS_BEGIN
+0, NVIDIA A100 80GB PCIe, 0, 81920, 20
+GPU_STATUS_END
+END_UTC 2026-06-22T14:22:14Z
+GPU_STATUS_FINAL
+0, NVIDIA A100 80GB PCIe, 0, 81920, 20

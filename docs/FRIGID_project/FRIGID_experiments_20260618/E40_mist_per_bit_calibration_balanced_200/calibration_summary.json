@@ -1,0 +1,92 @@
+{
+  "baseline_thresholds": [
+    0.187,
+    0.2,
+    0.25,
+    0.3
+  ],
+  "calibration_count": 5000,
+  "calibration_split": "val",
+  "calibration_stats": {
+    "bits_with_positive_examples": 4047,
+    "bits_without_positive_examples": 49,
+    "mean_best_f1": 0.5196664929389954,
+    "mean_threshold": 0.2218283712863922,
+    "median_threshold": 0.18700000643730164
+  },
+  "eval_count": 200,
+  "eval_subset_csv": ".thoughts/subsets/mist_quality_balanced_200.csv",
+  "strategies": [
+    {
+      "count": 200,
+      "max_tanimoto": 1.0,
+      "mean_predicted_active_bits": 56.15,
+      "mean_tanimoto": 0.5162259753420949,
+      "mean_target_active_bits": 56.675,
+      "median_predicted_active_bits": 53.0,
+      "median_tanimoto": 0.4941265732049942,
+      "min_tanimoto": 0.10989011079072952,
+      "strategy": "global_threshold_0.187"
+    },
+    {
+      "count": 200,
+      "max_tanimoto": 1.0,
+      "mean_predicted_active_bits": 54.275,
+      "mean_tanimoto": 0.5198029266670346,
+      "mean_target_active_bits": 56.675,
+      "median_predicted_active_bits": 50.5,
+      "median_tanimoto": 0.5003670156002045,
+      "min_tanimoto": 0.1149425283074379,
+      "strategy": "global_threshold_0.2"
+    },
+    {
+      "count": 200,
+      "max_tanimoto": 1.0,
+      "mean_predicted_active_bits": 49.19,
+      "mean_tanimoto": 0.5218228963389993,
+      "mean_target_active_bits": 56.675,
+      "median_predicted_active_bits": 46.5,
+      "median_tanimoto": 0.4985930621623993,
+      "min_tanimoto": 0.10975609719753265,
+      "strategy": "global_threshold_0.25"
+    },
+    {
+      "count": 200,
+      "max_tanimoto": 1.0,
+      "mean_predicted_active_bits": 45.73,
+      "mean_tanimoto": 0.5188157907873392,
+      "mean_target_active_bits": 56.675,
+      "median_predicted_active_bits": 44.0,
+      "median_tanimoto": 0.49985477328300476,
+      "min_tanimoto": 0.1139240488409996,
+      "strategy": "global_threshold_0.3"
+    },
+    {
+      "count": 200,
+      "max_tanimoto": 0.9791666865348816,
+      "mean_predicted_active_bits": 52.91,
+      "mean_tanimoto": 0.4992414826527238,
+      "mean_target_active_bits": 56.675,
+      "median_predicted_active_bits": 50.5,
+      "median_tanimoto": 0.48853670060634613,
+      "min_tanimoto": 0.10389610379934311,
+      "strategy": "per_bit_f1_thresholds"
+    }
+  ],
+  "threshold_grid": [
+    0.02,
+    0.05,
+    0.08,
+    0.1,
+    0.12,
+    0.15,
+    0.187,
+    0.2,
+    0.25,
+    0.3,
+    0.35,
+    0.4,
+    0.5,
+    0.6
+  ]
+}

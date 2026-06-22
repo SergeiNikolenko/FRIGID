@@ -1,0 +1,24 @@
+{
+  "train_spectra": 194119,
+  "train_unique_inchikey": 22746,
+  "test_targets": 2905,
+  "exact_in_train_share": 0.0,
+  "nn_ge_085_share": 0.014802065404475043,
+  "nn_ge_070_share": 0.05679862306368331,
+  "nn_ge_050_share": 0.21858864027538727,
+  "tables": {
+    "target_train_coverage": "/home/nikolenko/work/Projects/FRIGID/repro_runs/20260616T203000Z_msg_paper_repro/msg_base_full_ngboost/eda_train_overlap/tables/target_train_coverage.csv",
+    "class_coverage": "/home/nikolenko/work/Projects/FRIGID/repro_runs/20260616T203000Z_msg_paper_repro/msg_base_full_ngboost/eda_train_overlap/tables/class_train_coverage.csv",
+    "cluster_coverage": "/home/nikolenko/work/Projects/FRIGID/repro_runs/20260616T203000Z_msg_paper_repro/msg_base_full_ngboost/eda_train_overlap/tables/cluster_train_coverage.csv",
+    "coverage_bin_summary": "/home/nikolenko/work/Projects/FRIGID/repro_runs/20260616T203000Z_msg_paper_repro/msg_base_full_ngboost/eda_train_overlap/tables/coverage_bin_summary.csv",
+    "case_examples": "/home/nikolenko/work/Projects/FRIGID/repro_runs/20260616T203000Z_msg_paper_repro/msg_base_full_ngboost/eda_train_overlap/tables/hard_cases_nearest_train.csv"
+  },
+  "charts": {
+    "class_train_coverage": "/home/nikolenko/work/Projects/FRIGID/repro_runs/20260616T203000Z_msg_paper_repro/msg_base_full_ngboost/eda_train_overlap/charts/class_train_coverage.png",
+    "nearest_train_similarity_distribution": "/home/nikolenko/work/Projects/FRIGID/repro_runs/20260616T203000Z_msg_paper_repro/msg_base_full_ngboost/eda_train_overlap/charts/nearest_train_similarity_distribution.png",
+    "nearest_train_vs_exact": "/home/nikolenko/work/Projects/FRIGID/repro_runs/20260616T203000Z_msg_paper_repro/msg_base_full_ngboost/eda_train_overlap/charts/nearest_train_vs_exact.png",
+    "cluster_train_coverage": "/home/nikolenko/work/Projects/FRIGID/repro_runs/20260616T203000Z_msg_paper_repro/msg_base_full_ngboost/eda_train_overlap/charts/cluster_train_coverage.png",
+    "coverage_bins": "/home/nikolenko/work/Projects/FRIGID/repro_runs/20260616T203000Z_msg_paper_repro/msg_base_full_ngboost/eda_train_overlap/charts/coverage_bins.png"
+  },
+  "report": "/home/nikolenko/work/Projects/FRIGID/repro_runs/20260616T203000Z_msg_paper_repro/msg_base_full_ngboost/eda_train_overlap/frigid_train_coverage_report.html"
+}

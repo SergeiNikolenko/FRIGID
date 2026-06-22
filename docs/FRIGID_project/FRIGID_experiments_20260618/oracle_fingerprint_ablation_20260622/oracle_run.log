@@ -1,0 +1,27 @@
+Loading token model from token_models/models/best_ngboost_MSG.joblib
+Detected NGBoost model - will use sigma-based sampling
+Loaded 14 features from token_models/models/best_ngboost_MSG_features.json
+Using device: cuda
+Requested spectra: 80
+
+Loading test split...
+Finding spectra files:   0%|          | 0/17556 [00:00<?, ?it/s]Finding spectra files:  18%|█▊        | 3103/17556 [00:00<00:00, 31024.19it/s]Finding spectra files:  35%|███▌      | 6211/17556 [00:00<00:00, 31055.46it/s]Finding spectra files:  53%|█████▎    | 9317/17556 [00:00<00:00, 30897.61it/s]Finding spectra files:  71%|███████   | 12495/17556 [00:00<00:00, 31242.45it/s]Finding spectra files:  89%|████████▉ | 15620/17556 [00:00<00:00, 30685.48it/s]                                                                               0it [00:00, ?it/s]17556it [00:00, 917126.89it/s]
+0it [00:00, ?it/s]712it [00:00, 7116.27it/s]1520it [00:00, 7680.34it/s]2362it [00:00, 8017.62it/s]3193it [00:00, 8132.62it/s]4007it [00:00, 7727.32it/s]4784it [00:00, 7429.77it/s]5531it [00:00, 7208.83it/s]6255it [00:01, 4462.03it/s]7199it [00:01, 5506.06it/s]8146it [00:01, 6419.38it/s]9036it [00:01, 7033.33it/s]9841it [00:01, 7179.36it/s]10631it [00:01, 7288.74it/s]11411it [00:01, 7308.46it/s]12178it [00:01, 7383.91it/s]12942it [00:01, 7147.73it/s]13676it [00:01, 6985.11it/s]14388it [00:02, 6953.70it/s]15093it [00:02, 6874.08it/s]15787it [00:02, 6799.31it/s]16486it [00:02, 6851.29it/s]17175it [00:02, 6661.78it/s]17556it [00:02, 6820.70it/s]
+0it [00:00, ?it/s]17556it [00:00, 4982758.22it/s]
+Loaded 17082 total spectra-molecule pairs
+Using 17082 samples from test split
+
+Loading DLM decoder from: repro_cache/DLM.ckpt
+Using SHARED cross-attention mode
+[load_model] Removed 120 fingerprint_conditioner.cross_attention_layers keys for shared mode
+[DLM] Loading checkpoint with missing buffers (safe to skip): {'token_atom_counts'}
+[Sampler] Warning: data/len.pk not found. Using default length range.
+✓ Fingerprint conditioning: ENABLED
+✓ Formula conditioning: ENABLED
+Cross-attention mode: SHARED
+[001/080] MassSpecGymID0209494 base_top10=0 oracle_top10=1 oracle_tan10=1.000 gen=100 matched=12 time=28.2s
+[002/080] MassSpecGymID0272605 base_top10=0 oracle_top10=0 oracle_tan10=0.626 gen=100 matched=0 time=91.4s
+[003/080] MassSpecGymID0333346 base_top10=0 oracle_top10=0 oracle_tan10=0.402 gen=64 matched=10 time=33.2s
+[004/080] MassSpecGymID0341761 base_top10=0 oracle_top10=0 oracle_tan10=0.644 gen=100 matched=2 time=72.7s
+[005/080] MassSpecGymID0347487 base_top10=0 oracle_top10=0 oracle_tan10=0.609 gen=100 matched=6 time=81.0s
+[006/080] MassSpecGymID0347534 base_top10=0 oracle_top10=0 oracle_tan10=0.551 gen=100 matched=7 time=75.1s

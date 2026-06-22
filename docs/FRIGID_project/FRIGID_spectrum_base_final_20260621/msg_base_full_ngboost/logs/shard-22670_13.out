@@ -1,0 +1,72 @@
+START 2026-06-18 08:16:35 job=22697 task=13 CVD=0
+0, NVIDIA A100-PCIE-40GB, 0 MiB, 0 %
+Loading token model from /home/nikolenko/work/Projects/FRIGID/token_models/models/best_ngboost_MSG.joblib
+Detected NGBoost model - will use sigma-based sampling
+Loaded 14 features from /home/nikolenko/work/Projects/FRIGID/token_models/models/best_ngboost_MSG_features.json
+Using device: cuda
+
+Loading test split...
+Loaded 476 total spectra-molecule pairs
+Using 476 samples from test split
+
+Loading MIST encoder from: repro_cache/mist_msg.pt
+✓ Loaded MIST encoder weights
+
+Loading DLM decoder from: repro_cache/DLM.ckpt
+Using SHARED cross-attention mode
+[load_model] Removed 120 fingerprint_conditioner.cross_attention_layers keys for shared mode
+[DLM] Loading checkpoint with missing buffers (safe to skip): {'token_atom_counts'}
+[Sampler] Warning: data/len.pk not found. Using default length range.
+✓ Fingerprint conditioning: ENABLED
+✓ Formula conditioning: ENABLED
+Cross-attention mode: SHARED
+
+======================================================================
+SPEC2MOL BENCHMARK
+======================================================================
+Total spectra: 476
+Formula matches required: 10
+Max attempts: 100
+Batch size: 16
+Temperature: 1.0
+Randomness: 10.0
+FP threshold: 0.187
+======================================================================
+
+
+Saved aggregate statistics to: /home/nikolenko/work/Projects/FRIGID/repro_runs/20260616T203000Z_msg_paper_repro/msg_base_full_ngboost/shard_outputs/shard_013/aggregate_statistics.json
+Saved detailed results to: /home/nikolenko/work/Projects/FRIGID/repro_runs/20260616T203000Z_msg_paper_repro/msg_base_full_ngboost/shard_outputs/shard_013/detailed_results.csv
+Saved predictions to: /home/nikolenko/work/Projects/FRIGID/repro_runs/20260616T203000Z_msg_paper_repro/msg_base_full_ngboost/shard_outputs/shard_013/predictions.csv
+
+======================================================================
+BENCHMARK SUMMARY
+======================================================================
+
+Total spectra: 476
+Time: 5163.6s
+Speed: 0.09 spectra/s
+
+--- Generation Timing ---
+Time in generation functions: 5093.1s
+Percentage of total time: 98.6%
+
+--- MIST Encoder Quality ---
+Mean Tanimoto (pred vs GT FP): 0.3993
+
+--- Core Metrics ---
+Exact Match Top-1: 6.51%
+Exact Match Top-10: 8.82%
+Tanimoto Top-1: 0.3411
+Tanimoto Top-10: 0.3720
+
+--- Formula Matching ---
+Success rate: 99.79%
+Never matched: 0.21%
+Avg actual formula matches: 9.8
+Avg predictions collected (incl. padding): 10.0
+Avg generations: 81.6
+Avg attempts per match (successful only): 11.8
+======================================================================
+
+Results saved to: /home/nikolenko/work/Projects/FRIGID/repro_runs/20260616T203000Z_msg_paper_repro/msg_base_full_ngboost/shard_outputs/shard_013/
+DONE 2026-06-18 09:43:00 task=13

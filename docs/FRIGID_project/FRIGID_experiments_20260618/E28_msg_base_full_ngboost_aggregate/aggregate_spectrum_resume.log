@@ -1,0 +1,16 @@
+{
+  "total_spectra": 17082,
+  "completed_shards": 36,
+  "token_model": "token_models/models/best_ngboost_MSG.joblib",
+  "exact_match_top1": 0.10970612340475354,
+  "exact_match_top10": 0.12393162393162394,
+  "tanimoto_top1_mean": 0.45983813707083776,
+  "tanimoto_top10_mean": 0.4842332552890789,
+  "mist_tanimoto_mean": 0.5406695362101962,
+  "avg_formula_matches": 7.6138040042149635,
+  "avg_predictions_collected": 9.999882917691137,
+  "avg_total_generated": 90.24247746165554,
+  "formula_match_success_rate": 0.9138859618311673,
+  "paper_target_msg_frigid_base_top1": 0.1609,
+  "paper_target_msg_frigid_base_top10": 0.1819
+}

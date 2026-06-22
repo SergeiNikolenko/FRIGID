@@ -1,0 +1,34 @@
+{
+  "candidate_formula_match_rate": 0.1431451612903226,
+  "candidate_rank_counts": {
+    "1": 1000,
+    "2": 893,
+    "3": 893,
+    "4": 892,
+    "5": 875,
+    "6": 875,
+    "7": 875,
+    "8": 875,
+    "9": 875,
+    "10": 875
+  },
+  "config": {
+    "fp_bits": 4096,
+    "fp_radius": 2,
+    "mask_policy": "mcs_lock_wrong_region_mask_v1",
+    "mcs_timeout_seconds": 2,
+    "oracle_type": "rdkit_mcs_v1",
+    "split": "val"
+  },
+  "detailed_results_csv": null,
+  "exact_match_rate": 0.0,
+  "mean_candidate_tanimoto_to_true": 0.1187786911563125,
+  "mean_target_coverage": 0.25875944707075954,
+  "output_jsonl": "repro_runs/oracle_refinement_big_clearml_20260622T160222Z/val_oracle_traces.jsonl",
+  "predictions_csv": "repro_runs/oracle_refinement_big_clearml_20260622T160222Z/val_candidate_predictions.csv",
+  "split_counts": {
+    "val": 8928
+  },
+  "total_spectra": 1000,
+  "total_traces": 8928
+}

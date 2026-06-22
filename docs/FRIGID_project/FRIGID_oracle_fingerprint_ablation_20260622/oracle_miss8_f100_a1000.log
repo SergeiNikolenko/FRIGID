@@ -1,0 +1,86 @@
+QUEUED_UTC 2026-06-22T14:04:24Z
+WAITING_FOR_PID 2621747
+WAIT_2026-06-22T14:04:24Z
+WAIT_2026-06-22T14:05:24Z
+WAIT_2026-06-22T14:06:24Z
+WAIT_2026-06-22T14:07:24Z
+WAIT_2026-06-22T14:08:24Z
+WAIT_2026-06-22T14:09:24Z
+WAIT_2026-06-22T14:10:24Z
+WAIT_2026-06-22T14:11:24Z
+WAIT_2026-06-22T14:12:24Z
+WAIT_2026-06-22T14:13:24Z
+WAIT_2026-06-22T14:14:25Z
+WAIT_2026-06-22T14:15:25Z
+WAIT_2026-06-22T14:16:25Z
+WAIT_2026-06-22T14:17:25Z
+WAIT_2026-06-22T14:18:25Z
+WAIT_2026-06-22T14:19:25Z
+WAIT_2026-06-22T14:20:25Z
+WAIT_2026-06-22T14:21:25Z
+START_UTC 2026-06-22T14:22:25Z
+Loading token model from /home/nikolenko/work/Projects/FRIGID/token_models/models/best_ngboost_MSG.joblib
+Detected NGBoost model - will use sigma-based sampling
+Loaded 14 features from /home/nikolenko/work/Projects/FRIGID/token_models/models/best_ngboost_MSG_features.json
+Using device: cuda
+Requested spectra: 8
+
+Loading test split...
+Finding spectra files:   0%|          | 0/17556 [00:00<?, ?it/s]Finding spectra files:  11%|█         | 1960/17556 [00:00<00:00, 19598.94it/s]Finding spectra files:  23%|██▎       | 3991/17556 [00:00<00:00, 20011.80it/s]Finding spectra files:  34%|███▍      | 6034/17556 [00:00<00:00, 20199.00it/s]Finding spectra files:  46%|████▌     | 8084/17556 [00:00<00:00, 20316.80it/s]Finding spectra files:  58%|█████▊    | 10119/17556 [00:00<00:00, 20328.64it/s]Finding spectra files:  69%|██████▉   | 12183/17556 [00:00<00:00, 20432.04it/s]Finding spectra files:  81%|████████▏ | 14276/17556 [00:00<00:00, 20592.64it/s]Finding spectra files:  93%|█████████▎| 16354/17556 [00:00<00:00, 20651.70it/s]                                                                               0it [00:00, ?it/s]17556it [00:00, 1018876.19it/s]
+0it [00:00, ?it/s]665it [00:00, 6646.22it/s]1470it [00:00, 7466.70it/s]2304it [00:00, 7862.51it/s]3091it [00:00, 4020.17it/s]3796it [00:00, 4696.64it/s]4492it [00:00, 5243.68it/s]5190it [00:00, 5689.56it/s]5852it [00:01, 5858.91it/s]6695it [00:01, 6562.66it/s]7640it [00:01, 7374.40it/s]8532it [00:01, 7816.32it/s]9349it [00:01, 7816.18it/s]10155it [00:01, 7679.33it/s]10940it [00:01, 7628.83it/s]11715it [00:01, 7494.36it/s]12473it [00:01, 7348.87it/s]13214it [00:01, 7035.35it/s]13924it [00:02, 6785.89it/s]14608it [00:02, 6754.50it/s]15287it [00:02, 6642.34it/s]15984it [00:02, 6734.11it/s]16660it [00:02, 6670.26it/s]17329it [00:02, 6486.20it/s]17556it [00:02, 6571.14it/s]
+0it [00:00, ?it/s]17556it [00:00, 5029726.85it/s]
+Loaded 17082 total spectra-molecule pairs
+Using 17082 samples from test split
+
+Loading DLM decoder from: /home/nikolenko/work/Projects/FRIGID/repro_runs/oracle_fingerprint_ablation_20260622/DLM.local_hf_cache.ckpt
+Using SHARED cross-attention mode
+[load_model] Removed 120 fingerprint_conditioner.cross_attention_layers keys for shared mode
+[DLM] Loading checkpoint with missing buffers (safe to skip): {'token_atom_counts'}
+[Sampler] Warning: data/len.pk not found. Using default length range.
+✓ Fingerprint conditioning: ENABLED
+✓ Formula conditioning: ENABLED
+Cross-attention mode: SHARED
+[001/008] MassSpecGymID0372970 base_top10=0 oracle_top10=0 oracle_top100=0 oracle_tan10=0.671 rank=None gen=1000 matched=81 time=260.6s
+[002/008] MassSpecGymID0341761 base_top10=0 oracle_top10=0 oracle_top100=0 oracle_tan10=0.648 rank=None gen=1000 matched=29 time=325.4s
+[003/008] MassSpecGymID0347534 base_top10=0 oracle_top10=0 oracle_top100=0 oracle_tan10=0.609 rank=None gen=1000 matched=69 time=334.3s
+[004/008] MassSpecGymID0380322 base_top10=0 oracle_top10=0 oracle_top100=0 oracle_tan10=0.707 rank=None gen=1000 matched=29 time=289.8s
+[005/008] MassSpecGymID0105109 base_top10=0 oracle_top10=0 oracle_top100=0 oracle_tan10=0.697 rank=None gen=1000 matched=23 time=393.7s
+[006/008] MassSpecGymID0152325 base_top10=0 oracle_top10=0 oracle_top100=0 oracle_tan10=0.940 rank=None gen=1000 matched=43 time=441.1s
+[007/008] MassSpecGymID0162714 base_top10=0 oracle_top10=0 oracle_top100=0 oracle_tan10=0.505 rank=None gen=515 matched=100 time=124.6s
+[008/008] MassSpecGymID0185133 base_top10=0 oracle_top10=0 oracle_top100=0 oracle_tan10=0.922 rank=None gen=1000 matched=25 time=513.1s
+{
+  "total_spectra": 8,
+  "elapsed_time_seconds": 2689.231802225113,
+  "spectra_per_second": 0.0029748272325876386,
+  "exact_match_top1": 0.0,
+  "exact_match_top10": 0.0,
+  "tanimoto_top1_mean": 0.7122896462678909,
+  "tanimoto_top10_mean": 0.7122896462678909,
+  "mist_tanimoto_mean": 1.0,
+  "avg_formula_matches": 49.875,
+  "avg_predictions_collected": 100.0,
+  "avg_total_generated": 939.375,
+  "formula_match_success_rate": 1.0,
+  "avg_attempts_to_match": 25.961003087495875,
+  "never_matched_rate": 0.0,
+  "total_generation_time": 2682.6366856098175,
+  "generation_time_percentage": 99.7547583436341,
+  "total_elapsed_time_seconds": 2689.231802225113,
+  "proposal_source_counts": [
+    [
+      "oracle_formula",
+      8
+    ]
+  ],
+  "fingerprint_source": "oracle_ground_truth",
+  "sample_csv": "/home/nikolenko/work/Projects/FRIGID/repro_runs/oracle_fingerprint_ablation_20260622/oracle_miss8_after_max500_sample.csv",
+  "baseline_exact_match_top1": 0.0,
+  "baseline_exact_match_top10": 0.0,
+  "baseline_tanimoto_top1_mean": 0.31310227792710066,
+  "baseline_tanimoto_top10_mean": 0.34087033197283745,
+  "baseline_mist_tanimoto_mean": 0.4652312519028783,
+  "exact_match_top100": 0.0,
+  "tanimoto_top100_mean": 0.7122896462678909,
+  "avg_exact_rank_for_hits": null
+}
+DONE_UTC 2026-06-22T15:07:40Z
