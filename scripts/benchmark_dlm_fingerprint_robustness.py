@@ -77,6 +77,12 @@ def parse_args():
     parser.add_argument('--token-model', type=str, default=None)
     parser.add_argument('--sigma-lambda', type=float, default=3.0)
     parser.add_argument(
+        '--partial-save-every',
+        type=int,
+        default=100,
+        help='Write partial CSV/JSON outputs every N processed spectra. Use 0 to disable.',
+    )
+    parser.add_argument(
         '--fingerprint-sources',
         nargs='+',
         default=['ground_truth', 'mist_binary'],
@@ -96,6 +102,35 @@ def fingerprint_error_stats(target_fp: np.ndarray, mist_binary: np.ndarray, mist
         'mist_false_positive_bits': int(np.sum(false_positive)),
         'mist_false_negative_bits': int(np.sum(false_negative)),
     }
+
+
+def compute_aggregate(
+    results: List[Dict[str, Any]],
+    fingerprint_sources: List[str],
+    elapsed: float,
+) -> Dict[str, Any]:
+    aggregate = {}
+    for source in fingerprint_sources:
+        source_results = [r for r in results if r['fingerprint_source'] == source]
+        aggregate[source] = compute_aggregate_statistics(source_results, elapsed)
+        aggregate[source]['total_generation_time'] = float(sum(r.get('generation_time', 0.0) for r in source_results))
+
+    if 'ground_truth' in aggregate and 'mist_binary' in aggregate:
+        gt = aggregate['ground_truth']
+        mist = aggregate['mist_binary']
+        aggregate['mist_binary_vs_ground_truth_delta'] = {
+            key: float(mist.get(key, 0.0) - gt.get(key, 0.0))
+            for key in ('exact_match_top1', 'exact_match_top10', 'tanimoto_top1_mean', 'tanimoto_top10_mean')
+        }
+
+    return aggregate
+
+
+def write_json(path: str, payload: Dict[str, Any]):
+    tmp_path = f'{path}.tmp'
+    with open(tmp_path, 'w') as f:
+        json.dump(payload, f, indent=2)
+    os.replace(tmp_path, path)
 
 
 def build_predictions(
@@ -215,6 +250,8 @@ def run_paired_benchmark(
     token_features=None,
     is_ngboost: bool = False,
     sigma_lambda: float = 3.0,
+    output_dir: Optional[str] = None,
+    partial_save_every: int = 100,
 ) -> Tuple[Dict[str, Any], List[Dict[str, Any]], List[Dict[str, Any]]]:
     fp_cfg = config['fingerprint']
     fp_bits = fp_cfg['bits']
@@ -278,28 +315,41 @@ def run_paired_benchmark(
             result.update(fp_stats)
             results.append(result)
 
-    elapsed = time.time() - start_time
-    aggregate = {}
-    for source in fingerprint_sources:
-        source_results = [r for r in results if r['fingerprint_source'] == source]
-        aggregate[source] = compute_aggregate_statistics(source_results, elapsed)
-        aggregate[source]['total_generation_time'] = float(sum(r.get('generation_time', 0.0) for r in source_results))
+        processed = idx + 1
+        if output_dir and partial_save_every > 0 and processed % partial_save_every == 0:
+            elapsed = time.time() - start_time
+            partial_aggregate = compute_aggregate(results, fingerprint_sources, elapsed)
+            save_outputs(
+                output_dir,
+                partial_aggregate,
+                results,
+                fp_drift_rows,
+                config,
+                run_state={
+                    'completed': False,
+                    'processed_spectra': processed,
+                    'total_spectra': num_to_process,
+                    'elapsed_time_seconds': elapsed,
+                },
+            )
+            print(f"\nPartial results saved after {processed}/{num_to_process} spectra to: {output_dir}/")
 
-    if 'ground_truth' in aggregate and 'mist_binary' in aggregate:
-        gt = aggregate['ground_truth']
-        mist = aggregate['mist_binary']
-        aggregate['mist_binary_vs_ground_truth_delta'] = {
-            key: float(mist.get(key, 0.0) - gt.get(key, 0.0))
-            for key in ('exact_match_top1', 'exact_match_top10', 'tanimoto_top1_mean', 'tanimoto_top10_mean')
-        }
+    elapsed = time.time() - start_time
+    aggregate = compute_aggregate(results, fingerprint_sources, elapsed)
 
     return aggregate, results, fp_drift_rows
 
 
-def save_outputs(output_dir: str, aggregate: Dict[str, Any], results: List[Dict[str, Any]], fp_drift_rows: List[Dict[str, Any]], config: dict):
+def save_outputs(
+    output_dir: str,
+    aggregate: Dict[str, Any],
+    results: List[Dict[str, Any]],
+    fp_drift_rows: List[Dict[str, Any]],
+    config: dict,
+    run_state: Optional[Dict[str, Any]] = None,
+):
     os.makedirs(output_dir, exist_ok=True)
-    with open(os.path.join(output_dir, 'aggregate_statistics.json'), 'w') as f:
-        json.dump(aggregate, f, indent=2)
+    write_json(os.path.join(output_dir, 'aggregate_statistics.json'), aggregate)
 
     save_rows = []
     for row in results:
@@ -335,8 +385,9 @@ def save_outputs(output_dir: str, aggregate: Dict[str, Any], results: List[Dict[
         )
     paired.reset_index().to_csv(os.path.join(output_dir, 'paired_comparison.csv'), index=False)
 
-    with open(os.path.join(output_dir, 'config.json'), 'w') as f:
-        json.dump(config, f, indent=2)
+    write_json(os.path.join(output_dir, 'config.json'), config)
+    if run_state is not None:
+        write_json(os.path.join(output_dir, 'run_state.json'), run_state)
 
 
 def print_summary(aggregate: Dict[str, Any]):
@@ -399,9 +450,26 @@ def main():
         token_features=token_features,
         is_ngboost=is_ngboost,
         sigma_lambda=args.sigma_lambda,
+        output_dir=config['output']['results_dir'],
+        partial_save_every=args.partial_save_every,
     )
 
-    save_outputs(config['output']['results_dir'], aggregate, results, fp_drift_rows, config)
+    save_outputs(
+        config['output']['results_dir'],
+        aggregate,
+        results,
+        fp_drift_rows,
+        config,
+        run_state={
+            'completed': True,
+            'processed_spectra': len(fp_drift_rows),
+            'total_spectra': len(fp_drift_rows),
+            'elapsed_time_seconds': max(
+                aggregate.get(source, {}).get('elapsed_time_seconds', 0.0)
+                for source in args.fingerprint_sources
+            ),
+        },
+    )
     print_summary(aggregate)
     print(f"\nResults saved to: {config['output']['results_dir']}/")
     return 0

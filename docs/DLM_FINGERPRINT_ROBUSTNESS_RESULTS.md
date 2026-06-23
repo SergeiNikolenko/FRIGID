@@ -103,7 +103,9 @@ Stopped-run directory:
 
 The run processed approximately 1,377 / 17,082 spectra, about 8% of the split.
 No final aggregate JSON or CSV was produced because the current benchmark writes
-its output at normal completion.
+its output at normal completion. The benchmark now writes partial outputs every
+`--partial-save-every` spectra so future interrupted full runs retain usable
+partial metrics.
 
 ## Interpretation
 
@@ -126,7 +128,9 @@ distribution brittleness rather than only MIST recall or downstream ranking.
 ## Recommended Next Steps
 
 1. Add periodic partial writes or resume support to the robustness benchmark
-   before rerunning the full 17k-spectrum split.
+   before rerunning the full 17k-spectrum split. Partial writes are now enabled
+   by default through `--partial-save-every 100`; resume support is still a
+   possible follow-up.
 2. Run an intermediate 1,024- or 2,048-spectrum subset with the same paired
    setup to confirm that the 64-spectrum effect is stable.
 3. Export train-split MIST fingerprints and fine-tune DLM with

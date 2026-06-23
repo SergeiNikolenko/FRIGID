@@ -89,6 +89,7 @@ python scripts/benchmark_dlm_fingerprint_robustness.py \
   --formula-matches 10 \
   --max-attempts 100 \
   --batch-size 16 \
+  --partial-save-every 100 \
   --fingerprint-sources ground_truth mist_binary \
   --max-spectra 64 \
   --output-dir runs/msg_dlm_fp_robustness_smoke
@@ -103,6 +104,10 @@ Outputs:
 - `fingerprint_drift.csv`: MIST-vs-ground-truth FP error summary.
 - `predictions_ground_truth.csv` and `predictions_mist_binary.csv`: compatible
   with the existing `multi_compute.py`/`compute_metrics.py` analysis format.
+- `run_state.json`: completion state and progress. During long runs,
+  `aggregate_statistics.json`, CSV outputs, and `run_state.json` are refreshed
+  every `--partial-save-every` spectra so interrupted runs still leave usable
+  partial metrics.
 
 Use a small subset for smoke tests, then rerun on the full split remotely. A
 large gap between `ground_truth` and `mist_binary` indicates decoder brittleness
