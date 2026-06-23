@@ -4,6 +4,10 @@ This document describes the stable project-facing FRIGID entrypoints. Research
 orchestration systems should call these commands instead of reaching into
 benchmark internals directly.
 
+For benchmark policy, quality gates, comparison rules, and baseline summaries,
+see `docs/FRIGID_BENCHMARK_SYSTEM.md`. For the current architecture and weak
+point audit, see `docs/FRIGID_TECHNICAL_AUDIT.md`.
+
 ## Entry Points
 
 FRIGID exposes three intended surfaces:

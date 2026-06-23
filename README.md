@@ -129,6 +129,8 @@ frigid/
 │
 ├── docs/                               # Operational docs and project artifact handoff
 │   ├── FRIGID_OPERATIONAL_USAGE.md     # Stable CLI, inputs, outputs, and run layout
+│   ├── FRIGID_TECHNICAL_AUDIT.md       # Current architecture, bottlenecks, and limitations
+│   ├── FRIGID_BENCHMARK_SYSTEM.md      # Benchmark tiers, metrics, gates, and comparisons
 │   ├── agent.md                        # Agent-facing artifact package guide
 │   └── FRIGID_project/                 # Consolidated project reports and copied artifacts
 │

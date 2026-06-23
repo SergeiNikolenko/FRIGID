@@ -10,6 +10,9 @@ Key entry points:
 
 - [Project report](./FRIGID_project/FRIGID_project_report_20260622/project_report.md): narrative summary of the recent FRIGID work across benchmark reproduction, MIST diagnostics, oracle fingerprint ablations, ICEBERG refinement, ClearML training, and QA blockers.
 - [Artifact manifest](./FRIGID_project/FRIGID_project_report_20260622/artifact_manifest.csv): structured index of local artifacts, remote run paths, key files, status, and conclusions.
+- [Technical audit](./FRIGID_TECHNICAL_AUDIT.md): architecture, bottlenecks, weak points, component impact, and recommendations.
+- [Benchmark system](./FRIGID_BENCHMARK_SYSTEM.md): benchmark tiers, metric definitions, quality gates, comparison rules, and baseline summary generation.
+- [Benchmark baselines](./FRIGID_project/FRIGID_project_report_20260622/benchmark_baselines.json): machine-readable baseline summary generated from completed benchmark artifacts.
 - [Interactive EDA report](./FRIGID_project/FRIGID_spectrum_base_final_20260621/eda_chemical_full/frigid_chemical_eda_report.html): local Plotly report for the MSG benchmark chemistry/QA analysis.
 - [Reproduction QA sources](./FRIGID_project/FRIGID_spectrum_base_final_20260621/reproduction_qa_sources/): CSV/JSON evidence for missing rows, broken symlinks, denominator changes, and output-schema issues.
 

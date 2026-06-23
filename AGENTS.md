@@ -6,8 +6,11 @@ Start here:
 
 - `docs/agent.md`: agent-facing handoff for the consolidated FRIGID project artifact package.
 - `docs/FRIGID_OPERATIONAL_USAGE.md`: stable CLI entry points, required inputs, expected outputs, and run artifact layout.
+- `docs/FRIGID_TECHNICAL_AUDIT.md`: architecture, component limitations, bottlenecks, baseline conclusions, and improvement priorities.
+- `docs/FRIGID_BENCHMARK_SYSTEM.md`: benchmark tiers, required artifacts, metric definitions, quality gates, and comparison protocol.
 - `docs/FRIGID_project/FRIGID_project_report_20260622/project_report.md`: narrative report covering recent reproduction, MIST diagnostics, oracle fingerprint ablations, ICEBERG refinement, ClearML training, and QA blockers.
 - `docs/FRIGID_project/FRIGID_project_report_20260622/artifact_manifest.csv`: structured artifact index with local repository paths, remote run paths, key files, status, and conclusions.
+- `docs/FRIGID_project/FRIGID_project_report_20260622/benchmark_baselines.json`: machine-readable baseline summary generated from completed benchmark artifacts.
 
 Repository-specific rules:
 
