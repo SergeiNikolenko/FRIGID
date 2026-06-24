@@ -125,6 +125,74 @@ MIST-predicted fingerprints a plausible next experiment. If adaptation reduces
 the `ground_truth` vs `mist_binary` gap, the bottleneck is at least partly DLM
 distribution brittleness rather than only MIST recall or downstream ranking.
 
+## 5-Hour Spectrum Partial Run
+
+A larger partial run was executed on `spectrum` with a 5-hour timeout and
+partial saves every 25 spectra.
+
+Output directory:
+
+```text
+/home/nikolenko/work/Projects/FRIGID_dlm_fp_robustness_2a3c00e/runs/dlm_fp_robustness_5h_spectrum_20260623T230432Z
+```
+
+The run stopped by timeout after saving 1,400 / 17,082 spectra. This run is
+partial, but it is large enough to make the MIST-to-DLM mismatch signal much
+clearer than the initial 64-spectrum diagnostic.
+
+Aggregate results:
+
+| Metric | `ground_truth` | `mist_binary` | Delta |
+| --- | ---: | ---: | ---: |
+| Spectra | 1,400 | 1,400 | 0 |
+| Exact match top-1 | 0.4879 | 0.1386 | -0.3493 |
+| Exact match top-10 | 0.4921 | 0.1400 | -0.3521 |
+| Tanimoto top-1 mean | 0.8130 | 0.5677 | -0.2453 |
+| Tanimoto top-10 mean | 0.8130 | 0.5723 | -0.2407 |
+| Formula-match success rate | 0.7643 | 0.6936 | -0.0707 |
+
+Paired sensitivity:
+
+| Statistic | Value |
+| --- | ---: |
+| Worse cases for `mist_binary` | 1,024 / 1,400 |
+| Equal cases | 174 / 1,400 |
+| Better cases for `mist_binary` | 202 / 1,400 |
+| Mean paired top-1 Tanimoto delta | -0.2453 |
+| Median paired top-1 Tanimoto delta | -0.1694 |
+| Mean MIST-vs-ground-truth fingerprint Tanimoto | 0.7162 |
+| Median MIST-vs-ground-truth fingerprint Tanimoto | 0.7882 |
+| Correlation: MIST fingerprint Tanimoto vs quality delta | +0.7948 |
+| Correlation: false-negative bits vs quality delta | -0.7381 |
+| Correlation: false-positive bits vs quality delta | -0.5945 |
+
+## Main Problem Statement
+
+The current evidence points to the MIST-to-DLM fingerprint interface as a major
+FRIGID bottleneck.
+
+DLM can decode substantially better when it receives a clean target-derived
+Morgan fingerprint. When the same decoder receives the binary fingerprint
+predicted by MIST for the same spectrum, generation quality drops sharply. The
+drop is paired, reproducible across a larger partial run, and strongly related
+to MIST fingerprint errors.
+
+This means that changing DLM sampling parameters, formula-filter thresholds, or
+ranking alone is unlikely to solve the main failure mode. The system needs one
+of the following:
+
+- better MIST fingerprint prediction;
+- DLM adaptation/fine-tuning on the fingerprint distribution that MIST actually
+  emits;
+- an interface objective that makes MIST fingerprints more decoder-compatible,
+  not just independently fingerprint-like.
+
+The fastest next experiment is DLM adaptation on exported MIST fingerprints
+without changing the MIST checkpoint. If this reduces the `ground_truth` vs
+`mist_binary` gap, the bottleneck is confirmed as decoder brittleness to MIST's
+fingerprint distribution. If it does not, MIST is likely losing too much
+structure-relevant information and needs to be improved directly.
+
 ## Recommended Next Steps
 
 1. Add periodic partial writes or resume support to the robustness benchmark
