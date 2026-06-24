@@ -180,7 +180,12 @@ class Collator:
             fingerprint_tensors = []
             fingerprint_masks = []
             for i, smiles in enumerate(smiles_cache):
-                fingerprint_tensor, success_flag = self._safe_to_fingerprint(smiles)
+                provided_fp = examples[i].get('fingerprint')
+                if provided_fp is not None:
+                    fingerprint_tensor = torch.as_tensor(provided_fp, dtype=torch.float32)
+                    success_flag = 1.0
+                else:
+                    fingerprint_tensor, success_flag = self._safe_to_fingerprint(smiles)
                 fingerprint_tensors.append(fingerprint_tensor)
                 # Apply exclusion mask: if sample is excluded, set mask to 0
                 if exclude_mask is not None and exclude_mask[i] == 0.0:
@@ -236,9 +241,81 @@ class UserDataset(datasets.Dataset):
 
     def __getitem__(self, indices):
         return {'input': self.safe_list[i] for i in indices}
+
+
+class PredictedFingerprintDataset(torch.utils.data.Dataset):
+    """SAFE dataset backed by precomputed MIST fingerprints."""
+
+    def __init__(
+        self,
+        metadata_path,
+        fingerprint_npz_path,
+        fingerprint_key='fingerprints',
+        split=None,
+    ):
+        metadata = pd.read_csv(metadata_path)
+        if split is not None and 'split' in metadata.columns:
+            metadata = metadata[metadata['split'] == split].reset_index(drop=True)
+        if 'input' not in metadata.columns:
+            if 'safe' in metadata.columns:
+                metadata['input'] = metadata['safe']
+            elif 'smiles' in metadata.columns:
+                metadata['input'] = metadata['smiles'].map(smiles_to_safe)
+            else:
+                raise ValueError("Predicted fingerprint metadata must contain input, safe, or smiles")
+
+        arrays = np.load(fingerprint_npz_path)
+        if fingerprint_key not in arrays:
+            raise ValueError(
+                f"Fingerprint key {fingerprint_key!r} not found in {fingerprint_npz_path}; "
+                f"available keys: {sorted(arrays.files)}"
+            )
+
+        self.metadata = metadata
+        self.fingerprints = arrays[fingerprint_key]
+        self.fingerprint_indices = (
+            metadata['fingerprint_index'].astype(int).to_numpy()
+            if 'fingerprint_index' in metadata.columns
+            else np.arange(len(metadata), dtype=int)
+        )
+
+        if len(self.fingerprint_indices) != len(self.metadata):
+            raise ValueError("Metadata and fingerprint index lengths do not match")
+
+    def __len__(self):
+        return len(self.metadata)
+
+    def __getitem__(self, idx):
+        row = self.metadata.iloc[idx]
+        fp_idx = self.fingerprint_indices[idx]
+        return {
+            'input': row['input'],
+            'fingerprint': self.fingerprints[fp_idx],
+        }
     
 
 def get_dataloader(config):
+    predicted_fingerprint_npz = config.data.get('predicted_fingerprint_npz', None)
+    if predicted_fingerprint_npz:
+        dataset = PredictedFingerprintDataset(
+            metadata_path=config.data.predicted_fingerprint_metadata,
+            fingerprint_npz_path=predicted_fingerprint_npz,
+            fingerprint_key=config.data.get('predicted_fingerprint_key', 'fingerprints'),
+            split=config.data.get('split', None),
+        )
+        num_workers = config.loader.num_workers
+        persistent_workers = config.loader.get('persistent_workers', True)
+        if num_workers == 0:
+            persistent_workers = False
+        return torch.utils.data.DataLoader(
+            dataset,
+            batch_size=config.loader.batch_size,
+            collate_fn=Collator(config),
+            num_workers=num_workers,
+            pin_memory=config.loader.pin_memory,
+            shuffle=True,
+            persistent_workers=persistent_workers)
+
     if config.data.use_safe_hf:
         if config.data.hf_cache_dir is not None:
             print("Using HF cache dir:", config.data.hf_cache_dir)
@@ -303,4 +380,3 @@ def get_dataloader(config):
         pin_memory=config.loader.pin_memory,
         shuffle=True,
         persistent_workers=True)
-
