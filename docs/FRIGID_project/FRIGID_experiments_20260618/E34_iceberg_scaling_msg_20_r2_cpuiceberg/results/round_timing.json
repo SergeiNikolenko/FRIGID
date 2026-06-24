@@ -1,0 +1,22 @@
+{
+  "num_samples": 20,
+  "rounds": {
+    "round_1": {
+      "round_time_seconds": 455.01047134399414,
+      "cumulative_time_seconds": 455.01047134399414,
+      "time_per_sample_seconds": 22.750523567199707,
+      "round_times_all": [
+        455.01047134399414
+      ]
+    },
+    "round_2": {
+      "round_time_seconds": 318.1887540817261,
+      "cumulative_time_seconds": 773.1992254257202,
+      "time_per_sample_seconds": 38.65996127128601,
+      "round_times_all": [
+        455.01047134399414,
+        318.1887540817261
+      ]
+    }
+  }
+}

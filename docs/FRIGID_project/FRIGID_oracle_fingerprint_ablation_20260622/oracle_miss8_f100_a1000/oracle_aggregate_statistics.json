@@ -1,0 +1,35 @@
+{
+  "total_spectra": 8,
+  "elapsed_time_seconds": 2689.231802225113,
+  "spectra_per_second": 0.0029748272325876386,
+  "exact_match_top1": 0.0,
+  "exact_match_top10": 0.0,
+  "tanimoto_top1_mean": 0.7122896462678909,
+  "tanimoto_top10_mean": 0.7122896462678909,
+  "mist_tanimoto_mean": 1.0,
+  "avg_formula_matches": 49.875,
+  "avg_predictions_collected": 100.0,
+  "avg_total_generated": 939.375,
+  "formula_match_success_rate": 1.0,
+  "avg_attempts_to_match": 25.961003087495875,
+  "never_matched_rate": 0.0,
+  "total_generation_time": 2682.6366856098175,
+  "generation_time_percentage": 99.7547583436341,
+  "total_elapsed_time_seconds": 2689.231802225113,
+  "proposal_source_counts": [
+    [
+      "oracle_formula",
+      8
+    ]
+  ],
+  "fingerprint_source": "oracle_ground_truth",
+  "sample_csv": "/home/nikolenko/work/Projects/FRIGID/repro_runs/oracle_fingerprint_ablation_20260622/oracle_miss8_after_max500_sample.csv",
+  "baseline_exact_match_top1": 0.0,
+  "baseline_exact_match_top10": 0.0,
+  "baseline_tanimoto_top1_mean": 0.31310227792710066,
+  "baseline_tanimoto_top10_mean": 0.34087033197283745,
+  "baseline_mist_tanimoto_mean": 0.4652312519028783,
+  "exact_match_top100": 0.0,
+  "tanimoto_top100_mean": 0.7122896462678909,
+  "avg_exact_rank_for_hits": null
+}

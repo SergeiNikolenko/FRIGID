@@ -1,0 +1,32 @@
+{
+  "total_spectra": 20,
+  "elapsed_time_seconds": 572.6372663974762,
+  "spectra_per_second": 0.03492612369750609,
+  "exact_match_top1": 0.45,
+  "exact_match_top10": 0.45,
+  "tanimoto_top1_mean": 0.8470865681767463,
+  "tanimoto_top10_mean": 0.8470865681767463,
+  "mist_tanimoto_mean": 0.0,
+  "avg_formula_matches": 11.5,
+  "avg_predictions_collected": 10.0,
+  "avg_total_generated": 96.9,
+  "formula_match_success_rate": 1.0,
+  "avg_attempts_to_match": 24.916049955791337,
+  "never_matched_rate": 0.0,
+  "total_generation_time": 569.4492723941803,
+  "generation_time_percentage": 99.4432786354699,
+  "total_elapsed_time_seconds": 572.6372663974762,
+  "proposal_source_counts": [
+    [
+      "oracle_formula",
+      20
+    ]
+  ],
+  "fingerprint_source": "oracle_ground_truth",
+  "sample_csv": "/home/nikolenko/work/Projects/FRIGID/repro_runs/oracle_fingerprint_ablation_20260622/oracle_ablation_sample20.csv",
+  "baseline_exact_match_top1": 0.15,
+  "baseline_exact_match_top10": 0.15,
+  "baseline_tanimoto_top1_mean": 0.4405841339379549,
+  "baseline_tanimoto_top10_mean": 0.4686487790197134,
+  "baseline_mist_tanimoto_mean": 0.502012613043189
+}

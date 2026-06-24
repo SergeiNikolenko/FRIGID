@@ -1,0 +1,194 @@
+{
+  "attempt_summary": [
+    {
+      "attempt": "a15_r10_t1",
+      "max_unique_candidates": 20,
+      "mean_best_candidate_tanimoto_morgan2048": 0.778347159141645,
+      "mean_reported_tanimoto_top10": 0.7776374898173593,
+      "mean_unique_candidates": 20,
+      "min_unique_candidates": 20,
+      "reported_exact_hit_count": 3,
+      "spectra": 11,
+      "strict_canonical_smiles_hit_count": 2
+    },
+    {
+      "attempt": "a17_r2_t1",
+      "max_unique_candidates": 20,
+      "mean_best_candidate_tanimoto_morgan2048": 0.7261635724183283,
+      "mean_reported_tanimoto_top10": 0.7277144690354665,
+      "mean_unique_candidates": 20,
+      "min_unique_candidates": 20,
+      "reported_exact_hit_count": 1,
+      "spectra": 6,
+      "strict_canonical_smiles_hit_count": 0
+    },
+    {
+      "attempt": "a18_r4_t1",
+      "max_unique_candidates": 20,
+      "mean_best_candidate_tanimoto_morgan2048": 0.7520100285012219,
+      "mean_reported_tanimoto_top10": 0.7489394346872965,
+      "mean_unique_candidates": 20,
+      "min_unique_candidates": 20,
+      "reported_exact_hit_count": 1,
+      "spectra": 6,
+      "strict_canonical_smiles_hit_count": 0
+    },
+    {
+      "attempt": "a19_r6_t1",
+      "max_unique_candidates": 20,
+      "mean_best_candidate_tanimoto_morgan2048": 0.6974585579365483,
+      "mean_reported_tanimoto_top10": 0.6995926002661387,
+      "mean_unique_candidates": 20,
+      "min_unique_candidates": 20,
+      "reported_exact_hit_count": 0,
+      "spectra": 6,
+      "strict_canonical_smiles_hit_count": 0
+    },
+    {
+      "attempt": "a20_r4_t08",
+      "max_unique_candidates": 20,
+      "mean_best_candidate_tanimoto_morgan2048": 0.7341563382979543,
+      "mean_reported_tanimoto_top10": 0.7367713550726572,
+      "mean_unique_candidates": 20,
+      "min_unique_candidates": 20,
+      "reported_exact_hit_count": 0,
+      "spectra": 6,
+      "strict_canonical_smiles_hit_count": 0
+    }
+  ],
+  "pairwise_overlap": [
+    {
+      "left": "a15_r10_t1",
+      "mean_jaccard_candidate_overlap": 0.0,
+      "mean_shared_candidate_count": 0,
+      "right": "a17_r2_t1",
+      "spectra_compared": 6
+    },
+    {
+      "left": "a15_r10_t1",
+      "mean_jaccard_candidate_overlap": 0.0,
+      "mean_shared_candidate_count": 0,
+      "right": "a18_r4_t1",
+      "spectra_compared": 6
+    },
+    {
+      "left": "a15_r10_t1",
+      "mean_jaccard_candidate_overlap": 0.0,
+      "mean_shared_candidate_count": 0,
+      "right": "a19_r6_t1",
+      "spectra_compared": 6
+    },
+    {
+      "left": "a15_r10_t1",
+      "mean_jaccard_candidate_overlap": 0.0,
+      "mean_shared_candidate_count": 0,
+      "right": "a20_r4_t08",
+      "spectra_compared": 6
+    },
+    {
+      "left": "a17_r2_t1",
+      "mean_jaccard_candidate_overlap": 0.0,
+      "mean_shared_candidate_count": 0,
+      "right": "a18_r4_t1",
+      "spectra_compared": 6
+    },
+    {
+      "left": "a17_r2_t1",
+      "mean_jaccard_candidate_overlap": 0.0,
+      "mean_shared_candidate_count": 0,
+      "right": "a19_r6_t1",
+      "spectra_compared": 6
+    },
+    {
+      "left": "a17_r2_t1",
+      "mean_jaccard_candidate_overlap": 0.0,
+      "mean_shared_candidate_count": 0,
+      "right": "a20_r4_t08",
+      "spectra_compared": 6
+    },
+    {
+      "left": "a18_r4_t1",
+      "mean_jaccard_candidate_overlap": 0.02655894761157919,
+      "mean_shared_candidate_count": 1,
+      "right": "a19_r6_t1",
+      "spectra_compared": 6
+    },
+    {
+      "left": "a18_r4_t1",
+      "mean_jaccard_candidate_overlap": 0.004273504273504273,
+      "mean_shared_candidate_count": 0.16666666666666666,
+      "right": "a20_r4_t08",
+      "spectra_compared": 6
+    },
+    {
+      "left": "a19_r6_t1",
+      "mean_jaccard_candidate_overlap": 0.0,
+      "mean_shared_candidate_count": 0,
+      "right": "a20_r4_t08",
+      "spectra_compared": 6
+    }
+  ],
+  "rdkit_available": true,
+  "union_oracle_by_case": [
+    {
+      "attempts_with_exact_hit": "",
+      "best_attempt_by_reported_tanimoto": "a18_r4_t1",
+      "best_reported_tanimoto_across_attempts": 0.7142857313156128,
+      "spec_name": "MassSpecGymID0105109",
+      "union_best_tanimoto_morgan2048": 0.7191011235955056,
+      "union_reported_exact_hit": 0,
+      "union_strict_canonical_smiles_hit": 0,
+      "union_unique_candidates": 100
+    },
+    {
+      "attempts_with_exact_hit": "a17_r2_t1;a18_r4_t1",
+      "best_attempt_by_reported_tanimoto": "a17_r2_t1",
+      "best_reported_tanimoto_across_attempts": 1.0,
+      "spec_name": "MassSpecGymID0152325",
+      "union_best_tanimoto_morgan2048": 1.0,
+      "union_reported_exact_hit": 1,
+      "union_strict_canonical_smiles_hit": 0,
+      "union_unique_candidates": 100
+    },
+    {
+      "attempts_with_exact_hit": "",
+      "best_attempt_by_reported_tanimoto": "a15_r10_t1",
+      "best_reported_tanimoto_across_attempts": 0.8846153616905212,
+      "spec_name": "MassSpecGymID0185133",
+      "union_best_tanimoto_morgan2048": 0.8831168831168831,
+      "union_reported_exact_hit": 0,
+      "union_strict_canonical_smiles_hit": 0,
+      "union_unique_candidates": 100
+    },
+    {
+      "attempts_with_exact_hit": "",
+      "best_attempt_by_reported_tanimoto": "a17_r2_t1",
+      "best_reported_tanimoto_across_attempts": 0.6451612710952759,
+      "spec_name": "MassSpecGymID0341761",
+      "union_best_tanimoto_morgan2048": 0.6444444444444445,
+      "union_reported_exact_hit": 0,
+      "union_strict_canonical_smiles_hit": 0,
+      "union_unique_candidates": 96
+    },
+    {
+      "attempts_with_exact_hit": "",
+      "best_attempt_by_reported_tanimoto": "a17_r2_t1",
+      "best_reported_tanimoto_across_attempts": 0.5764706134796143,
+      "spec_name": "MassSpecGymID0347534",
+      "union_best_tanimoto_morgan2048": 0.5930232558139535,
+      "union_reported_exact_hit": 0,
+      "union_strict_canonical_smiles_hit": 0,
+      "union_unique_candidates": 99
+    },
+    {
+      "attempts_with_exact_hit": "",
+      "best_attempt_by_reported_tanimoto": "a15_r10_t1",
+      "best_reported_tanimoto_across_attempts": 0.891566276550293,
+      "spec_name": "MassSpecGymID0380322",
+      "union_best_tanimoto_morgan2048": 0.891566265060241,
+      "union_reported_exact_hit": 0,
+      "union_strict_canonical_smiles_hit": 0,
+      "union_unique_candidates": 98
+    }
+  ]
+}

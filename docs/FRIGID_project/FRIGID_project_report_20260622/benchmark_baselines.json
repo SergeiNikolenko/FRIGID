@@ -1,0 +1,95 @@
+{
+  "description": "Comparable FRIGID benchmark baseline summary generated from completed run artifacts.",
+  "runs": [
+    {
+      "aggregate_statistics": "docs/FRIGID_project/FRIGID_experiments_20260618/E28_msg_base_full_ngboost_aggregate/aggregate_statistics.json",
+      "detailed_result_rows": 17082,
+      "detailed_results": "docs/FRIGID_project/FRIGID_experiments_20260618/E28_msg_base_full_ngboost_aggregate/detailed_results.csv",
+      "metrics": {
+        "avg_formula_matches": 7.6138040042149635,
+        "avg_predictions_collected": 9.999882917691137,
+        "avg_total_generated": 90.24247746165554,
+        "exact_match_top1": 0.10970612340475354,
+        "exact_match_top10": 0.12393162393162394,
+        "formula_match_success_rate": 0.9138859618311673,
+        "mist_tanimoto_mean": 0.5406695362101962,
+        "tanimoto_top10_mean": 0.4842332552890789,
+        "tanimoto_top1_mean": 0.45983813707083776,
+        "total_spectra": 17082
+      },
+      "name": "msg_full_ngboost",
+      "paper_targets": {
+        "paper_target_msg_frigid_base_top1": 0.1609,
+        "paper_target_msg_frigid_base_top10": 0.1819
+      },
+      "prediction_rows": 17082,
+      "predictions": "docs/FRIGID_project/FRIGID_experiments_20260618/E28_msg_base_full_ngboost_aggregate/predictions.csv",
+      "qa_summary": {
+        "broken_symlinks": 252,
+        "exact_top10_missing_as_failures": 0.12058555479608112,
+        "exact_top1_missing_as_failures": 0.10674413305992253,
+        "manifest_test_samples": 17556,
+        "missing_test_object_share": 0.026999316473000683,
+        "missing_test_objects": 474,
+        "proposal_equals_pred_smiles_1_share": 0.5739960192014987
+      },
+      "run_dir": "docs/FRIGID_project/FRIGID_experiments_20260618/E28_msg_base_full_ngboost_aggregate",
+      "run_manifest": null
+    },
+    {
+      "aggregate_statistics": "docs/FRIGID_project/FRIGID_experiments_20260618/E37_iceberg_scaling_msg_50_r2_cpuiceberg_cefix/results/aggregate_statistics.json",
+      "detailed_result_rows": 50,
+      "detailed_results": "docs/FRIGID_project/FRIGID_experiments_20260618/E37_iceberg_scaling_msg_50_r2_cpuiceberg_cefix/results/detailed_results.csv",
+      "metrics": {
+        "avg_attempts_to_match": 0.0,
+        "avg_formula_matches": 0.0,
+        "avg_predictions_collected": 0.0,
+        "avg_total_generated": 0.0,
+        "elapsed_time_seconds": 1583.204421043396,
+        "exact_match_top1": 0.16,
+        "exact_match_top10": 0.16,
+        "formula_match_success_rate": 0.0,
+        "mist_tanimoto_mean": 0.5467213901877404,
+        "never_matched_rate": 1.0,
+        "spectra_per_second": 0.0315815186816166,
+        "tanimoto_top10_mean": 0.4865608164668083,
+        "tanimoto_top1_mean": 0.45045095175504685,
+        "total_spectra": 50
+      },
+      "name": "iceberg_msg_50_r2_cefix",
+      "paper_targets": {},
+      "prediction_rows": 50,
+      "predictions": "docs/FRIGID_project/FRIGID_experiments_20260618/E37_iceberg_scaling_msg_50_r2_cpuiceberg_cefix/results/predictions.csv",
+      "run_dir": "docs/FRIGID_project/FRIGID_experiments_20260618/E37_iceberg_scaling_msg_50_r2_cpuiceberg_cefix/results",
+      "run_manifest": null
+    },
+    {
+      "aggregate_statistics": "docs/FRIGID_project/FRIGID_experiments_20260618/E26_oracle_fingerprint_balanced_200/aggregate_statistics.json",
+      "detailed_result_rows": 200,
+      "detailed_results": "docs/FRIGID_project/FRIGID_experiments_20260618/E26_oracle_fingerprint_balanced_200/detailed_results.csv",
+      "metrics": {
+        "avg_attempts_to_match": 8.894133480029401,
+        "avg_formula_matches": 3.84,
+        "avg_predictions_collected": 3.0,
+        "avg_total_generated": 26.525,
+        "elapsed_time_seconds": 1185.0013570785522,
+        "exact_match_top1": 0.53,
+        "exact_match_top10": 0.53,
+        "formula_match_success_rate": 0.89,
+        "mist_tanimoto_mean": 0.5162259753420949,
+        "never_matched_rate": 0.11,
+        "spectra_per_second": 0.16877617802318032,
+        "tanimoto_top10_mean": 0.8246427476406097,
+        "tanimoto_top1_mean": 0.8246427476406097,
+        "total_spectra": 200
+      },
+      "name": "oracle_fingerprint_balanced_200",
+      "paper_targets": {},
+      "prediction_rows": 200,
+      "predictions": "docs/FRIGID_project/FRIGID_experiments_20260618/E26_oracle_fingerprint_balanced_200/predictions.csv",
+      "run_dir": "docs/FRIGID_project/FRIGID_experiments_20260618/E26_oracle_fingerprint_balanced_200",
+      "run_manifest": null
+    }
+  ],
+  "schema_version": 1
+}

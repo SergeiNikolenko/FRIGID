@@ -1,0 +1,1094 @@
+START_UTC 2026-06-22T16:31:30Z
+HOST spectrum
+COMMIT bcf395a249d9313b4fe1d60a5c048bce23408dbe
+ENV torch 2.6.0+cu124
+ENV torchdata 0.7.1
+ENV dgl 1.1.3
+ENV ray 2.55.1
+ENV pathos ok
+Loading token model from token_models/models/best_ngboost_MSG.joblib
+Detected NGBoost model - will use sigma-based sampling
+Loaded 14 features from token_models/models/best_ngboost_MSG_features.json
+Using device: cuda
+config['mist_encoder']: {'checkpoint': 'repro_cache/mist_msg.pt', 'hidden_size': 640, 'magma_modulo': 2048, 'peak_attn_layers': 2, 'num_heads': 8, 'spectra_dropout': 0.1, 'output_size': 4096, 'form_embedder': 'pos-cos', 'set_pooling': 'cls', 'refine_layers': 4, 'pairwise_featurization': True, 'embed_instrument': False, 'inten_transform': 'float', 'inten_prob': 0.1, 'remove_prob': 0.5, 'cls_type': 'ms1', 'spec_features': 'peakformula', 'mol_features': 'fingerprint', 'top_layers': 1, 'max_peaks': None}
+
+Loading test split...
+Loaded instrument information for 231104 spectra
+  Instrument distribution: {'Orbitrap': 177281, 'QTOF': 53823}
+  Ionization distribution: {'[M+H]+': 195237, '[M+Na]+': 35867}
+Finding spectra files:   0%|          | 0/17556 [00:00<?, ?it/s]Finding spectra files:  17%|█▋        | 2990/17556 [00:00<00:00, 29896.18it/s]Finding spectra files:  34%|███▍      | 6050/17556 [00:00<00:00, 30308.02it/s]Finding spectra files:  52%|█████▏    | 9081/17556 [00:00<00:00, 29956.06it/s]Finding spectra files:  69%|██████▉   | 12178/17556 [00:00<00:00, 30351.73it/s]Finding spectra files:  87%|████████▋ | 15249/17556 [00:00<00:00, 30477.18it/s]                                                                               0it [00:00, ?it/s]17556it [00:00, 1010819.95it/s]
+0it [00:00, ?it/s]700it [00:00, 6995.22it/s]1502it [00:00, 7596.45it/s]2316it [00:00, 7842.59it/s]3125it [00:00, 7938.74it/s]3919it [00:00, 7503.51it/s]4674it [00:00, 7260.32it/s]5404it [00:00, 7136.53it/s]6120it [00:00, 7094.00it/s]7016it [00:00, 7653.29it/s]7918it [00:01, 8063.91it/s]8799it [00:01, 8287.48it/s]9631it [00:01, 7939.16it/s]10430it [00:01, 7830.84it/s]11217it [00:01, 7641.39it/s]11984it [00:01, 7551.60it/s]12741it [00:01, 7267.43it/s]13471it [00:01, 6978.76it/s]14172it [00:01, 6799.28it/s]14854it [00:02, 6650.76it/s]15521it [00:02, 6561.58it/s]16210it [00:02, 6653.66it/s]16877it [00:02, 6459.04it/s]17525it [00:02, 6386.52it/s]17556it [00:02, 7189.15it/s]
+0it [00:00, ?it/s]17556it [00:00, 4820319.52it/s]
+Loaded 17082 total spectra-molecule pairs
+Using 17082 samples from test split
+Shuffling split data
+
+Loading MIST encoder from: repro_cache/mist_msg.pt
+✓ Loaded MIST encoder weights
+
+Loading DLM decoder from: /home/nikolenko/work/Projects/FRIGID/repro_runs/oracle_fingerprint_ablation_20260622/DLM.local_hf_cache.ckpt
+Using SHARED cross-attention mode
+[load_model] Removed 120 fingerprint_conditioner.cross_attention_layers keys for shared mode
+[DLM] Loading checkpoint with missing buffers (safe to skip): {'token_atom_counts'}
+[Sampler] Warning: data/len.pk not found. Using default length range.
+✓ Fingerprint conditioning: ENABLED
+✓ Formula conditioning: ENABLED
+Using masking strategy: SimpleMaskingStrategy
+
+======================================================================
+SPEC2MOL BENCHMARK WITH BATCHED ICEBERG SCALING
+======================================================================
+Total spectra in dataset: 17082
+Scaling config:
+  - Batch size (B): 32
+  - Unique to refine (K): 4
+  - Masks per molecule (M): 2
+  - Num rounds (R): 1
+  - Mask probability: 0.5
+  - Collision energies: [10, 20, 30, 40, 50]
+FP threshold: 0.187
+Token model: ENABLED (NGBoost=True, sigma_lambda=3.0)
+======================================================================
+
+Phase 1: Preprocessing all test samples...
+Loading spectra:   0%|          | 0/20 [00:00<?, ?it/s]Loading spectra:   5%|▌         | 1/20 [00:00<00:02,  6.60it/s]Loading spectra:  85%|████████▌ | 17/20 [00:00<00:00, 79.81it/s]Loading spectra: 100%|██████████| 20/20 [00:00<00:00, 72.83it/s]
+Seed set to 42
+2026-06-22 19:35:35,376 INFO: 
+adduct_shift: true
+batch_size: 4
+binned_out: false
+dataset_labels: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/faebb43714c8120e1e5b68e9775bf368/cands_df_scaling_41ec4734.tsv
+dataset_name: null
+debug: false
+gen_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt
+gpu: false
+inten_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+max_nodes: 100
+num_bins: 15000
+num_workers: 6
+save_dir: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/faebb43714c8120e1e5b68e9775bf368
+seed: 42
+sparse_k: 100
+sparse_out: true
+split_name: split_22.tsv
+subset_datasets: none
+threshold: 0.0
+upper_limit: 1500
+
+Lightning automatically upgraded your loaded checkpoint from v1.6.5 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt`
+Lightning automatically upgraded your loaded checkpoint from v1.6.0 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt`
+2026-06-22 19:35:36,046 INFO: Loaded gen / inten models from /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt & /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+2026-06-22 19:35:36,049 INFO: Preparing entries
+  0%|          | 0/64 [00:00<?, ?it/s]  2%|▏         | 1/64 [00:05<05:19,  5.07s/it]100%|██████████| 64/64 [00:05<00:00, 12.45it/s]
+2026-06-22 19:35:41,236 INFO: There are 64 entries to process
+  0%|          | 0/16 [00:00<?, ?it/s]  0%|          | 0/16 [00:00<?, ?it/s]
+multiprocess.pool.RemoteTraceback: 
+"""
+Traceback (most recent call last):
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/multiprocess/pool.py", line 125, in worker
+    result = (True, func(*args, **kwds))
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/pathos/helpers/mp_helper.py", line 15, in <lambda>
+    func = lambda args: f(*args)
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/common/parallel_utils.py", line 79, in batch_func
+    outputs.append(function(i))
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 198, in producer_func
+    torch.cuda.set_device(gpu_id) # avoids error in pe_embedding under multithreading.
+UnboundLocalError: local variable 'gpu_id' referenced before assignment
+"""
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 276, in <module>
+    predict()
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 268, in predict
+    common.chunked_parallel(all_batched_entries, producer_func, output_func=write_h5_func,
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/common/parallel_utils.py", line 102, in chunked_parallel
+    output_func(itertools.chain.from_iterable(iter_outputs))
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 250, in write_h5_func
+    for out_batch in out_entries:
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/tqdm/std.py", line 1181, in __iter__
+    for obj in iterable:
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/multiprocess/pool.py", line 873, in next
+    raise value
+UnboundLocalError: local variable 'gpu_id' referenced before assignment
+Seed set to 42
+2026-06-22 19:35:48,904 INFO: 
+adduct_shift: true
+batch_size: 4
+binned_out: false
+dataset_labels: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/afcbb9093ebfca5c1036381aa8e0eb8a/cands_df_scaling_6b71b0e4.tsv
+dataset_name: null
+debug: false
+gen_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt
+gpu: false
+inten_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+max_nodes: 100
+num_bins: 15000
+num_workers: 6
+save_dir: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/afcbb9093ebfca5c1036381aa8e0eb8a
+seed: 42
+sparse_k: 100
+sparse_out: true
+split_name: split_22.tsv
+subset_datasets: none
+threshold: 0.0
+upper_limit: 1500
+
+Lightning automatically upgraded your loaded checkpoint from v1.6.5 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt`
+Lightning automatically upgraded your loaded checkpoint from v1.6.0 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt`
+2026-06-22 19:35:49,577 INFO: Loaded gen / inten models from /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt & /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+2026-06-22 19:35:49,580 INFO: Preparing entries
+  0%|          | 0/64 [00:00<?, ?it/s]  2%|▏         | 1/64 [00:05<05:29,  5.23s/it]100%|██████████| 64/64 [00:05<00:00, 12.01it/s]
+2026-06-22 19:35:54,955 INFO: There are 64 entries to process
+  0%|          | 0/16 [00:00<?, ?it/s]  0%|          | 0/16 [00:00<?, ?it/s]
+multiprocess.pool.RemoteTraceback: 
+"""
+Traceback (most recent call last):
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/multiprocess/pool.py", line 125, in worker
+    result = (True, func(*args, **kwds))
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/pathos/helpers/mp_helper.py", line 15, in <lambda>
+    func = lambda args: f(*args)
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/common/parallel_utils.py", line 79, in batch_func
+    outputs.append(function(i))
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 198, in producer_func
+    torch.cuda.set_device(gpu_id) # avoids error in pe_embedding under multithreading.
+UnboundLocalError: local variable 'gpu_id' referenced before assignment
+"""
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 276, in <module>
+    predict()
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 268, in predict
+    common.chunked_parallel(all_batched_entries, producer_func, output_func=write_h5_func,
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/common/parallel_utils.py", line 102, in chunked_parallel
+    output_func(itertools.chain.from_iterable(iter_outputs))
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 250, in write_h5_func
+    for out_batch in out_entries:
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/tqdm/std.py", line 1181, in __iter__
+    for obj in iterable:
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/multiprocess/pool.py", line 873, in next
+    raise value
+UnboundLocalError: local variable 'gpu_id' referenced before assignment
+Seed set to 42
+2026-06-22 19:36:01,433 INFO: 
+adduct_shift: true
+batch_size: 4
+binned_out: false
+dataset_labels: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/2e5dc1b1b95668f787ff32990a527649/cands_df_scaling_7aea28fa.tsv
+dataset_name: null
+debug: false
+gen_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt
+gpu: false
+inten_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+max_nodes: 100
+num_bins: 15000
+num_workers: 6
+save_dir: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/2e5dc1b1b95668f787ff32990a527649
+seed: 42
+sparse_k: 100
+sparse_out: true
+split_name: split_22.tsv
+subset_datasets: none
+threshold: 0.0
+upper_limit: 1500
+
+Lightning automatically upgraded your loaded checkpoint from v1.6.5 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt`
+Lightning automatically upgraded your loaded checkpoint from v1.6.0 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt`
+2026-06-22 19:36:02,093 INFO: Loaded gen / inten models from /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt & /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+2026-06-22 19:36:02,096 INFO: Preparing entries
+  0%|          | 0/64 [00:00<?, ?it/s]  2%|▏         | 1/64 [00:04<05:11,  4.94s/it]100%|██████████| 64/64 [00:05<00:00, 12.72it/s]
+2026-06-22 19:36:07,163 INFO: There are 64 entries to process
+  0%|          | 0/16 [00:00<?, ?it/s]  0%|          | 0/16 [00:00<?, ?it/s]
+multiprocess.pool.RemoteTraceback: 
+"""
+Traceback (most recent call last):
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/multiprocess/pool.py", line 125, in worker
+    result = (True, func(*args, **kwds))
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/pathos/helpers/mp_helper.py", line 15, in <lambda>
+    func = lambda args: f(*args)
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/common/parallel_utils.py", line 79, in batch_func
+    outputs.append(function(i))
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 198, in producer_func
+    torch.cuda.set_device(gpu_id) # avoids error in pe_embedding under multithreading.
+UnboundLocalError: local variable 'gpu_id' referenced before assignment
+"""
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 276, in <module>
+    predict()
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 268, in predict
+    common.chunked_parallel(all_batched_entries, producer_func, output_func=write_h5_func,
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/common/parallel_utils.py", line 102, in chunked_parallel
+    output_func(itertools.chain.from_iterable(iter_outputs))
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 250, in write_h5_func
+    for out_batch in out_entries:
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/tqdm/std.py", line 1181, in __iter__
+    for obj in iterable:
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/multiprocess/pool.py", line 873, in next
+    raise value
+UnboundLocalError: local variable 'gpu_id' referenced before assignment
+Seed set to 42
+2026-06-22 19:36:14,053 INFO: 
+adduct_shift: true
+batch_size: 4
+binned_out: false
+dataset_labels: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/148f1ac6aa69a4b8b5eae1394cccb81b/cands_df_scaling_73a8ee78.tsv
+dataset_name: null
+debug: false
+gen_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt
+gpu: false
+inten_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+max_nodes: 100
+num_bins: 15000
+num_workers: 6
+save_dir: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/148f1ac6aa69a4b8b5eae1394cccb81b
+seed: 42
+sparse_k: 100
+sparse_out: true
+split_name: split_22.tsv
+subset_datasets: none
+threshold: 0.0
+upper_limit: 1500
+
+Lightning automatically upgraded your loaded checkpoint from v1.6.5 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt`
+Lightning automatically upgraded your loaded checkpoint from v1.6.0 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt`
+2026-06-22 19:36:14,711 INFO: Loaded gen / inten models from /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt & /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+2026-06-22 19:36:14,713 INFO: Preparing entries
+  0%|          | 0/64 [00:00<?, ?it/s]  2%|▏         | 1/64 [00:04<05:03,  4.82s/it]100%|██████████| 64/64 [00:04<00:00, 13.05it/s]
+2026-06-22 19:36:19,663 INFO: There are 64 entries to process
+  0%|          | 0/16 [00:00<?, ?it/s]  0%|          | 0/16 [00:00<?, ?it/s]
+multiprocess.pool.RemoteTraceback: 
+"""
+Traceback (most recent call last):
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/multiprocess/pool.py", line 125, in worker
+    result = (True, func(*args, **kwds))
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/pathos/helpers/mp_helper.py", line 15, in <lambda>
+    func = lambda args: f(*args)
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/common/parallel_utils.py", line 79, in batch_func
+    outputs.append(function(i))
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 198, in producer_func
+    torch.cuda.set_device(gpu_id) # avoids error in pe_embedding under multithreading.
+UnboundLocalError: local variable 'gpu_id' referenced before assignment
+"""
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 276, in <module>
+    predict()
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 268, in predict
+    common.chunked_parallel(all_batched_entries, producer_func, output_func=write_h5_func,
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/common/parallel_utils.py", line 102, in chunked_parallel
+    output_func(itertools.chain.from_iterable(iter_outputs))
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 250, in write_h5_func
+    for out_batch in out_entries:
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/tqdm/std.py", line 1181, in __iter__
+    for obj in iterable:
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/multiprocess/pool.py", line 873, in next
+    raise value
+UnboundLocalError: local variable 'gpu_id' referenced before assignment
+Seed set to 42
+2026-06-22 19:36:26,235 INFO: 
+adduct_shift: true
+batch_size: 4
+binned_out: false
+dataset_labels: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/5c2e3171fcd7c6c4561247d506cca85f/cands_df_scaling_08e895ba.tsv
+dataset_name: null
+debug: false
+gen_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt
+gpu: false
+inten_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+max_nodes: 100
+num_bins: 15000
+num_workers: 6
+save_dir: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/5c2e3171fcd7c6c4561247d506cca85f
+seed: 42
+sparse_k: 100
+sparse_out: true
+split_name: split_22.tsv
+subset_datasets: none
+threshold: 0.0
+upper_limit: 1500
+
+Lightning automatically upgraded your loaded checkpoint from v1.6.5 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt`
+Lightning automatically upgraded your loaded checkpoint from v1.6.0 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt`
+2026-06-22 19:36:26,883 INFO: Loaded gen / inten models from /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt & /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+2026-06-22 19:36:26,885 INFO: Preparing entries
+  0%|          | 0/64 [00:00<?, ?it/s]  2%|▏         | 1/64 [00:04<05:10,  4.93s/it]100%|██████████| 64/64 [00:05<00:00, 12.74it/s]
+2026-06-22 19:36:31,950 INFO: There are 64 entries to process
+  0%|          | 0/16 [00:00<?, ?it/s]  0%|          | 0/16 [00:00<?, ?it/s]
+multiprocess.pool.RemoteTraceback: 
+"""
+Traceback (most recent call last):
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/multiprocess/pool.py", line 125, in worker
+    result = (True, func(*args, **kwds))
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/pathos/helpers/mp_helper.py", line 15, in <lambda>
+    func = lambda args: f(*args)
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/common/parallel_utils.py", line 79, in batch_func
+    outputs.append(function(i))
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 198, in producer_func
+    torch.cuda.set_device(gpu_id) # avoids error in pe_embedding under multithreading.
+UnboundLocalError: local variable 'gpu_id' referenced before assignment
+"""
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 276, in <module>
+    predict()
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 268, in predict
+    common.chunked_parallel(all_batched_entries, producer_func, output_func=write_h5_func,
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/common/parallel_utils.py", line 102, in chunked_parallel
+    output_func(itertools.chain.from_iterable(iter_outputs))
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 250, in write_h5_func
+    for out_batch in out_entries:
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/tqdm/std.py", line 1181, in __iter__
+    for obj in iterable:
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/multiprocess/pool.py", line 873, in next
+    raise value
+UnboundLocalError: local variable 'gpu_id' referenced before assignment
+Seed set to 42
+2026-06-22 19:36:38,659 INFO: 
+adduct_shift: true
+batch_size: 4
+binned_out: false
+dataset_labels: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/3da665e69aef6de2abda4e364b0577a2/cands_df_scaling_84bce65a.tsv
+dataset_name: null
+debug: false
+gen_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt
+gpu: false
+inten_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+max_nodes: 100
+num_bins: 15000
+num_workers: 6
+save_dir: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/3da665e69aef6de2abda4e364b0577a2
+seed: 42
+sparse_k: 100
+sparse_out: true
+split_name: split_22.tsv
+subset_datasets: none
+threshold: 0.0
+upper_limit: 1500
+
+Lightning automatically upgraded your loaded checkpoint from v1.6.5 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt`
+Lightning automatically upgraded your loaded checkpoint from v1.6.0 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt`
+2026-06-22 19:36:39,316 INFO: Loaded gen / inten models from /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt & /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+2026-06-22 19:36:39,317 INFO: Preparing entries
+  0%|          | 0/12 [00:00<?, ?it/s]  8%|▊         | 1/12 [00:04<00:54,  4.99s/it]100%|██████████| 12/12 [00:04<00:00,  2.40it/s]
+2026-06-22 19:36:44,356 INFO: There are 12 entries to process
+  0%|          | 0/3 [00:00<?, ?it/s]  0%|          | 0/3 [00:00<?, ?it/s]
+multiprocess.pool.RemoteTraceback: 
+"""
+Traceback (most recent call last):
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/multiprocess/pool.py", line 125, in worker
+    result = (True, func(*args, **kwds))
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/pathos/helpers/mp_helper.py", line 15, in <lambda>
+    func = lambda args: f(*args)
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/common/parallel_utils.py", line 79, in batch_func
+    outputs.append(function(i))
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 198, in producer_func
+    torch.cuda.set_device(gpu_id) # avoids error in pe_embedding under multithreading.
+UnboundLocalError: local variable 'gpu_id' referenced before assignment
+"""
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 276, in <module>
+    predict()
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 268, in predict
+    common.chunked_parallel(all_batched_entries, producer_func, output_func=write_h5_func,
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/common/parallel_utils.py", line 102, in chunked_parallel
+    output_func(itertools.chain.from_iterable(iter_outputs))
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 250, in write_h5_func
+    for out_batch in out_entries:
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/tqdm/std.py", line 1181, in __iter__
+    for obj in iterable:
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/multiprocess/pool.py", line 873, in next
+    raise value
+UnboundLocalError: local variable 'gpu_id' referenced before assignment
+Seed set to 42
+2026-06-22 19:36:51,146 INFO: 
+adduct_shift: true
+batch_size: 4
+binned_out: false
+dataset_labels: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/b734431a63316ab977b1a839ac92cd5f/cands_df_scaling_78efa1ad.tsv
+dataset_name: null
+debug: false
+gen_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt
+gpu: false
+inten_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+max_nodes: 100
+num_bins: 15000
+num_workers: 6
+save_dir: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/b734431a63316ab977b1a839ac92cd5f
+seed: 42
+sparse_k: 100
+sparse_out: true
+split_name: split_22.tsv
+subset_datasets: none
+threshold: 0.0
+upper_limit: 1500
+
+Lightning automatically upgraded your loaded checkpoint from v1.6.5 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt`
+Lightning automatically upgraded your loaded checkpoint from v1.6.0 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt`
+2026-06-22 19:36:51,790 INFO: Loaded gen / inten models from /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt & /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+2026-06-22 19:36:51,791 INFO: Preparing entries
+  0%|          | 0/12 [00:00<?, ?it/s]  8%|▊         | 1/12 [00:04<00:52,  4.78s/it]100%|██████████| 12/12 [00:04<00:00,  2.51it/s]
+2026-06-22 19:36:56,626 INFO: There are 12 entries to process
+  0%|          | 0/3 [00:00<?, ?it/s]  0%|          | 0/3 [00:00<?, ?it/s]
+multiprocess.pool.RemoteTraceback: 
+"""
+Traceback (most recent call last):
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/multiprocess/pool.py", line 125, in worker
+    result = (True, func(*args, **kwds))
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/pathos/helpers/mp_helper.py", line 15, in <lambda>
+    func = lambda args: f(*args)
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/common/parallel_utils.py", line 79, in batch_func
+    outputs.append(function(i))
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 198, in producer_func
+    torch.cuda.set_device(gpu_id) # avoids error in pe_embedding under multithreading.
+UnboundLocalError: local variable 'gpu_id' referenced before assignment
+"""
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 276, in <module>
+    predict()
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 268, in predict
+    common.chunked_parallel(all_batched_entries, producer_func, output_func=write_h5_func,
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/common/parallel_utils.py", line 102, in chunked_parallel
+    output_func(itertools.chain.from_iterable(iter_outputs))
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 250, in write_h5_func
+    for out_batch in out_entries:
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/tqdm/std.py", line 1181, in __iter__
+    for obj in iterable:
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/multiprocess/pool.py", line 873, in next
+    raise value
+UnboundLocalError: local variable 'gpu_id' referenced before assignment
+Seed set to 42
+2026-06-22 19:37:02,960 INFO: 
+adduct_shift: true
+batch_size: 4
+binned_out: false
+dataset_labels: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/636089159f4aeafc1a34f4f590f39571/cands_df_scaling_6289cd2c.tsv
+dataset_name: null
+debug: false
+gen_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt
+gpu: false
+inten_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+max_nodes: 100
+num_bins: 15000
+num_workers: 6
+save_dir: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/636089159f4aeafc1a34f4f590f39571
+seed: 42
+sparse_k: 100
+sparse_out: true
+split_name: split_22.tsv
+subset_datasets: none
+threshold: 0.0
+upper_limit: 1500
+
+Lightning automatically upgraded your loaded checkpoint from v1.6.5 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt`
+Lightning automatically upgraded your loaded checkpoint from v1.6.0 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt`
+2026-06-22 19:37:03,449 INFO: Loaded gen / inten models from /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt & /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+2026-06-22 19:37:03,450 INFO: Preparing entries
+  0%|          | 0/12 [00:00<?, ?it/s]  8%|▊         | 1/12 [00:04<00:54,  4.95s/it]100%|██████████| 12/12 [00:04<00:00,  2.42it/s]
+2026-06-22 19:37:08,447 INFO: There are 12 entries to process
+  0%|          | 0/3 [00:00<?, ?it/s]  0%|          | 0/3 [00:00<?, ?it/s]
+multiprocess.pool.RemoteTraceback: 
+"""
+Traceback (most recent call last):
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/multiprocess/pool.py", line 125, in worker
+    result = (True, func(*args, **kwds))
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/pathos/helpers/mp_helper.py", line 15, in <lambda>
+    func = lambda args: f(*args)
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/common/parallel_utils.py", line 79, in batch_func
+    outputs.append(function(i))
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 198, in producer_func
+    torch.cuda.set_device(gpu_id) # avoids error in pe_embedding under multithreading.
+UnboundLocalError: local variable 'gpu_id' referenced before assignment
+"""
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 276, in <module>
+    predict()
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 268, in predict
+    common.chunked_parallel(all_batched_entries, producer_func, output_func=write_h5_func,
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/common/parallel_utils.py", line 102, in chunked_parallel
+    output_func(itertools.chain.from_iterable(iter_outputs))
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 250, in write_h5_func
+    for out_batch in out_entries:
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/tqdm/std.py", line 1181, in __iter__
+    for obj in iterable:
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/multiprocess/pool.py", line 873, in next
+    raise value
+UnboundLocalError: local variable 'gpu_id' referenced before assignment
+Loaded 20 valid test samples
+
+Phase 2: Running batched scaling with 1 rounds...
+
+============================================================
+SCALING ROUND 1/1
+============================================================
+
+  Round 1: Generating 32 molecules from scratch...
+  Round 1: Running ICEBERG predictions for top 4 molecules...
+  Running ICEBERG for 64 molecules at CE=10eV, instrument=Orbitrap, ionization=[M+H]+...
+/home/nikolenko/work/Projects/FRIGID/.venv/bin/python src/ms_pred/dag_pred/predict_smis.py \
+               --batch-size 4 \
+               --num-workers 6 \
+               --dataset-labels /home/nikolenko/.cache/ms-pred/iceberg-elucidation/faebb43714c8120e1e5b68e9775bf368/cands_df_scaling_41ec4734.tsv \
+               --sparse-out \
+               --sparse-k 100 \
+               --max-nodes 100 \
+               --threshold 0.0 \
+               --gen-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt \
+               --inten-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt \
+               --save-dir /home/nikolenko/.cache/ms-pred/iceberg-elucidation/faebb43714c8120e1e5b68e9775bf368 \
+               --adduct-shift
+  Running ICEBERG for 64 molecules at CE=20eV, instrument=Orbitrap, ionization=[M+H]+...
+/home/nikolenko/work/Projects/FRIGID/.venv/bin/python src/ms_pred/dag_pred/predict_smis.py \
+               --batch-size 4 \
+               --num-workers 6 \
+               --dataset-labels /home/nikolenko/.cache/ms-pred/iceberg-elucidation/afcbb9093ebfca5c1036381aa8e0eb8a/cands_df_scaling_6b71b0e4.tsv \
+               --sparse-out \
+               --sparse-k 100 \
+               --max-nodes 100 \
+               --threshold 0.0 \
+               --gen-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt \
+               --inten-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt \
+               --save-dir /home/nikolenko/.cache/ms-pred/iceberg-elucidation/afcbb9093ebfca5c1036381aa8e0eb8a \
+               --adduct-shift
+  Running ICEBERG for 64 molecules at CE=30eV, instrument=Orbitrap, ionization=[M+H]+...
+/home/nikolenko/work/Projects/FRIGID/.venv/bin/python src/ms_pred/dag_pred/predict_smis.py \
+               --batch-size 4 \
+               --num-workers 6 \
+               --dataset-labels /home/nikolenko/.cache/ms-pred/iceberg-elucidation/2e5dc1b1b95668f787ff32990a527649/cands_df_scaling_7aea28fa.tsv \
+               --sparse-out \
+               --sparse-k 100 \
+               --max-nodes 100 \
+               --threshold 0.0 \
+               --gen-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt \
+               --inten-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt \
+               --save-dir /home/nikolenko/.cache/ms-pred/iceberg-elucidation/2e5dc1b1b95668f787ff32990a527649 \
+               --adduct-shift
+  Running ICEBERG for 64 molecules at CE=40eV, instrument=Orbitrap, ionization=[M+H]+...
+/home/nikolenko/work/Projects/FRIGID/.venv/bin/python src/ms_pred/dag_pred/predict_smis.py \
+               --batch-size 4 \
+               --num-workers 6 \
+               --dataset-labels /home/nikolenko/.cache/ms-pred/iceberg-elucidation/148f1ac6aa69a4b8b5eae1394cccb81b/cands_df_scaling_73a8ee78.tsv \
+               --sparse-out \
+               --sparse-k 100 \
+               --max-nodes 100 \
+               --threshold 0.0 \
+               --gen-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt \
+               --inten-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt \
+               --save-dir /home/nikolenko/.cache/ms-pred/iceberg-elucidation/148f1ac6aa69a4b8b5eae1394cccb81b \
+               --adduct-shift
+  Running ICEBERG for 64 molecules at CE=50eV, instrument=Orbitrap, ionization=[M+H]+...
+/home/nikolenko/work/Projects/FRIGID/.venv/bin/python src/ms_pred/dag_pred/predict_smis.py \
+               --batch-size 4 \
+               --num-workers 6 \
+               --dataset-labels /home/nikolenko/.cache/ms-pred/iceberg-elucidation/5c2e3171fcd7c6c4561247d506cca85f/cands_df_scaling_08e895ba.tsv \
+               --sparse-out \
+               --sparse-k 100 \
+               --max-nodes 100 \
+               --threshold 0.0 \
+               --gen-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt \
+               --inten-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt \
+               --save-dir /home/nikolenko/.cache/ms-pred/iceberg-elucidation/5c2e3171fcd7c6c4561247d506cca85f \
+               --adduct-shift
+  Running ICEBERG for 12 molecules at CE=10eV, instrument=QTOF, ionization=[M+Na]+...
+/home/nikolenko/work/Projects/FRIGID/.venv/bin/python src/ms_pred/dag_pred/predict_smis.py \
+               --batch-size 4 \
+               --num-workers 6 \
+               --dataset-labels /home/nikolenko/.cache/ms-pred/iceberg-elucidation/3da665e69aef6de2abda4e364b0577a2/cands_df_scaling_84bce65a.tsv \
+               --sparse-out \
+               --sparse-k 100 \
+               --max-nodes 100 \
+               --threshold 0.0 \
+               --gen-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt \
+               --inten-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt \
+               --save-dir /home/nikolenko/.cache/ms-pred/iceberg-elucidation/3da665e69aef6de2abda4e364b0577a2 \
+               --adduct-shift
+  Running ICEBERG for 12 molecules at CE=20eV, instrument=QTOF, ionization=[M+Na]+...
+/home/nikolenko/work/Projects/FRIGID/.venv/bin/python src/ms_pred/dag_pred/predict_smis.py \
+               --batch-size 4 \
+               --num-workers 6 \
+               --dataset-labels /home/nikolenko/.cache/ms-pred/iceberg-elucidation/b734431a63316ab977b1a839ac92cd5f/cands_df_scaling_78efa1ad.tsv \
+               --sparse-out \
+               --sparse-k 100 \
+               --max-nodes 100 \
+               --threshold 0.0 \
+               --gen-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt \
+               --inten-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt \
+               --save-dir /home/nikolenko/.cache/ms-pred/iceberg-elucidation/b734431a63316ab977b1a839ac92cd5f \
+               --adduct-shift
+  Running ICEBERG for 12 molecules at CE=30eV, instrument=QTOF, ionization=[M+Na]+...
+/home/nikolenko/work/Projects/FRIGID/.venv/bin/python src/ms_pred/dag_pred/predict_smis.py \
+               --batch-size 4 \
+               --num-workers 6 \
+               --dataset-labels /home/nikolenko/.cache/ms-pred/iceberg-elucidation/636089159f4aeafc1a34f4f590f39571/cands_df_scaling_6289cd2c.tsv \
+               --sparse-out \
+               --sparse-k 100 \
+               --max-nodes 100 \
+               --threshold 0.0 \
+               --gen-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt \
+               --inten-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt \
+               --save-dir /home/nikolenko/.cache/ms-pred/iceberg-elucidation/636089159f4aeafc1a34f4f590f39571 \
+               --adduct-shift
+  Running ICEBERG for 12 molecules at CE=40eV, instrument=QTOF, ionization=[M+Na]+...
+Seed set to 42
+2026-06-22 19:37:14,649 INFO: 
+adduct_shift: true
+batch_size: 4
+binned_out: false
+dataset_labels: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/b3e10b501f6ebe09d93e349f767ea3fa/cands_df_scaling_a5ef19be.tsv
+dataset_name: null
+debug: false
+gen_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt
+gpu: false
+inten_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+max_nodes: 100
+num_bins: 15000
+num_workers: 6
+save_dir: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/b3e10b501f6ebe09d93e349f767ea3fa
+seed: 42
+sparse_k: 100
+sparse_out: true
+split_name: split_22.tsv
+subset_datasets: none
+threshold: 0.0
+upper_limit: 1500
+
+Lightning automatically upgraded your loaded checkpoint from v1.6.5 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt`
+Lightning automatically upgraded your loaded checkpoint from v1.6.0 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt`
+2026-06-22 19:37:15,145 INFO: Loaded gen / inten models from /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt & /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+2026-06-22 19:37:15,147 INFO: Preparing entries
+  0%|          | 0/12 [00:00<?, ?it/s]  8%|▊         | 1/12 [00:04<00:54,  4.91s/it]100%|██████████| 12/12 [00:04<00:00,  2.44it/s]
+2026-06-22 19:37:20,118 INFO: There are 12 entries to process
+  0%|          | 0/3 [00:00<?, ?it/s]  0%|          | 0/3 [00:00<?, ?it/s]
+multiprocess.pool.RemoteTraceback: 
+"""
+Traceback (most recent call last):
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/multiprocess/pool.py", line 125, in worker
+    result = (True, func(*args, **kwds))
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/pathos/helpers/mp_helper.py", line 15, in <lambda>
+    func = lambda args: f(*args)
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/common/parallel_utils.py", line 79, in batch_func
+    outputs.append(function(i))
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 198, in producer_func
+    torch.cuda.set_device(gpu_id) # avoids error in pe_embedding under multithreading.
+UnboundLocalError: local variable 'gpu_id' referenced before assignment
+"""
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 276, in <module>
+    predict()
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 268, in predict
+    common.chunked_parallel(all_batched_entries, producer_func, output_func=write_h5_func,
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/common/parallel_utils.py", line 102, in chunked_parallel
+    output_func(itertools.chain.from_iterable(iter_outputs))
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 250, in write_h5_func
+    for out_batch in out_entries:
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/tqdm/std.py", line 1181, in __iter__
+    for obj in iterable:
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/multiprocess/pool.py", line 873, in next
+    raise value
+UnboundLocalError: local variable 'gpu_id' referenced before assignment
+Seed set to 42
+2026-06-22 19:37:26,308 INFO: 
+adduct_shift: true
+batch_size: 4
+binned_out: false
+dataset_labels: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/32e9a2ead95ba2c61b877197b4b24e91/cands_df_scaling_abcaf563.tsv
+dataset_name: null
+debug: false
+gen_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt
+gpu: false
+inten_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+max_nodes: 100
+num_bins: 15000
+num_workers: 6
+save_dir: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/32e9a2ead95ba2c61b877197b4b24e91
+seed: 42
+sparse_k: 100
+sparse_out: true
+split_name: split_22.tsv
+subset_datasets: none
+threshold: 0.0
+upper_limit: 1500
+
+Lightning automatically upgraded your loaded checkpoint from v1.6.5 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt`
+Lightning automatically upgraded your loaded checkpoint from v1.6.0 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt`
+2026-06-22 19:37:26,823 INFO: Loaded gen / inten models from /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt & /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+2026-06-22 19:37:26,824 INFO: Preparing entries
+  0%|          | 0/12 [00:00<?, ?it/s]  8%|▊         | 1/12 [00:04<00:53,  4.84s/it]100%|██████████| 12/12 [00:04<00:00,  2.47it/s]
+2026-06-22 19:37:31,725 INFO: There are 12 entries to process
+  0%|          | 0/3 [00:00<?, ?it/s]  0%|          | 0/3 [00:00<?, ?it/s]
+multiprocess.pool.RemoteTraceback: 
+"""
+Traceback (most recent call last):
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/multiprocess/pool.py", line 125, in worker
+    result = (True, func(*args, **kwds))
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/pathos/helpers/mp_helper.py", line 15, in <lambda>
+    func = lambda args: f(*args)
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/common/parallel_utils.py", line 79, in batch_func
+    outputs.append(function(i))
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 198, in producer_func
+    torch.cuda.set_device(gpu_id) # avoids error in pe_embedding under multithreading.
+UnboundLocalError: local variable 'gpu_id' referenced before assignment
+"""
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 276, in <module>
+    predict()
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 268, in predict
+    common.chunked_parallel(all_batched_entries, producer_func, output_func=write_h5_func,
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/common/parallel_utils.py", line 102, in chunked_parallel
+    output_func(itertools.chain.from_iterable(iter_outputs))
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 250, in write_h5_func
+    for out_batch in out_entries:
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/tqdm/std.py", line 1181, in __iter__
+    for obj in iterable:
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/multiprocess/pool.py", line 873, in next
+    raise value
+UnboundLocalError: local variable 'gpu_id' referenced before assignment
+Seed set to 42
+2026-06-22 19:37:37,868 INFO: 
+adduct_shift: true
+batch_size: 4
+binned_out: false
+dataset_labels: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/8da6f487098183a882f13fa8906b1cad/cands_df_scaling_6df22085.tsv
+dataset_name: null
+debug: false
+gen_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt
+gpu: false
+inten_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+max_nodes: 100
+num_bins: 15000
+num_workers: 6
+save_dir: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/8da6f487098183a882f13fa8906b1cad
+seed: 42
+sparse_k: 100
+sparse_out: true
+split_name: split_22.tsv
+subset_datasets: none
+threshold: 0.0
+upper_limit: 1500
+
+Lightning automatically upgraded your loaded checkpoint from v1.6.5 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt`
+Lightning automatically upgraded your loaded checkpoint from v1.6.0 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt`
+2026-06-22 19:37:38,367 INFO: Loaded gen / inten models from /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt & /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+2026-06-22 19:37:38,369 INFO: Preparing entries
+  0%|          | 0/4 [00:00<?, ?it/s] 25%|██▌       | 1/4 [00:05<00:15,  5.10s/it]100%|██████████| 4/4 [00:05<00:00,  1.28s/it]
+2026-06-22 19:37:43,512 INFO: There are 4 entries to process
+  0%|          | 0/1 [00:00<?, ?it/s]  0%|          | 0/1 [00:00<?, ?it/s]
+multiprocess.pool.RemoteTraceback: 
+"""
+Traceback (most recent call last):
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/multiprocess/pool.py", line 125, in worker
+    result = (True, func(*args, **kwds))
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/pathos/helpers/mp_helper.py", line 15, in <lambda>
+    func = lambda args: f(*args)
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/common/parallel_utils.py", line 79, in batch_func
+    outputs.append(function(i))
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 198, in producer_func
+    if device != "cpu":
+UnboundLocalError: local variable 'gpu_id' referenced before assignment
+"""
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 276, in <module>
+    start_time = time.time()
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 268, in predict
+    else:
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/common/parallel_utils.py", line 102, in chunked_parallel
+    output_func(itertools.chain.from_iterable(iter_outputs))
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 250, in write_h5_func
+    h5.attrs['sparse_out'] = kwargs["sparse_out"]
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/tqdm/std.py", line 1181, in __iter__
+    for obj in iterable:
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/multiprocess/pool.py", line 873, in next
+    raise value
+UnboundLocalError: local variable 'gpu_id' referenced before assignment
+Seed set to 42
+2026-06-22 19:37:49,859 INFO: 
+adduct_shift: true
+batch_size: 4
+binned_out: false
+dataset_labels: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/275feca7d07ffe4848702d0a69824647/cands_df_scaling_51a2e3e6.tsv
+dataset_name: null
+debug: false
+gen_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt
+gpu: false
+inten_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+max_nodes: 100
+num_bins: 15000
+num_workers: 6
+save_dir: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/275feca7d07ffe4848702d0a69824647
+seed: 42
+sparse_k: 100
+sparse_out: true
+split_name: split_22.tsv
+subset_datasets: none
+threshold: 0.0
+upper_limit: 1500
+
+Lightning automatically upgraded your loaded checkpoint from v1.6.5 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt`
+Lightning automatically upgraded your loaded checkpoint from v1.6.0 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt`
+2026-06-22 19:37:50,367 INFO: Loaded gen / inten models from /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt & /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+2026-06-22 19:37:50,368 INFO: Preparing entries
+  0%|          | 0/4 [00:00<?, ?it/s] 25%|██▌       | 1/4 [00:04<00:14,  4.89s/it]100%|██████████| 4/4 [00:04<00:00,  1.22s/it]
+2026-06-22 19:37:55,299 INFO: There are 4 entries to process
+  0%|          | 0/1 [00:00<?, ?it/s]/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+100%|██████████| 1/1 [00:05<00:00,  5.53s/it]100%|██████████| 1/1 [00:05<00:00,  5.53s/it]
+2026-06-22 19:38:00,830 INFO: Program finished in: 10.975419282913208 seconds
+Seed set to 42
+2026-06-22 19:38:06,535 INFO: 
+adduct_shift: true
+batch_size: 4
+binned_out: false
+dataset_labels: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/b3b5f2105b647dd34b133c9a81d1490d/cands_df_scaling_38a81c18.tsv
+dataset_name: null
+debug: false
+gen_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt
+gpu: false
+inten_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+max_nodes: 100
+num_bins: 15000
+num_workers: 6
+save_dir: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/b3b5f2105b647dd34b133c9a81d1490d
+seed: 42
+sparse_k: 100
+sparse_out: true
+split_name: split_22.tsv
+subset_datasets: none
+threshold: 0.0
+upper_limit: 1500
+
+Lightning automatically upgraded your loaded checkpoint from v1.6.5 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt`
+Lightning automatically upgraded your loaded checkpoint from v1.6.0 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt`
+2026-06-22 19:38:07,031 INFO: Loaded gen / inten models from /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt & /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+2026-06-22 19:38:07,032 INFO: Preparing entries
+  0%|          | 0/4 [00:00<?, ?it/s] 25%|██▌       | 1/4 [00:04<00:14,  4.96s/it]100%|██████████| 4/4 [00:04<00:00,  1.24s/it]
+2026-06-22 19:38:12,034 INFO: There are 4 entries to process
+  0%|          | 0/1 [00:00<?, ?it/s]/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+100%|██████████| 1/1 [00:05<00:00,  5.47s/it]100%|██████████| 1/1 [00:05<00:00,  5.47s/it]
+2026-06-22 19:38:17,508 INFO: Program finished in: 10.977182626724243 seconds
+Seed set to 42
+2026-06-22 19:38:23,218 INFO: 
+adduct_shift: true
+batch_size: 4
+binned_out: false
+dataset_labels: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/d1a2ead61de24dcd41ac728fe9755b7e/cands_df_scaling_e0e8b2f5.tsv
+dataset_name: null
+debug: false
+gen_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt
+gpu: false
+inten_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+max_nodes: 100
+num_bins: 15000
+num_workers: 6
+save_dir: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/d1a2ead61de24dcd41ac728fe9755b7e
+seed: 42
+sparse_k: 100
+sparse_out: true
+split_name: split_22.tsv
+subset_datasets: none
+threshold: 0.0
+upper_limit: 1500
+
+Lightning automatically upgraded your loaded checkpoint from v1.6.5 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt`
+Lightning automatically upgraded your loaded checkpoint from v1.6.0 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt`
+2026-06-22 19:38:23,707 INFO: Loaded gen / inten models from /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt & /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+2026-06-22 19:38:23,709 INFO: Preparing entries
+  0%|          | 0/4 [00:00<?, ?it/s] 25%|██▌       | 1/4 [00:05<00:15,  5.07s/it]100%|██████████| 4/4 [00:05<00:00,  1.27s/it]
+2026-06-22 19:38:28,820 INFO: There are 4 entries to process
+  0%|          | 0/1 [00:00<?, ?it/s]/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+100%|██████████| 1/1 [00:05<00:00,  5.41s/it]100%|██████████| 1/1 [00:05<00:00,  5.41s/it]
+2026-06-22 19:38:34,228 INFO: Program finished in: 11.014044284820557 seconds
+Seed set to 42
+2026-06-22 19:38:40,196 INFO: 
+adduct_shift: true
+batch_size: 4
+binned_out: false
+dataset_labels: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/8a42cdcd3abef3000f7181e7ec39a0db/cands_df_scaling_cdea69aa.tsv
+dataset_name: null
+debug: false
+gen_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt
+gpu: false
+inten_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+max_nodes: 100
+num_bins: 15000
+num_workers: 6
+save_dir: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/8a42cdcd3abef3000f7181e7ec39a0db
+seed: 42
+sparse_k: 100
+sparse_out: true
+split_name: split_22.tsv
+subset_datasets: none
+threshold: 0.0
+upper_limit: 1500
+
+Lightning automatically upgraded your loaded checkpoint from v1.6.5 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt`
+Lightning automatically upgraded your loaded checkpoint from v1.6.0 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt`
+2026-06-22 19:38:40,706 INFO: Loaded gen / inten models from /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt & /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+2026-06-22 19:38:40,707 INFO: Preparing entries
+  0%|          | 0/4 [00:00<?, ?it/s] 25%|██▌       | 1/4 [00:04<00:14,  4.87s/it]100%|██████████| 4/4 [00:04<00:00,  1.22s/it]
+2026-06-22 19:38:45,625 INFO: There are 4 entries to process
+  0%|          | 0/1 [00:00<?, ?it/s]/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+100%|██████████| 1/1 [00:05<00:00,  5.41s/it]100%|██████████| 1/1 [00:05<00:00,  5.41s/it]
+2026-06-22 19:38:51,045 INFO: Program finished in: 10.85338044166565 seconds
+/home/nikolenko/work/Projects/FRIGID/.venv/bin/python src/ms_pred/dag_pred/predict_smis.py \
+               --batch-size 4 \
+               --num-workers 6 \
+               --dataset-labels /home/nikolenko/.cache/ms-pred/iceberg-elucidation/b3e10b501f6ebe09d93e349f767ea3fa/cands_df_scaling_a5ef19be.tsv \
+               --sparse-out \
+               --sparse-k 100 \
+               --max-nodes 100 \
+               --threshold 0.0 \
+               --gen-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt \
+               --inten-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt \
+               --save-dir /home/nikolenko/.cache/ms-pred/iceberg-elucidation/b3e10b501f6ebe09d93e349f767ea3fa \
+               --adduct-shift
+  Running ICEBERG for 12 molecules at CE=50eV, instrument=QTOF, ionization=[M+Na]+...
+/home/nikolenko/work/Projects/FRIGID/.venv/bin/python src/ms_pred/dag_pred/predict_smis.py \
+               --batch-size 4 \
+               --num-workers 6 \
+               --dataset-labels /home/nikolenko/.cache/ms-pred/iceberg-elucidation/32e9a2ead95ba2c61b877197b4b24e91/cands_df_scaling_abcaf563.tsv \
+               --sparse-out \
+               --sparse-k 100 \
+               --max-nodes 100 \
+               --threshold 0.0 \
+               --gen-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt \
+               --inten-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt \
+               --save-dir /home/nikolenko/.cache/ms-pred/iceberg-elucidation/32e9a2ead95ba2c61b877197b4b24e91 \
+               --adduct-shift
+  Running ICEBERG for 4 molecules at CE=10eV, instrument=Orbitrap, ionization=[M+Na]+...
+/home/nikolenko/work/Projects/FRIGID/.venv/bin/python src/ms_pred/dag_pred/predict_smis.py \
+               --batch-size 4 \
+               --num-workers 6 \
+               --dataset-labels /home/nikolenko/.cache/ms-pred/iceberg-elucidation/8da6f487098183a882f13fa8906b1cad/cands_df_scaling_6df22085.tsv \
+               --sparse-out \
+               --sparse-k 100 \
+               --max-nodes 100 \
+               --threshold 0.0 \
+               --gen-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt \
+               --inten-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt \
+               --save-dir /home/nikolenko/.cache/ms-pred/iceberg-elucidation/8da6f487098183a882f13fa8906b1cad \
+               --adduct-shift
+  Running ICEBERG for 4 molecules at CE=20eV, instrument=Orbitrap, ionization=[M+Na]+...
+/home/nikolenko/work/Projects/FRIGID/.venv/bin/python src/ms_pred/dag_pred/predict_smis.py \
+               --batch-size 4 \
+               --num-workers 6 \
+               --dataset-labels /home/nikolenko/.cache/ms-pred/iceberg-elucidation/275feca7d07ffe4848702d0a69824647/cands_df_scaling_51a2e3e6.tsv \
+               --sparse-out \
+               --sparse-k 100 \
+               --max-nodes 100 \
+               --threshold 0.0 \
+               --gen-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt \
+               --inten-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt \
+               --save-dir /home/nikolenko/.cache/ms-pred/iceberg-elucidation/275feca7d07ffe4848702d0a69824647 \
+               --adduct-shift
+  Running ICEBERG for 4 molecules at CE=30eV, instrument=Orbitrap, ionization=[M+Na]+...
+/home/nikolenko/work/Projects/FRIGID/.venv/bin/python src/ms_pred/dag_pred/predict_smis.py \
+               --batch-size 4 \
+               --num-workers 6 \
+               --dataset-labels /home/nikolenko/.cache/ms-pred/iceberg-elucidation/b3b5f2105b647dd34b133c9a81d1490d/cands_df_scaling_38a81c18.tsv \
+               --sparse-out \
+               --sparse-k 100 \
+               --max-nodes 100 \
+               --threshold 0.0 \
+               --gen-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt \
+               --inten-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt \
+               --save-dir /home/nikolenko/.cache/ms-pred/iceberg-elucidation/b3b5f2105b647dd34b133c9a81d1490d \
+               --adduct-shift
+  Running ICEBERG for 4 molecules at CE=40eV, instrument=Orbitrap, ionization=[M+Na]+...
+/home/nikolenko/work/Projects/FRIGID/.venv/bin/python src/ms_pred/dag_pred/predict_smis.py \
+               --batch-size 4 \
+               --num-workers 6 \
+               --dataset-labels /home/nikolenko/.cache/ms-pred/iceberg-elucidation/d1a2ead61de24dcd41ac728fe9755b7e/cands_df_scaling_e0e8b2f5.tsv \
+               --sparse-out \
+               --sparse-k 100 \
+               --max-nodes 100 \
+               --threshold 0.0 \
+               --gen-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt \
+               --inten-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt \
+               --save-dir /home/nikolenko/.cache/ms-pred/iceberg-elucidation/d1a2ead61de24dcd41ac728fe9755b7e \
+               --adduct-shift
+  Running ICEBERG for 4 molecules at CE=50eV, instrument=Orbitrap, ionization=[M+Na]+...
+/home/nikolenko/work/Projects/FRIGID/.venv/bin/python src/ms_pred/dag_pred/predict_smis.py \
+               --batch-size 4 \
+               --num-workers 6 \
+               --dataset-labels /home/nikolenko/.cache/ms-pred/iceberg-elucidation/8a42cdcd3abef3000f7181e7ec39a0db/cands_df_scaling_cdea69aa.tsv \
+               --sparse-out \
+               --sparse-k 100 \
+               --max-nodes 100 \
+               --threshold 0.0 \
+               --gen-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt \
+               --inten-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt \
+               --save-dir /home/nikolenko/.cache/ms-pred/iceberg-elucidation/8a42cdcd3abef3000f7181e7ec39a0db \
+               --adduct-shift
+  Total unique molecules: 495 (avg 24.8 per sample)
+  ICEBERG cache size: 16
+  Round time: 405.88s (20.2939s per sample)
+  Cumulative time: 405.88s (20.2939s per sample)
+
+  -> Saving intermediate predictions for round 1...
+Saved round 1 predictions to: repro_runs/20260622T_iceberg_scaling_msg_20_r1_cpuiceberg/results/predictions_round_1.csv
+Saved timing data to: repro_runs/20260622T_iceberg_scaling_msg_20_r1_cpuiceberg/results/round_timing.json
+
+Phase 3: Evaluating results...
+
+Saved aggregate statistics to: repro_runs/20260622T_iceberg_scaling_msg_20_r1_cpuiceberg/results/aggregate_statistics.json
+Saved detailed results to: repro_runs/20260622T_iceberg_scaling_msg_20_r1_cpuiceberg/results/detailed_results.csv
+Saved predictions to: repro_runs/20260622T_iceberg_scaling_msg_20_r1_cpuiceberg/results/predictions.csv
+
+======================================================================
+BENCHMARK SUMMARY
+======================================================================
+
+Total spectra: 20
+Time: 407.1s
+Speed: 0.05 spectra/s
+
+--- MIST Encoder Quality ---
+Mean Tanimoto (pred vs GT FP): 0.5447
+
+--- Core Metrics ---
+Exact Match Top-1: 10.00%
+Exact Match Top-10: 10.00%
+Tanimoto Top-1: 0.4469
+Tanimoto Top-10: 0.4912
+
+--- Scaling Statistics ---
+
+--- Per-Round GPU Timing ---
+round_1: cumulative=405.88s, per_sample=20.2939s
+======================================================================
+
+--- Round Timing Summary ---
+Round 1: cumulative=405.88s, per_sample=20.2939s
+
+Results saved to: repro_runs/20260622T_iceberg_scaling_msg_20_r1_cpuiceberg/results/
+DONE_UTC 2026-06-22T16:38:56Z

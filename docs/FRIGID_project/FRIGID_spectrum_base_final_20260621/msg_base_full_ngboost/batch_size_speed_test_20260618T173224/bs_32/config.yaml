@@ -1,0 +1,50 @@
+data:
+  datadir: /home/nikolenko/work/Projects/FRIGID/repro_runs/20260616T203000Z_msg_paper_repro/msg_base_full_ngboost/shard_data/shard_020
+  hf_cache_dir: /path/to/data/safes/
+  labels_file: /home/nikolenko/work/Projects/FRIGID/repro_runs/20260616T203000Z_msg_paper_repro/msg_base_full_ngboost/shard_data/shard_020/labels.tsv
+  spec_folder: /home/nikolenko/work/Projects/FRIGID/repro_runs/20260616T203000Z_msg_paper_repro/msg_base_full_ngboost/shard_data/shard_020/spec_files
+  split_file: /home/nikolenko/work/Projects/FRIGID/repro_runs/20260616T203000Z_msg_paper_repro/msg_base_full_ngboost/shard_data/shard_020/split.tsv
+  subform_folder: /home/nikolenko/work/Projects/FRIGID/repro_runs/20260616T203000Z_msg_paper_repro/msg_base_full_ngboost/shard_data/shard_020/subformulae/default_subformulae
+dlm:
+  checkpoint: repro_cache/DLM.ckpt
+evaluation:
+  max_spectra: null
+  metrics:
+  - accuracy
+  - tanimoto
+  split: test
+fingerprint:
+  bits: 4096
+  radius: 2
+  threshold: 0.187
+formula_filter:
+  max_attempts: 100
+  n_required: 10
+generation:
+  batch_size: 32
+  randomness: 10.0
+  softmax_temp: 1.0
+  top_k: 100
+mist_encoder:
+  checkpoint: repro_cache/mist_msg.pt
+  cls_type: ms1
+  embed_instrument: false
+  form_embedder: pos-cos
+  hidden_size: 640
+  inten_prob: 0.1
+  inten_transform: float
+  magma_modulo: 2048
+  max_peaks: null
+  mol_features: fingerprint
+  num_heads: 8
+  output_size: 4096
+  pairwise_featurization: true
+  peak_attn_layers: 2
+  refine_layers: 4
+  remove_prob: 0.5
+  set_pooling: cls
+  spec_features: peakformula
+  spectra_dropout: 0.1
+  top_layers: 1
+output:
+  results_dir: /home/nikolenko/work/Projects/FRIGID/repro_runs/20260616T203000Z_msg_paper_repro/msg_base_full_ngboost/batch_size_speed_test_20260618T173224/bs_32

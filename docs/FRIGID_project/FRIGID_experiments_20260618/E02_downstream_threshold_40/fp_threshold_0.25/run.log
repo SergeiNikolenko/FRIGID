@@ -1,0 +1,76 @@
+=== RUN threshold=0.25 start 2026-06-22T11:55:35+03:00 ===
+Loading token model from /home/nikolenko/work/Projects/FRIGID/token_models/models/best_ngboost_MSG.joblib
+Detected NGBoost model - will use sigma-based sampling
+Loaded 14 features from /home/nikolenko/work/Projects/FRIGID/token_models/models/best_ngboost_MSG_features.json
+Using device: cuda
+
+Loading test split...
+Finding spectra files:   0%|          | 0/17556 [00:00<?, ?it/s]Finding spectra files:  17%|█▋        | 2981/17556 [00:00<00:00, 29806.12it/s]Finding spectra files:  34%|███▍      | 5998/17556 [00:00<00:00, 30015.58it/s]Finding spectra files:  51%|█████▏    | 9000/17556 [00:00<00:00, 29857.51it/s]Finding spectra files:  68%|██████▊   | 12019/17556 [00:00<00:00, 29987.79it/s]Finding spectra files:  86%|████████▌ | 15069/17556 [00:00<00:00, 30169.78it/s]                                                                               0it [00:00, ?it/s]17556it [00:00, 1015195.86it/s]
+0it [00:00, ?it/s]670it [00:00, 6693.18it/s]1460it [00:00, 7397.88it/s]2261it [00:00, 7675.44it/s]3029it [00:00, 4122.75it/s]3733it [00:00, 4799.45it/s]4417it [00:00, 5307.27it/s]5130it [00:00, 5783.99it/s]5791it [00:01, 5927.90it/s]6606it [00:01, 6544.36it/s]7515it [00:01, 7266.88it/s]8427it [00:01, 7801.20it/s]9238it [00:01, 7789.12it/s]10039it [00:01, 7647.65it/s]10819it [00:01, 7549.21it/s]11585it [00:01, 7417.70it/s]12335it [00:01, 7404.71it/s]13081it [00:01, 7064.37it/s]13794it [00:02, 6864.81it/s]14485it [00:02, 6763.31it/s]15165it [00:02, 6733.57it/s]15841it [00:02, 6650.89it/s]16508it [00:02, 6654.92it/s]17175it [00:02, 6504.30it/s]17556it [00:02, 6583.41it/s]
+0it [00:00, ?it/s]17556it [00:00, 5022522.41it/s]
+Loaded 17082 total spectra-molecule pairs
+Using 17082 samples from test split
+
+Loading MIST encoder from: repro_cache/mist_msg.pt
+✓ Loaded MIST encoder weights
+
+Loading DLM decoder from: repro_cache/DLM.ckpt
+Using SHARED cross-attention mode
+[load_model] Removed 120 fingerprint_conditioner.cross_attention_layers keys for shared mode
+[DLM] Loading checkpoint with missing buffers (safe to skip): {'token_atom_counts'}
+[Sampler] Warning: data/len.pk not found. Using default length range.
+✓ Fingerprint conditioning: ENABLED
+✓ Formula conditioning: ENABLED
+Cross-attention mode: SHARED
+
+======================================================================
+SPEC2MOL BENCHMARK
+======================================================================
+Total spectra: 17082
+Formula matches required: 3
+Max attempts: 30
+Batch size: 16
+Temperature: 1.0
+Randomness: 10.0
+FP threshold: 0.25
+======================================================================
+
+Processing spectra:   0%|          | 0/40 [00:00<?, ?it/s]Processing spectra:   2%|▎         | 1/40 [00:06<04:20,  6.67s/it]Processing spectra:   5%|▌         | 2/40 [00:18<06:19,  9.98s/it]Processing spectra:   8%|▊         | 3/40 [00:31<06:44, 10.94s/it]Processing spectra:  10%|█         | 4/40 [00:37<05:31,  9.22s/it]Processing spectra:  12%|█▎        | 5/40 [00:49<05:58, 10.23s/it]Processing spectra:  15%|█▌        | 6/40 [00:56<05:05,  9.00s/it]Processing spectra:  18%|█▊        | 7/40 [01:08<05:27,  9.91s/it]Processing spectra:  20%|██        | 8/40 [01:14<04:43,  8.86s/it]Processing spectra:  22%|██▎       | 9/40 [01:21<04:13,  8.18s/it]Processing spectra:  25%|██▌       | 10/40 [01:33<04:42,  9.41s/it]Processing spectra:  28%|██▊       | 11/40 [01:45<04:57, 10.26s/it]Processing spectra:  30%|███       | 12/40 [01:57<05:03, 10.83s/it]Processing spectra:  32%|███▎      | 13/40 [02:09<05:02, 11.21s/it]Processing spectra:  35%|███▌      | 14/40 [02:22<04:58, 11.48s/it]Processing spectra:  38%|███▊      | 15/40 [02:36<05:06, 12.26s/it]Processing spectra:  40%|████      | 16/40 [02:47<04:51, 12.13s/it]Processing spectra:  42%|████▎     | 17/40 [02:59<04:38, 12.11s/it]Processing spectra:  45%|████▌     | 18/40 [03:12<04:27, 12.17s/it]Processing spectra:  48%|████▊     | 19/40 [03:25<04:22, 12.49s/it]Processing spectra:  50%|█████     | 20/40 [03:37<04:07, 12.40s/it]Processing spectra:  52%|█████▎    | 21/40 [03:51<04:05, 12.90s/it]Processing spectra:  55%|█████▌    | 22/40 [04:03<03:45, 12.54s/it]Processing spectra:  57%|█████▊    | 23/40 [04:09<03:01, 10.68s/it]Processing spectra:  60%|██████    | 24/40 [04:22<02:59, 11.20s/it]Processing spectra:  62%|██████▎   | 25/40 [04:36<03:00, 12.04s/it]Processing spectra:  65%|██████▌   | 26/40 [04:42<02:25, 10.41s/it]Processing spectra:  68%|██████▊   | 27/40 [04:55<02:22, 10.97s/it]Processing spectra:  70%|███████   | 28/40 [05:01<01:56,  9.67s/it]Processing spectra:  72%|███████▎  | 29/40 [05:14<01:57, 10.65s/it]Processing spectra:  75%|███████▌  | 30/40 [05:21<01:34,  9.47s/it]Processing spectra:  78%|███████▊  | 31/40 [05:33<01:32, 10.24s/it]Processing spectra:  80%|████████  | 32/40 [05:40<01:13,  9.15s/it]Processing spectra:  82%|████████▎ | 33/40 [05:51<01:09,  9.90s/it]Processing spectra:  85%|████████▌ | 34/40 [05:58<00:53,  8.94s/it]Processing spectra:  88%|████████▊ | 35/40 [06:10<00:49,  9.86s/it]Processing spectra:  90%|█████████ | 36/40 [06:23<00:42, 10.75s/it]Processing spectra:  92%|█████████▎| 37/40 [06:35<00:33, 11.18s/it]Processing spectra:  95%|█████████▌| 38/40 [06:38<00:17,  8.90s/it]Processing spectra:  98%|█████████▊| 39/40 [06:46<00:08,  8.42s/it]Processing spectra: 100%|██████████| 40/40 [06:53<00:00,  8.07s/it]Processing spectra: 100%|██████████| 40/40 [06:53<00:00, 10.34s/it]
+
+Saved aggregate statistics to: repro_runs/20260618T_spectrum_msg_paper_repro/experiments/E02_downstream_threshold_40/fp_threshold_0.25/aggregate_statistics.json
+Saved detailed results to: repro_runs/20260618T_spectrum_msg_paper_repro/experiments/E02_downstream_threshold_40/fp_threshold_0.25/detailed_results.csv
+Saved predictions to: repro_runs/20260618T_spectrum_msg_paper_repro/experiments/E02_downstream_threshold_40/fp_threshold_0.25/predictions.csv
+
+======================================================================
+BENCHMARK SUMMARY
+======================================================================
+
+Total spectra: 40
+Time: 413.5s
+Speed: 0.10 spectra/s
+
+--- Generation Timing ---
+Time in generation functions: 408.7s
+Percentage of total time: 98.8%
+
+--- MIST Encoder Quality ---
+Mean Tanimoto (pred vs GT FP): 0.9033
+
+--- Core Metrics ---
+Exact Match Top-1: 0.00%
+Exact Match Top-10: 0.00%
+Tanimoto Top-1: 0.5906
+Tanimoto Top-10: 0.5910
+
+--- Formula Matching ---
+Success rate: 95.00%
+Never matched: 5.00%
+Avg actual formula matches: 2.5
+Avg predictions collected (incl. padding): 3.0
+Avg generations: 25.4
+Avg attempts per match (successful only): 10.5
+======================================================================
+
+Results saved to: repro_runs/20260618T_spectrum_msg_paper_repro/experiments/E02_downstream_threshold_40/fp_threshold_0.25/
+WALL_SECONDS 438.88
+=== RUN threshold=0.25 end 2026-06-22T12:02:54+03:00 ===

@@ -1,0 +1,73 @@
+Loading token model from token_models/models/best_ngboost_MSG.joblib
+Detected NGBoost model - will use sigma-based sampling
+Loaded 14 features from token_models/models/best_ngboost_MSG_features.json
+Using device: cuda
+Requested spectra: 20
+
+Loading test split...
+Finding spectra files:   0%|          | 0/17556 [00:00<?, ?it/s]Finding spectra files:  17%|█▋        | 2996/17556 [00:00<00:00, 29951.32it/s]Finding spectra files:  35%|███▍      | 6093/17556 [00:00<00:00, 30547.19it/s]Finding spectra files:  52%|█████▏    | 9191/17556 [00:00<00:00, 30740.46it/s]Finding spectra files:  70%|███████   | 12290/17556 [00:00<00:00, 30837.11it/s]Finding spectra files:  88%|████████▊ | 15374/17556 [00:00<00:00, 30404.76it/s]                                                                               0it [00:00, ?it/s]17556it [00:00, 1048979.32it/s]
+0it [00:00, ?it/s]705it [00:00, 7042.69it/s]1495it [00:00, 7542.65it/s]2316it [00:00, 7844.11it/s]3110it [00:00, 7879.78it/s]3898it [00:00, 7429.58it/s]4646it [00:00, 7228.64it/s]5372it [00:00, 7092.68it/s]6084it [00:01, 4369.84it/s]6961it [00:01, 5297.37it/s]7862it [00:01, 6156.19it/s]8732it [00:01, 6788.12it/s]9508it [00:01, 6957.46it/s]10273it [00:01, 7039.26it/s]11026it [00:01, 7089.73it/s]11770it [00:01, 7145.90it/s]12509it [00:01, 7110.10it/s]13237it [00:01, 6849.51it/s]13936it [00:02, 6704.38it/s]14616it [00:02, 6622.51it/s]15285it [00:02, 6527.17it/s]15959it [00:02, 6585.07it/s]16621it [00:02, 6559.93it/s]17280it [00:02, 6430.88it/s]17556it [00:02, 6619.72it/s]
+0it [00:00, ?it/s]17556it [00:00, 4894330.41it/s]
+Loaded 17082 total spectra-molecule pairs
+Using 17082 samples from test split
+
+Loading DLM decoder from: repro_cache/DLM.ckpt
+Using SHARED cross-attention mode
+[load_model] Removed 120 fingerprint_conditioner.cross_attention_layers keys for shared mode
+[DLM] Loading checkpoint with missing buffers (safe to skip): {'token_atom_counts'}
+[Sampler] Warning: data/len.pk not found. Using default length range.
+✓ Fingerprint conditioning: ENABLED
+✓ Formula conditioning: ENABLED
+Cross-attention mode: SHARED
+[001/020] MassSpecGymID0372970 base_top10=0 oracle_top10=0 oracle_tan10=0.542 gen=100 matched=10 time=52.8s
+[002/020] MassSpecGymID0388215 base_top10=0 oracle_top10=1 oracle_tan10=1.000 gen=100 matched=8 time=32.2s
+[003/020] MassSpecGymID0341761 base_top10=0 oracle_top10=0 oracle_tan10=0.630 gen=100 matched=2 time=33.4s
+[004/020] MassSpecGymID0347534 base_top10=0 oracle_top10=0 oracle_tan10=0.586 gen=100 matched=8 time=33.3s
+[005/020] MassSpecGymID0380322 base_top10=0 oracle_top10=0 oracle_tan10=0.805 gen=100 matched=1 time=30.1s
+[006/020] MassSpecGymID0208832 base_top10=0 oracle_top10=1 oracle_tan10=1.000 gen=100 matched=39 time=14.5s
+[007/020] MassSpecGymID0383008 base_top10=0 oracle_top10=1 oracle_tan10=1.000 gen=100 matched=14 time=18.3s
+[008/020] MassSpecGymID0380040 base_top10=0 oracle_top10=1 oracle_tan10=1.000 gen=100 matched=28 time=11.6s
+[009/020] MassSpecGymID0379306 base_top10=0 oracle_top10=1 oracle_tan10=1.000 gen=100 matched=7 time=30.8s
+[010/020] MassSpecGymID0346101 base_top10=0 oracle_top10=1 oracle_tan10=1.000 gen=96 matched=12 time=34.2s
+[011/020] MassSpecGymID0203740 base_top10=1 oracle_top10=1 oracle_tan10=1.000 gen=93 matched=29 time=8.4s
+[012/020] MassSpecGymID0380514 base_top10=0 oracle_top10=0 oracle_tan10=0.822 gen=100 matched=2 time=31.5s
+[013/020] MassSpecGymID0105109 base_top10=0 oracle_top10=0 oracle_tan10=0.606 gen=100 matched=2 time=39.1s
+[014/020] MassSpecGymID0081883 base_top10=0 oracle_top10=0 oracle_tan10=0.943 gen=76 matched=16 time=16.5s
+[015/020] MassSpecGymID0152325 base_top10=0 oracle_top10=0 oracle_tan10=0.854 gen=100 matched=3 time=42.6s
+[016/020] MassSpecGymID0188657 base_top10=1 oracle_top10=1 oracle_tan10=1.000 gen=100 matched=16 time=4.1s
+[017/020] MassSpecGymID0162714 base_top10=0 oracle_top10=0 oracle_tan10=0.398 gen=73 matched=10 time=18.1s
+[018/020] MassSpecGymID0185133 base_top10=0 oracle_top10=0 oracle_tan10=0.844 gen=100 matched=6 time=50.8s
+[019/020] MassSpecGymID0058062 base_top10=0 oracle_top10=0 oracle_tan10=0.911 gen=100 matched=1 time=58.0s
+[020/020] MassSpecGymID0018517 base_top10=1 oracle_top10=1 oracle_tan10=1.000 gen=100 matched=16 time=9.2s
+{
+  "total_spectra": 20,
+  "elapsed_time_seconds": 572.6372663974762,
+  "spectra_per_second": 0.03492612369750609,
+  "exact_match_top1": 0.45,
+  "exact_match_top10": 0.45,
+  "tanimoto_top1_mean": 0.8470865681767463,
+  "tanimoto_top10_mean": 0.8470865681767463,
+  "mist_tanimoto_mean": 0.0,
+  "avg_formula_matches": 11.5,
+  "avg_predictions_collected": 10.0,
+  "avg_total_generated": 96.9,
+  "formula_match_success_rate": 1.0,
+  "avg_attempts_to_match": 24.916049955791337,
+  "never_matched_rate": 0.0,
+  "total_generation_time": 569.4492723941803,
+  "generation_time_percentage": 99.4432786354699,
+  "total_elapsed_time_seconds": 572.6372663974762,
+  "proposal_source_counts": [
+    [
+      "oracle_formula",
+      20
+    ]
+  ],
+  "fingerprint_source": "oracle_ground_truth",
+  "sample_csv": "/home/nikolenko/work/Projects/FRIGID/repro_runs/oracle_fingerprint_ablation_20260622/oracle_ablation_sample20.csv",
+  "baseline_exact_match_top1": 0.15,
+  "baseline_exact_match_top10": 0.15,
+  "baseline_tanimoto_top1_mean": 0.4405841339379549,
+  "baseline_tanimoto_top10_mean": 0.4686487790197134,
+  "baseline_mist_tanimoto_mean": 0.502012613043189
+}

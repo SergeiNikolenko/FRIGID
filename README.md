@@ -127,6 +127,13 @@ frigid/
 │   ├── train_opt_msg_pubchem.py        # Train with PubChem auxiliary data
 │   └── models/                         # Saved .joblib model files
 │
+├── docs/                               # Operational docs and project artifact handoff
+│   ├── FRIGID_OPERATIONAL_USAGE.md     # Stable CLI, inputs, outputs, and run layout
+│   ├── FRIGID_TECHNICAL_AUDIT.md       # Current architecture, bottlenecks, and limitations
+│   ├── FRIGID_BENCHMARK_SYSTEM.md      # Benchmark tiers, metrics, gates, and comparisons
+│   ├── agent.md                        # Agent-facing artifact package guide
+│   └── FRIGID_project/                 # Consolidated project reports and copied artifacts
+│
 ├── data/
 │   ├── canopus/                        # NPLIB1/CANOPUS dataset
 │   ├── msg/                            # MassSpecGym dataset
@@ -134,6 +141,8 @@ frigid/
 │
 ├── checkpoints/                        # Pretrained model checkpoints
 │   └── iceberg/                        # ICEBERG model weights
+│
+├── AGENTS.md                           # Thin dispatcher to docs/agent.md and ops docs
 │
 └── assets/                             # Paper figures
     ├── fig1_model_overview.png

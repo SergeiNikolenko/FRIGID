@@ -1,0 +1,96 @@
+
+Loading MIST encoder from: repro_cache/mist_msg.pt
+✓ Loaded MIST encoder weights
+
+Loading val split...
+Finding spectra files:   0%|          | 0/19429 [00:00<?, ?it/s]Finding spectra files:  16%|█▌        | 3101/19429 [00:00<00:00, 31006.04it/s]Finding spectra files:  32%|███▏      | 6202/19429 [00:00<00:00, 30931.48it/s]Finding spectra files:  48%|████▊     | 9329/19429 [00:00<00:00, 31083.42it/s]Finding spectra files:  64%|██████▍   | 12438/19429 [00:00<00:00, 31070.72it/s]Finding spectra files:  80%|████████  | 15548/19429 [00:00<00:00, 31079.76it/s]Finding spectra files:  96%|█████████▌| 18677/19429 [00:00<00:00, 31150.90it/s]                                                                               0it [00:00, ?it/s]19429it [00:00, 1054778.50it/s]
+0it [00:00, ?it/s]945it [00:00, 9446.68it/s]2043it [00:00, 10340.44it/s]3078it [00:00, 9216.58it/s] 4013it [00:00, 7621.34it/s]4812it [00:00, 7105.04it/s]5546it [00:00, 6978.17it/s]6258it [00:00, 6987.38it/s]7150it [00:00, 7541.00it/s]7917it [00:01, 4666.47it/s]8802it [00:01, 5517.16it/s]9593it [00:01, 6055.50it/s]10360it [00:01, 6448.14it/s]11095it [00:01, 6630.51it/s]11824it [00:01, 6780.90it/s]12550it [00:01, 6859.47it/s]13270it [00:01, 6324.36it/s]14034it [00:02, 6674.28it/s]14728it [00:02, 6347.54it/s]15383it [00:02, 6199.64it/s]16017it [00:02, 6204.72it/s]16648it [00:02, 6098.24it/s]17265it [00:02, 5940.86it/s]17864it [00:02, 5686.91it/s]18437it [00:02, 5681.56it/s]19009it [00:02, 5502.39it/s]19429it [00:03, 6391.40it/s]
+0it [00:00, ?it/s]19429it [00:00, 4882047.23it/s]
+Loaded 19043 total spectra-molecule pairs
+Using 19043 samples from val split
+Calibration MIST:   0%|          | 0/32 [00:00<?, ?it/s]Calibration MIST:   3%|▎         | 1/32 [00:00<00:09,  3.27it/s]Calibration MIST:   9%|▉         | 3/32 [00:00<00:03,  8.31it/s]Calibration MIST:  19%|█▉        | 6/32 [00:00<00:01, 13.09it/s]Calibration MIST:  28%|██▊       | 9/32 [00:00<00:01, 15.52it/s]Calibration MIST:  34%|███▍      | 11/32 [00:00<00:01, 16.33it/s]Calibration MIST:  44%|████▍     | 14/32 [00:00<00:01, 17.98it/s]Calibration MIST:  53%|█████▎    | 17/32 [00:01<00:00, 18.86it/s]Calibration MIST:  62%|██████▎   | 20/32 [00:01<00:00, 19.41it/s]Calibration MIST:  72%|███████▏  | 23/32 [00:01<00:00, 20.91it/s]Calibration MIST:  81%|████████▏ | 26/32 [00:01<00:00, 22.93it/s]Calibration MIST:  91%|█████████ | 29/32 [00:01<00:00, 22.29it/s]Calibration MIST: 100%|██████████| 32/32 [00:01<00:00, 23.54it/s]Calibration MIST: 100%|██████████| 32/32 [00:01<00:00, 18.44it/s]
+
+Loading test split...
+Finding spectra files:   0%|          | 0/17556 [00:00<?, ?it/s]Finding spectra files:  17%|█▋        | 3019/17556 [00:00<00:00, 30182.33it/s]Finding spectra files:  35%|███▍      | 6068/17556 [00:00<00:00, 30362.46it/s]Finding spectra files:  52%|█████▏    | 9123/17556 [00:00<00:00, 30446.97it/s]Finding spectra files:  69%|██████▉   | 12168/17556 [00:00<00:00, 29956.63it/s]Finding spectra files:  87%|████████▋ | 15244/17556 [00:00<00:00, 30242.27it/s]                                                                               0it [00:00, ?it/s]17556it [00:00, 1052051.68it/s]
+0it [00:00, ?it/s]781it [00:00, 7803.33it/s]1756it [00:00, 8944.21it/s]2663it [00:00, 8999.60it/s]3563it [00:00, 8544.05it/s]4421it [00:00, 7705.71it/s]5205it [00:00, 7399.33it/s]5954it [00:00, 6976.88it/s]6824it [00:00, 7466.93it/s]7726it [00:00, 7913.93it/s]8529it [00:01, 4361.39it/s]9273it [00:01, 4934.52it/s]9997it [00:01, 5418.85it/s]10723it [00:01, 5842.44it/s]11430it [00:01, 6146.92it/s]12175it [00:01, 6487.76it/s]12887it [00:01, 6520.32it/s]13583it [00:02, 6476.48it/s]14262it [00:02, 6440.15it/s]14928it [00:02, 6449.00it/s]15588it [00:02, 6426.43it/s]16272it [00:02, 6542.43it/s]16935it [00:02, 6399.07it/s]17556it [00:02, 6491.12it/s]
+0it [00:00, ?it/s]17556it [00:00, 4846015.20it/s]
+Loaded 17082 total spectra-molecule pairs
+Using 17082 samples from test split
+Eval MIST:   0%|          | 0/1 [00:00<?, ?it/s]Eval MIST: 100%|██████████| 1/1 [00:00<00:00, 24.87it/s]
+{
+  "baseline_thresholds": [
+    0.187,
+    0.25,
+    0.3
+  ],
+  "calibration_count": 1000,
+  "calibration_split": "val",
+  "calibration_stats": {
+    "bits_with_positive_examples": 3594,
+    "bits_without_positive_examples": 502,
+    "mean_best_f1": 0.5225611925125122,
+    "mean_threshold": 0.18001367151737213,
+    "median_threshold": 0.15000000596046448
+  },
+  "eval_count": 20,
+  "eval_subset_csv": "repro_runs/oracle_fingerprint_ablation_20260622/oracle_ablation_sample20.csv",
+  "strategies": [
+    {
+      "count": 20,
+      "max_tanimoto": 0.9285714030265808,
+      "mean_predicted_active_bits": 68.45,
+      "mean_tanimoto": 0.502012613043189,
+      "mean_target_active_bits": 68.1,
+      "median_predicted_active_bits": 74.5,
+      "median_tanimoto": 0.5501465499401093,
+      "min_tanimoto": 0.08163265138864517,
+      "strategy": "global_threshold_0.187"
+    },
+    {
+      "count": 20,
+      "max_tanimoto": 0.9047619104385376,
+      "mean_predicted_active_bits": 60.55,
+      "mean_tanimoto": 0.5060236614197493,
+      "mean_target_active_bits": 68.1,
+      "median_predicted_active_bits": 63.5,
+      "median_tanimoto": 0.53125,
+      "min_tanimoto": 0.08695652335882187,
+      "strategy": "global_threshold_0.25"
+    },
+    {
+      "count": 20,
+      "max_tanimoto": 0.9150943160057068,
+      "mean_predicted_active_bits": 56.3,
+      "mean_tanimoto": 0.5122189667075873,
+      "mean_target_active_bits": 68.1,
+      "median_predicted_active_bits": 60.0,
+      "median_tanimoto": 0.5243615657091141,
+      "min_tanimoto": 0.08695652335882187,
+      "strategy": "global_threshold_0.3"
+    },
+    {
+      "count": 20,
+      "max_tanimoto": 0.8409090638160706,
+      "mean_predicted_active_bits": 70.25,
+      "mean_tanimoto": 0.4717920109629631,
+      "mean_target_active_bits": 68.1,
+      "median_predicted_active_bits": 76.5,
+      "median_tanimoto": 0.48912546038627625,
+      "min_tanimoto": 0.09183673560619354,
+      "strategy": "per_bit_f1_thresholds"
+    }
+  ],
+  "threshold_grid": [
+    0.05,
+    0.1,
+    0.15,
+    0.187,
+    0.2,
+    0.25,
+    0.3,
+    0.35,
+    0.4,
+    0.5
+  ]
+}
+WALL_SECONDS 25.47

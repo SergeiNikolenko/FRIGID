@@ -1,0 +1,258 @@
+
+Loading MIST encoder from: repro_cache/mist_msg.pt
+✓ Loaded MIST encoder weights
+
+Loading val split...
+Finding spectra files:   0%|          | 0/19429 [00:00<?, ?it/s]Finding spectra files:  15%|█▌        | 2991/19429 [00:00<00:00, 29898.41it/s]Finding spectra files:  31%|███▏      | 6099/19429 [00:00<00:00, 30590.32it/s]Finding spectra files:  48%|████▊     | 9272/19429 [00:00<00:00, 31107.04it/s]Finding spectra files:  64%|██████▍   | 12389/19429 [00:00<00:00, 31128.51it/s]Finding spectra files:  80%|███████▉  | 15502/19429 [00:00<00:00, 30998.73it/s]Finding spectra files:  96%|█████████▌| 18602/19429 [00:00<00:00, 30814.01it/s]                                                                               0it [00:00, ?it/s]10723it [00:00, 36538.79it/s]19429it [00:00, 64282.51it/s]
+0it [00:00, ?it/s]951it [00:00, 9508.56it/s]2073it [00:00, 10506.95it/s]3124it [00:00, 9435.34it/s] 4080it [00:00, 7760.61it/s]4894it [00:00, 7207.52it/s]5639it [00:00, 7049.99it/s]6368it [00:00, 7117.34it/s]7272it [00:00, 7667.42it/s]8176it [00:01, 8059.59it/s]9062it [00:01, 8293.60it/s]9901it [00:01, 8074.09it/s]10716it [00:01, 7881.81it/s]11510it [00:01, 7717.59it/s]12286it [00:01, 7576.82it/s]13047it [00:01, 6959.01it/s]13804it [00:01, 7124.53it/s]14525it [00:01, 6748.33it/s]15209it [00:02, 6536.37it/s]15869it [00:02, 6476.67it/s]16521it [00:02, 6229.05it/s]17148it [00:02, 6050.66it/s]17756it [00:02, 5851.54it/s]18343it [00:02, 5778.32it/s]18922it [00:02, 5569.64it/s]19429it [00:02, 6996.76it/s]
+0it [00:00, ?it/s]19429it [00:00, 5045578.13it/s]
+Loaded 19043 total spectra-molecule pairs
+Using 19043 samples from val split
+Calibration MIST:   0%|          | 0/32 [00:00<?, ?it/s]Calibration MIST:   3%|▎         | 1/32 [00:00<00:11,  2.70it/s]Calibration MIST:   6%|▋         | 2/32 [00:00<00:06,  4.33it/s]Calibration MIST:  12%|█▎        | 4/32 [00:00<00:04,  6.94it/s]Calibration MIST:  19%|█▉        | 6/32 [00:00<00:03,  8.26it/s]Calibration MIST:  25%|██▌       | 8/32 [00:01<00:02,  8.78it/s]Calibration MIST:  28%|██▊       | 9/32 [00:01<00:02,  8.61it/s]Calibration MIST:  31%|███▏      | 10/32 [00:01<00:02,  8.77it/s]Calibration MIST:  38%|███▊      | 12/32 [00:01<00:02,  9.32it/s]Calibration MIST:  44%|████▍     | 14/32 [00:01<00:01,  9.65it/s]Calibration MIST:  50%|█████     | 16/32 [00:01<00:01,  9.90it/s]Calibration MIST:  53%|█████▎    | 17/32 [00:02<00:01,  9.82it/s]Calibration MIST:  59%|█████▉    | 19/32 [00:02<00:01, 10.08it/s]Calibration MIST:  66%|██████▌   | 21/32 [00:02<00:01,  9.99it/s]Calibration MIST:  72%|███████▏  | 23/32 [00:02<00:00, 10.90it/s]Calibration MIST:  78%|███████▊  | 25/32 [00:02<00:00, 11.84it/s]Calibration MIST:  84%|████████▍ | 27/32 [00:02<00:00, 12.05it/s]Calibration MIST:  91%|█████████ | 29/32 [00:02<00:00, 12.36it/s]Calibration MIST:  97%|█████████▋| 31/32 [00:03<00:00, 11.75it/s]Calibration MIST: 100%|██████████| 32/32 [00:03<00:00,  9.95it/s]
+
+Loading test split...
+Finding spectra files:   0%|          | 0/17556 [00:00<?, ?it/s]Finding spectra files:  16%|█▋        | 2863/17556 [00:00<00:00, 28629.07it/s]Finding spectra files:  34%|███▎      | 5918/17556 [00:00<00:00, 29753.40it/s]Finding spectra files:  51%|█████     | 8953/17556 [00:00<00:00, 30025.41it/s]Finding spectra files:  68%|██████▊   | 11978/17556 [00:00<00:00, 30111.05it/s]Finding spectra files:  86%|████████▌ | 15027/17556 [00:00<00:00, 30244.42it/s]                                                                               0it [00:00, ?it/s]2309it [00:00, 8972.80it/s]17556it [00:00, 64359.63it/s]
+0it [00:00, ?it/s]716it [00:00, 7154.28it/s]1621it [00:00, 8265.45it/s]2462it [00:00, 8328.59it/s]3377it [00:00, 8651.71it/s]4243it [00:00, 7849.08it/s]5040it [00:00, 7676.81it/s]5816it [00:00, 7176.07it/s]6641it [00:00, 7486.00it/s]7496it [00:00, 7795.75it/s]8412it [00:01, 8197.62it/s]9240it [00:01, 8136.76it/s]10059it [00:01, 7908.57it/s]10855it [00:01, 7720.77it/s]11631it [00:01, 7594.24it/s]12393it [00:01, 7519.95it/s]13147it [00:01, 7177.16it/s]13869it [00:01, 6923.87it/s]14565it [00:01, 6837.92it/s]15251it [00:02, 6709.27it/s]15926it [00:02, 6720.17it/s]16599it [00:02, 6680.58it/s]17268it [00:02, 6510.75it/s]17556it [00:02, 7333.34it/s]
+0it [00:00, ?it/s]17556it [00:00, 4722021.36it/s]
+Loaded 17082 total spectra-molecule pairs
+Using 17082 samples from test split
+Eval MIST:   0%|          | 0/4 [00:00<?, ?it/s]Eval MIST:  25%|██▌       | 1/4 [00:00<00:00,  9.45it/s]Eval MIST:  50%|█████     | 2/4 [00:00<00:00,  9.60it/s]Eval MIST:  75%|███████▌  | 3/4 [00:00<00:00,  9.65it/s]Eval MIST: 100%|██████████| 4/4 [00:00<00:00, 12.21it/s]
+{
+  "adapter_summaries": [
+    {
+      "alpha": 1.0,
+      "coef_shape": [
+        4096,
+        4096
+      ],
+      "intercept_shape": [
+        4096
+      ]
+    },
+    {
+      "alpha": 10.0,
+      "coef_shape": [
+        4096,
+        4096
+      ],
+      "intercept_shape": [
+        4096
+      ]
+    },
+    {
+      "alpha": 100.0,
+      "coef_shape": [
+        4096,
+        4096
+      ],
+      "intercept_shape": [
+        4096
+      ]
+    }
+  ],
+  "alphas": [
+    1.0,
+    10.0,
+    100.0
+  ],
+  "baseline_thresholds": [
+    0.187,
+    0.2,
+    0.25,
+    0.3
+  ],
+  "best_strategy": {
+    "count": 200,
+    "max_tanimoto": 1.0,
+    "mean_predicted_active_bits": 49.19,
+    "mean_tanimoto": 0.5218228963389993,
+    "mean_target_active_bits": 56.675,
+    "median_predicted_active_bits": 46.5,
+    "median_tanimoto": 0.4985930621623993,
+    "min_tanimoto": 0.10975609719753265,
+    "strategy": "raw_threshold_0.25"
+  },
+  "calibration_count": 2000,
+  "calibration_split": "val",
+  "eval_count": 200,
+  "eval_subset_csv": ".thoughts/subsets/mist_quality_balanced_200.csv",
+  "strategies": [
+    {
+      "count": 200,
+      "max_tanimoto": 1.0,
+      "mean_predicted_active_bits": 56.15,
+      "mean_tanimoto": 0.5162259753420949,
+      "mean_target_active_bits": 56.675,
+      "median_predicted_active_bits": 53.0,
+      "median_tanimoto": 0.4941265732049942,
+      "min_tanimoto": 0.10989011079072952,
+      "strategy": "raw_threshold_0.187"
+    },
+    {
+      "count": 200,
+      "max_tanimoto": 1.0,
+      "mean_predicted_active_bits": 54.275,
+      "mean_tanimoto": 0.5198029266670346,
+      "mean_target_active_bits": 56.675,
+      "median_predicted_active_bits": 50.5,
+      "median_tanimoto": 0.5003670156002045,
+      "min_tanimoto": 0.1149425283074379,
+      "strategy": "raw_threshold_0.2"
+    },
+    {
+      "count": 200,
+      "max_tanimoto": 1.0,
+      "mean_predicted_active_bits": 49.19,
+      "mean_tanimoto": 0.5218228963389993,
+      "mean_target_active_bits": 56.675,
+      "median_predicted_active_bits": 46.5,
+      "median_tanimoto": 0.4985930621623993,
+      "min_tanimoto": 0.10975609719753265,
+      "strategy": "raw_threshold_0.25"
+    },
+    {
+      "count": 200,
+      "max_tanimoto": 1.0,
+      "mean_predicted_active_bits": 45.73,
+      "mean_tanimoto": 0.5188157907873392,
+      "mean_target_active_bits": 56.675,
+      "median_predicted_active_bits": 44.0,
+      "median_tanimoto": 0.49985477328300476,
+      "min_tanimoto": 0.1139240488409996,
+      "strategy": "raw_threshold_0.3"
+    },
+    {
+      "count": 200,
+      "max_tanimoto": 0.6966292262077332,
+      "mean_predicted_active_bits": 139.025,
+      "mean_tanimoto": 0.19828441683202983,
+      "mean_target_active_bits": 56.675,
+      "median_predicted_active_bits": 120.5,
+      "median_tanimoto": 0.17939381301403046,
+      "min_tanimoto": 0.07518796622753143,
+      "strategy": "ridge_alpha_1_threshold_0.187"
+    },
+    {
+      "count": 200,
+      "max_tanimoto": 0.7209302186965942,
+      "mean_predicted_active_bits": 127.685,
+      "mean_tanimoto": 0.20778165854513644,
+      "mean_target_active_bits": 56.675,
+      "median_predicted_active_bits": 111.0,
+      "median_tanimoto": 0.18968572467565536,
+      "min_tanimoto": 0.07751937955617905,
+      "strategy": "ridge_alpha_1_threshold_0.2"
+    },
+    {
+      "count": 200,
+      "max_tanimoto": 0.738095223903656,
+      "mean_predicted_active_bits": 95.125,
+      "mean_tanimoto": 0.23899464190006256,
+      "mean_target_active_bits": 56.675,
+      "median_predicted_active_bits": 87.5,
+      "median_tanimoto": 0.21785058081150055,
+      "min_tanimoto": 0.07894736528396606,
+      "strategy": "ridge_alpha_1_threshold_0.25"
+    },
+    {
+      "count": 200,
+      "max_tanimoto": 0.738095223903656,
+      "mean_predicted_active_bits": 73.845,
+      "mean_tanimoto": 0.2637462763115764,
+      "mean_target_active_bits": 56.675,
+      "median_predicted_active_bits": 67.0,
+      "median_tanimoto": 0.24230769276618958,
+      "min_tanimoto": 0.08490566164255142,
+      "strategy": "ridge_alpha_1_threshold_0.3"
+    },
+    {
+      "count": 200,
+      "max_tanimoto": 0.5072463750839233,
+      "mean_predicted_active_bits": 144.495,
+      "mean_tanimoto": 0.19496121753007173,
+      "mean_target_active_bits": 56.675,
+      "median_predicted_active_bits": 137.0,
+      "median_tanimoto": 0.18407266587018967,
+      "min_tanimoto": 0.07657657563686371,
+      "strategy": "ridge_alpha_10_threshold_0.187"
+    },
+    {
+      "count": 200,
+      "max_tanimoto": 0.5384615659713745,
+      "mean_predicted_active_bits": 130.41,
+      "mean_tanimoto": 0.2090817281976342,
+      "mean_target_active_bits": 56.675,
+      "median_predicted_active_bits": 122.0,
+      "median_tanimoto": 0.19877418130636215,
+      "min_tanimoto": 0.07619047909975052,
+      "strategy": "ridge_alpha_10_threshold_0.2"
+    },
+    {
+      "count": 200,
+      "max_tanimoto": 0.5847457647323608,
+      "mean_predicted_active_bits": 94.595,
+      "mean_tanimoto": 0.25050154462456703,
+      "mean_target_active_bits": 56.675,
+      "median_predicted_active_bits": 87.5,
+      "median_tanimoto": 0.2398347109556198,
+      "min_tanimoto": 0.1034482792019844,
+      "strategy": "ridge_alpha_10_threshold_0.25"
+    },
+    {
+      "count": 200,
+      "max_tanimoto": 0.582608699798584,
+      "mean_predicted_active_bits": 73.795,
+      "mean_tanimoto": 0.2804854319244623,
+      "mean_target_active_bits": 56.675,
+      "median_predicted_active_bits": 67.0,
+      "median_tanimoto": 0.2715640515089035,
+      "min_tanimoto": 0.10256410390138626,
+      "strategy": "ridge_alpha_10_threshold_0.3"
+    },
+    {
+      "count": 200,
+      "max_tanimoto": 0.5230769515037537,
+      "mean_predicted_active_bits": 105.505,
+      "mean_tanimoto": 0.22084685865789652,
+      "mean_target_active_bits": 56.675,
+      "median_predicted_active_bits": 98.0,
+      "median_tanimoto": 0.21498599648475647,
+      "min_tanimoto": 0.095238097012043,
+      "strategy": "ridge_alpha_100_threshold_0.187"
+    },
+    {
+      "count": 200,
+      "max_tanimoto": 0.5483871102333069,
+      "mean_predicted_active_bits": 94.97,
+      "mean_tanimoto": 0.23332729805260896,
+      "mean_target_active_bits": 56.675,
+      "median_predicted_active_bits": 88.0,
+      "median_tanimoto": 0.22689075767993927,
+      "min_tanimoto": 0.10071942210197449,
+      "strategy": "ridge_alpha_100_threshold_0.2"
+    },
+    {
+      "count": 200,
+      "max_tanimoto": 0.6090909242630005,
+      "mean_predicted_active_bits": 69.38,
+      "mean_tanimoto": 0.26605530772358177,
+      "mean_target_active_bits": 56.675,
+      "median_predicted_active_bits": 63.0,
+      "median_tanimoto": 0.255513533949852,
+      "min_tanimoto": 0.10588235408067703,
+      "strategy": "ridge_alpha_100_threshold_0.25"
+    },
+    {
+      "count": 200,
+      "max_tanimoto": 0.6513761281967163,
+      "mean_predicted_active_bits": 54.835,
+      "mean_tanimoto": 0.283008476421237,
+      "mean_target_active_bits": 56.675,
+      "median_predicted_active_bits": 50.0,
+      "median_tanimoto": 0.2714758813381195,
+      "min_tanimoto": 0.12179487198591232,
+      "strategy": "ridge_alpha_100_threshold_0.3"
+    }
+  ]
+}
+WALL_SECONDS 29.44

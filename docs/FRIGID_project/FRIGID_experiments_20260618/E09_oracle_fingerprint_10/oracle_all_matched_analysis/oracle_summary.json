@@ -1,0 +1,19 @@
+{
+  "spectra": 10,
+  "candidate_rows": 100,
+  "mean_all_matched_candidates": 10.0,
+  "min_all_matched_candidates": 10,
+  "max_all_matched_candidates": 10,
+  "exact_any_count": 0,
+  "exact_any_rate": 0.0,
+  "top1_exact_count": 0,
+  "top10_exact_count": 0,
+  "mean_saved_top1_tanimoto": 0.7345104694366456,
+  "mean_oracle_best_tanimoto": 0.7345104652894283,
+  "mean_oracle_gain": -4.147217369521173e-09,
+  "median_oracle_gain": -4.584972623788985e-09,
+  "cases_with_oracle_gain_gt_0_05": 0,
+  "candidate_count_histogram": {
+    "10": 10
+  }
+}
