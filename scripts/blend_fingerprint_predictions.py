@@ -18,8 +18,7 @@ for path in (src_path, scripts_path):
     if path not in sys.path:
         sys.path.insert(0, path)
 
-from frigid.dreams_fingerprint_head import compute_fingerprint_metrics, load_npz_array  # noqa: E402
-from sweep_fingerprint_predictions import metrics_from_binary, topk_binary  # noqa: E402
+from frigid.dreams_fingerprint_head import load_npz_array  # noqa: E402
 
 
 def parse_number_list(value, cast):
@@ -64,6 +63,62 @@ def load_aligned_array(npz_path, key, metadata_path, spec_names):
     return values[[index[spec_name] for spec_name in spec_names]]
 
 
+def metrics_from_counts(intersection, pred_counts, target_counts, fingerprint_bits):
+    union = pred_counts + target_counts - intersection
+    tanimoto = np.divide(
+        intersection,
+        union,
+        out=np.zeros_like(intersection, dtype=np.float64),
+        where=union > 0,
+    )
+    tp = float(intersection.sum())
+    predicted_total = float(pred_counts.sum())
+    target_total = float(target_counts.sum())
+    fp = predicted_total - tp
+    fn = target_total - tp
+    total_bits = float(len(target_counts) * fingerprint_bits)
+    precision = tp / predicted_total if predicted_total > 0 else 0.0
+    recall = tp / target_total if target_total > 0 else 0.0
+    f1 = 2 * precision * recall / (precision + recall) if precision + recall > 0 else 0.0
+    return {
+        "mean_tanimoto": float(tanimoto.mean()) if len(tanimoto) else 0.0,
+        "median_tanimoto": float(np.median(tanimoto)) if len(tanimoto) else 0.0,
+        "bit_accuracy": float(1.0 - ((fp + fn) / total_bits)) if total_bits else 0.0,
+        "bit_precision": precision,
+        "bit_recall": recall,
+        "bit_f1": f1,
+        "mean_active_bits": float(pred_counts.mean()) if len(pred_counts) else 0.0,
+        "mean_target_active_bits": float(target_counts.mean()) if len(target_counts) else 0.0,
+    }
+
+
+def threshold_metrics(probs, targets, target_counts, threshold):
+    pred = probs >= threshold
+    intersection = np.logical_and(pred, targets).sum(axis=1)
+    pred_counts = pred.sum(axis=1)
+    return metrics_from_counts(intersection, pred_counts, target_counts, targets.shape[1])
+
+
+def topk_metrics(probs, targets, target_counts, top_ks):
+    if not top_ks:
+        return {}
+    max_k = min(max(int(k) for k in top_ks), probs.shape[1])
+    top_indices = np.argpartition(probs, -max_k, axis=1)[:, -max_k:]
+    top_scores = np.take_along_axis(probs, top_indices, axis=1)
+    order = np.argsort(top_scores, axis=1)[:, ::-1]
+    top_indices = np.take_along_axis(top_indices, order, axis=1)
+    row_indices = np.arange(probs.shape[0])[:, None]
+    hit_cumsum = targets[row_indices, top_indices].cumsum(axis=1)
+
+    rows = {}
+    for k in top_ks:
+        k = min(max(int(k), 1), probs.shape[1])
+        intersection = hit_cumsum[:, k - 1]
+        pred_counts = np.full(len(targets), k, dtype=np.int64)
+        rows[k] = metrics_from_counts(intersection, pred_counts, target_counts, targets.shape[1])
+    return rows
+
+
 def main():
     args = parse_args()
     target_metadata = pd.read_csv(args.targets_metadata)
@@ -89,26 +144,31 @@ def main():
             f"Shape mismatch: primary={primary.shape}, secondary={secondary.shape}, targets={targets.shape}"
         )
 
+    target_binary = targets > 0.5
+    target_counts = target_binary.sum(axis=1)
+    thresholds = parse_number_list(args.thresholds, float)
+    top_ks = parse_number_list(args.top_k, int)
     rows = []
     for alpha in parse_number_list(args.alphas, float):
+        print(f"Evaluating alpha_primary={alpha}", flush=True)
         blend = alpha * primary + (1.0 - alpha) * secondary
-        for threshold in parse_number_list(args.thresholds, float):
-            metrics, _ = compute_fingerprint_metrics(blend, targets, threshold)
+        for threshold in thresholds:
             rows.append(
                 {
                     "mode": "threshold",
                     "alpha_primary": alpha,
                     "value": threshold,
-                    **metrics.__dict__,
+                    **threshold_metrics(blend, target_binary, target_counts, threshold),
                 }
             )
-        for k in parse_number_list(args.top_k, int):
+        topk_rows = topk_metrics(blend, target_binary, target_counts, top_ks)
+        for k in top_ks:
             rows.append(
                 {
                     "mode": "top_k",
                     "alpha_primary": alpha,
                     "value": k,
-                    **metrics_from_binary(topk_binary(blend, k), targets),
+                    **topk_rows[k],
                 }
             )
 
