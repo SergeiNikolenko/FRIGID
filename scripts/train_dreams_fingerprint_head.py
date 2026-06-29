@@ -49,8 +49,25 @@ def parse_args():
     parser.add_argument("--weight-decay", type=float, default=1e-4)
     parser.add_argument("--val-fraction", type=float, default=0.1)
     parser.add_argument("--pos-weight", type=float, default=0.0, help="Manual BCE positive class weight; 0 estimates it from train targets.")
+    parser.add_argument("--disable-pos-weight", action="store_true", help="Use an unweighted BCE term even when --pos-weight is 0.")
+    parser.add_argument("--soft-tanimoto-weight", type=float, default=0.0, help="Weight for an auxiliary differentiable Tanimoto loss.")
+    parser.add_argument("--count-loss-weight", type=float, default=0.0, help="Weight for an auxiliary active-bit count loss.")
     parser.add_argument("--seed", type=int, default=42)
     return parser.parse_args()
+
+
+def soft_tanimoto_loss(logits, targets, eps=1e-7):
+    probs = torch.sigmoid(logits)
+    intersection = (probs * targets).sum(dim=1)
+    union = (probs + targets - probs * targets).sum(dim=1)
+    return 1.0 - ((intersection + eps) / (union + eps)).mean()
+
+
+def active_count_loss(logits, targets):
+    probs = torch.sigmoid(logits)
+    pred_count = probs.sum(dim=1)
+    target_count = targets.sum(dim=1).clamp_min(1.0)
+    return torch.square((pred_count - target_count) / target_count).mean()
 
 
 def evaluate(model, loader, device, threshold):
@@ -123,13 +140,17 @@ def main():
         train_targets = fingerprints[train_ds.indices]
     else:
         train_targets = train_fingerprints
-    if args.pos_weight > 0:
+    if args.disable_pos_weight:
+        pos_weight_value = 1.0
+        pos_weight = None
+    elif args.pos_weight > 0:
         pos_weight_value = args.pos_weight
+        pos_weight = torch.full((fingerprints.shape[1],), pos_weight_value, device=device)
     else:
         positives = float(train_targets.sum())
         negatives = float(train_targets.size - positives)
         pos_weight_value = negatives / positives if positives > 0 else 1.0
-    pos_weight = torch.full((fingerprints.shape[1],), pos_weight_value, device=device)
+        pos_weight = torch.full((fingerprints.shape[1],), pos_weight_value, device=device)
     criterion = torch.nn.BCEWithLogitsLoss(pos_weight=pos_weight)
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
 
@@ -147,7 +168,12 @@ def main():
             batch_fps = batch_fps.to(device)
             optimizer.zero_grad(set_to_none=True)
             logits = model(batch_embeddings)
-            loss = criterion(logits, batch_fps)
+            bce_loss = criterion(logits, batch_fps)
+            loss = bce_loss
+            if args.soft_tanimoto_weight:
+                loss = loss + args.soft_tanimoto_weight * soft_tanimoto_loss(logits, batch_fps)
+            if args.count_loss_weight:
+                loss = loss + args.count_loss_weight * active_count_loss(logits, batch_fps)
             loss.backward()
             optimizer.step()
             train_losses.append(float(loss.item()))
@@ -194,6 +220,9 @@ def main():
                 "fingerprint_bits": int(fingerprints.shape[1]),
                 "threshold": args.threshold,
                 "pos_weight": pos_weight_value,
+                "disable_pos_weight": args.disable_pos_weight,
+                "soft_tanimoto_weight": args.soft_tanimoto_weight,
+                "count_loss_weight": args.count_loss_weight,
                 "history": history,
                 "best_checkpoint": str(best_path),
             },
