@@ -109,6 +109,8 @@ def parse_args():
     parser.add_argument("--disable-pos-weight", action="store_true")
     parser.add_argument("--soft-tanimoto-weight", type=float, default=0.0)
     parser.add_argument("--count-loss-weight", type=float, default=0.0)
+    parser.add_argument("--mist-anchor-weight", type=float, default=0.0)
+    parser.add_argument("--residual-l2-weight", type=float, default=0.0)
     parser.add_argument("--thresholds", default="0.1,0.125,0.15,0.2,0.25,0.3,0.35,0.4,0.45,0.5,0.6")
     parser.add_argument("--top-k", default="32,48,64,80,96,128,160")
     parser.add_argument("--seed", type=int, default=42)
@@ -166,6 +168,10 @@ def active_count_loss(logits, targets):
     pred_count = probs.sum(dim=1)
     target_count = targets.sum(dim=1).clamp_min(1.0)
     return torch.square((pred_count - target_count) / target_count).mean()
+
+
+def mist_anchor_loss(logits, mist_probs):
+    return nn.functional.binary_cross_entropy_with_logits(logits, mist_probs)
 
 
 def sweep_probs(probs, targets, thresholds, top_ks):
@@ -251,6 +257,7 @@ def main():
     train_dataset = TensorDataset(
         torch.as_tensor(train_embeddings, dtype=torch.float32),
         torch.as_tensor(train_mist_logits, dtype=torch.float32),
+        torch.as_tensor(train_mist_probs, dtype=torch.float32),
         torch.as_tensor(train_targets, dtype=torch.float32),
     )
     val_dataset = TensorDataset(
@@ -310,16 +317,31 @@ def main():
         bce_losses = []
         tan_losses = []
         count_losses = []
+        anchor_losses = []
+        residual_l2_losses = []
         progress = tqdm(train_loader, desc=f"epoch {epoch}/{args.epochs}", leave=False)
-        for embeddings, mist_logits, targets in progress:
+        for embeddings, mist_logits, mist_probs, targets in progress:
             embeddings = embeddings.to(device, non_blocking=True)
             mist_logits = mist_logits.to(device, non_blocking=True)
+            mist_probs = mist_probs.to(device, non_blocking=True)
             targets = targets.to(device, non_blocking=True)
             logits = model(embeddings, mist_logits)
             bce = criterion(logits, targets)
             tan = soft_tanimoto_loss(logits, targets) if args.soft_tanimoto_weight else logits.new_tensor(0.0)
             count = active_count_loss(logits, targets) if args.count_loss_weight else logits.new_tensor(0.0)
-            loss = bce + args.soft_tanimoto_weight * tan + args.count_loss_weight * count
+            anchor = mist_anchor_loss(logits, mist_probs) if args.mist_anchor_weight else logits.new_tensor(0.0)
+            residual_l2 = (
+                torch.square(logits - mist_logits).mean()
+                if args.residual_l2_weight
+                else logits.new_tensor(0.0)
+            )
+            loss = (
+                bce
+                + args.soft_tanimoto_weight * tan
+                + args.count_loss_weight * count
+                + args.mist_anchor_weight * anchor
+                + args.residual_l2_weight * residual_l2
+            )
             optimizer.zero_grad(set_to_none=True)
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
@@ -329,6 +351,8 @@ def main():
             bce_losses.append(float(bce.item()))
             tan_losses.append(float(tan.item()))
             count_losses.append(float(count.item()))
+            anchor_losses.append(float(anchor.item()))
+            residual_l2_losses.append(float(residual_l2.item()))
             progress.set_postfix(loss=f"{np.mean(losses[-20:]):.4f}")
 
         rows, val_probs = evaluate(model, val_loader, device, val_targets, thresholds, top_ks)
@@ -340,6 +364,8 @@ def main():
             "train_bce_loss": float(np.mean(bce_losses)),
             "train_soft_tanimoto_loss": float(np.mean(tan_losses)),
             "train_count_loss": float(np.mean(count_losses)),
+            "train_mist_anchor_loss": float(np.mean(anchor_losses)),
+            "train_residual_l2_loss": float(np.mean(residual_l2_losses)),
             "best_val": epoch_best,
             "delta_vs_mist": float(delta),
         }

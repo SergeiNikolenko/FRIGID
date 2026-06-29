@@ -72,6 +72,22 @@ The initial serious matrix uses full MSG train/validation data:
 | pos5_count | 0.5 | BCE pos_weight 5 + count loss |
 | pos10_soft_count | 0.5 | BCE pos_weight 10 + soft Tanimoto + count loss |
 
+If this first matrix drifts below MIST, run an anchored matrix. The anchored
+matrix keeps the same full train/validation protocol but adds:
+
+- distillation anchor to MIST probabilities;
+- residual L2 penalty;
+- lower learning rates and smaller residual scales.
+
+Anchored variants:
+
+| variant | residual scale | anchor | loss |
+| --- | ---: | ---: | --- |
+| anchor10_scale005 | 0.05 | 10 | unweighted BCE + MIST anchor + residual L2 |
+| anchor30_scale005 | 0.05 | 30 | unweighted BCE + stronger MIST anchor + residual L2 |
+| anchor10_scale01_count | 0.1 | 10 | unweighted BCE + MIST anchor + residual L2 + count loss |
+| anchor30_pos5_scale01 | 0.1 | 30 | BCE pos_weight 5 + MIST anchor + residual L2 + count loss |
+
 ## Decision Gate
 
 Run DLM only if the residual adapter improves full-validation mean Tanimoto over
