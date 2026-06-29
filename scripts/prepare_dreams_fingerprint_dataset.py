@@ -69,6 +69,25 @@ def mgf_entry(spec_name: str, formula: str, precursor_mz: float, peaks: np.ndarr
     return "\n".join(rows)
 
 
+def extract_peak_array(spec_data) -> np.ndarray:
+    if isinstance(spec_data, np.ndarray):
+        peaks = spec_data
+    else:
+        arrays = []
+        for item in spec_data:
+            if isinstance(item, np.ndarray):
+                arrays.append(item)
+            elif isinstance(item, (tuple, list)) and len(item) == 2:
+                arrays.append(item[1])
+            else:
+                raise ValueError(f"Unsupported spectrum peak item: {type(item)}")
+        peaks = np.vstack([array for array in arrays if len(array)])
+    peaks = np.asarray(peaks, dtype=np.float32)
+    if peaks.ndim != 2 or peaks.shape[1] != 2:
+        raise ValueError(f"Expected peak array with shape (n_peaks, 2), got {peaks.shape}")
+    return peaks
+
+
 def main():
     args = parse_args()
     config = merge_config_with_args(load_config(args.config), args)
@@ -97,8 +116,7 @@ def main():
             continue
 
         meta = spec.get_meta()
-        spectra = spec.get_spec()
-        peaks = np.vstack([peak_array for _, peak_array in spectra if len(peak_array)])
+        peaks = extract_peak_array(spec.get_spec())
         precursor_mz = float(spec.parentmass or meta.get("PEPMASS", 0) or 0)
         spec_name = spec.get_spec_name()
         formula = spec.get_spectra_formula()
