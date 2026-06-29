@@ -16,6 +16,36 @@ The current production path uses MIST for that step. The new path tests:
 MS/MS spectrum -> DreaMS embedding -> supervised fingerprint head -> DLM
 ```
 
+## Actual Spectrum Run Result
+
+A full remote run was completed on `spectrum` on 2026-06-29. The saved evidence
+package is:
+
+```text
+docs/FRIGID_dreams_fingerprint_head_20260629/
+```
+
+The run used the MassSpecGym train split (`191,216` spectra) and full validation
+split (`19,043` spectra), extracted DreaMS embeddings, trained the fingerprint
+head for 20 epochs, and evaluated validation fingerprints.
+
+Result:
+
+- Mean validation fingerprint Tanimoto: `0.1238048323`
+- Median validation fingerprint Tanimoto: `0.1048951074`
+- Bit precision: `0.1238794961`
+- Bit recall: `0.5741983662`
+- Bit F1: `0.2037921789`
+- Mean predicted active bits: `295.9601440430`
+- Mean target active bits: `63.8514404297`
+
+This is a negative result. Frozen DreaMS embeddings plus the shallow supervised
+MLP head do not pass the MIST-quality gate, whose reference target is about
+`0.52` mean fingerprint Tanimoto. A downstream 200-spectrum DLM run was started
+but stopped before completion because the full-validation encoder metrics were
+already decisively below the threshold. No valid DLM aggregate should be
+reported for this experiment.
+
 ## Why This Path
 
 Existing FRIGID diagnostics show that MIST-to-DLM conditioning is the main
@@ -158,7 +188,7 @@ python scripts/benchmark_spec2mol.py \
 Compare against the existing MIST baseline, the MIST-to-DLM robustness results,
 and the oracle-fingerprint ceiling.
 
-## Completion Criteria
+## Original Completion Criteria
 
 The experiment is complete only when these artifacts exist from a real remote
 run:
@@ -169,6 +199,12 @@ run:
 - Validation fingerprint metrics JSON and per-case CSV.
 - DLM benchmark aggregate using `dreams_precomputed`.
 - A short result note under `docs/` summarizing exact metrics and conclusions.
+
+The 2026-06-29 run satisfies the train/validation preparation, DreaMS embedding,
+fingerprint-head training, validation prediction, and fingerprint metric parts.
+It does not satisfy the DLM aggregate criterion because the encoder failed the
+upstream quality gate first. The appropriate next step is encoder improvement,
+not a longer DLM run with the same weak fingerprints.
 
 ## Interpretation Rules
 

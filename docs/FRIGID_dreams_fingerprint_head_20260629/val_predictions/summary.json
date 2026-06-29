@@ -1,0 +1,9 @@
+{
+  "rows": 19043,
+  "fingerprint_bits": 4096,
+  "threshold": 0.5,
+  "checkpoint": "/home/nikolenko/work/Projects/FRIGID_dreams_fingerprint_head/runs/dreams_fingerprint_head_msg_full_20260629T110040Z/fingerprint_head/dreams_fingerprint_head.pt",
+  "embeddings_npz": "/home/nikolenko/work/Projects/FRIGID_dreams_fingerprint_head/runs/dreams_fingerprint_head_msg_full_20260629T110040Z/val_embeddings/dreams_embeddings.npz",
+  "metadata_csv": "/home/nikolenko/work/Projects/FRIGID_dreams_fingerprint_head/runs/dreams_fingerprint_head_msg_full_20260629T110040Z/val_predictions/metadata.csv",
+  "fingerprints_npz": "/home/nikolenko/work/Projects/FRIGID_dreams_fingerprint_head/runs/dreams_fingerprint_head_msg_full_20260629T110040Z/val_predictions/fingerprints.npz"
+}
