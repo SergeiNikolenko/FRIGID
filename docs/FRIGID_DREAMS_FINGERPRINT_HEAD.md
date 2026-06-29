@@ -82,13 +82,11 @@ Run in an environment where DreaMS is installed:
 python scripts/extract_dreams_embeddings.py \
   --mgf runs/dreams_fingerprint_head_msg/train_dataset/spectra.mgf \
   --output-dir runs/dreams_fingerprint_head_msg/train_embeddings \
-  --device cuda \
   --batch-size 128
 
 python scripts/extract_dreams_embeddings.py \
   --mgf runs/dreams_fingerprint_head_msg/val_dataset/spectra.mgf \
   --output-dir runs/dreams_fingerprint_head_msg/val_embeddings \
-  --device cuda \
   --batch-size 128
 ```
 

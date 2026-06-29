@@ -23,9 +23,12 @@ def parse_args():
     )
     parser.add_argument("--mgf", required=True)
     parser.add_argument("--output-dir", required=True)
-    parser.add_argument("--model", default=None, help="Optional DreaMS checkpoint/model identifier.")
     parser.add_argument("--batch-size", type=int, default=128)
-    parser.add_argument("--device", default="cuda")
+    parser.add_argument(
+        "--logger-path",
+        default=None,
+        help="Optional DreaMS progress log path. Defaults to <output-dir>/dreams_embeddings.log.",
+    )
     parser.add_argument("--array-key", default="embeddings")
     return parser.parse_args()
 
@@ -47,17 +50,18 @@ def main():
     output_dir.mkdir(parents=True, exist_ok=True)
     embeddings_path = output_dir / "dreams_embeddings.npz"
     summary_path = output_dir / "summary.json"
+    logger_path = (
+        Path(args.logger_path) if args.logger_path else output_dir / "dreams_embeddings.log"
+    )
 
     dreams_embeddings = _load_dreams_embeddings_fn()
-    kwargs = {
-        "spectra": args.mgf,
-        "batch_size": args.batch_size,
-        "device": args.device,
-    }
-    if args.model:
-        kwargs["model"] = args.model
 
-    embeddings = dreams_embeddings(**kwargs)
+    embeddings = dreams_embeddings(
+        args.mgf,
+        batch_size=args.batch_size,
+        logger_pth=str(logger_path),
+        store_embs=False,
+    )
     embeddings = np.asarray(embeddings, dtype=np.float32)
     if embeddings.ndim != 2:
         raise ValueError(f"Expected DreaMS embeddings to be 2D, got {embeddings.shape}")
@@ -67,11 +71,11 @@ def main():
         json.dumps(
             {
                 "mgf": args.mgf,
-                "model": args.model,
                 "rows": int(embeddings.shape[0]),
                 "embedding_dim": int(embeddings.shape[1]),
                 "embeddings_npz": str(embeddings_path),
                 "array_key": args.array_key,
+                "logger_path": str(logger_path),
             },
             indent=2,
         )
