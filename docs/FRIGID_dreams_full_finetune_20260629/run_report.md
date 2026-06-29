@@ -33,11 +33,20 @@ the FRIGID/MassSpecGym fingerprint task. This experiment addresses that gap.
   `/home/nikolenko/work/Projects/FRIGID_dreams_fingerprint_head`
 - DreaMS/MolForge checkout:
   `/home/nikolenko/work/Projects/mist_molforge_autoresearch`
-- Run directory:
+- Superseded offline run directory:
   `/home/nikolenko/work/Projects/FRIGID_dreams_fingerprint_head/runs/dreams_full_finetune_20260629T174403Z`
+- Active online ClearML run directory:
+  `/home/nikolenko/work/Projects/FRIGID_dreams_fingerprint_head/runs/dreams_full_finetune_clearml_20260629T175115Z`
 - tmux session: `frigid_dreams_full_finetune`
 - Source FRIGID commit:
   `d2c48dd865476ddc59a8b2e1acefeac301bb0086`
+- ClearML web server:
+  `https://app.clearai.innopolis.university/`
+- ClearML project: `FRIGID/DreaMS Replacement`
+- ClearML task name: `FRIGID DreaMS full fine-tune MSG 20260629`
+- ClearML task id: `588fc21748004c08a0d878662ac05301`
+- ClearML results page:
+  `https://app.clearai.innopolis.university/projects/3b1b7bc52b61435aab86b06ecafaa508/experiments/588fc21748004c08a0d878662ac05301/output/log`
 
 ## Data
 
@@ -57,9 +66,9 @@ Dataset sizes confirmed at launch:
 - Train: 191,216 spectra, 24,294 unique SMILES, 4096-bit Morgan targets.
 - Validation: 19,043 spectra, 3,270 unique SMILES, 4096-bit Morgan targets.
 
-The run directory contains symlinks to the HDF5 spectra files and generated
-`joblib` files with the exact `smiles` order plus `fingerprints_map`, matching
-the DreaMS full-training pipeline interface.
+The active ClearML run directory contains symlinks to the HDF5 spectra files and
+the generated `joblib` files with the exact `smiles` order plus
+`fingerprints_map`, matching the DreaMS full-training pipeline interface.
 
 ## Model and training setup
 
@@ -67,8 +76,8 @@ Training script:
 
 - Base script:
   `/home/nikolenko/work/Projects/mist_molforge_autoresearch/scripts/dreams_molforge_pipeline/3.train_full.py`
-- Run-local patched copy:
-  `runs/dreams_full_finetune_20260629T174403Z/train_full_patched.py`
+- Active online ClearML run-local patched copy:
+  `runs/dreams_full_finetune_clearml_20260629T175115Z/train_full_clearml.py`
 
 The run-local patch removes the deprecated `verbose=True` argument from
 `torch.optim.lr_scheduler.ReduceLROnPlateau`, which is incompatible with the
@@ -100,16 +109,21 @@ mismatch:
 TypeError: ReduceLROnPlateau.__init__() got an unexpected keyword argument 'verbose'
 ```
 
-After patching the run-local script, the full run was restarted in tmux. The
-latest checked status showed:
+After patching the run-local script, the full run was first restarted in an
+offline ClearML mode. That offline run was then superseded because it would not
+appear in the Innopolis ClearML UI. The canonical run is now the online ClearML
+run in `dreams_full_finetune_clearml_20260629T175115Z`.
+
+The online ClearML run created task id `588fc21748004c08a0d878662ac05301` and
+started the full training loop. The latest checked status showed:
 
 ```text
 Overall Progress: 0/100 epochs
-Epoch 0 [Train]: 2/373 batches, loss=0.6645
+Epoch 0 [Train]: 4/373 batches, loss=0.4173
 ```
 
 This confirms that the full DreaMS encoder plus fingerprint head training loop
-started on the complete train split.
+started on the complete train split and is logged to Innopolis ClearML.
 
 ## Success criteria
 
