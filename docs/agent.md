@@ -33,8 +33,10 @@ experiment artifacts.
   encoder gate.
 - `docs/FRIGID_dreams_distilled_replacement_20260629/`: DreaMS-only replacement
   candidate trained with MIST distillation and MIST-error-focused supervision.
-  This is the next long-running experiment for testing whether DreaMS can become
-  a first-class replacement rather than only a residual helper.
+- `docs/FRIGID_dreams_full_finetune_20260629/`: full DreaMS encoder plus
+  fingerprint-head fine-tune on the complete FRIGID/MassSpecGym train split.
+  This is the serious replacement experiment; unlike the frozen-head runs, the
+  DreaMS encoder is part of the training graph.
 
 ## Consolidated Artifact Package
 
@@ -44,8 +46,8 @@ experiment artifacts.
 
 ## Current Decision State
 
-MIST remains the strongest validated spectrum-to-fingerprint path. DreaMS is
-still useful as a research direction, but current evidence does not support a
-direct replacement yet. The next serious DreaMS-centered direction is
-error-focused or partially fine-tuned training that targets MIST failure regions
-instead of another plain frozen-embedding head.
+MIST remains the strongest validated spectrum-to-fingerprint path until the
+full DreaMS fine-tune clears the validation and downstream DLM gates. Frozen
+DreaMS heads, simple MIST/DreaMS blends, and residual adapters were not enough;
+the active replacement test is now full encoder fine-tuning followed by export
+and FRIGID/DLM evaluation.
