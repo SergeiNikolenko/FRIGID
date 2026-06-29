@@ -97,12 +97,13 @@ def main():
     ground_truth = []
     rows = []
     max_spectra = args.max_spectra or len(dataset)
+    progress_total = min(len(dataset), max_spectra)
     fp_cfg = config["fingerprint"]
     fp_bits = fp_cfg["bits"]
     fp_radius = fp_cfg["radius"]
     fp_threshold = fp_cfg["threshold"]
     with torch.no_grad():
-        for idx, batch in enumerate(tqdm(loader, total=min(len(dataset), max_spectra))):
+        for idx, batch in enumerate(tqdm(loader, total=progress_total)):
             if idx >= max_spectra:
                 break
             batch = {
