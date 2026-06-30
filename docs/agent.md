@@ -38,6 +38,9 @@ experiment artifacts.
   fingerprint-head fine-tune on the complete FRIGID/MassSpecGym train split.
 - `docs/FRIGID_NEXT_EXPERIMENT_DECISION_20260630.md`: decision memo selecting
   DLM adaptation to MIST-predicted fingerprints as the next serious experiment.
+- `docs/FRIGID_dlm_mist_fingerprint_adaptation_20260630/`: active DLM
+  adaptation run on full train-split MIST binary fingerprints, including launch
+  fixes, run directory, monitoring, and next evaluation command.
 
 ## Consolidated Artifact Package
 
