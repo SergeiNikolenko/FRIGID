@@ -33,10 +33,11 @@ experiment artifacts.
   encoder gate.
 - `docs/FRIGID_dreams_distilled_replacement_20260629/`: DreaMS-only replacement
   candidate trained with MIST distillation and MIST-error-focused supervision.
+  Result: best variant remained roughly 0.30 mean Tanimoto below MIST.
 - `docs/FRIGID_dreams_full_finetune_20260629/`: full DreaMS encoder plus
   fingerprint-head fine-tune on the complete FRIGID/MassSpecGym train split.
-  This is the serious replacement experiment; unlike the frozen-head runs, the
-  DreaMS encoder is part of the training graph.
+- `docs/FRIGID_NEXT_EXPERIMENT_DECISION_20260630.md`: decision memo selecting
+  DLM adaptation to MIST-predicted fingerprints as the next serious experiment.
 
 ## Consolidated Artifact Package
 
@@ -46,8 +47,9 @@ experiment artifacts.
 
 ## Current Decision State
 
-MIST remains the strongest validated spectrum-to-fingerprint path until the
-full DreaMS fine-tune clears the validation and downstream DLM gates. Frozen
-DreaMS heads, simple MIST/DreaMS blends, and residual adapters were not enough;
-the active replacement test is now full encoder fine-tuning followed by export
-and FRIGID/DLM evaluation.
+MIST remains the strongest validated spectrum-to-fingerprint path. Direct
+DreaMS replacement attempts have failed across frozen heads, distillation,
+blend/residual adapters, and full encoder fine-tuning. The next serious
+experiment is DLM adaptation to the MIST-predicted fingerprint distribution,
+because the largest measured gap is the DLM quality drop from clean
+ground-truth fingerprints to realistic MIST binary fingerprints.
