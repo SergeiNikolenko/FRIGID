@@ -24,28 +24,36 @@ decision.
 - Host: `spectrum`.
 - Training tmux: `frigid_dlm_mist_adapt`.
 - Monitor tmux: `frigid_dlm_mist_monitor`.
+- Slurm handoff job: `16` held as `JobHeldUser` until a stable `5000.ckpt`
+  exists and the tmux process can be stopped safely.
 - Run directory:
   `/home/nikolenko/work/Projects/FRIGID_dreams_fingerprint_head/runs/dlm_mist_fingerprint_adaptation_20260630T050906Z`
 - Branch at launch: `dreams-fingerprint-head`.
 - Launch commit: `44a5ff0`.
 - Latest documented code commit: `8a7ca8b`.
-- Latest verified status: 2026-06-30 07:22 UTC.
-- Progress at last check: epoch 4, about 385/747 batches.
+- Latest verified status: 2026-06-30 08:12 UTC.
+- Progress at last check: epoch 6, about 148/747 batches.
 - Latest checkpoint:
   `/home/nikolenko/work/Projects/FRIGID_dreams_fingerprint_head/runs/dlm_mist_fingerprint_adaptation_20260630T050906Z/train/checkpoints/2500.ckpt`
-- Current blocker: evaluation checkpoint transfer from `spectrum` to a free GPU
-  host is slow. Evaluation should not start until the transferred checkpoint is
-  checksum-verified.
+- Current blocker: wait for stable `5000.ckpt`, stop the original tmux training
+  process, release Slurm job `16`, and verify that Slurm resumes from the latest
+  checkpoint instead of starting a duplicate process.
 - Next action: run paired robustness evaluation on an adapted checkpoint without
   `--use-shared-cross-attention`.
 
 ## Current Decision State
 
 MIST remains the strongest validated spectrum-to-fingerprint encoder. Direct
-DreaMS replacement is paused as the main path. The active hypothesis is that the
+DreaMS replacement with the previous frozen-head, distilled-head, blend,
+residual, and plain full-fine-tune objectives is paused. The active hypothesis is that the
 largest current system loss comes from DLM being trained for clean
 ground-truth-like Morgan fingerprints while deployment uses MIST-predicted
 binary fingerprints.
+
+A new DreaMS replacement plan exists, but it changes the objective to staged
+adapter adaptation with MIST anchoring, MIST-error focus, and decoder-sensitive
+weighting:
+[FRIGID_DREAMS_ADAPTER_REPLACEMENT_PLAN_20260630.md](FRIGID_DREAMS_ADAPTER_REPLACEMENT_PLAN_20260630.md).
 
 ## Near-Term Queue
 
@@ -79,8 +87,9 @@ binary fingerprints.
 
 - Keep MIST as the baseline and test MIST-side objectives that better match DLM
   decoding quality, not only fingerprint Tanimoto.
-- Revisit DreaMS only if the experiment changes the target: for example,
-  distill decoder-compatible signals rather than plain Morgan bits.
+- Revisit DreaMS through the planned adapter replacement experiment: staged
+  DreaMS adaptation, MIST anchoring, MIST-error focus, and decoder-sensitive
+  weighting rather than plain Morgan-bit replacement.
 - Test whether DreaMS embeddings help MIST error prediction, but require a gain
   larger than the prior anchored residual result.
 

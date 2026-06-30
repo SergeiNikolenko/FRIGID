@@ -20,6 +20,9 @@ experiment artifacts.
   fingerprints instead of ground-truth Morgan fingerprints.
 - `docs/FRIGID_DREAMS_FINGERPRINT_HEAD.md`: overall DreaMS fingerprint-head
   workflow and decision gates.
+- `docs/FRIGID_DREAMS_ADAPTER_REPLACEMENT_PLAN_20260630.md`: planned next
+  DreaMS replacement path using staged adapter adaptation, MIST anchoring,
+  MIST-error focus, and decoder-sensitive weighting.
 
 ## DreaMS Encoder Experiments
 
@@ -42,6 +45,10 @@ experiment artifacts.
   Result: best variant remained roughly 0.30 mean Tanimoto below MIST.
 - `docs/FRIGID_dreams_full_finetune_20260629/`: full DreaMS encoder plus
   fingerprint-head fine-tune on the complete FRIGID/MassSpecGym train split.
+- `docs/FRIGID_DREAMS_ADAPTER_REPLACEMENT_PLAN_20260630.md`: next proposed
+  DreaMS replacement experiment. This should be treated as the serious DreaMS
+  continuation, not another repeat of the failed frozen-head or plain
+  full-fine-tune runs.
 - `docs/FRIGID_NEXT_EXPERIMENT_DECISION_20260630.md`: decision memo selecting
   DLM adaptation to MIST-predicted fingerprints as the next serious experiment.
 - `docs/FRIGID_dlm_mist_fingerprint_adaptation_20260630/`: active DLM
@@ -59,7 +66,9 @@ experiment artifacts.
 
 MIST remains the strongest validated spectrum-to-fingerprint path. Direct
 DreaMS replacement attempts have failed across frozen heads, distillation,
-blend/residual adapters, and full encoder fine-tuning. The next serious
-experiment is DLM adaptation to the MIST-predicted fingerprint distribution,
-because the largest measured gap is the DLM quality drop from clean
-ground-truth fingerprints to realistic MIST binary fingerprints.
+blend/residual adapters, and plain full encoder fine-tuning. The active run is
+DLM adaptation to the MIST-predicted fingerprint distribution, because the
+largest measured gap is the DLM quality drop from clean ground-truth
+fingerprints to realistic MIST binary fingerprints. The next DreaMS path should
+use the adapter replacement plan with MIST anchoring and decoder-sensitive
+weighting rather than repeating the previous DreaMS objectives.

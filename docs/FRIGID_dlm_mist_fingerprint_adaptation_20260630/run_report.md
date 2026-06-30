@@ -19,6 +19,7 @@ The goal is to reduce the paired DLM robustness gap between clean
 - Canonical run directory:
   `/home/nikolenko/work/Projects/FRIGID_dreams_fingerprint_head/runs/dlm_mist_fingerprint_adaptation_20260630T050906Z`
 - tmux session: `frigid_dlm_mist_adapt`
+- Slurm handoff job: `16`
 - Code commit: `44a5ff0`
 - DLM checkpoint:
   `/home/nikolenko/work/Projects/FRIGID/repro_cache/DLM.ckpt`
@@ -146,6 +147,60 @@ The current `status.json` schema records:
 The monitor script in the run directory was simplified after launch to avoid a
 shell heredoc failure in the JSON writer. This did not affect the training
 process.
+
+## Slurm Handoff
+
+On 2026-06-30, the run was prepared for migration from a manual tmux launch to
+Slurm on `spectrum`.
+
+Slurm availability on `spectrum`:
+
+```text
+partition: gpu
+GRES: gpu:a100:1
+```
+
+Created Slurm script:
+
+```text
+/home/nikolenko/work/Projects/FRIGID_dreams_fingerprint_head/runs/dlm_mist_fingerprint_adaptation_20260630T050906Z/slurm/dlm_mist_adaptation_resume.sbatch
+```
+
+Submitted job:
+
+```text
+job_id: 16
+state: PD
+reason: JobHeldUser
+```
+
+The job was intentionally submitted with `--hold` because Slurm does not know
+about the existing manual tmux process occupying the A100. Releasing it before
+stopping the tmux process would start a duplicate training process on the same
+GPU.
+
+Handoff rule:
+
+1. Wait until `5000.ckpt` exists and its size is stable.
+2. Stop the original `frigid_dlm_mist_adapt` tmux training process.
+3. Release Slurm job `16`.
+4. Verify that `scripts/train.py` resumes from the latest checkpoint in
+   `train/checkpoints` rather than starting from step zero.
+
+The training script supports this flow because it finds the latest checkpoint
+from the callback directory and calls:
+
+```text
+trainer.fit(..., ckpt_path=<latest_checkpoint>)
+```
+
+Latest verified pre-handoff live state:
+
+```text
+2026-06-30 08:12 UTC
+checkpoint: 2500.ckpt
+progress: epoch 6, about 148/747 batches
+```
 
 Checkpoints will be under:
 
