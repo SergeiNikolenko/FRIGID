@@ -22,6 +22,8 @@ queued behind the active DLM adaptation job to avoid A100 contention.
 - Slurm state after submission: `PENDING`.
 - Slurm reason after submission: `Dependency`.
 - Slurm dependency: `afterany:32`.
+- Latest verified status: 2026-06-30 10:56 UTC, still `PENDING` on the same
+  dependency.
 - Remote checkout:
   `/home/nikolenko/work/Projects/FRIGID_dreams_fingerprint_head`.
 - DreaMS checkout:
@@ -64,6 +66,9 @@ metadata before training and validation.
 - Submitted Slurm job `34` from the remote checkout at commit `9f8a55e`.
   The job is pending on dependency `afterany:32`, waiting for the active DLM
   adaptation job to release the A100.
+- Rechecked at 2026-06-30 10:56 UTC: job `34` is still pending on the same
+  dependency. No DreaMS run directory or Slurm log exists yet because the job
+  has not started.
 
 ## Metrics
 

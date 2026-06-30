@@ -32,6 +32,7 @@ decision.
   `/home/nikolenko/work/Projects/FRIGID_dreams_fingerprint_head`
 - Branch at submission: `dreams-fingerprint-head`.
 - Submit commit: `9f8a55e`.
+- Latest verified status: 2026-06-30 10:56 UTC.
 - Command file:
   `docs/FRIGID_dreams_adapter_replacement_20260630/run_dreams_adapter_replacement.sbatch`
 - Slurm logs:
@@ -40,6 +41,8 @@ decision.
   `/home/nikolenko/work/Projects/FRIGID_dreams_fingerprint_head/runs/slurm_logs/frigid-dreams-adapter-34.err`
 - Expected run directory:
   `/home/nikolenko/work/Projects/FRIGID_dreams_fingerprint_head/runs/dreams_adapter_replacement_<UTC>`
+- Current state at last check: still `PENDING` with reason `Dependency`;
+  no DreaMS run directory or Slurm log has been created yet.
 - Next action: after job `32` ends, confirm job `34` starts, writes
   `run_identity.json`, and completes the first validation sweep.
 
@@ -57,11 +60,13 @@ decision.
 - Branch at launch: `dreams-fingerprint-head`.
 - Launch commit: `44a5ff0`.
 - Latest documented code commit: `8a7ca8b`.
-- Latest verified status: 2026-06-30 10:15 UTC.
+- Latest verified status: 2026-06-30 10:56 UTC.
 - Progress at last check: Slurm job `32` restored from `7500.ckpt` and was
-  training normally at about 131 post-resume batches.
+  training normally at epoch 11, about 417/747 batches, with
+  `train_total_loss` around 0.160 in the latest parsed progress line.
 - Latest checkpoint:
   `/home/nikolenko/work/Projects/FRIGID_dreams_fingerprint_head/runs/dlm_mist_fingerprint_adaptation_20260630T050906Z/train/checkpoints/7500.ckpt`
+- Checkpoints currently present: `2500.ckpt`, `5000.ckpt`, and `7500.ckpt`.
 - Current blocker: training is now under Slurm; benchmark evaluation still
   waits for a selected adapted checkpoint and a free evaluation window.
 - Next action: run paired robustness evaluation on an adapted checkpoint without

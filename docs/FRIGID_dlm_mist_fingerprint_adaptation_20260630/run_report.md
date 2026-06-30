@@ -225,6 +225,18 @@ resume confirmation:
   Resuming from step 7500
 ```
 
+Latest live check:
+
+```text
+2026-06-30 10:56 UTC
+job_id: 32
+state: RUNNING
+progress: epoch 11, about 417/747 batches
+latest parsed train_total_loss: about 0.160
+checkpoints present: 2500.ckpt, 5000.ckpt, 7500.ckpt
+GPU: A100 80GB, about 67.8 GB used, 100% utilization
+```
+
 Checkpoints will be under:
 
 ```text
