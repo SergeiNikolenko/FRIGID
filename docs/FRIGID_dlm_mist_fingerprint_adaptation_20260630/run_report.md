@@ -96,9 +96,9 @@ The run started successfully in tmux and reached the training loop. Latest live
 check:
 
 ```text
-Epoch 0: about 81/747 batches
-train_total_loss ~= 2.5-2.8
-GPU utilization: 94-100%
+Epoch 0: about 210/747 batches
+train_total_loss ~= 2.10
+GPU utilization: 100%
 GPU memory: about 66 GB / 80 GB
 checkpoint count: 0
 ```
@@ -110,7 +110,7 @@ while training is active would likely compete for memory.
 
 ## Monitoring
 
-Use:
+Use the training tmux session:
 
 ```bash
 ssh spectrum
@@ -122,6 +122,23 @@ or inspect logs directly:
 ```bash
 tail -f /home/nikolenko/work/Projects/FRIGID_dreams_fingerprint_head/runs/dlm_mist_fingerprint_adaptation_20260630T050906Z/train.log
 ```
+
+An additional lightweight monitor is running in tmux session
+`frigid_dlm_mist_monitor`. It writes:
+
+```text
+/home/nikolenko/work/Projects/FRIGID_dreams_fingerprint_head/runs/dlm_mist_fingerprint_adaptation_20260630T050906Z/status.json
+/home/nikolenko/work/Projects/FRIGID_dreams_fingerprint_head/runs/dlm_mist_fingerprint_adaptation_20260630T050906Z/monitor.log
+```
+
+The current `status.json` schema records:
+
+- UTC timestamp;
+- training tmux state;
+- checkpoint count;
+- latest checkpoint path, when present;
+- GPU utilization/memory;
+- parsed epoch/batch/loss progress.
 
 Checkpoints will be under:
 
