@@ -5,6 +5,12 @@ experiment artifacts.
 
 ## Operational Docs
 
+- `docs/FRIGID_EXPERIMENT_REGISTRY.md`: top-level experiment index with status,
+  plan/result links, and decisions.
+- `docs/FRIGID_EXPERIMENT_STATUS_AND_IDEAS.md`: live board for active runs,
+  near-term queue, backlog ideas, blockers, and stop rules.
+- `docs/FRIGID_EXPERIMENT_TEMPLATE.md`: required template for new experiment
+  plans, run reports, and artifact manifests.
 - `docs/FRIGID_OPERATIONAL_USAGE.md`: CLI entry points, expected inputs,
   benchmark outputs, DLM robustness workflow, and MIST-fingerprint DLM
   adaptation commands.
