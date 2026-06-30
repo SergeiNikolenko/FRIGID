@@ -24,20 +24,21 @@ decision.
 - Host: `spectrum`.
 - Training tmux: `frigid_dlm_mist_adapt`.
 - Monitor tmux: `frigid_dlm_mist_monitor`.
-- Slurm handoff job: `16` held as `JobHeldUser` until a stable `5000.ckpt`
-  exists and the tmux process can be stopped safely.
+- Slurm job: `32`, running on partition `gpu` with `gres/gpu:a100:1`.
+- Superseded Slurm job: `16`, which briefly overlapped the tmux process and
+  failed with CUDA OOM.
 - Run directory:
   `/home/nikolenko/work/Projects/FRIGID_dreams_fingerprint_head/runs/dlm_mist_fingerprint_adaptation_20260630T050906Z`
 - Branch at launch: `dreams-fingerprint-head`.
 - Launch commit: `44a5ff0`.
 - Latest documented code commit: `8a7ca8b`.
-- Latest verified status: 2026-06-30 08:12 UTC.
-- Progress at last check: epoch 6, about 148/747 batches.
+- Latest verified status: 2026-06-30 10:15 UTC.
+- Progress at last check: Slurm job `32` restored from `7500.ckpt` and was
+  training normally at about 131 post-resume batches.
 - Latest checkpoint:
-  `/home/nikolenko/work/Projects/FRIGID_dreams_fingerprint_head/runs/dlm_mist_fingerprint_adaptation_20260630T050906Z/train/checkpoints/2500.ckpt`
-- Current blocker: wait for stable `5000.ckpt`, stop the original tmux training
-  process, release Slurm job `16`, and verify that Slurm resumes from the latest
-  checkpoint instead of starting a duplicate process.
+  `/home/nikolenko/work/Projects/FRIGID_dreams_fingerprint_head/runs/dlm_mist_fingerprint_adaptation_20260630T050906Z/train/checkpoints/7500.ckpt`
+- Current blocker: training is now under Slurm; benchmark evaluation still
+  waits for a selected adapted checkpoint and a free evaluation window.
 - Next action: run paired robustness evaluation on an adapted checkpoint without
   `--use-shared-cross-attention`.
 

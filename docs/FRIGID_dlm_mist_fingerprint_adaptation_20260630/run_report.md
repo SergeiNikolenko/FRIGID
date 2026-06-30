@@ -19,7 +19,7 @@ The goal is to reduce the paired DLM robustness gap between clean
 - Canonical run directory:
   `/home/nikolenko/work/Projects/FRIGID_dreams_fingerprint_head/runs/dlm_mist_fingerprint_adaptation_20260630T050906Z`
 - tmux session: `frigid_dlm_mist_adapt`
-- Slurm handoff job: `16`
+- Slurm handoff job: `32`
 - Code commit: `44a5ff0`
 - DLM checkpoint:
   `/home/nikolenko/work/Projects/FRIGID/repro_cache/DLM.ckpt`
@@ -166,24 +166,34 @@ Created Slurm script:
 /home/nikolenko/work/Projects/FRIGID_dreams_fingerprint_head/runs/dlm_mist_fingerprint_adaptation_20260630T050906Z/slurm/dlm_mist_adaptation_resume.sbatch
 ```
 
-Submitted job:
+Initial held job:
 
 ```text
 job_id: 16
-state: PD
-reason: JobHeldUser
+final state: superseded
+failure: CUDA OOM after overlapping with the manual tmux training process
 ```
 
-The job was intentionally submitted with `--hold` because Slurm does not know
-about the existing manual tmux process occupying the A100. Releasing it before
-stopping the tmux process would start a duplicate training process on the same
-GPU.
+The initial Slurm job was intended to be held while the manual tmux process
+kept training. It later produced logs showing a CUDA OOM while the manual
+process was still occupying the A100, so it was treated as a failed overlap and
+superseded.
+
+Clean handoff job:
+
+```text
+job_id: 32
+state: RUNNING
+partition: gpu
+GRES: gpu:a100:1
+released_utc: 2026-06-30 10:10
+```
 
 Handoff rule:
 
-1. Wait until `5000.ckpt` exists and its size is stable.
+1. Wait until a new checkpoint exists and its size is stable.
 2. Stop the original `frigid_dlm_mist_adapt` tmux training process.
-3. Release Slurm job `16`.
+3. Release Slurm job `32`.
 4. Verify that `scripts/train.py` resumes from the latest checkpoint in
    `train/checkpoints` rather than starting from step zero.
 
@@ -197,9 +207,22 @@ trainer.fit(..., ckpt_path=<latest_checkpoint>)
 Latest verified pre-handoff live state:
 
 ```text
-2026-06-30 08:12 UTC
-checkpoint: 2500.ckpt
-progress: epoch 6, about 148/747 batches
+2026-06-30 10:10 UTC
+checkpoint: 7500.ckpt
+progress before stopping tmux: epoch 10, about 147/747 batches
+```
+
+Verified post-handoff state:
+
+```text
+2026-06-30 10:15 UTC
+job_id: 32
+state: RUNNING
+log: slurm_logs/frigid-dlm-mist-adapt-32.out
+resume confirmation:
+  latest_checkpoint_before_start=7500.ckpt
+  Restoring states from .../checkpoints/7500.ckpt
+  Resuming from step 7500
 ```
 
 Checkpoints will be under:
