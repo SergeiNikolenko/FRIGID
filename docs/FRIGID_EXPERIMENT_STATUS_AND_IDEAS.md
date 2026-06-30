@@ -54,7 +54,7 @@ binary fingerprints.
 A new DreaMS replacement plan exists, but it changes the objective to staged
 adapter adaptation with MIST anchoring, MIST-error focus, and decoder-sensitive
 weighting:
-[FRIGID_DREAMS_ADAPTER_REPLACEMENT_PLAN_20260630.md](FRIGID_DREAMS_ADAPTER_REPLACEMENT_PLAN_20260630.md).
+[FRIGID_dreams_adapter_replacement_20260630/experiment_plan.md](FRIGID_dreams_adapter_replacement_20260630/experiment_plan.md).
 
 ## Near-Term Queue
 

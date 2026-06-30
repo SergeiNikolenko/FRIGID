@@ -23,6 +23,9 @@ experiment artifacts.
 - `docs/FRIGID_DREAMS_ADAPTER_REPLACEMENT_PLAN_20260630.md`: planned next
   DreaMS replacement path using staged adapter adaptation, MIST anchoring,
   MIST-error focus, and decoder-sensitive weighting.
+- `docs/FRIGID_dreams_adapter_replacement_20260630/`: runnable DreaMS adapter
+  replacement experiment package with the plan, Slurm launcher, run report,
+  and artifact manifest.
 
 ## DreaMS Encoder Experiments
 
@@ -49,6 +52,9 @@ experiment artifacts.
   DreaMS replacement experiment. This should be treated as the serious DreaMS
   continuation, not another repeat of the failed frozen-head or plain
   full-fine-tune runs.
+- `docs/FRIGID_dreams_adapter_replacement_20260630/`: active package for the
+  serious DreaMS continuation. Use this directory for launch status and
+  artifacts.
 - `docs/FRIGID_NEXT_EXPERIMENT_DECISION_20260630.md`: decision memo selecting
   DLM adaptation to MIST-predicted fingerprints as the next serious experiment.
 - `docs/FRIGID_dlm_mist_fingerprint_adaptation_20260630/`: active DLM

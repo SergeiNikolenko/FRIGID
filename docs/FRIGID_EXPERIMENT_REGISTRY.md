@@ -14,6 +14,7 @@ This is the top-level index for FRIGID experiment records. It should answer:
 
 - `planned`: designed but not launched.
 - `running`: training, evaluation, or transfer is currently active.
+- `queued`: submitted to a scheduler but waiting for dependency or resources.
 - `complete`: run finished and results are recorded.
 - `stopped`: run was intentionally stopped because an upstream gate failed.
 - `blocked`: work cannot continue without data, infrastructure, or a decision.
@@ -41,7 +42,7 @@ https://linear.app/nikolenko-sergei-s/project/frigid-d174fd1451a6
 | ID | Status | Question | Plan | Results | Decision |
 | --- | --- | --- | --- | --- | --- |
 | `dlm_mist_fingerprint_adaptation_20260630` | running | Can DLM be adapted to decode the fingerprint distribution that MIST actually emits? | [run report](FRIGID_dlm_mist_fingerprint_adaptation_20260630/run_report.md) | first checkpoint exists, evaluation pending | Active path |
-| `dreams_adapter_replacement_20260630` | planned | Can DreaMS be adapted with an adapter, MIST anchor, and decoder-sensitive objective to replace MIST? | [plan](FRIGID_DREAMS_ADAPTER_REPLACEMENT_PLAN_20260630.md) | not launched | Next DreaMS replacement candidate |
+| `dreams_adapter_replacement_20260630` | planned | Can DreaMS be adapted with an adapter, MIST anchor, and decoder-sensitive objective to replace MIST? | [plan](FRIGID_dreams_adapter_replacement_20260630/experiment_plan.md) | [run report](FRIGID_dreams_adapter_replacement_20260630/run_report.md) | Next DreaMS replacement candidate |
 | `dlm_fingerprint_robustness` | complete | How much quality does DLM lose when clean Morgan fingerprints are replaced by MIST-predicted fingerprints? | [operational usage](FRIGID_OPERATIONAL_USAGE.md) | [results](DLM_FINGERPRINT_ROBUSTNESS_RESULTS.md) | Motivated DLM adaptation |
 | `dreams_fingerprint_head_20260629` | stopped | Can frozen DreaMS embeddings plus an MLP predict Morgan fingerprints well enough to replace MIST? | [workflow](FRIGID_DREAMS_FINGERPRINT_HEAD.md) | [run report](FRIGID_dreams_fingerprint_head_20260629/run_report.md) | Failed upstream fingerprint gate |
 | `dreams_fingerprint_head_round2_20260629` | complete | Do calibration and loss variants fix the frozen-DreaMS fingerprint head? | [plan](FRIGID_dreams_fingerprint_head_round2_20260629/experiment_plan.md) | see experiment directory | Did not clear replacement gate |
