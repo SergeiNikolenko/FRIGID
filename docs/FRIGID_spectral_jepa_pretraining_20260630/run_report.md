@@ -7,8 +7,8 @@ Date: 2026-06-30
 This experiment package implements a JEPA-like self-supervised MS/MS spectrum
 encoder and a frozen-encoder fingerprint-head evaluation gate.
 
-The run is prepared but not submitted yet. It should run after the currently
-queued DLM/DreaMS GPU jobs clear.
+The run is implemented, pushed, synced to `spectrum`, and queued in Slurm behind
+the active DLM and DreaMS GPU jobs.
 
 ## Run Identity
 
@@ -17,14 +17,24 @@ queued DLM/DreaMS GPU jobs clear.
 - Partition: `gpu`.
 - GRES: `gpu:a100:1`.
 - Local branch at preparation: `dreams-fingerprint-head`.
-- Status: `planned`.
-- Recommended dependency: `afterany:34`.
+- Status: `queued`.
+- Slurm job id: `36`.
+- Slurm state after submission: `PENDING`.
+- Slurm reason after submission: `Dependency`.
+- Slurm dependency: `afterany:34`.
+- Submit commit: `8fbfe30`.
+- Latest verified status: 2026-06-30 18:20 UTC, still `PENDING` on the same
+  dependency.
 - Remote checkout:
   `/home/nikolenko/work/Projects/FRIGID_dreams_fingerprint_head`.
 - Command file:
   `docs/FRIGID_spectral_jepa_pretraining_20260630/run_spectral_jepa.sbatch`.
 - Expected run directory:
   `/home/nikolenko/work/Projects/FRIGID_dreams_fingerprint_head/runs/spectral_jepa_pretraining_<UTC>`.
+- Slurm logs:
+  `/home/nikolenko/work/Projects/FRIGID_dreams_fingerprint_head/runs/slurm_logs/frigid-spectral-jepa-36.out`
+  and
+  `/home/nikolenko/work/Projects/FRIGID_dreams_fingerprint_head/runs/slurm_logs/frigid-spectral-jepa-36.err`.
 
 ## What Was Implemented
 
@@ -37,10 +47,14 @@ queued DLM/DreaMS GPU jobs clear.
 - Added frozen-encoder fingerprint-head training.
 - Added validation threshold/top-k sweep and prediction export.
 - Added Slurm launcher, plan, report, and artifact manifest.
+- Verified `scripts/train_spectral_jepa.py --help` in the remote DreaMS/MolForge
+  Python environment.
+- Submitted Slurm job `36` with dependency `afterany:34`, so it does not
+  compete with DLM job `32` or DreaMS adapter job `34` for the A100.
 
 ## Metrics
 
-Metrics are pending until the Slurm job runs.
+Metrics are pending until Slurm job `36` starts and runs.
 
 | Metric | Value |
 | --- | ---: |
@@ -59,11 +73,10 @@ full-fine-tune attempts on the same validation fingerprint gate.
 ## Next Actions
 
 1. Wait for active DLM job `32` and queued DreaMS adapter job `34` to clear.
-2. Submit this job with `--dependency=afterany:34`.
-3. Record `run_identity.json`, first metrics, and failure modes here.
+2. Confirm Slurm job `36` starts and creates `run_identity.json`.
+3. Record first metrics and failure modes here.
 4. Compare the frozen JEPA encoder against:
    - frozen DreaMS head (`0.1238`);
    - DreaMS distilled (`0.2404`);
    - full DreaMS fine-tune (`0.2580`);
    - MIST baseline (`~0.5420`).
-

@@ -15,7 +15,7 @@ decision.
 - Artifact-transfer issue: `SPA-77`.
 - Next-objective design issue: `SPA-78`.
 - DreaMS evidence guardrail issue: `SPA-79`.
-- Spectral JEPA pretraining issue: pending Linear creation.
+- Spectral JEPA pretraining issue: `SPA-84`.
 
 ## Active Runs
 
@@ -78,20 +78,33 @@ decision.
 
 ### Spectral JEPA Pretraining
 
-- Status: `planned`.
+- Status: `queued`.
 - Host: `spectrum`.
-- Recommended scheduler dependency: `afterany:34`, so it runs after the active
-  DLM job and the queued DreaMS adapter replacement job.
+- Slurm job: `36`.
+- Dependency: `afterany:34`, so it runs after the active DLM job and the queued
+  DreaMS adapter replacement job.
+- Partition: `gpu`.
+- GRES: `gpu:a100:1`.
+- Requested resources: 16 CPU, 120G memory, one A100.
 - Remote checkout:
   `/home/nikolenko/work/Projects/FRIGID_dreams_fingerprint_head`
+- Branch at submission: `dreams-fingerprint-head`.
+- Submit commit: `8fbfe30`.
+- Latest verified status: 2026-06-30 18:20 UTC.
 - Command file:
   `docs/FRIGID_spectral_jepa_pretraining_20260630/run_spectral_jepa.sbatch`
+- Slurm logs:
+  `/home/nikolenko/work/Projects/FRIGID_dreams_fingerprint_head/runs/slurm_logs/frigid-spectral-jepa-36.out`
+  and
+  `/home/nikolenko/work/Projects/FRIGID_dreams_fingerprint_head/runs/slurm_logs/frigid-spectral-jepa-36.err`
 - Expected run directory:
   `/home/nikolenko/work/Projects/FRIGID_dreams_fingerprint_head/runs/spectral_jepa_pretraining_<UTC>`
 - Purpose: self-supervised JEPA-like MS/MS spectrum pretraining followed by a
   frozen-encoder fingerprint-head gate.
-- Next action: submit after current GPU jobs clear, then compare the frozen JEPA
-  encoder against prior DreaMS variants and the MIST baseline.
+- Current state at last check: `PENDING` with reason `Dependency`, waiting on
+  `afterany:34`.
+- Next action: after jobs `32` and `34` clear, confirm job `36` starts and
+  writes `run_identity.json`.
 
 ## Current Decision State
 
