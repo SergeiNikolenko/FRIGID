@@ -36,7 +36,7 @@ load_weights_only: null
 load_weights_strict: False
 
 loader:
-  global_batch_size: 512
+  global_batch_size: 256
   batch_size: ${div_up:${.global_batch_size}, ${eval:${trainer.devices} * ${trainer.num_nodes}}}
   num_workers: 8
   pin_memory: True
