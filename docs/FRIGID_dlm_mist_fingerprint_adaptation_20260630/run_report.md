@@ -237,6 +237,21 @@ checkpoints present: 2500.ckpt, 5000.ckpt, 7500.ckpt
 GPU: A100 80GB, about 67.8 GB used, 100% utilization
 ```
 
+Latest live check:
+
+```text
+2026-06-30 14:41 UTC
+job_id: 32
+state: RUNNING
+elapsed: 4:30:59
+progress: epoch 19, about 159/747 batches
+latest parsed train_total_loss: about 0.222
+checkpoints present: 2500.ckpt, 5000.ckpt, 7500.ckpt, 10000.ckpt, 12500.ckpt
+latest checkpoint: 12500.ckpt
+latest checkpoint mtime: 2026-06-30 13:28 UTC
+GPU: A100 80GB, about 67.9 GB used, 100% utilization
+```
+
 Checkpoints will be under:
 
 ```text

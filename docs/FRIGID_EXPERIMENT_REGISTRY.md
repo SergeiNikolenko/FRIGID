@@ -41,7 +41,7 @@ https://linear.app/nikolenko-sergei-s/project/frigid-d174fd1451a6
 
 | ID | Status | Question | Plan | Results | Decision |
 | --- | --- | --- | --- | --- | --- |
-| `dlm_mist_fingerprint_adaptation_20260630` | running | Can DLM be adapted to decode the fingerprint distribution that MIST actually emits? | [run report](FRIGID_dlm_mist_fingerprint_adaptation_20260630/run_report.md) | first checkpoint exists, evaluation pending | Active path |
+| `dlm_mist_fingerprint_adaptation_20260630` | running | Can DLM be adapted to decode the fingerprint distribution that MIST actually emits? | [run report](FRIGID_dlm_mist_fingerprint_adaptation_20260630/run_report.md) | checkpoints through `12500.ckpt` exist, evaluation pending | Active path |
 | `dreams_adapter_replacement_20260630` | queued | Can DreaMS be adapted with an adapter, MIST anchor, and decoder-sensitive objective to replace MIST? | [plan](FRIGID_dreams_adapter_replacement_20260630/experiment_plan.md) | [run report](FRIGID_dreams_adapter_replacement_20260630/run_report.md) | Queued behind active DLM job |
 | `dlm_fingerprint_robustness` | complete | How much quality does DLM lose when clean Morgan fingerprints are replaced by MIST-predicted fingerprints? | [operational usage](FRIGID_OPERATIONAL_USAGE.md) | [results](DLM_FINGERPRINT_ROBUSTNESS_RESULTS.md) | Motivated DLM adaptation |
 | `dreams_fingerprint_head_20260629` | stopped | Can frozen DreaMS embeddings plus an MLP predict Morgan fingerprints well enough to replace MIST? | [workflow](FRIGID_DREAMS_FINGERPRINT_HEAD.md) | [run report](FRIGID_dreams_fingerprint_head_20260629/run_report.md) | Failed upstream fingerprint gate |
