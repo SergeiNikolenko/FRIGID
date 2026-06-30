@@ -65,13 +65,13 @@ model:
   attention_probs_dropout_prob: 0.1
   hidden_act: 'gelu'
   hidden_dropout_prob: 0.1
-  hidden_size: 768
+  hidden_size: 896
   initializer_range: 0.02
-  intermediate_size: 3072
+  intermediate_size: 3584
   layer_norm_eps: 1e-12
   max_position_embeddings: 256
   model_type: 'bert'
-  num_attention_heads: 12
+  num_attention_heads: 14
   num_hidden_layers: 12
   pad_token_id: 3
   position_embedding_type: 'absolute'
@@ -80,7 +80,7 @@ model:
   use_cache: True
   vocab_size: 1880
 
-  use_shared_cross_attention: True
+  use_shared_cross_attention: False
 
   use_formula_conditioning: True
   formula_conditioner_type: 'cross_attention'
