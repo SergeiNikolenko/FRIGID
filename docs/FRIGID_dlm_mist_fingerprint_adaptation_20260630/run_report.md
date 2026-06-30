@@ -1,0 +1,290 @@
+# FRIGID DLM Adaptation To MIST Fingerprints
+
+Date: 2026-06-30
+
+## Objective
+
+Fine-tune DLM on the fingerprint distribution that MIST actually emits. This is
+the selected next experiment after direct DreaMS replacement attempts failed to
+approach the MIST fingerprint baseline.
+
+The goal is to reduce the paired DLM robustness gap between clean
+`ground_truth` Morgan fingerprints and realistic `mist_binary` fingerprints.
+
+## Inputs
+
+- Host: `spectrum`
+- Code checkout:
+  `/home/nikolenko/work/Projects/FRIGID_dreams_fingerprint_head`
+- Canonical run directory:
+  `/home/nikolenko/work/Projects/FRIGID_dreams_fingerprint_head/runs/dlm_mist_fingerprint_adaptation_20260630T050906Z`
+- tmux session: `frigid_dlm_mist_adapt`
+- Slurm handoff job: `32`
+- Code commit: `44a5ff0`
+- DLM checkpoint:
+  `/home/nikolenko/work/Projects/FRIGID/repro_cache/DLM.ckpt`
+- MIST checkpoint:
+  `/home/nikolenko/work/Projects/FRIGID/repro_cache/mist_msg.pt`
+- MSG data:
+  `/home/nikolenko/work/Projects/FRIGID/repro_cache/msg`
+
+The run reuses the existing full train-split MIST export:
+
+```text
+/home/nikolenko/work/Projects/FRIGID_dreams_fingerprint_head/runs/mist_dreams_residual_20260629T135651Z/mist_train
+```
+
+Export summary:
+
+- Split: train.
+- Rows: 191,216.
+- Fingerprint bits: 4096.
+- Training key: `mist_binary`.
+- Available arrays: `probs`, `mist_probs`, `mist_binary`, `ground_truth`.
+- Export threshold: 0.187.
+
+The canonical run directory symlinks the large export files instead of copying
+the 5.5 GB NPZ payload.
+
+## Code Fixes Needed Before Launch
+
+The adaptation config and training path needed two launch fixes:
+
+1. `configs/fp2mol_finetune_mist_fingerprints.yaml` was updated to match the
+   real `DLM.ckpt` architecture:
+   - hidden size: 896;
+   - intermediate size: 3584;
+   - attention heads: 14;
+   - independent fingerprint cross-attention (`use_shared_cross_attention:
+     False`);
+   - global batch size reduced to 256 after batch 512 exceeded A100 80GB memory.
+2. `src/dlm/model.py` now explicitly moves tensor batch fields used in
+   `training_step` to `self.device`. Without this, formula conditioning could
+   construct CPU condition tensors while module weights were on CUDA.
+
+## Failed Launch Attempts
+
+Earlier run directories are retained as diagnostic evidence:
+
+- `dlm_mist_fingerprint_adaptation_20260630T050223Z`
+  - failed because the config used a 768-dimensional DLM while `DLM.ckpt` is
+    896-dimensional;
+  - after architecture overrides, exposed the CPU/CUDA batch-device issue.
+- `dlm_mist_fingerprint_adaptation_20260630T050643Z`
+  - used the corrected architecture and device fix;
+  - failed with CUDA OOM at batch size 512 on A100 80GB.
+
+## Canonical Training Run
+
+Current command is captured in:
+
+```text
+runs/dlm_mist_fingerprint_adaptation_20260630T050906Z/run_dlm_mist_adaptation.sh
+```
+
+Important settings:
+
+- `configs/fp2mol_finetune_mist_fingerprints.yaml`
+- `load_weights_only=/home/nikolenko/work/Projects/FRIGID/repro_cache/DLM.ckpt`
+- `data.predicted_fingerprint_key=mist_binary`
+- `loader.global_batch_size=256`
+- `trainer.devices=1`
+- `trainer.num_nodes=1`
+- `WANDB_MODE=offline`
+- `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True`
+
+The run started successfully in tmux and reached the training loop. The first
+epoch completed successfully and training continued into epoch 1. Latest live
+check:
+
+```text
+Epoch 1: about 76/747 batches
+train_total_loss ~= 1.96
+GPU utilization: 100%
+GPU memory: about 67 GB / 80 GB
+checkpoint count: 0
+```
+
+The Hydra config uses a `ModelCheckpoint` callback with
+`every_n_train_steps: 2500`, so no checkpoint is expected at the end of epoch 0.
+The first checkpoint is expected around global step 2,500, roughly 3.3 epochs at
+747 batches per epoch. Evaluation should wait until a checkpoint exists because
+running DLM robustness evaluation on the same A100 while training is active
+would likely compete for memory.
+
+## Monitoring
+
+Use the training tmux session:
+
+```bash
+ssh spectrum
+tmux attach -t frigid_dlm_mist_adapt
+```
+
+or inspect logs directly:
+
+```bash
+tail -f /home/nikolenko/work/Projects/FRIGID_dreams_fingerprint_head/runs/dlm_mist_fingerprint_adaptation_20260630T050906Z/train.log
+```
+
+An additional lightweight monitor is running in tmux session
+`frigid_dlm_mist_monitor`. It writes:
+
+```text
+/home/nikolenko/work/Projects/FRIGID_dreams_fingerprint_head/runs/dlm_mist_fingerprint_adaptation_20260630T050906Z/status.json
+/home/nikolenko/work/Projects/FRIGID_dreams_fingerprint_head/runs/dlm_mist_fingerprint_adaptation_20260630T050906Z/monitor.log
+```
+
+The current `status.json` schema records:
+
+- UTC timestamp;
+- training tmux state;
+- checkpoint count;
+- latest checkpoint path, when present;
+- GPU utilization/memory;
+- parsed epoch/batch/loss progress.
+
+The monitor script in the run directory was simplified after launch to avoid a
+shell heredoc failure in the JSON writer. This did not affect the training
+process.
+
+## Slurm Handoff
+
+On 2026-06-30, the run was prepared for migration from a manual tmux launch to
+Slurm on `spectrum`.
+
+Slurm availability on `spectrum`:
+
+```text
+partition: gpu
+GRES: gpu:a100:1
+```
+
+Created Slurm script:
+
+```text
+/home/nikolenko/work/Projects/FRIGID_dreams_fingerprint_head/runs/dlm_mist_fingerprint_adaptation_20260630T050906Z/slurm/dlm_mist_adaptation_resume.sbatch
+```
+
+Initial held job:
+
+```text
+job_id: 16
+final state: superseded
+failure: CUDA OOM after overlapping with the manual tmux training process
+```
+
+The initial Slurm job was intended to be held while the manual tmux process
+kept training. It later produced logs showing a CUDA OOM while the manual
+process was still occupying the A100, so it was treated as a failed overlap and
+superseded.
+
+Clean handoff job:
+
+```text
+job_id: 32
+state: RUNNING
+partition: gpu
+GRES: gpu:a100:1
+released_utc: 2026-06-30 10:10
+```
+
+Handoff rule:
+
+1. Wait until a new checkpoint exists and its size is stable.
+2. Stop the original `frigid_dlm_mist_adapt` tmux training process.
+3. Release Slurm job `32`.
+4. Verify that `scripts/train.py` resumes from the latest checkpoint in
+   `train/checkpoints` rather than starting from step zero.
+
+The training script supports this flow because it finds the latest checkpoint
+from the callback directory and calls:
+
+```text
+trainer.fit(..., ckpt_path=<latest_checkpoint>)
+```
+
+Latest verified pre-handoff live state:
+
+```text
+2026-06-30 10:10 UTC
+checkpoint: 7500.ckpt
+progress before stopping tmux: epoch 10, about 147/747 batches
+```
+
+Verified post-handoff state:
+
+```text
+2026-06-30 10:15 UTC
+job_id: 32
+state: RUNNING
+log: slurm_logs/frigid-dlm-mist-adapt-32.out
+resume confirmation:
+  latest_checkpoint_before_start=7500.ckpt
+  Restoring states from .../checkpoints/7500.ckpt
+  Resuming from step 7500
+```
+
+Latest live check:
+
+```text
+2026-06-30 10:56 UTC
+job_id: 32
+state: RUNNING
+progress: epoch 11, about 417/747 batches
+latest parsed train_total_loss: about 0.160
+checkpoints present: 2500.ckpt, 5000.ckpt, 7500.ckpt
+GPU: A100 80GB, about 67.8 GB used, 100% utilization
+```
+
+Latest live check:
+
+```text
+2026-06-30 14:41 UTC
+job_id: 32
+state: RUNNING
+elapsed: 4:30:59
+progress: epoch 19, about 159/747 batches
+latest parsed train_total_loss: about 0.222
+checkpoints present: 2500.ckpt, 5000.ckpt, 7500.ckpt, 10000.ckpt, 12500.ckpt
+latest checkpoint: 12500.ckpt
+latest checkpoint mtime: 2026-06-30 13:28 UTC
+GPU: A100 80GB, about 67.9 GB used, 100% utilization
+```
+
+Checkpoints will be under:
+
+```text
+/home/nikolenko/work/Projects/FRIGID_dreams_fingerprint_head/runs/dlm_mist_fingerprint_adaptation_20260630T050906Z/train/checkpoints
+```
+
+## Next Evaluation
+
+After at least one checkpoint is produced, evaluate an adapted checkpoint with
+the paired robustness benchmark. Do not launch this concurrently with the active
+training process on the same GPU.
+
+```bash
+python scripts/benchmark_dlm_fingerprint_robustness.py \
+  --config configs/spec2mol_benchmark_msg.yaml \
+  --data-dir /home/nikolenko/work/Projects/FRIGID/repro_cache/msg \
+  --mist-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/mist_msg.pt \
+  --dlm-checkpoint <adapted_checkpoint> \
+  --formula-matches 10 \
+  --max-attempts 100 \
+  --batch-size 16 \
+  --partial-save-every 100 \
+  --fingerprint-sources ground_truth mist_binary \
+  --max-spectra 1400 \
+  --output-dir runs/dlm_mist_adapted_robustness_1400
+```
+
+Do not add `--use-shared-cross-attention` for this adapted checkpoint. The
+training config and the original DLM checkpoint use independent fingerprint
+cross-attention (`use_shared_cross_attention: false`), and the evaluation loader
+only needs that flag when deliberately overriding a checkpoint into shared
+cross-attention mode.
+
+The decision metric is whether the adapted DLM improves `mist_binary` decoding
+quality relative to the original DLM without collapsing `ground_truth`
+conditioning.

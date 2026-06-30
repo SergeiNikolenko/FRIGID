@@ -1,0 +1,13 @@
+{
+  "rows": 19043,
+  "fingerprint_bits": 4096,
+  "threshold": 0.5,
+  "mean_tanimoto": 0.12380483226693835,
+  "median_tanimoto": 0.10489510744810104,
+  "bit_accuracy": 0.9300574224698708,
+  "bit_precision": 0.12387949614343159,
+  "bit_recall": 0.5741983661794373,
+  "bit_f1": 0.2037921788609628,
+  "mean_active_bits": 295.96014404296875,
+  "mean_target_active_bits": 63.8514404296875
+}

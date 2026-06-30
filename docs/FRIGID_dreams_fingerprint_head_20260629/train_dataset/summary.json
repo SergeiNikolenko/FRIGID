@@ -1,0 +1,9 @@
+{
+  "split": "train",
+  "rows": 191216,
+  "fp_bits": 4096,
+  "fp_radius": 2,
+  "metadata_csv": "/home/nikolenko/work/Projects/FRIGID_dreams_fingerprint_head/runs/dreams_fingerprint_head_msg_full_20260629T110040Z/train_dataset/metadata.csv",
+  "fingerprints_npz": "/home/nikolenko/work/Projects/FRIGID_dreams_fingerprint_head/runs/dreams_fingerprint_head_msg_full_20260629T110040Z/train_dataset/fingerprints.npz",
+  "spectra_mgf": "/home/nikolenko/work/Projects/FRIGID_dreams_fingerprint_head/runs/dreams_fingerprint_head_msg_full_20260629T110040Z/train_dataset/spectra.mgf"
+}
