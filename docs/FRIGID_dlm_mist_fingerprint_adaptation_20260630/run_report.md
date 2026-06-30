@@ -92,16 +92,21 @@ Important settings:
 - `WANDB_MODE=offline`
 - `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True`
 
-The run started successfully in tmux and reached the training loop:
+The run started successfully in tmux and reached the training loop. Latest live
+check:
 
 ```text
-Epoch 0: 34/747 batches
-train_total_loss ~= 2.8
-GPU utilization: 100%
-GPU memory: about 62 GB / 80 GB
+Epoch 0: about 81/747 batches
+train_total_loss ~= 2.5-2.8
+GPU utilization: 94-100%
+GPU memory: about 66 GB / 80 GB
+checkpoint count: 0
 ```
 
-The first checkpoint is expected at step 2,500 according to the config.
+The first checkpoint is expected at step 2,500 according to the config. At the
+current speed, that checkpoint is not immediate; evaluation should wait until a
+checkpoint exists because running DLM robustness evaluation on the same A100
+while training is active would likely compete for memory.
 
 ## Monitoring
 
@@ -127,7 +132,8 @@ Checkpoints will be under:
 ## Next Evaluation
 
 After at least one checkpoint is produced, evaluate an adapted checkpoint with
-the paired robustness benchmark:
+the paired robustness benchmark. Do not launch this concurrently with the active
+training process on the same GPU.
 
 ```bash
 python scripts/benchmark_dlm_fingerprint_robustness.py \
