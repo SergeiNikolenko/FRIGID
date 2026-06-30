@@ -17,6 +17,11 @@ queued behind the active DLM adaptation job to avoid A100 contention.
 - Partition: `gpu`.
 - GRES: `gpu:a100:1`.
 - Local branch at preparation: `dreams-fingerprint-head`.
+- Submit commit: `9f8a55e`.
+- Slurm job id: `34`.
+- Slurm state after submission: `PENDING`.
+- Slurm reason after submission: `Dependency`.
+- Slurm dependency: `afterany:32`.
 - Remote checkout:
   `/home/nikolenko/work/Projects/FRIGID_dreams_fingerprint_head`.
 - DreaMS checkout:
@@ -56,10 +61,13 @@ metadata before training and validation.
 - First Slurm submission attempt did not start because `--mem=128G` exceeded
   the node's configured `125G` TRES memory. The launcher was changed to
   `--mem=120G`.
+- Submitted Slurm job `34` from the remote checkout at commit `9f8a55e`.
+  The job is pending on dependency `afterany:32`, waiting for the active DLM
+  adaptation job to release the A100.
 
 ## Metrics
 
-Metrics are pending until the Slurm job starts and reaches validation.
+Metrics are pending until Slurm job `34` starts and reaches validation.
 
 | Metric | MIST Baseline | This Run | Delta |
 | --- | ---: | ---: | ---: |
@@ -107,7 +115,8 @@ robustness versus `mist_binary`.
 
 ## Next Actions
 
-1. Push the code and docs to the fork branch.
-2. Pull the branch on `spectrum`.
-3. Submit the Slurm job with dependency on DLM job `32`.
-4. Record Slurm job id and first validation metrics here.
+1. Wait for DLM job `32` to finish or release the A100.
+2. Confirm DreaMS job `34` starts and writes `run_identity.json`.
+3. Record first validation sweep metrics here.
+4. If the encoder gate passes, export predictions for downstream DLM
+   robustness evaluation.

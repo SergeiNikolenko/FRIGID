@@ -18,6 +18,31 @@ decision.
 
 ## Active Runs
 
+### DreaMS Adapter Replacement
+
+- Status: `queued`.
+- Host: `spectrum`.
+- Slurm job: `34`.
+- Dependency: `afterany:32`, so it waits for the active DLM adaptation job to
+  leave the A100.
+- Partition: `gpu`.
+- GRES: `gpu:a100:1`.
+- Requested resources: 16 CPU, 120G memory, one A100.
+- Remote checkout:
+  `/home/nikolenko/work/Projects/FRIGID_dreams_fingerprint_head`
+- Branch at submission: `dreams-fingerprint-head`.
+- Submit commit: `9f8a55e`.
+- Command file:
+  `docs/FRIGID_dreams_adapter_replacement_20260630/run_dreams_adapter_replacement.sbatch`
+- Slurm logs:
+  `/home/nikolenko/work/Projects/FRIGID_dreams_fingerprint_head/runs/slurm_logs/frigid-dreams-adapter-34.out`
+  and
+  `/home/nikolenko/work/Projects/FRIGID_dreams_fingerprint_head/runs/slurm_logs/frigid-dreams-adapter-34.err`
+- Expected run directory:
+  `/home/nikolenko/work/Projects/FRIGID_dreams_fingerprint_head/runs/dreams_adapter_replacement_<UTC>`
+- Next action: after job `32` ends, confirm job `34` starts, writes
+  `run_identity.json`, and completes the first validation sweep.
+
 ### DLM Adaptation To MIST Fingerprints
 
 - Status: `running`.
@@ -55,6 +80,8 @@ A new DreaMS replacement plan exists, but it changes the objective to staged
 adapter adaptation with MIST anchoring, MIST-error focus, and decoder-sensitive
 weighting:
 [FRIGID_dreams_adapter_replacement_20260630/experiment_plan.md](FRIGID_dreams_adapter_replacement_20260630/experiment_plan.md).
+
+The corresponding Slurm job is now queued as job `34`, waiting on DLM job `32`.
 
 ## Near-Term Queue
 
