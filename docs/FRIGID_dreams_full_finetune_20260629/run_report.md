@@ -100,7 +100,7 @@ Because `tune_encoder_epochs` is set to `0` in the script and the training loop
 unfreezes the encoder when `epoch >= tune_encoder_epochs`, this run fine-tunes
 the DreaMS encoder from epoch 0.
 
-## Launch status
+## Final status
 
 The first launch failed before training because of the PyTorch scheduler API
 mismatch:
@@ -115,15 +115,50 @@ appear in the Innopolis ClearML UI. The canonical run is now the online ClearML
 run in `dreams_full_finetune_clearml_20260629T175115Z`.
 
 The online ClearML run created task id `588fc21748004c08a0d878662ac05301` and
-started the full training loop. The latest checked status showed:
+completed. Early stopping triggered at epoch 15 after 16 logged epochs.
+
+Best validation checkpoint:
+
+- Best epoch by validation loss and validation Tanimoto: epoch 8.
+- Train loss at epoch 8: 0.1253.
+- Train Tanimoto at epoch 8: 0.7468.
+- Validation loss at epoch 8: 0.3912.
+- Validation Tanimoto at epoch 8: 0.2580.
+
+Last epoch before early stopping:
+
+- Epoch: 15.
+- Train loss: 0.0775.
+- Train Tanimoto: 0.8438.
+- Validation loss: 0.4072.
+- Validation Tanimoto: 0.2436.
+
+The final script test pass reused the validation split for compatibility with
+the original DreaMS full-training script and reported:
 
 ```text
-Overall Progress: 0/100 epochs
-Epoch 0 [Train]: 4/373 batches, loss=0.4173
+Final Test Results:
+Loss: 0.3912
+Tanimoto: 0.2580
 ```
 
-This confirms that the full DreaMS encoder plus fingerprint head training loop
-started on the complete train split and is logged to Innopolis ClearML.
+The checkpoint files were produced in the active run directory:
+
+- `model/best_model.pth`
+- `model/last.pth`
+
+## Interpretation
+
+This full DreaMS encoder fine-tune did not produce a MIST replacement. The best
+validation Tanimoto was 0.2580, while the MIST validation baseline from the
+blend/residual experiments was approximately 0.5420 on the same fingerprint
+handoff target. The model also overfit strongly: train Tanimoto continued rising
+to 0.8438, while validation Tanimoto peaked at epoch 8 and then declined.
+
+The result is still useful because it closes the main question left open by the
+frozen-embedding experiments: simply unfreezing and fine-tuning the pretrained
+DreaMS encoder with the current BCE plus soft-Tanimoto fingerprint objective is
+not enough to replace MIST.
 
 ## Success criteria
 
@@ -144,10 +179,10 @@ requires validation and downstream FRIGID metrics:
 
 ## Next actions
 
-- Monitor `frigid_dreams_full_finetune` until at least the first full validation
-  epoch finishes.
-- Save the best checkpoint and validation metrics into this documentation
-  folder.
-- Add an export/evaluation step for the best full-fine-tuned DreaMS checkpoint.
-- Compare against MIST using the same validation split and the existing
-  `sweep_fingerprint_predictions.py` / DLM robustness tooling.
+- Do not promote this checkpoint as a FRIGID backend replacement.
+- If continuing with DreaMS, change the training objective or data strategy
+  before another long run. The current setup overfits the train split without
+  approaching MIST validation quality.
+- The next useful experiment should focus on retrieval/contrastive supervision,
+  hard negative spectra, or a hybrid objective tied to downstream DLM success,
+  rather than repeating the same plain fingerprint BCE plus Tanimoto loss.
