@@ -6,6 +6,16 @@ This document is the live experiment board. It should be updated whenever a run
 starts, fails, produces a checkpoint, finishes evaluation, or changes the next
 decision.
 
+## Linear Tracking
+
+- Linear project: https://linear.app/nikolenko-sergei-s/project/frigid-d174fd1451a6
+- Active monitoring issue: `SPA-74`.
+- Benchmark evaluation issue: `SPA-75`.
+- Documentation update issue: `SPA-76`.
+- Artifact-transfer issue: `SPA-77`.
+- Next-objective design issue: `SPA-78`.
+- DreaMS evidence guardrail issue: `SPA-79`.
+
 ## Active Runs
 
 ### DLM Adaptation To MIST Fingerprints

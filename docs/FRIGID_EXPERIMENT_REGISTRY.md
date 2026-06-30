@@ -25,6 +25,12 @@ The current serious path is DLM adaptation to MIST-predicted fingerprints. Direc
 DreaMS replacement is not the active path because multiple DreaMS-side
 experiments failed to approach the MIST fingerprint baseline.
 
+Linear project tracking is now active:
+
+```text
+https://linear.app/nikolenko-sergei-s/project/frigid-d174fd1451a6
+```
+
 ## Experiment Index
 
 | ID | Status | Question | Plan | Results | Decision |
