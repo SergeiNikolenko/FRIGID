@@ -15,6 +15,7 @@ decision.
 - Artifact-transfer issue: `SPA-77`.
 - Next-objective design issue: `SPA-78`.
 - DreaMS evidence guardrail issue: `SPA-79`.
+- Spectral JEPA pretraining issue: pending Linear creation.
 
 ## Active Runs
 
@@ -73,6 +74,25 @@ decision.
 - Next action: run paired robustness evaluation on an adapted checkpoint without
   `--use-shared-cross-attention`.
 
+## Planned Runs
+
+### Spectral JEPA Pretraining
+
+- Status: `planned`.
+- Host: `spectrum`.
+- Recommended scheduler dependency: `afterany:34`, so it runs after the active
+  DLM job and the queued DreaMS adapter replacement job.
+- Remote checkout:
+  `/home/nikolenko/work/Projects/FRIGID_dreams_fingerprint_head`
+- Command file:
+  `docs/FRIGID_spectral_jepa_pretraining_20260630/run_spectral_jepa.sbatch`
+- Expected run directory:
+  `/home/nikolenko/work/Projects/FRIGID_dreams_fingerprint_head/runs/spectral_jepa_pretraining_<UTC>`
+- Purpose: self-supervised JEPA-like MS/MS spectrum pretraining followed by a
+  frozen-encoder fingerprint-head gate.
+- Next action: submit after current GPU jobs clear, then compare the frozen JEPA
+  encoder against prior DreaMS variants and the MIST baseline.
+
 ## Current Decision State
 
 MIST remains the strongest validated spectrum-to-fingerprint encoder. Direct
@@ -105,6 +125,10 @@ The corresponding Slurm job is now queued as job `34`, waiting on DLM job `32`.
    - treat this as evidence that MIST loses decoder-critical structure before
      DLM sees the fingerprint;
    - move to MIST-side objectives or a decoder-compatible fingerprint target.
+4. Run the spectral JEPA pretraining experiment after the active GPU queue clears.
+   - Treat it as a representation gate, not an immediate MIST replacement.
+   - Promote to downstream DLM only if the frozen-encoder fingerprint metrics
+     are near MIST or clearly above the previous DreaMS line.
 
 ## Backlog Ideas
 
@@ -126,6 +150,10 @@ The corresponding Slurm job is now queued as job `34`, waiting on DLM job `32`.
   weighting rather than plain Morgan-bit replacement.
 - Test whether DreaMS embeddings help MIST error prediction, but require a gain
   larger than the prior anchored residual result.
+- Test JEPA-style self-supervised spectrum pretraining as an alternative
+  representation path. The implemented experiment predicts target-region latent
+  representations from context peaks, then evaluates the frozen encoder through
+  the same fingerprint-head gate.
 
 ### Infrastructure Ideas
 

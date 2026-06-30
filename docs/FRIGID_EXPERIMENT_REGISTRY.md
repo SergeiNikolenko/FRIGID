@@ -31,6 +31,10 @@ adapter-style DreaMS adaptation with MIST anchoring, MIST-error focus, and
 decoder-sensitive weighting instead of another frozen-head or plain full
 fine-tune run.
 
+A separate JEPA-style spectrum pretraining path is also implemented as a
+representation-learning experiment. It does not replace MIST directly; it first
+has to pass the frozen-encoder fingerprint-head gate.
+
 Linear project tracking is now active:
 
 ```text
@@ -43,6 +47,7 @@ https://linear.app/nikolenko-sergei-s/project/frigid-d174fd1451a6
 | --- | --- | --- | --- | --- | --- |
 | `dlm_mist_fingerprint_adaptation_20260630` | running | Can DLM be adapted to decode the fingerprint distribution that MIST actually emits? | [run report](FRIGID_dlm_mist_fingerprint_adaptation_20260630/run_report.md) | checkpoints through `12500.ckpt` exist, evaluation pending | Active path |
 | `dreams_adapter_replacement_20260630` | queued | Can DreaMS be adapted with an adapter, MIST anchor, and decoder-sensitive objective to replace MIST? | [plan](FRIGID_dreams_adapter_replacement_20260630/experiment_plan.md) | [run report](FRIGID_dreams_adapter_replacement_20260630/run_report.md) | Queued behind active DLM job |
+| `spectral_jepa_pretraining_20260630` | planned | Can JEPA-style self-supervised pretraining learn a better MS/MS spectrum representation for the fingerprint gate? | [plan](FRIGID_spectral_jepa_pretraining_20260630/experiment_plan.md) | [run report](FRIGID_spectral_jepa_pretraining_20260630/run_report.md) | Run after active GPU jobs clear |
 | `dlm_fingerprint_robustness` | complete | How much quality does DLM lose when clean Morgan fingerprints are replaced by MIST-predicted fingerprints? | [operational usage](FRIGID_OPERATIONAL_USAGE.md) | [results](DLM_FINGERPRINT_ROBUSTNESS_RESULTS.md) | Motivated DLM adaptation |
 | `dreams_fingerprint_head_20260629` | stopped | Can frozen DreaMS embeddings plus an MLP predict Morgan fingerprints well enough to replace MIST? | [workflow](FRIGID_DREAMS_FINGERPRINT_HEAD.md) | [run report](FRIGID_dreams_fingerprint_head_20260629/run_report.md) | Failed upstream fingerprint gate |
 | `dreams_fingerprint_head_round2_20260629` | complete | Do calibration and loss variants fix the frozen-DreaMS fingerprint head? | [plan](FRIGID_dreams_fingerprint_head_round2_20260629/experiment_plan.md) | see experiment directory | Did not clear replacement gate |

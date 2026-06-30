@@ -26,6 +26,10 @@ experiment artifacts.
 - `docs/FRIGID_dreams_adapter_replacement_20260630/`: runnable DreaMS adapter
   replacement experiment package with the plan, Slurm launcher, run report,
   and artifact manifest.
+- `docs/FRIGID_spectral_jepa_pretraining_20260630/`: runnable JEPA-style
+  self-supervised spectrum pretraining package with plan, Slurm launcher, run
+  report, and artifact manifest. This is a representation-learning experiment,
+  not a direct MIST replacement until it passes the fingerprint gate.
 
 ## DreaMS Encoder Experiments
 
@@ -61,6 +65,9 @@ experiment artifacts.
   adaptation run on full train-split MIST binary fingerprints, including launch
   fixes, run directory, monitoring, checkpoint schedule, and next evaluation
   command.
+- `docs/FRIGID_spectral_jepa_pretraining_20260630/`: planned JEPA-like spectrum
+  representation experiment. It should run after active GPU jobs clear and be
+  judged first by frozen-encoder fingerprint metrics.
 
 ## Consolidated Artifact Package
 
@@ -78,3 +85,6 @@ largest measured gap is the DLM quality drop from clean ground-truth
 fingerprints to realistic MIST binary fingerprints. The next DreaMS path should
 use the adapter replacement plan with MIST anchoring and decoder-sensitive
 weighting rather than repeating the previous DreaMS objectives.
+The separate spectral JEPA experiment is implemented as a lower-priority
+representation-learning path and should not displace the active DLM adaptation
+until it has fingerprint-gate evidence.
