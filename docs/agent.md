@@ -40,7 +40,8 @@ experiment artifacts.
   DLM adaptation to MIST-predicted fingerprints as the next serious experiment.
 - `docs/FRIGID_dlm_mist_fingerprint_adaptation_20260630/`: active DLM
   adaptation run on full train-split MIST binary fingerprints, including launch
-  fixes, run directory, monitoring, and next evaluation command.
+  fixes, run directory, monitoring, checkpoint schedule, and next evaluation
+  command.
 
 ## Consolidated Artifact Package
 

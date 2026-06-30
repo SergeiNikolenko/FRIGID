@@ -92,21 +92,24 @@ Important settings:
 - `WANDB_MODE=offline`
 - `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True`
 
-The run started successfully in tmux and reached the training loop. Latest live
+The run started successfully in tmux and reached the training loop. The first
+epoch completed successfully and training continued into epoch 1. Latest live
 check:
 
 ```text
-Epoch 0: about 210/747 batches
-train_total_loss ~= 2.10
+Epoch 1: about 76/747 batches
+train_total_loss ~= 1.96
 GPU utilization: 100%
-GPU memory: about 66 GB / 80 GB
+GPU memory: about 67 GB / 80 GB
 checkpoint count: 0
 ```
 
-The first checkpoint is expected at step 2,500 according to the config. At the
-current speed, that checkpoint is not immediate; evaluation should wait until a
-checkpoint exists because running DLM robustness evaluation on the same A100
-while training is active would likely compete for memory.
+The Hydra config uses a `ModelCheckpoint` callback with
+`every_n_train_steps: 2500`, so no checkpoint is expected at the end of epoch 0.
+The first checkpoint is expected around global step 2,500, roughly 3.3 epochs at
+747 batches per epoch. Evaluation should wait until a checkpoint exists because
+running DLM robustness evaluation on the same A100 while training is active
+would likely compete for memory.
 
 ## Monitoring
 
@@ -140,6 +143,10 @@ The current `status.json` schema records:
 - GPU utilization/memory;
 - parsed epoch/batch/loss progress.
 
+The monitor script in the run directory was simplified after launch to avoid a
+shell heredoc failure in the JSON writer. This did not affect the training
+process.
+
 Checkpoints will be under:
 
 ```text
@@ -158,7 +165,6 @@ python scripts/benchmark_dlm_fingerprint_robustness.py \
   --data-dir /home/nikolenko/work/Projects/FRIGID/repro_cache/msg \
   --mist-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/mist_msg.pt \
   --dlm-checkpoint <adapted_checkpoint> \
-  --use-shared-cross-attention \
   --formula-matches 10 \
   --max-attempts 100 \
   --batch-size 16 \
@@ -167,6 +173,12 @@ python scripts/benchmark_dlm_fingerprint_robustness.py \
   --max-spectra 1400 \
   --output-dir runs/dlm_mist_adapted_robustness_1400
 ```
+
+Do not add `--use-shared-cross-attention` for this adapted checkpoint. The
+training config and the original DLM checkpoint use independent fingerprint
+cross-attention (`use_shared_cross_attention: false`), and the evaluation loader
+only needs that flag when deliberately overriding a checkpoint into shared
+cross-attention mode.
 
 The decision metric is whether the adapted DLM improves `mist_binary` decoding
 quality relative to the original DLM without collapsing `ground_truth`
