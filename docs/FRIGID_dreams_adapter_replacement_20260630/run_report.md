@@ -53,6 +53,9 @@ metadata before training and validation.
 - Added optional ClearML logging and model upload.
 - Added optional decoder-sensitive case weighting hook for a later downstream
   robustness-derived CSV.
+- First Slurm submission attempt did not start because `--mem=128G` exceeded
+  the node's configured `125G` TRES memory. The launcher was changed to
+  `--mem=120G`.
 
 ## Metrics
 

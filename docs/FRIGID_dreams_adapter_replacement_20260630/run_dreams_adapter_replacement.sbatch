@@ -5,7 +5,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=16
-#SBATCH --mem=128G
+#SBATCH --mem=120G
 #SBATCH --time=3-00:00:00
 #SBATCH --output=/home/nikolenko/work/Projects/FRIGID_dreams_fingerprint_head/runs/slurm_logs/%x-%j.out
 #SBATCH --error=/home/nikolenko/work/Projects/FRIGID_dreams_fingerprint_head/runs/slurm_logs/%x-%j.err
