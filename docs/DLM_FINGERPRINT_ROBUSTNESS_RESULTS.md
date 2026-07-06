@@ -205,3 +205,78 @@ structure-relevant information and needs to be improved directly.
    `configs/fp2mol_finetune_mist_fingerprints.yaml`.
 4. Re-evaluate the fine-tuned DLM with the same robustness benchmark and compare
    original vs adapted DLM on both `ground_truth` and `mist_binary`.
+
+## 2026-07-06 MIST-Fingerprint DLM Adaptation Rerun
+
+A fresh rerun was executed on `spectrum` in an isolated workspace so the older
+dirty checkout was not modified.
+
+Run root:
+
+```text
+/home/nikolenko/work/Projects/FRIGID_dlm_mist_adapt_cbc854
+```
+
+Completed artifacts:
+
+```text
+runs/mist_fingerprint_exports/train_full_20260706T145959Z
+runs/dlm_mist_fulltrain_steps2500_20260706T2031Z/checkpoints/2500.ckpt
+runs/benchmarks/dlm_mist_full2500_max64_fm2_attempt20
+runs/benchmarks/dlm_original_max64_fm2_attempt20
+```
+
+The train export produced 191,216 MIST-predicted train fingerprints. The DLM
+adaptation ran for 2,500 steps from `repro_cache/DLM.ckpt`, using the checkpoint
+architecture (`hidden_size=896`, `intermediate_size=3584`,
+`num_attention_heads=14`) and `mist_binary` conditioning.
+
+During smoke testing, predicted-fingerprint training exposed a CPU/CUDA tensor
+placement bug in `src/dlm/model.py`. The fix moves batch tensors used by
+`DLM.training_step` to `self.device`. Verification:
+
+- 2-step smoke train on 8 exported fingerprints passed.
+- 100-step subset adaptation on 4,096 exported fingerprints passed.
+- Full 2,500-step adaptation passed and wrote checkpoints at 500-step intervals.
+
+### Same-Setting 64-Spectrum Comparison
+
+Both original and adapted checkpoints were evaluated on the same 64 MSG test
+spectra with:
+
+- formula matches: `2`
+- max attempts: `20`
+- batch size: `4`
+- fingerprint sources: `ground_truth`, `mist_binary`
+- shared cross-attention enabled
+
+| Checkpoint | Fingerprint | Exact top-1 | Exact top-10 | Tanimoto top-1 | Tanimoto top-10 | Formula success |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| Original DLM | `ground_truth` | 0.0000 | 0.0000 | 0.3897 | 0.3897 | 0.2188 |
+| Original DLM | `mist_binary` | 0.0000 | 0.0000 | 0.3209 | 0.3223 | 0.2031 |
+| Adapted 2,500-step DLM | `ground_truth` | 0.0000 | 0.0000 | 0.3109 | 0.3109 | 0.2031 |
+| Adapted 2,500-step DLM | `mist_binary` | 0.0000 | 0.0000 | 0.2796 | 0.2832 | 0.2188 |
+
+| Checkpoint | `mist_binary` minus `ground_truth` top-1 Tanimoto |
+| --- | ---: |
+| Original DLM | -0.0689 |
+| Adapted 2,500-step DLM | -0.0313 |
+
+### Decision
+
+This adaptation is not successful. It reduced the clean-vs-MIST gap, but it did
+so while degrading absolute quality for both clean and MIST fingerprints.
+The adapted `mist_binary` top-1 Tanimoto (`0.2796`) is below the original DLM
+under `mist_binary` (`0.3209`), and exact match remains zero on this diagnostic
+subset.
+
+Do not continue this checkpoint as the main FRIGID DLM. The next DLM-side
+experiment should change the objective rather than simply extending this run:
+
+- mixed training on `ground_truth` and `mist_binary` fingerprints;
+- soft `mist_probs` conditioning instead of thresholded binary fingerprints;
+- lower learning rate or partial freezing;
+- training only conditioning or cross-attention layers.
+
+The gate for the next adaptation is stricter: improve `mist_binary` decoding
+without collapsing `ground_truth` decoding.
