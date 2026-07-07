@@ -26,6 +26,7 @@ DLM хорошо работает с clean / ground-truth fingerprints,
 | MIST + DreaMS residual adapter | `+0.00068` к MIST | Слишком маленький gain. |
 | DLM clean-vs-MIST diagnostic, 1,400 spectra | Exact top-1 `0.4879` clean vs `0.1386` MIST | DLM brittle к MIST fingerprint errors. |
 | DLM MIST adaptation, 2,500 steps, 64 spectra | Original tan@1 `0.3897/0.3209`; adapted `0.3109/0.2796` | Gap меньше, но absolute quality хуже. Неудачный tuning. |
+| DLM mixed adaptation, 10,000 steps, 64 spectra | Mixed tan@1 `0.3486/0.2870` для `ground_truth/mist_binary` | Не прошёл gate: хуже original и по clean, и по MIST. |
 | Full FRIGID-base MSG test, 17,082 spectra | Exact top-1 `10.97%`, top-10 `12.39%`, Tanimoto top-1 `0.4598` | Pipeline работает, но качество ограничено MIST/DLM interface. |
 | ICEBERG small run, 50 spectra, 2 rounds | Exact top-1 `16%`, Tanimoto top-1 `0.4505` | Не доказано улучшение; нужен identical-subset comparison. |
 | Oracle fingerprint, 8 hard cases | Tanimoto `0.313 -> 0.712`, exact всё равно `0%` | Fingerprint важен, но generation/ranking тоже bottleneck. |
@@ -160,14 +161,82 @@ Linear:
 - `SPA-76`: update docs with adapted metrics, done;
 - `SPA-85`: CPU/CUDA training fix, done.
 
+## Текущий запуск 2026-07-07
+
+Следующий DLM objective был mixed training:
+
+```text
+50% ground_truth fingerprints
+50% mist_binary fingerprints
+```
+
+Идея: не уводить decoder полностью в noisy MIST fingerprints, а держать его
+привязанным к clean fingerprint manifold.
+
+Что сделано:
+
+- добавлен config `configs/fp2mol_finetune_mixed_fingerprints.yaml`;
+- `PredictedFingerprintDataset` теперь умеет брать несколько fingerprint keys
+  из одного NPZ и выбирать их с заданными вероятностями;
+- smoke dataset и 2-step train прошли;
+- первый full run с batch `512` упал OOM на A100 80GB;
+- batch уменьшен до `32`;
+- full mixed training доведён до `10000` steps.
+
+Ключевые артефакты:
+
+```text
+training run: runs/dlm_mixed_fingerprint_adaptation_20260707T0811Z
+final checkpoint: runs/dlm_mixed_fingerprint_adaptation_20260707T0811Z/checkpoints/10000.ckpt
+benchmark: runs/benchmarks/dlm_mixed10000_max64_fm2_attempt20_v2
+```
+
+Важно: первый benchmark был остановлен, потому что был передан неверный MIST
+checkpoint path. Правильный benchmark v2 использовал:
+
+```text
+/home/nikolenko/work/Projects/FRIGID/repro_cache/mist_msg.pt
+```
+
+64-spectrum benchmark, formula matches `2`, max attempts `20`:
+
+```text
+original ground_truth tan@1: 0.3897
+original mist_binary  tan@1: 0.3209
+
+mixed   ground_truth tan@1: 0.3486
+mixed   mist_binary  tan@1: 0.2870
+mixed   exact@1/exact@10: 0.0000 / 0.0000
+```
+
+Gate:
+
+```text
+mist_binary must beat original 0.3209
+ground_truth must stay within 5% of original 0.3897, i.e. >= 0.3702
+```
+
+Результат:
+
+```text
+mist_binary: 0.2870 < 0.3209  FAIL
+ground_truth: 0.3486 < 0.3702 FAIL
+```
+
+Вывод: mixed DLM adaptation тоже не сработала. Она не просто не улучшила MIST
+fingerprints, а ухудшила оба режима. Продолжать этот checkpoint или расширять
+benchmark на 200/1024 spectra не стоит.
+
 ## Что делать дальше
 
 1. Не продолжать текущий `mist_binary` full-DLM checkpoint.
-2. Следующий DLM objective:
-   - mixed training на `ground_truth` + `mist_binary`;
-   - либо soft `mist_probs`;
-   - либо freeze backbone и train только conditioning/cross-attention layers.
-3. После нового objective снова запускать paired benchmark:
+2. Не продолжать mixed `ground_truth + mist_binary` checkpoint.
+3. Следующий DLM objective:
+   - soft `mist_probs` вместо thresholded `mist_binary`;
+   - либо freeze backbone и train только conditioning/cross-attention layers;
+   - либо перейти к ranking/generation objective, потому что exact-match всё
+     ещё `0`.
+4. После нового objective снова запускать paired benchmark:
    original vs adapted, `ground_truth` vs `mist_binary`.
 
 Gate для следующего DLM tuning:

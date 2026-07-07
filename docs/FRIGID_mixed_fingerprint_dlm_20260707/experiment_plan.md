@@ -103,6 +103,23 @@ Required comparison:
 - mixed-adapted DLM + `ground_truth`
 - mixed-adapted DLM + `mist_binary`
 
+2026-07-07 final result:
+
+- training run: `runs/dlm_mixed_fingerprint_adaptation_20260707T0811Z`
+- checkpoint: `checkpoints/10000.ckpt`
+- benchmark: `runs/benchmarks/dlm_mixed10000_max64_fm2_attempt20_v2`
+- MIST checkpoint: `/home/nikolenko/work/Projects/FRIGID/repro_cache/mist_msg.pt`
+- spectra: 64
+- formula matches: 2
+- max attempts: 20
+
+| Checkpoint | Fingerprint | Exact top-1 | Tanimoto top-1 |
+| --- | --- | ---: | ---: |
+| Original DLM | `ground_truth` | 0.0000 | 0.3897 |
+| Original DLM | `mist_binary` | 0.0000 | 0.3209 |
+| Mixed 10,000-step DLM | `ground_truth` | 0.0000 | 0.3486 |
+| Mixed 10,000-step DLM | `mist_binary` | 0.0000 | 0.2870 |
+
 ## Success Gate
 
 The mixed-adapted checkpoint must improve `mist_binary` decoding without
@@ -118,3 +135,7 @@ Minimum 64-spectrum gate:
 
 If the gate fails, do not extend the run. Move to soft `mist_probs`, partial
 freezing, or conditioning-only training.
+
+The gate failed: `mist_binary` did not beat the original DLM and `ground_truth`
+fell below the 5 percent relative tolerance. Do not extend this checkpoint to
+larger benchmarks.
