@@ -56,6 +56,7 @@ Training defaults:
 - intermediate size: `3584`
 - attention heads: `14`
 - learning rate: `1e-5`
+- global batch size: `32`
 - max steps: `10000`
 - checkpoint interval: `500`
 
@@ -76,6 +77,12 @@ Before a long run, verify:
 - train smoke: `runs/dlm_mixed_smoke_2`
 - checkpoints: `checkpoints/1.ckpt`, `checkpoints/2.ckpt`
 - log: `train.log`
+
+The first full-run attempt with `global_batch_size: 512` exhausted A100 80GB
+memory. The default was reduced to `32` and re-checked with:
+
+- train smoke: `runs/dlm_mixed_batch32_smoke_2`
+- checkpoints: `checkpoints/1.ckpt`, `checkpoints/2.ckpt`
 
 ## Evaluation
 
