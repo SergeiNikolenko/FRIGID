@@ -251,6 +251,8 @@ class PredictedFingerprintDataset(torch.utils.data.Dataset):
         metadata_path,
         fingerprint_npz_path,
         fingerprint_key='fingerprints',
+        fingerprint_keys=None,
+        fingerprint_probs=None,
         split=None,
     ):
         metadata = pd.read_csv(metadata_path)
@@ -265,14 +267,35 @@ class PredictedFingerprintDataset(torch.utils.data.Dataset):
                 raise ValueError("Predicted fingerprint metadata must contain input, safe, or smiles")
 
         arrays = np.load(fingerprint_npz_path)
-        if fingerprint_key not in arrays:
+        if fingerprint_keys is None:
+            fingerprint_keys = [fingerprint_key]
+        elif isinstance(fingerprint_keys, str):
+            fingerprint_keys = [fingerprint_keys]
+        else:
+            fingerprint_keys = list(fingerprint_keys)
+        if not fingerprint_keys:
+            raise ValueError("At least one fingerprint key must be provided")
+        missing_keys = [key for key in fingerprint_keys if key not in arrays]
+        if missing_keys:
             raise ValueError(
-                f"Fingerprint key {fingerprint_key!r} not found in {fingerprint_npz_path}; "
+                f"Fingerprint keys {missing_keys!r} not found in {fingerprint_npz_path}; "
                 f"available keys: {sorted(arrays.files)}"
             )
+        if fingerprint_probs is None:
+            fingerprint_probs = np.full(len(fingerprint_keys), 1.0 / len(fingerprint_keys), dtype=np.float64)
+        else:
+            fingerprint_probs = np.asarray(list(fingerprint_probs), dtype=np.float64)
+            if len(fingerprint_probs) != len(fingerprint_keys):
+                raise ValueError("Fingerprint key and probability lengths do not match")
+            prob_sum = fingerprint_probs.sum()
+            if prob_sum <= 0:
+                raise ValueError("Fingerprint probabilities must sum to a positive value")
+            fingerprint_probs = fingerprint_probs / prob_sum
 
         self.metadata = metadata
-        self.fingerprints = arrays[fingerprint_key]
+        self.fingerprint_keys = fingerprint_keys
+        self.fingerprint_probs = fingerprint_probs
+        self.fingerprints = {key: arrays[key] for key in fingerprint_keys}
         self.fingerprint_indices = (
             metadata['fingerprint_index'].astype(int).to_numpy()
             if 'fingerprint_index' in metadata.columns
@@ -281,6 +304,9 @@ class PredictedFingerprintDataset(torch.utils.data.Dataset):
 
         if len(self.fingerprint_indices) != len(self.metadata):
             raise ValueError("Metadata and fingerprint index lengths do not match")
+        for key, fingerprints in self.fingerprints.items():
+            if len(self.fingerprint_indices) and self.fingerprint_indices.max() >= len(fingerprints):
+                raise ValueError(f"Fingerprint array {key!r} is shorter than metadata indices")
 
     def __len__(self):
         return len(self.metadata)
@@ -288,9 +314,12 @@ class PredictedFingerprintDataset(torch.utils.data.Dataset):
     def __getitem__(self, idx):
         row = self.metadata.iloc[idx]
         fp_idx = self.fingerprint_indices[idx]
+        key = self.fingerprint_keys[0]
+        if len(self.fingerprint_keys) > 1:
+            key = np.random.choice(self.fingerprint_keys, p=self.fingerprint_probs)
         return {
             'input': row['input'],
-            'fingerprint': self.fingerprints[fp_idx],
+            'fingerprint': self.fingerprints[key][fp_idx],
         }
     
 
@@ -301,6 +330,8 @@ def get_dataloader(config):
             metadata_path=config.data.predicted_fingerprint_metadata,
             fingerprint_npz_path=predicted_fingerprint_npz,
             fingerprint_key=config.data.get('predicted_fingerprint_key', 'fingerprints'),
+            fingerprint_keys=config.data.get('predicted_fingerprint_keys', None),
+            fingerprint_probs=config.data.get('predicted_fingerprint_probs', None),
             split=config.data.get('split', None),
         )
         num_workers = config.loader.num_workers
