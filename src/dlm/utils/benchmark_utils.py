@@ -255,6 +255,45 @@ def binarize_fingerprint(fp_probs: np.ndarray, threshold: float = 0.5) -> np.nda
     return (fp_probs >= threshold).astype(np.float32)
 
 
+def sparsify_fingerprint(
+    fp_probs: np.ndarray,
+    threshold: float = 0.5,
+    mode: str = 'threshold',
+    top_k: Optional[int] = None,
+    quantile: Optional[float] = None,
+    min_threshold: Optional[float] = None,
+    max_threshold: Optional[float] = None,
+) -> np.ndarray:
+    """Convert fingerprint probabilities into a sparse binary fingerprint."""
+    fp_probs = np.asarray(fp_probs, dtype=np.float32)
+
+    if mode == 'threshold':
+        return binarize_fingerprint(fp_probs, threshold)
+
+    if mode == 'topk':
+        if top_k is None or top_k <= 0:
+            raise ValueError('top_k must be positive when mode="topk"')
+        k = min(int(top_k), fp_probs.size)
+        ranked = np.argsort(-fp_probs, kind='mergesort')[:k]
+        out = np.zeros_like(fp_probs, dtype=np.float32)
+        if min_threshold is not None:
+            ranked = ranked[fp_probs[ranked] >= min_threshold]
+        out[ranked] = 1.0
+        return out
+
+    if mode == 'quantile':
+        if quantile is None or not 0.0 <= quantile <= 1.0:
+            raise ValueError('quantile must be in [0, 1] when mode="quantile"')
+        dynamic_threshold = float(np.quantile(fp_probs, quantile))
+        if min_threshold is not None:
+            dynamic_threshold = max(dynamic_threshold, min_threshold)
+        if max_threshold is not None:
+            dynamic_threshold = min(dynamic_threshold, max_threshold)
+        return binarize_fingerprint(fp_probs, dynamic_threshold)
+
+    raise ValueError(f'Unknown fingerprint sparsification mode: {mode}')
+
+
 def generate_with_formula_filter(
     sampler,
     fingerprint_array: np.ndarray,

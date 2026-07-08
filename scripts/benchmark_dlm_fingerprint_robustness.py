@@ -38,7 +38,6 @@ from benchmark_spec2mol import (  # noqa: E402
     merge_config_with_args,
 )
 from dlm.utils.benchmark_utils import (  # noqa: E402
-    binarize_fingerprint,
     build_prediction_entry,
     compute_aggregate_statistics,
     compute_morgan_fingerprint,
@@ -48,6 +47,7 @@ from dlm.utils.benchmark_utils import (  # noqa: E402
     get_inchikey_first_block,
     load_token_model,
     normalize_formula,
+    sparsify_fingerprint,
 )
 from mist.data.datasets import get_paired_loader  # noqa: E402
 
@@ -64,6 +64,16 @@ def parse_args():
     parser.add_argument('--dlm-checkpoint', type=str, help='DLM decoder checkpoint')
     parser.add_argument('--data-dir', type=str, help='Spec data directory')
     parser.add_argument('--fp-threshold', type=float, help='MIST FP binarization threshold')
+    parser.add_argument(
+        '--fp-sparsify-mode',
+        choices=['threshold', 'topk', 'quantile'],
+        default='threshold',
+        help='How to convert MIST probabilities into binary fingerprints for mist_binary.',
+    )
+    parser.add_argument('--fp-top-k', type=int, default=None, help='Keep top K MIST probability bits.')
+    parser.add_argument('--fp-quantile', type=float, default=None, help='Per-spectrum probability quantile threshold.')
+    parser.add_argument('--fp-min-threshold', type=float, default=None, help='Lower clamp for adaptive thresholds.')
+    parser.add_argument('--fp-max-threshold', type=float, default=None, help='Upper clamp for adaptive thresholds.')
     parser.add_argument('--output-dir', type=str, help='Output directory')
     parser.add_argument('--split', type=str, choices=['train', 'val', 'test'])
     parser.add_argument('--max-spectra', type=int, default=None)
@@ -257,6 +267,11 @@ def run_paired_benchmark(
     fp_bits = fp_cfg['bits']
     fp_radius = fp_cfg['radius']
     fp_threshold = fp_cfg['threshold']
+    fp_sparsify_mode = fp_cfg.get('sparsify_mode', 'threshold')
+    fp_top_k = fp_cfg.get('top_k')
+    fp_quantile = fp_cfg.get('quantile')
+    fp_min_threshold = fp_cfg.get('min_threshold')
+    fp_max_threshold = fp_cfg.get('max_threshold')
 
     dataloader = get_paired_loader(dataset, shuffle=False, batch_size=1, num_workers=0)
     num_to_process = min(len(dataset), max_spectra) if max_spectra else len(dataset)
@@ -281,7 +296,15 @@ def run_paired_benchmark(
         with torch.no_grad():
             mist_probs, _ = mist_encoder(batch)
             mist_probs = mist_probs.cpu().numpy()[0]
-        mist_binary = binarize_fingerprint(mist_probs, fp_threshold)
+        mist_binary = sparsify_fingerprint(
+            mist_probs,
+            threshold=fp_threshold,
+            mode=fp_sparsify_mode,
+            top_k=fp_top_k,
+            quantile=fp_quantile,
+            min_threshold=fp_min_threshold,
+            max_threshold=fp_max_threshold,
+        )
 
         fp_stats = fingerprint_error_stats(target_fp, mist_binary, mist_probs)
         fp_stats.update({
@@ -408,6 +431,11 @@ def print_summary(aggregate: Dict[str, Any]):
 def main():
     args = parse_args()
     config = merge_config_with_args(load_config(args.config), args)
+    config['fingerprint']['sparsify_mode'] = args.fp_sparsify_mode
+    config['fingerprint']['top_k'] = args.fp_top_k
+    config['fingerprint']['quantile'] = args.fp_quantile
+    config['fingerprint']['min_threshold'] = args.fp_min_threshold
+    config['fingerprint']['max_threshold'] = args.fp_max_threshold
     if args.output_dir:
         config['output']['results_dir'] = args.output_dir
     else:
