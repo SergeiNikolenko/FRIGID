@@ -15,6 +15,17 @@ Decision: keep `0.50` as the current inference-side baseline, but do not promote
 the fixed threshold directly to 1024/full. The next step should search for a
 stronger sparsification or generation strategy.
 
+The first fixed top-k follow-up did not survive scale-up:
+
+- 32-spectrum grid: top-k `32` tan@1 `0.4439` vs fixed `0.50` tan@1 `0.3927`.
+- 64-spectrum gate: top-k `32` tan@1 `0.3401` vs fixed `0.50` tan@1 `0.3326`.
+- 200-spectrum gate: top-k `32` tan@1 `0.2668` vs fixed `0.50` tan@1 `0.2861`.
+- Paired 200 delta vs fixed `0.50`: tan@1 `-0.0193`, 95% CI `[-0.0350, -0.0030]`.
+
+Decision: reject fixed top-k `32`. It was a useful small-subset signal, but the
+200-spectrum gate shows that fixed sparsity is not robust. The next
+sparsification step must be confidence-gated or calibrated per spectrum.
+
 ## Literature signals
 
 ### 1. Diffusion decoder with formula constraints
@@ -131,11 +142,53 @@ FRIGID experiment:
 - Use DreaMS nearest neighbors to seed retrieval/reranking, not as the only
   fingerprint predictor.
 
+### 7. Flow matching decoders
+
+FlowMS and MSFlow propose spectrum-conditioned flow-matching graph decoders as
+alternatives to autoregressive or diffusion decoders. This is relevant because
+the current fixed-threshold and top-k experiments show that the FRIGID bottleneck
+is not only the MIST fingerprint, but also how brittle the downstream decoder is
+when the fingerprint has plausible but imperfect substructure bits.
+
+Sources:
+
+- FlowMS: https://arxiv.org/abs/2603.18397
+- MSFlow: https://arxiv.org/html/2602.19912v1
+- MSFlow code: https://github.com/ghaith-mq/MSFlow
+
+FRIGID experiment:
+
+- Treat flow matching as a decoder-replacement track, not a threshold knob.
+- First gate: find whether a public checkpoint or runnable inference path can
+  score/generate for a 16/32 MassSpecGym subset.
+- Compare against current fixed `0.50` DLM on the same spectra and formulas.
+
+### 8. Scaffold and anchor-conditioned generation
+
+MADGEN and MSAnchor use scaffold or anchor-extended representations to reduce
+the search space before full molecule generation. This targets the exact-match
+failure mode more directly than fingerprint sparsification: if the scaffold is
+wrong, DLM can produce high-Tanimoto but wrong molecules.
+
+Sources:
+
+- MADGEN: https://arxiv.org/abs/2501.01950
+- MSAnchor: https://ojs.aaai.org/index.php/AAAI/article/view/37064
+
+FRIGID experiment:
+
+- Start as retrieval/conditioning side information, not a full rewrite.
+- First gate: on 32 hard spectra, test whether generated candidates already
+  contain the correct or near-correct scaffold; if not, a scaffold-first track is
+  justified.
+
 ## Immediate experiment backlog
 
-### A. Adaptive/top-k MIST sparsification
+### A. Confidence-gated MIST sparsification
 
-Goal: improve over fixed threshold `0.50` without using ground truth.
+Goal: improve over fixed threshold `0.50` without using ground truth. Fixed
+top-k `32` is rejected after the 200 gate, so do not repeat fixed top-k as the
+main hypothesis.
 
 Candidates:
 
@@ -143,10 +196,15 @@ Candidates:
 - quantile threshold: `q in {0.75, 0.85, 0.90, 0.95}`;
 - confidence-gated top-k based on entropy or max probability;
 - optional probability calibration before sparsification.
+- prior-adjusted threshold matching the training-set active-bit prior.
 
 Gate:
 
-- 32-spectrum grid, paired against fixed `0.50`;
+- first write MIST-only diagnostics: entropy, top-k probability mass,
+  high-confidence ratio, probability quantiles, active-bit counts;
+- retrospective analysis on completed 200 gates, using no target labels for the
+  gate features;
+- 32-spectrum prospective gate, paired against fixed `0.50`;
 - promote only if tan@1 improves by at least `+0.005` on 32 and does not collapse
   formula success;
 - 64 gate for the best candidate;
@@ -198,6 +256,8 @@ Required improvements:
 
 ## Current decision
 
-Do not scale fixed `0.50` directly to full test yet. The next active experimental
-track should be adaptive/top-k sparsification, with spectral reranking prepared
-as the second track if sparsification stalls.
+Do not scale fixed `0.50` or fixed top-k directly to full test yet. The next
+active experimental track is confidence-gated sparsification diagnostics plus a
+parallel decoder/reranking track. The highest-upside external comparisons are
+MolForge/MSFlow/FlowMS/DiffMS decoder replacement and ICEBERG/MARASON-style
+spectral reranking of existing DLM candidate lists.

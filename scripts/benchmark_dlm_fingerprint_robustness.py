@@ -101,10 +101,35 @@ def parse_args():
     return parser.parse_args()
 
 
+def fingerprint_probability_stats(mist_probs: np.ndarray) -> Dict[str, Any]:
+    probs = np.asarray(mist_probs, dtype=np.float32)
+    eps = 1e-7
+    clipped = np.clip(probs, eps, 1.0 - eps)
+    entropy = -(clipped * np.log(clipped) + (1.0 - clipped) * np.log(1.0 - clipped))
+    ranked = np.sort(probs)[::-1]
+
+    stats = {
+        'mist_prob_mean': float(np.mean(probs)),
+        'mist_prob_std': float(np.std(probs)),
+        'mist_prob_max': float(np.max(probs)),
+        'mist_prob_p95': float(np.quantile(probs, 0.95)),
+        'mist_prob_p99': float(np.quantile(probs, 0.99)),
+        'mist_prob_entropy_mean': float(np.mean(entropy)),
+        'mist_prob_entropy_norm': float(np.sum(entropy) / (probs.size * np.log(2.0))),
+        'mist_prob_high_confidence_ratio': float(np.mean(np.maximum(probs, 1.0 - probs) >= 0.9)),
+        'mist_prob_bits_ge_0p10': int(np.sum(probs >= 0.10)),
+        'mist_prob_bits_ge_0p30': int(np.sum(probs >= 0.30)),
+        'mist_prob_bits_ge_0p50': int(np.sum(probs >= 0.50)),
+    }
+    for k in (16, 32, 64, 128, 256):
+        stats[f'mist_prob_top{k}_mass'] = float(np.sum(ranked[:min(k, ranked.size)]))
+    return stats
+
+
 def fingerprint_error_stats(target_fp: np.ndarray, mist_binary: np.ndarray, mist_probs: np.ndarray) -> Dict[str, Any]:
     false_positive = np.logical_and(mist_binary == 1, target_fp == 0)
     false_negative = np.logical_and(mist_binary == 0, target_fp == 1)
-    return {
+    stats = {
         'mist_tanimoto': compute_tanimoto_similarity(target_fp, mist_binary),
         'mist_l1_mean': float(np.mean(np.abs(mist_probs - target_fp))),
         'gt_active_bits': int(np.sum(target_fp)),
@@ -112,6 +137,8 @@ def fingerprint_error_stats(target_fp: np.ndarray, mist_binary: np.ndarray, mist
         'mist_false_positive_bits': int(np.sum(false_positive)),
         'mist_false_negative_bits': int(np.sum(false_negative)),
     }
+    stats.update(fingerprint_probability_stats(mist_probs))
+    return stats
 
 
 def compute_aggregate(

@@ -31,6 +31,9 @@ DLM хорошо работает с clean / ground-truth fingerprints,
 | MIST threshold sweep, 32 spectra | `0.12 -> 0.3152`, `0.15 -> 0.3340`, `0.22 -> 0.3690`, `0.30 -> 0.3801`, `0.40 -> 0.3875`, `0.50 -> 0.3927` | Более строгий threshold помогает: проблема больше похожа на false-positive bits. |
 | Best threshold `0.50`, 64 spectra | Default `mist_binary` tan@1 `0.3209`; threshold `0.50` tan@1 `0.3326` | Первый положительный gate без retraining. Gain небольшой, но реальный. |
 | Threshold `0.50`, 200 spectra | Default tan@1 `0.2781`; strict `0.50` tan@1 `0.2861`; CI `[-0.0042, +0.0206]` | Weak positive. Держать как baseline, но не продвигать сразу на full. |
+| Top-k sparsification, 32 spectra | top-k `32` tan@1 `0.4439` против fixed `0.50` tan@1 `0.3927` | Сильный exploratory signal. Продвинут на 64. |
+| Top-k `32`, 64 spectra | top-k tan@1 `0.3401`; fixed `0.50` tan@1 `0.3326`; CI против fixed `[-0.0269, +0.0461]` | Лучше default, но слабый/нестабильный gain против fixed `0.50`. Продвинут на 200 только как рискованный gate. |
+| Top-k `32`, 200 spectra | top-k tan@1 `0.2668`; default `0.2781`; fixed `0.50` `0.2861`; delta vs fixed `-0.0193`, CI `[-0.0350, -0.0030]` | Reject. Это small-subset artifact, не robust improvement. |
 | Full FRIGID-base MSG test, 17,082 spectra | Exact top-1 `10.97%`, top-10 `12.39%`, Tanimoto top-1 `0.4598` | Pipeline работает, но качество ограничено MIST/DLM interface. |
 | ICEBERG small run, 50 spectra, 2 rounds | Exact top-1 `16%`, Tanimoto top-1 `0.4505` | Не доказано улучшение; нужен identical-subset comparison. |
 | Oracle fingerprint, 8 hard cases | Tanimoto `0.313 -> 0.712`, exact всё равно `0%` | Fingerprint важен, но generation/ranking тоже bottleneck. |
@@ -305,20 +308,56 @@ bootstrap 95% CI for tan@1 delta: [-0.0042, +0.0206]
 но это weak positive, а не уверенный promote на 1024/full. Следующий активный
 трек: adaptive/top-k MIST sparsification и отдельный spectral reranking track.
 
+Top-k sparsification follow-up:
+
+```text
+32 spectra:
+fixed threshold 0.50 tan@1: 0.3927
+top-k 32             tan@1: 0.4439
+
+64 spectra:
+default threshold 0.187 tan@1: 0.3012
+fixed threshold 0.50    tan@1: 0.3326
+top-k 32                tan@1: 0.3401
+
+200 spectra:
+default threshold 0.187 tan@1: 0.2781
+fixed threshold 0.50    tan@1: 0.2861
+top-k 32                tan@1: 0.2668
+```
+
+Paired 200-spectrum result:
+
+```text
+top-k 32 minus default:
+tan@1 delta: -0.0113
+95% CI: [-0.0272, +0.0056]
+wins/losses: 85 / 115
+
+top-k 32 minus fixed 0.50:
+tan@1 delta: -0.0193
+95% CI: [-0.0350, -0.0030]
+wins/losses/ties: 77 / 122 / 1
+```
+
+Вывод: fixed top-k `32` отвергнут. Он выглядел очень хорошо на 32 spectra и
+слегка лучше на 64, но на 200 стал хуже и default, и fixed `0.50`. Это важный
+negative result: DLM иногда любит очень sparse fingerprints на маленьком subset,
+но fixed sparsity не переносится. Следующий sparsification-трек должен быть
+confidence-gated, а не fixed top-k.
+
 ## Что делать дальше
 
 1. Не продолжать текущий `mist_binary` full-DLM checkpoint.
 2. Не продолжать mixed `ground_truth + mist_binary` checkpoint.
 3. Использовать threshold `0.50` как текущий лучший inference-side baseline.
-4. Расширить threshold `0.50` benchmark на 200/1024 spectra или полный test
-   subset, чтобы проверить, держится ли небольшой gain.
-5. Следующий смелый fingerprint-side sweep:
-   - adaptive threshold по spectrum confidence;
-   - top-k active bits вместо fixed threshold;
-   - calibrated sparsification, которая режет false-positive bits без сильных
-     false negatives.
-6. Decoding/ranking sweep оставить вторым приоритетом: exact-match всё ещё `0`,
-   но сегодняшний положительный signal пришёл именно от fingerprint sparsity.
+4. Не продвигать fixed top-k `32`: 200 gate отверг гипотезу.
+5. Следующий fingerprint-side sweep делать только как confidence-gated:
+   adaptive threshold/top-k по entropy, top-k mass, active-bit count и другим
+   MIST-only признакам без ground-truth leakage.
+6. Параллельно открыть decoder/reranking track: MolForge/MSFlow/FlowMS/DiffMS
+   или ICEBERG-style spectral reranking, потому что exact-match на этих gates
+   всё ещё `0`.
 
 Gate для следующего DLM tuning:
 
