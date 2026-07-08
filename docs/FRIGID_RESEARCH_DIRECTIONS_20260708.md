@@ -40,6 +40,19 @@ A simple MIST entropy threshold gate also failed prospective promotion:
 Decision: do not promote the simple entropy gate. It is useful diagnostic
 infrastructure, but not a robust new inference baseline.
 
+The first decoding-side gate produced a much stronger signal:
+
+- Holdout 8, `start-index 200`: default `0.187` with 20 attempts tan@1 `0.3194`;
+  NGBoost token-length guidance with 100 attempts tan@1 `0.6068`.
+- Holdout 16, `start-index 200`: baseline tan@1 `0.3113`; NGBoost+100 tan@1
+  `0.5835`, tan@10 `0.5846`.
+- Paired 16 delta: tan@1 `+0.2722`, wins/losses/ties `16/0/0`.
+- Formula success improved from `0.0000` to `0.6875`.
+
+Decision: promote NGBoost token-length guidance plus larger generation budget to
+32/64 gates. This is currently a stronger path than more threshold-only
+sparsification.
+
 ## Literature signals
 
 ### 1. Diffusion decoder with formula constraints
@@ -233,6 +246,8 @@ Goal: keep DLM generation but rerank candidates with spectrum consistency.
 
 Candidates:
 
+- NGBoost token-length guidance with larger generation budget as the current
+  decoding baseline;
 - ICEBERG rerank of DLM candidate lists;
 - formula/mass/fingerprint weighted rerank as a lightweight baseline;
 - diversity-aware reranking to improve exact@10.
@@ -274,8 +289,7 @@ Required improvements:
 ## Current decision
 
 Do not scale fixed `0.50`, fixed top-k, or the simple entropy conditional gate
-directly to full test. The next active experimental track should shift to
-decoder/reranking while keeping confidence diagnostics as support tooling. The
-highest-upside external comparisons are MolForge/MSFlow/FlowMS/DiffMS decoder
-replacement and ICEBERG/MARASON-style spectral reranking of existing DLM
-candidate lists.
+directly to full test. The next active experimental track is NGBoost-guided
+decoding scale-up plus reranking. Promote NGBoost+100 from 16 to 32/64, then
+prepare ICEBERG/MARASON-style reranking or MolForge/MSFlow/FlowMS/DiffMS decoder
+replacement if exact match remains flat.

@@ -36,6 +36,8 @@ DLM хорошо работает с clean / ground-truth fingerprints,
 | Top-k `32`, 200 spectra | top-k tan@1 `0.2668`; default `0.2781`; fixed `0.50` `0.2861`; delta vs fixed `-0.0193`, CI `[-0.0350, -0.0030]` | Reject. Это small-subset artifact, не robust improvement. |
 | MIST confidence gate, retrospective 200 | entropy rule: policy tan@1 `0.2959` против default `0.2781` и fixed `0.2861` | Выглядит promising, но это fitted на том же 200 subset. Требует holdout. |
 | MIST confidence gate, holdout 32, start-index `200` | default `0.3410`; fixed `0.3299`; conditional entropy `0.3381` | Reject for promotion. Rule уменьшил вред fixed, но не победил default. |
+| NGBoost token-length + 100 attempts, holdout 8 | baseline tan@1 `0.3194`, formula success `0`; NGBoost tan@1 `0.6068`, formula success `0.625` | Strong positive decoding-side signal. Продвинут на 16. |
+| NGBoost token-length + 100 attempts, holdout 16 | baseline tan@1 `0.3113`; NGBoost tan@1 `0.5835`, tan@10 `0.5846`; wins `16/16`; formula success `0.6875` | Первый сильный promote после threshold failures. Следующий gate: 32/64. |
 | Full FRIGID-base MSG test, 17,082 spectra | Exact top-1 `10.97%`, top-10 `12.39%`, Tanimoto top-1 `0.4598` | Pipeline работает, но качество ограничено MIST/DLM interface. |
 | ICEBERG small run, 50 spectra, 2 rounds | Exact top-1 `16%`, Tanimoto top-1 `0.4505` | Не доказано улучшение; нужен identical-subset comparison. |
 | Oracle fingerprint, 8 hard cases | Tanimoto `0.313 -> 0.712`, exact всё равно `0%` | Fingerprint важен, но generation/ranking тоже bottleneck. |
@@ -382,6 +384,29 @@ wins/losses/ties: 11 / 8 / 13
 останавливает threshold-only направление: следующий сильный трек должен быть
 decoder/reranking или более богатый confidence signal, например DreaMS retrieval.
 
+Decoding-side follow-up:
+
+```text
+Holdout 8 spectra, start-index 200:
+baseline default 0.187, 20 attempts tan@1: 0.3194
+NGBoost token-length, 100 attempts tan@1: 0.6068
+formula success: 0.0000 -> 0.6250
+wins/losses/ties: 8 / 0 / 0
+
+Holdout 16 spectra, start-index 200:
+baseline default 0.187, 20 attempts tan@1: 0.3113
+NGBoost token-length, 100 attempts tan@1: 0.5835
+NGBoost tan@10: 0.5846
+formula success: 0.0000 -> 0.6875
+wins/losses/ties: 16 / 0 / 0
+```
+
+Вывод: decoding settings дали гораздо более сильный signal, чем threshold/top-k
+манипуляции. Улучшение пришло от token-length guidance и увеличенного generation
+budget: DLM начал находить formula-matched кандидатов. Exact всё ещё `0`, но
+Tanimoto и formula success резко выросли. Это надо промотировать на 32/64 spectra
+и отдельно искать reranking для exact@1/top10.
+
 ## Что делать дальше
 
 1. Не продолжать текущий `mist_binary` full-DLM checkpoint.
@@ -392,9 +417,10 @@ decoder/reranking или более богатый confidence signal, напри
    default `0.187`.
 6. Следующий fingerprint-side sweep делать только с более богатым signal:
    DreaMS/retrieval confidence или calibration, а не один MIST entropy threshold.
-7. Параллельно открыть decoder/reranking track: MolForge/MSFlow/FlowMS/DiffMS
-   или ICEBERG-style spectral reranking, потому что exact-match на этих gates
-   всё ещё `0`.
+7. Продвигать NGBoost token-length + 100 attempts на 32/64 spectra.
+8. Параллельно открыть reranking track: ICEBERG-style spectral reranking или
+   MolForge/MSFlow/FlowMS/DiffMS decoder replacement, потому что exact-match на
+   этих gates всё ещё `0`.
 
 Gate для следующего DLM tuning:
 
