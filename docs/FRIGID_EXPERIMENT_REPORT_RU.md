@@ -30,6 +30,7 @@ DLM хорошо работает с clean / ground-truth fingerprints,
 | Raw `mist_probs` conditioning, partial 40 spectra | tan@1 `0.1258`, formula success `0.0000` | Прямые probabilities несовместимы с текущим DLM input режимом. |
 | MIST threshold sweep, 32 spectra | `0.12 -> 0.3152`, `0.15 -> 0.3340`, `0.22 -> 0.3690`, `0.30 -> 0.3801`, `0.40 -> 0.3875`, `0.50 -> 0.3927` | Более строгий threshold помогает: проблема больше похожа на false-positive bits. |
 | Best threshold `0.50`, 64 spectra | Default `mist_binary` tan@1 `0.3209`; threshold `0.50` tan@1 `0.3326` | Первый положительный gate без retraining. Gain небольшой, но реальный. |
+| Threshold `0.50`, 200 spectra | Default tan@1 `0.2781`; strict `0.50` tan@1 `0.2861`; CI `[-0.0042, +0.0206]` | Weak positive. Держать как baseline, но не продвигать сразу на full. |
 | Full FRIGID-base MSG test, 17,082 spectra | Exact top-1 `10.97%`, top-10 `12.39%`, Tanimoto top-1 `0.4598` | Pipeline работает, но качество ограничено MIST/DLM interface. |
 | ICEBERG small run, 50 spectra, 2 rounds | Exact top-1 `16%`, Tanimoto top-1 `0.4505` | Не доказано улучшение; нужен identical-subset comparison. |
 | Oracle fingerprint, 8 hard cases | Tanimoto `0.313 -> 0.712`, exact всё равно `0%` | Fingerprint важен, но generation/ranking тоже bottleneck. |
@@ -289,6 +290,20 @@ median delta: -0.0044
 положительный gate после двух неудачных DLM training попыток. Следующее
 направление должно быть не raw `mist_probs`, а confidence-aware sparsification:
 adaptive threshold, top-k bits, или per-spectrum confidence gate.
+
+200-spectrum scale-up:
+
+```text
+default threshold 0.187, mist_binary tan@1: 0.2781
+strict threshold  0.50,  mist_binary tan@1: 0.2861
+delta: +0.0080
+wins/losses: 104 / 96
+bootstrap 95% CI for tan@1 delta: [-0.0042, +0.0206]
+```
+
+Вывод по 200 gate: fixed threshold `0.50` остаётся текущим inference baseline,
+но это weak positive, а не уверенный promote на 1024/full. Следующий активный
+трек: adaptive/top-k MIST sparsification и отдельный spectral reranking track.
 
 ## Что делать дальше
 
