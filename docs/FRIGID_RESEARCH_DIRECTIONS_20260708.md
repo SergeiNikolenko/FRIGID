@@ -26,6 +26,20 @@ Decision: reject fixed top-k `32`. It was a useful small-subset signal, but the
 200-spectrum gate shows that fixed sparsity is not robust. The next
 sparsification step must be confidence-gated or calibrated per spectrum.
 
+A simple MIST entropy threshold gate also failed prospective promotion:
+
+- Retrospective 200 fit: use fixed `0.50` only when
+  `mist_prob_entropy_norm <= 0.024121665860137063`, otherwise use default
+  `0.187`.
+- Retrospective policy tan@1: `0.2959` vs default `0.2781` and fixed `0.2861`.
+- Holdout 32, `start-index 200`: default `0.3410`; fixed `0.3299`; conditional
+  entropy `0.3381`.
+- Holdout paired conditional minus default: tan@1 `-0.0029`, wins/losses/ties
+  `0/1/31`.
+
+Decision: do not promote the simple entropy gate. It is useful diagnostic
+infrastructure, but not a robust new inference baseline.
+
 ## Literature signals
 
 ### 1. Diffusion decoder with formula constraints
@@ -188,7 +202,8 @@ FRIGID experiment:
 
 Goal: improve over fixed threshold `0.50` without using ground truth. Fixed
 top-k `32` is rejected after the 200 gate, so do not repeat fixed top-k as the
-main hypothesis.
+main hypothesis. A single MIST entropy threshold was also rejected on a holdout
+32-spectrum gate.
 
 Candidates:
 
@@ -197,6 +212,7 @@ Candidates:
 - confidence-gated top-k based on entropy or max probability;
 - optional probability calibration before sparsification.
 - prior-adjusted threshold matching the training-set active-bit prior.
+- DreaMS/retrieval confidence instead of MIST-only entropy.
 
 Gate:
 
@@ -204,7 +220,8 @@ Gate:
   high-confidence ratio, probability quantiles, active-bit counts;
 - retrospective analysis on completed 200 gates, using no target labels for the
   gate features;
-- 32-spectrum prospective gate, paired against fixed `0.50`;
+- 32-spectrum prospective gate on a held-out offset, paired against default
+  `0.187` and fixed `0.50`;
 - promote only if tan@1 improves by at least `+0.005` on 32 and does not collapse
   formula success;
 - 64 gate for the best candidate;
@@ -256,8 +273,9 @@ Required improvements:
 
 ## Current decision
 
-Do not scale fixed `0.50` or fixed top-k directly to full test yet. The next
-active experimental track is confidence-gated sparsification diagnostics plus a
-parallel decoder/reranking track. The highest-upside external comparisons are
-MolForge/MSFlow/FlowMS/DiffMS decoder replacement and ICEBERG/MARASON-style
-spectral reranking of existing DLM candidate lists.
+Do not scale fixed `0.50`, fixed top-k, or the simple entropy conditional gate
+directly to full test. The next active experimental track should shift to
+decoder/reranking while keeping confidence diagnostics as support tooling. The
+highest-upside external comparisons are MolForge/MSFlow/FlowMS/DiffMS decoder
+replacement and ICEBERG/MARASON-style spectral reranking of existing DLM
+candidate lists.

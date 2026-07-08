@@ -43,6 +43,7 @@ from dlm.utils.benchmark_utils import (  # noqa: E402
     compute_morgan_fingerprint,
     compute_tanimoto_similarity,
     evaluate_predictions,
+    fingerprint_probability_stats,
     generate_with_formula_filter,
     get_inchikey_first_block,
     load_token_model,
@@ -66,7 +67,7 @@ def parse_args():
     parser.add_argument('--fp-threshold', type=float, help='MIST FP binarization threshold')
     parser.add_argument(
         '--fp-sparsify-mode',
-        choices=['threshold', 'topk', 'quantile'],
+        choices=['threshold', 'topk', 'quantile', 'conditional_threshold'],
         default='threshold',
         help='How to convert MIST probabilities into binary fingerprints for mist_binary.',
     )
@@ -74,9 +75,14 @@ def parse_args():
     parser.add_argument('--fp-quantile', type=float, default=None, help='Per-spectrum probability quantile threshold.')
     parser.add_argument('--fp-min-threshold', type=float, default=None, help='Lower clamp for adaptive thresholds.')
     parser.add_argument('--fp-max-threshold', type=float, default=None, help='Upper clamp for adaptive thresholds.')
+    parser.add_argument('--fp-fallback-threshold', type=float, default=None, help='Fallback threshold for conditional_threshold mode.')
+    parser.add_argument('--fp-gate-metric', type=str, default=None, help='MIST-only metric used by conditional_threshold mode.')
+    parser.add_argument('--fp-gate-threshold', type=float, default=None, help='Gate threshold for conditional_threshold mode.')
+    parser.add_argument('--fp-gate-direction', choices=['le', 'ge'], default='le', help='Gate comparison direction.')
     parser.add_argument('--output-dir', type=str, help='Output directory')
     parser.add_argument('--split', type=str, choices=['train', 'val', 'test'])
     parser.add_argument('--max-spectra', type=int, default=None)
+    parser.add_argument('--start-index', type=int, default=0, help='Start offset within the selected split.')
     parser.add_argument('--batch-size', type=int)
     parser.add_argument('--softmax-temp', type=float)
     parser.add_argument('--randomness', type=float)
@@ -99,32 +105,6 @@ def parse_args():
         choices=['ground_truth', 'mist_binary', 'mist_probs'],
     )
     return parser.parse_args()
-
-
-def fingerprint_probability_stats(mist_probs: np.ndarray) -> Dict[str, Any]:
-    probs = np.asarray(mist_probs, dtype=np.float32)
-    eps = 1e-7
-    clipped = np.clip(probs, eps, 1.0 - eps)
-    entropy = -(clipped * np.log(clipped) + (1.0 - clipped) * np.log(1.0 - clipped))
-    ranked = np.sort(probs)[::-1]
-
-    stats = {
-        'mist_prob_mean': float(np.mean(probs)),
-        'mist_prob_std': float(np.std(probs)),
-        'mist_prob_max': float(np.max(probs)),
-        'mist_prob_p95': float(np.quantile(probs, 0.95)),
-        'mist_prob_p99': float(np.quantile(probs, 0.99)),
-        'mist_prob_entropy_mean': float(np.mean(entropy)),
-        'mist_prob_entropy_norm': float(np.sum(entropy) / (probs.size * np.log(2.0))),
-        'mist_prob_high_confidence_ratio': float(np.mean(np.maximum(probs, 1.0 - probs) >= 0.9)),
-        'mist_prob_bits_ge_0p10': int(np.sum(probs >= 0.10)),
-        'mist_prob_bits_ge_0p30': int(np.sum(probs >= 0.30)),
-        'mist_prob_bits_ge_0p50': int(np.sum(probs >= 0.50)),
-    }
-    for k in (16, 32, 64, 128, 256):
-        stats[f'mist_prob_top{k}_mass'] = float(np.sum(ranked[:min(k, ranked.size)]))
-    return stats
-
 
 def fingerprint_error_stats(target_fp: np.ndarray, mist_binary: np.ndarray, mist_probs: np.ndarray) -> Dict[str, Any]:
     false_positive = np.logical_and(mist_binary == 1, target_fp == 0)
@@ -299,15 +279,26 @@ def run_paired_benchmark(
     fp_quantile = fp_cfg.get('quantile')
     fp_min_threshold = fp_cfg.get('min_threshold')
     fp_max_threshold = fp_cfg.get('max_threshold')
+    fp_fallback_threshold = fp_cfg.get('fallback_threshold')
+    fp_gate_metric = fp_cfg.get('gate_metric')
+    fp_gate_threshold = fp_cfg.get('gate_threshold')
+    fp_gate_direction = fp_cfg.get('gate_direction', 'le')
+    start_index = int(config.get('evaluation', {}).get('start_index', 0) or 0)
 
     dataloader = get_paired_loader(dataset, shuffle=False, batch_size=1, num_workers=0)
-    num_to_process = min(len(dataset), max_spectra) if max_spectra else len(dataset)
+    if start_index < 0 or start_index >= len(dataset):
+        raise ValueError(f'start_index must be in [0, {len(dataset) - 1}]')
+    available = len(dataset) - start_index
+    num_to_process = min(available, max_spectra) if max_spectra else available
     results = []
     fp_drift_rows = []
     start_time = time.time()
 
-    for idx, batch in enumerate(tqdm(dataloader, total=num_to_process, desc='Processing spectra')):
-        if max_spectra and idx >= max_spectra:
+    progress = tqdm(total=num_to_process, desc='Processing spectra')
+    for idx, batch in enumerate(dataloader):
+        if idx < start_index:
+            continue
+        if len(fp_drift_rows) >= num_to_process:
             break
 
         batch = {k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in batch.items()}
@@ -331,6 +322,10 @@ def run_paired_benchmark(
             quantile=fp_quantile,
             min_threshold=fp_min_threshold,
             max_threshold=fp_max_threshold,
+            fallback_threshold=fp_fallback_threshold,
+            gate_metric=fp_gate_metric,
+            gate_threshold=fp_gate_threshold,
+            gate_direction=fp_gate_direction,
         )
 
         fp_stats = fingerprint_error_stats(target_fp, mist_binary, mist_probs)
@@ -365,7 +360,8 @@ def run_paired_benchmark(
             result.update(fp_stats)
             results.append(result)
 
-        processed = idx + 1
+        processed = len(fp_drift_rows)
+        progress.update(1)
         if output_dir and partial_save_every > 0 and processed % partial_save_every == 0:
             elapsed = time.time() - start_time
             partial_aggregate = compute_aggregate(results, fingerprint_sources, elapsed)
@@ -384,6 +380,7 @@ def run_paired_benchmark(
             )
             print(f"\nPartial results saved after {processed}/{num_to_process} spectra to: {output_dir}/")
 
+    progress.close()
     elapsed = time.time() - start_time
     aggregate = compute_aggregate(results, fingerprint_sources, elapsed)
 
@@ -463,6 +460,11 @@ def main():
     config['fingerprint']['quantile'] = args.fp_quantile
     config['fingerprint']['min_threshold'] = args.fp_min_threshold
     config['fingerprint']['max_threshold'] = args.fp_max_threshold
+    config['fingerprint']['fallback_threshold'] = args.fp_fallback_threshold
+    config['fingerprint']['gate_metric'] = args.fp_gate_metric
+    config['fingerprint']['gate_threshold'] = args.fp_gate_threshold
+    config['fingerprint']['gate_direction'] = args.fp_gate_direction
+    config['evaluation']['start_index'] = args.start_index
     if args.output_dir:
         config['output']['results_dir'] = args.output_dir
     else:

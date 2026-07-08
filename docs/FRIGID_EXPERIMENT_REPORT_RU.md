@@ -34,6 +34,8 @@ DLM хорошо работает с clean / ground-truth fingerprints,
 | Top-k sparsification, 32 spectra | top-k `32` tan@1 `0.4439` против fixed `0.50` tan@1 `0.3927` | Сильный exploratory signal. Продвинут на 64. |
 | Top-k `32`, 64 spectra | top-k tan@1 `0.3401`; fixed `0.50` tan@1 `0.3326`; CI против fixed `[-0.0269, +0.0461]` | Лучше default, но слабый/нестабильный gain против fixed `0.50`. Продвинут на 200 только как рискованный gate. |
 | Top-k `32`, 200 spectra | top-k tan@1 `0.2668`; default `0.2781`; fixed `0.50` `0.2861`; delta vs fixed `-0.0193`, CI `[-0.0350, -0.0030]` | Reject. Это small-subset artifact, не robust improvement. |
+| MIST confidence gate, retrospective 200 | entropy rule: policy tan@1 `0.2959` против default `0.2781` и fixed `0.2861` | Выглядит promising, но это fitted на том же 200 subset. Требует holdout. |
+| MIST confidence gate, holdout 32, start-index `200` | default `0.3410`; fixed `0.3299`; conditional entropy `0.3381` | Reject for promotion. Rule уменьшил вред fixed, но не победил default. |
 | Full FRIGID-base MSG test, 17,082 spectra | Exact top-1 `10.97%`, top-10 `12.39%`, Tanimoto top-1 `0.4598` | Pipeline работает, но качество ограничено MIST/DLM interface. |
 | ICEBERG small run, 50 spectra, 2 rounds | Exact top-1 `16%`, Tanimoto top-1 `0.4505` | Не доказано улучшение; нужен identical-subset comparison. |
 | Oracle fingerprint, 8 hard cases | Tanimoto `0.313 -> 0.712`, exact всё равно `0%` | Fingerprint важен, но generation/ranking тоже bottleneck. |
@@ -346,16 +348,51 @@ negative result: DLM иногда любит очень sparse fingerprints на
 но fixed sparsity не переносится. Следующий sparsification-трек должен быть
 confidence-gated, а не fixed top-k.
 
+Confidence-gated threshold follow-up:
+
+```text
+Retrospective 200, fitted on the same completed 200 subset:
+default threshold 0.187 tan@1: 0.2781
+fixed threshold 0.50    tan@1: 0.2861
+entropy conditional     tan@1: 0.2959
+
+rule:
+use threshold 0.50 if mist_prob_entropy_norm <= 0.024121665860137063
+else use threshold 0.187
+```
+
+Holdout 32 spectra, `start-index 200`:
+
+```text
+default threshold 0.187 tan@1: 0.3410
+fixed threshold 0.50    tan@1: 0.3299
+entropy conditional     tan@1: 0.3381
+
+conditional - default:
+tan@1 delta: -0.0029
+wins/losses/ties: 0 / 1 / 31
+
+conditional - fixed 0.50:
+tan@1 delta: +0.0082
+wins/losses/ties: 11 / 8 / 13
+```
+
+Вывод: simple MIST entropy gate не прошёл prospective holdout. Он полезен как
+диагностика и снижает риск fixed `0.50`, но не даёт нового baseline. Это
+останавливает threshold-only направление: следующий сильный трек должен быть
+decoder/reranking или более богатый confidence signal, например DreaMS retrieval.
+
 ## Что делать дальше
 
 1. Не продолжать текущий `mist_binary` full-DLM checkpoint.
 2. Не продолжать mixed `ground_truth + mist_binary` checkpoint.
 3. Использовать threshold `0.50` как текущий лучший inference-side baseline.
 4. Не продвигать fixed top-k `32`: 200 gate отверг гипотезу.
-5. Следующий fingerprint-side sweep делать только как confidence-gated:
-   adaptive threshold/top-k по entropy, top-k mass, active-bit count и другим
-   MIST-only признакам без ground-truth leakage.
-6. Параллельно открыть decoder/reranking track: MolForge/MSFlow/FlowMS/DiffMS
+5. Не продвигать simple entropy conditional threshold: holdout 32 не победил
+   default `0.187`.
+6. Следующий fingerprint-side sweep делать только с более богатым signal:
+   DreaMS/retrieval confidence или calibration, а не один MIST entropy threshold.
+7. Параллельно открыть decoder/reranking track: MolForge/MSFlow/FlowMS/DiffMS
    или ICEBERG-style spectral reranking, потому что exact-match на этих gates
    всё ещё `0`.
 

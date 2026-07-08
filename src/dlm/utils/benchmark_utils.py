@@ -255,6 +255,32 @@ def binarize_fingerprint(fp_probs: np.ndarray, threshold: float = 0.5) -> np.nda
     return (fp_probs >= threshold).astype(np.float32)
 
 
+def fingerprint_probability_stats(fp_probs: np.ndarray) -> Dict[str, Any]:
+    """Summarize MIST fingerprint probabilities with no ground-truth access."""
+    probs = np.asarray(fp_probs, dtype=np.float32)
+    eps = 1e-7
+    clipped = np.clip(probs, eps, 1.0 - eps)
+    entropy = -(clipped * np.log(clipped) + (1.0 - clipped) * np.log(1.0 - clipped))
+    ranked = np.sort(probs)[::-1]
+
+    stats = {
+        'mist_prob_mean': float(np.mean(probs)),
+        'mist_prob_std': float(np.std(probs)),
+        'mist_prob_max': float(np.max(probs)),
+        'mist_prob_p95': float(np.quantile(probs, 0.95)),
+        'mist_prob_p99': float(np.quantile(probs, 0.99)),
+        'mist_prob_entropy_mean': float(np.mean(entropy)),
+        'mist_prob_entropy_norm': float(np.sum(entropy) / (probs.size * np.log(2.0))),
+        'mist_prob_high_confidence_ratio': float(np.mean(np.maximum(probs, 1.0 - probs) >= 0.9)),
+        'mist_prob_bits_ge_0p10': int(np.sum(probs >= 0.10)),
+        'mist_prob_bits_ge_0p30': int(np.sum(probs >= 0.30)),
+        'mist_prob_bits_ge_0p50': int(np.sum(probs >= 0.50)),
+    }
+    for k in (16, 32, 64, 128, 256):
+        stats[f'mist_prob_top{k}_mass'] = float(np.sum(ranked[:min(k, ranked.size)]))
+    return stats
+
+
 def sparsify_fingerprint(
     fp_probs: np.ndarray,
     threshold: float = 0.5,
@@ -263,6 +289,10 @@ def sparsify_fingerprint(
     quantile: Optional[float] = None,
     min_threshold: Optional[float] = None,
     max_threshold: Optional[float] = None,
+    fallback_threshold: Optional[float] = None,
+    gate_metric: Optional[str] = None,
+    gate_threshold: Optional[float] = None,
+    gate_direction: str = 'le',
 ) -> np.ndarray:
     """Convert fingerprint probabilities into a sparse binary fingerprint."""
     fp_probs = np.asarray(fp_probs, dtype=np.float32)
@@ -290,6 +320,21 @@ def sparsify_fingerprint(
         if max_threshold is not None:
             dynamic_threshold = min(dynamic_threshold, max_threshold)
         return binarize_fingerprint(fp_probs, dynamic_threshold)
+
+    if mode == 'conditional_threshold':
+        if fallback_threshold is None:
+            raise ValueError('fallback_threshold is required when mode="conditional_threshold"')
+        if gate_metric is None or gate_threshold is None:
+            raise ValueError('gate_metric and gate_threshold are required when mode="conditional_threshold"')
+        stats = fingerprint_probability_stats(fp_probs)
+        if gate_metric not in stats:
+            raise ValueError(f'Unknown gate metric: {gate_metric}')
+        if gate_direction not in ('le', 'ge'):
+            raise ValueError('gate_direction must be "le" or "ge"')
+        value = stats[gate_metric]
+        use_primary = value <= gate_threshold if gate_direction == 'le' else value >= gate_threshold
+        selected_threshold = threshold if use_primary else fallback_threshold
+        return binarize_fingerprint(fp_probs, selected_threshold)
 
     raise ValueError(f'Unknown fingerprint sparsification mode: {mode}')
 
