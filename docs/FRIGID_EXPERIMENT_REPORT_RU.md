@@ -27,6 +27,9 @@ DLM хорошо работает с clean / ground-truth fingerprints,
 | DLM clean-vs-MIST diagnostic, 1,400 spectra | Exact top-1 `0.4879` clean vs `0.1386` MIST | DLM brittle к MIST fingerprint errors. |
 | DLM MIST adaptation, 2,500 steps, 64 spectra | Original tan@1 `0.3897/0.3209`; adapted `0.3109/0.2796` | Gap меньше, но absolute quality хуже. Неудачный tuning. |
 | DLM mixed adaptation, 10,000 steps, 64 spectra | Mixed tan@1 `0.3486/0.2870` для `ground_truth/mist_binary` | Не прошёл gate: хуже original и по clean, и по MIST. |
+| Raw `mist_probs` conditioning, partial 40 spectra | tan@1 `0.1258`, formula success `0.0000` | Прямые probabilities несовместимы с текущим DLM input режимом. |
+| MIST threshold sweep, 32 spectra | `0.12 -> 0.3152`, `0.15 -> 0.3340`, `0.22 -> 0.3690`, `0.30 -> 0.3801`, `0.40 -> 0.3875`, `0.50 -> 0.3927` | Более строгий threshold помогает: проблема больше похожа на false-positive bits. |
+| Best threshold `0.50`, 64 spectra | Default `mist_binary` tan@1 `0.3209`; threshold `0.50` tan@1 `0.3326` | Первый положительный gate без retraining. Gain небольшой, но реальный. |
 | Full FRIGID-base MSG test, 17,082 spectra | Exact top-1 `10.97%`, top-10 `12.39%`, Tanimoto top-1 `0.4598` | Pipeline работает, но качество ограничено MIST/DLM interface. |
 | ICEBERG small run, 50 spectra, 2 rounds | Exact top-1 `16%`, Tanimoto top-1 `0.4505` | Не доказано улучшение; нужен identical-subset comparison. |
 | Oracle fingerprint, 8 hard cases | Tanimoto `0.313 -> 0.712`, exact всё равно `0%` | Fingerprint важен, но generation/ranking тоже bottleneck. |
@@ -227,17 +230,80 @@ ground_truth: 0.3486 < 0.3702 FAIL
 fingerprints, а ухудшила оба режима. Продолжать этот checkpoint или расширять
 benchmark на 200/1024 spectra не стоит.
 
+## Текущий запуск 2026-07-08
+
+После провала plain и mixed DLM adaptation проверили быстрые inference-side
+рычаги перед новым длинным training run.
+
+Ключевой вывод failure analysis:
+
+```text
+MIST fingerprint errors сильно коррелируют с generation quality.
+Главный вред сейчас дают false-positive bits, а не нехватка активных bits.
+```
+
+Рабочий каталог на `spectrum`:
+
+```text
+/home/nikolenko/work/Projects/FRIGID_dlm_mist_adapt_cbc854
+```
+
+Ключевые артефакты:
+
+```text
+benchmark root: runs/benchmarks/bold_20260708
+best 64 run: runs/benchmarks/bold_20260708/e11_best_threshold_0p50_64
+best threshold: 0.50
+```
+
+Что проверили:
+
+| Experiment | Result | Decision |
+| --- | --- | --- |
+| `e01_soft_mist_probs_64` | partial 40 spectra: tan@1 `0.1258`, formula success `0.0000` | Early stop. Raw soft probabilities не подходят напрямую. |
+| `e02_threshold_0p12_32` | tan@1 `0.3152` | Reject. Слишком много noisy bits. |
+| `e03_threshold_0p15_32` | tan@1 `0.3340` | Reject. Ниже first32 baseline `0.3584`. |
+| `e04_threshold_0p22_32` | tan@1 `0.3690` | First positive signal. |
+| `e05_threshold_0p30_32` | tan@1 `0.3801` | Лучше `0.22`; decoding queue остановлена ради threshold promotion. |
+| `e09_threshold_0p40_32` | tan@1 `0.3875` | Лучше `0.30`. |
+| `e10_threshold_0p50_32` | tan@1 `0.3927` | Лучший 32-spectrum threshold. |
+| `e11_best_threshold_0p50_64` | tan@1 `0.3326` | Прошёл 64-spectrum gate против default `0.3209`. |
+
+64-spectrum comparison:
+
+```text
+default threshold 0.187, mist_binary tan@1: 0.3209
+strict threshold  0.50,  mist_binary tan@1: 0.3326
+delta: +0.0118
+```
+
+Paired 64-spectrum result:
+
+```text
+wins/losses: 28 / 36
+mean delta: +0.0118
+median delta: -0.0044
+```
+
+Вывод: threshold `0.50` не решает exact-match bottleneck, но это первый
+положительный gate после двух неудачных DLM training попыток. Следующее
+направление должно быть не raw `mist_probs`, а confidence-aware sparsification:
+adaptive threshold, top-k bits, или per-spectrum confidence gate.
+
 ## Что делать дальше
 
 1. Не продолжать текущий `mist_binary` full-DLM checkpoint.
 2. Не продолжать mixed `ground_truth + mist_binary` checkpoint.
-3. Следующий DLM objective:
-   - soft `mist_probs` вместо thresholded `mist_binary`;
-   - либо freeze backbone и train только conditioning/cross-attention layers;
-   - либо перейти к ranking/generation objective, потому что exact-match всё
-     ещё `0`.
-4. После нового objective снова запускать paired benchmark:
-   original vs adapted, `ground_truth` vs `mist_binary`.
+3. Использовать threshold `0.50` как текущий лучший inference-side baseline.
+4. Расширить threshold `0.50` benchmark на 200/1024 spectra или полный test
+   subset, чтобы проверить, держится ли небольшой gain.
+5. Следующий смелый fingerprint-side sweep:
+   - adaptive threshold по spectrum confidence;
+   - top-k active bits вместо fixed threshold;
+   - calibrated sparsification, которая режет false-positive bits без сильных
+     false negatives.
+6. Decoding/ranking sweep оставить вторым приоритетом: exact-match всё ещё `0`,
+   но сегодняшний положительный signal пришёл именно от fingerprint sparsity.
 
 Gate для следующего DLM tuning:
 
