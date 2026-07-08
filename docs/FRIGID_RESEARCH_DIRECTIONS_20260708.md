@@ -272,8 +272,8 @@ Concrete starting point in the current codebase:
   `--masks-per-molecule`, `--mask-prob`, `--masking-strategy`,
   `--max-output-preds`, and the `--iceberg-*` checkpoint/runtime flags.
 
-First command template after the 64 NGBoost gate, once the ICEBERG checkpoint
-paths/runtime are confirmed:
+First command template after the 64 NGBoost gate. The MSG ICEBERG checkpoints
+already exist on `spectrum` under the base FRIGID repro cache.
 
 ```bash
 python scripts/spec2mol_scaling.py \
@@ -283,9 +283,9 @@ python scripts/spec2mol_scaling.py \
   --dlm-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/DLM.ckpt \
   --token-model /home/nikolenko/work/Projects/FRIGID/token_models/models/best_ngboost_MSG.joblib \
   --output-dir runs/benchmarks/spec2mol_scaling_ngboost32_20260708 \
-  --iceberg-gen-ckpt <ICEBERG_GEN_CKPT> \
-  --iceberg-inten-ckpt <ICEBERG_INTEN_CKPT> \
-  --iceberg-python-path <ICEBERG_PYTHON> \
+  --iceberg-gen-ckpt /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt \
+  --iceberg-inten-ckpt /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt \
+  --iceberg-python-path /home/nikolenko/work/Projects/FRIGID_dlm_mist_adapt_cbc854/.venv/bin/python \
   --max-spectra 32 \
   --batch-size 64 \
   --num-rounds 3 \
