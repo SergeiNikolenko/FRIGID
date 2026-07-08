@@ -287,6 +287,7 @@ python scripts/spec2mol_scaling.py \
   --iceberg-inten-ckpt /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt \
   --iceberg-python-path /home/nikolenko/work/Projects/FRIGID_dlm_mist_adapt_cbc854/.venv/bin/python \
   --max-spectra 32 \
+  --start-index 200 \
   --batch-size 64 \
   --num-rounds 3 \
   --num-unique-to-refine 64 \

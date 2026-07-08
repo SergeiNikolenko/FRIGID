@@ -102,6 +102,12 @@ def parse_args():
     parser.add_argument('--output-dir', type=str, help='Output directory')
     parser.add_argument('--split', type=str, choices=['val', 'test'])
     parser.add_argument('--max-spectra', type=int, default=None)
+    parser.add_argument(
+        '--start-index',
+        type=int,
+        default=0,
+        help='Start offset within the selected split after shuffling/partitioning'
+    )
     parser.add_argument('--softmax-temp', type=float)
     parser.add_argument('--randomness', type=float)
     parser.add_argument('--seed', type=int, default=42)
@@ -858,6 +864,7 @@ def run_scaling_benchmark(
     spec_folder: str,
     output_dir: str,
     max_spectra: Optional[int] = None,
+    start_index: int = 0,
     max_output_preds: int = 100,
     verbose: bool = False,
     buddy_formulas: Optional[Dict[str, List[Tuple[str, float]]]] = None,
@@ -911,6 +918,7 @@ def run_scaling_benchmark(
         print('** Using BUDDY predicted formulas (ground truth formula NOT used) **')
     print(f"{'='*70}")
     print(f"Total spectra in dataset: {len(dataset)}")
+    print(f"Start index: {start_index}")
     print(f"Scaling config:")
     print(f"  - Batch size (B): {iceberg_sampler.scaling_config.batch_size}")
     print(f"  - Unique to refine (K): {iceberg_sampler.scaling_config.num_unique_to_refine}")
@@ -935,8 +943,15 @@ def run_scaling_benchmark(
     sample_metadata = []  # Store additional info needed for evaluation
     skipped_no_buddy = 0
     
-    for idx, batch in enumerate(tqdm(dataloader, total=max_spectra, desc='Loading spectra')):
-        if max_spectra and idx >= max_spectra:
+    if start_index < 0:
+        raise ValueError(f"start_index must be non-negative, got {start_index}")
+    end_index = None if max_spectra is None else start_index + max_spectra
+
+    progress_total = end_index
+    for idx, batch in enumerate(tqdm(dataloader, total=progress_total, desc='Loading spectra')):
+        if idx < start_index:
+            continue
+        if end_index is not None and idx >= end_index:
             break
 
         batch = {k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in batch.items()}
@@ -1343,6 +1358,7 @@ def main():
         spec_folder=config['data']['spec_folder'],
         output_dir=config['output']['results_dir'],
         max_spectra=max_spectra,
+        start_index=args.start_index,
         max_output_preds=args.max_output_preds,
         verbose=args.verbose,
         buddy_formulas=buddy_formulas,
