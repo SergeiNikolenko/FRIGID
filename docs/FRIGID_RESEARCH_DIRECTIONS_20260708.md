@@ -48,10 +48,15 @@ The first decoding-side gate produced a much stronger signal:
   `0.5835`, tan@10 `0.5846`.
 - Paired 16 delta: tan@1 `+0.2722`, wins/losses/ties `16/0/0`.
 - Formula success improved from `0.0000` to `0.6875`.
+- Holdout 32, `start-index 200`: baseline tan@1 `0.3410`; NGBoost+100 tan@1
+  `0.6105`, tan@10 `0.6110`.
+- Paired 32 delta: tan@1 `+0.2694`, wins/losses/ties `32/0/0`.
+- Formula success improved from `0.0000` to `0.6563`.
+- Exact@1 and exact@10 stayed at `0.0000`.
 
 Decision: promote NGBoost token-length guidance plus larger generation budget to
-32/64 gates. This is currently a stronger path than more threshold-only
-sparsification.
+64/200 gates. This is currently a stronger path than more threshold-only
+sparsification, but exact ranking is now the active bottleneck.
 
 ## Literature signals
 
@@ -258,6 +263,48 @@ Gate:
 - primary metrics: exact@1, exact@10, tan@1, tan@10;
 - report generation time and reranking time separately.
 
+Concrete starting point in the current codebase:
+
+- `scripts/spec2mol_scaling.py` already implements ICEBERG-guided refinement.
+- `rank_candidates_with_formula_priority` ranks formula matches before
+  fingerprint similarity.
+- The key knobs are `--token-model`, `--num-rounds`, `--num-unique-to-refine`,
+  `--masks-per-molecule`, `--mask-prob`, `--masking-strategy`,
+  `--max-output-preds`, and the `--iceberg-*` checkpoint/runtime flags.
+
+First command template after the 64 NGBoost gate, once the ICEBERG checkpoint
+paths/runtime are confirmed:
+
+```bash
+python scripts/spec2mol_scaling.py \
+  --config configs/spec2mol_benchmark_msg.yaml \
+  --data-dir data/msg \
+  --mist-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/mist_msg.pt \
+  --dlm-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/DLM.ckpt \
+  --token-model /home/nikolenko/work/Projects/FRIGID/token_models/models/best_ngboost_MSG.joblib \
+  --output-dir runs/benchmarks/spec2mol_scaling_ngboost32_20260708 \
+  --iceberg-gen-ckpt <ICEBERG_GEN_CKPT> \
+  --iceberg-inten-ckpt <ICEBERG_INTEN_CKPT> \
+  --iceberg-python-path <ICEBERG_PYTHON> \
+  --max-spectra 32 \
+  --batch-size 64 \
+  --num-rounds 3 \
+  --num-unique-to-refine 64 \
+  --masks-per-molecule 4 \
+  --mask-prob 0.2 \
+  --max-output-preds 128 \
+  --top-k-halluc-peaks 8 \
+  --halluc-inten-threshold 0.4 \
+  --use-shared-cross-attention
+```
+
+Promotion rule:
+
+- continue only if exact@1 or exact@10 improves without losing the NGBoost
+  tan@1 gain by more than `0.02`;
+- otherwise keep NGBoost+100 as a generator baseline and move to external
+  simulator reranking or decoder replacement.
+
 ### C. External decoder comparison
 
 Goal: determine whether DLM is the bottleneck after MIST.
@@ -290,6 +337,15 @@ Required improvements:
 
 Do not scale fixed `0.50`, fixed top-k, or the simple entropy conditional gate
 directly to full test. The next active experimental track is NGBoost-guided
-decoding scale-up plus reranking. Promote NGBoost+100 from 16 to 32/64, then
-prepare ICEBERG/MARASON-style reranking or MolForge/MSFlow/FlowMS/DiffMS decoder
-replacement if exact match remains flat.
+decoding scale-up plus reranking. NGBoost+100 passed 8, 16, and 32 spectrum
+gates; the 64-spectrum promotion gate is running at:
+
+```text
+/home/nikolenko/work/Projects/FRIGID_dlm_mist_adapt_cbc854/runs/benchmarks/decoding_ngboost_gate64_20260708
+tmux session: frigid_ngboost_gate64_20260708
+```
+
+If the 64 gate preserves the gain, promote to 200. In parallel, prepare
+ICEBERG/MARASON-style reranking or MolForge/MSFlow/FlowMS/DiffMS decoder
+replacement because exact match remains flat even when Tanimoto and formula
+coverage improve sharply.

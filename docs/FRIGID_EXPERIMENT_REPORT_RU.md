@@ -38,6 +38,7 @@ DLM хорошо работает с clean / ground-truth fingerprints,
 | MIST confidence gate, holdout 32, start-index `200` | default `0.3410`; fixed `0.3299`; conditional entropy `0.3381` | Reject for promotion. Rule уменьшил вред fixed, но не победил default. |
 | NGBoost token-length + 100 attempts, holdout 8 | baseline tan@1 `0.3194`, formula success `0`; NGBoost tan@1 `0.6068`, formula success `0.625` | Strong positive decoding-side signal. Продвинут на 16. |
 | NGBoost token-length + 100 attempts, holdout 16 | baseline tan@1 `0.3113`; NGBoost tan@1 `0.5835`, tan@10 `0.5846`; wins `16/16`; formula success `0.6875` | Первый сильный promote после threshold failures. Следующий gate: 32/64. |
+| NGBoost token-length + 100 attempts, holdout 32 | baseline tan@1 `0.3410`; NGBoost tan@1 `0.6105`, tan@10 `0.6110`; wins `32/32`; formula success `0.6563`; exact `0` | Strong positive. Продвинут на 64. Exact-match bottleneck остаётся, нужен reranking/refinement track. |
 | Full FRIGID-base MSG test, 17,082 spectra | Exact top-1 `10.97%`, top-10 `12.39%`, Tanimoto top-1 `0.4598` | Pipeline работает, но качество ограничено MIST/DLM interface. |
 | ICEBERG small run, 50 spectra, 2 rounds | Exact top-1 `16%`, Tanimoto top-1 `0.4505` | Не доказано улучшение; нужен identical-subset comparison. |
 | Oracle fingerprint, 8 hard cases | Tanimoto `0.313 -> 0.712`, exact всё равно `0%` | Fingerprint важен, но generation/ranking тоже bottleneck. |
@@ -399,13 +400,30 @@ NGBoost token-length, 100 attempts tan@1: 0.5835
 NGBoost tan@10: 0.5846
 formula success: 0.0000 -> 0.6875
 wins/losses/ties: 16 / 0 / 0
+
+Holdout 32 spectra, start-index 200:
+baseline default 0.187, 20 attempts tan@1: 0.3410
+NGBoost token-length, 100 attempts tan@1: 0.6105
+NGBoost tan@10: 0.6110
+formula success: 0.0000 -> 0.6563
+wins/losses/ties: 32 / 0 / 0
+exact@1/exact@10: 0.0000 / 0.0000
 ```
 
 Вывод: decoding settings дали гораздо более сильный signal, чем threshold/top-k
 манипуляции. Улучшение пришло от token-length guidance и увеличенного generation
 budget: DLM начал находить formula-matched кандидатов. Exact всё ещё `0`, но
-Tanimoto и formula success резко выросли. Это надо промотировать на 32/64 spectra
-и отдельно искать reranking для exact@1/top10.
+Tanimoto и formula success резко выросли. 32-spectrum gate подтвердил эффект и
+запущен 64-spectrum promotion gate:
+
+```text
+/home/nikolenko/work/Projects/FRIGID_dlm_mist_adapt_cbc854/runs/benchmarks/decoding_ngboost_gate64_20260708
+tmux session: frigid_ngboost_gate64_20260708
+```
+
+Отдельный bottleneck теперь exact ranking: NGBoost резко улучшает похожесть и
+formula coverage, но не выбирает exact structure. Следующий параллельный трек:
+ICEBERG/spec2mol scaling, simulator reranking или external decoder comparison.
 
 ## Что делать дальше
 
@@ -417,8 +435,9 @@ Tanimoto и formula success резко выросли. Это надо пром�
    default `0.187`.
 6. Следующий fingerprint-side sweep делать только с более богатым signal:
    DreaMS/retrieval confidence или calibration, а не один MIST entropy threshold.
-7. Продвигать NGBoost token-length + 100 attempts на 32/64 spectra.
-8. Параллельно открыть reranking track: ICEBERG-style spectral reranking или
+7. Дождаться NGBoost token-length + 100 attempts на 64 spectra; если эффект
+   сохраняется, продвигать на 200.
+8. Параллельно открыть reranking/refinement track: ICEBERG-style spectral reranking или
    MolForge/MSFlow/FlowMS/DiffMS decoder replacement, потому что exact-match на
    этих gates всё ещё `0`.
 
