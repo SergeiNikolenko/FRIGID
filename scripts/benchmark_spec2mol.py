@@ -86,6 +86,12 @@ def parse_args():
     parser.add_argument('--output-dir', type=str, help='Output directory')
     parser.add_argument('--split', type=str, choices=['val', 'test'])
     parser.add_argument('--max-spectra', type=int, default=None)
+    parser.add_argument(
+        '--start-index',
+        type=int,
+        default=0,
+        help='Start offset within the selected split'
+    )
     parser.add_argument('--batch-size', type=int)
     parser.add_argument('--softmax-temp', type=float)
     parser.add_argument('--randomness', type=float)
@@ -500,6 +506,7 @@ def run_benchmark_multi_gpu(
     n_gpus: int,
     use_shared_cross_attention: bool,
     max_spectra: Optional[int] = None,
+    start_index: int = 0,
     token_model=None,
     token_features=None,
     is_ngboost: bool = False,
@@ -521,6 +528,7 @@ def run_benchmark_multi_gpu(
     print('SPEC2MOL BENCHMARK (Multi-GPU)')
     print(f"{'='*70}")
     print(f"Total spectra: {len(dataset)}")
+    print(f"Start index: {start_index}")
     print(f"Number of GPUs: {n_gpus}")
     print(f"Formula matches required: {filter_cfg['n_required']}")
     print(f"Max attempts: {filter_cfg['max_attempts']}")
@@ -532,8 +540,13 @@ def run_benchmark_multi_gpu(
         print(f"Token model: ENABLED (NGBoost={is_ngboost}, sigma_lambda={sigma_lambda})")
     print(f"{'='*70}\n")
     
-    num_to_process = min(len(dataset), max_spectra) if max_spectra else len(dataset)
-    all_indices = list(range(num_to_process))
+    if start_index < 0:
+        raise ValueError(f"start_index must be non-negative, got {start_index}")
+    end_index = len(dataset) if max_spectra is None else min(len(dataset), start_index + max_spectra)
+    if start_index >= len(dataset):
+        raise ValueError(f"start_index {start_index} is outside dataset of size {len(dataset)}")
+    all_indices = list(range(start_index, end_index))
+    num_to_process = len(all_indices)
     
     # Split indices across GPUs
     indices_per_gpu = [[] for _ in range(n_gpus)]
@@ -614,6 +627,7 @@ def run_benchmark(
     config: dict,
     device: torch.device,
     max_spectra: Optional[int] = None,
+    start_index: int = 0,
     token_model=None,
     token_features=None,
     is_ngboost: bool = False,
@@ -636,6 +650,7 @@ def run_benchmark(
     print('SPEC2MOL BENCHMARK')
     print(f"{'='*70}")
     print(f"Total spectra: {len(dataset)}")
+    print(f"Start index: {start_index}")
     print(f"Formula matches required: {filter_cfg['n_required']}")
     print(f"Max attempts: {filter_cfg['max_attempts']}")
     print(f"Batch size: {batch_size}")
@@ -647,10 +662,16 @@ def run_benchmark(
     dataloader = get_paired_loader(dataset, shuffle=False, batch_size=1, num_workers=0)
     all_results = []
     start_time = time.time()
-    num_to_process = min(len(dataset), max_spectra) if max_spectra else len(dataset)
+    if start_index < 0:
+        raise ValueError(f"start_index must be non-negative, got {start_index}")
+    if start_index >= len(dataset):
+        raise ValueError(f"start_index {start_index} is outside dataset of size {len(dataset)}")
+    end_index = len(dataset) if max_spectra is None else min(len(dataset), start_index + max_spectra)
 
-    for idx, batch in enumerate(tqdm(dataloader, total=num_to_process, desc='Processing spectra')):
-        if max_spectra and idx >= max_spectra:
+    for idx, batch in enumerate(tqdm(dataloader, total=end_index, desc='Processing spectra')):
+        if idx < start_index:
+            continue
+        if idx >= end_index:
             break
 
         batch = {k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in batch.items()}
@@ -902,7 +923,7 @@ def main():
         # Don't load models in the main process to avoid double memory usage on GPU 0
         aggregate, results = run_benchmark_multi_gpu(
             config, dataset, split_data,
-            n_gpus, args.use_shared_cross_attention, max_spectra,
+            n_gpus, args.use_shared_cross_attention, max_spectra, args.start_index,
             token_model, token_features, is_ngboost, args.sigma_lambda
         )
     else:
@@ -911,7 +932,7 @@ def main():
         sampler = load_dlm_sampler(config['dlm'], args.use_shared_cross_attention)
         aggregate, results = run_benchmark(
             mist_encoder, sampler, dataset, split_data,
-            config, device, max_spectra,
+            config, device, max_spectra, args.start_index,
             token_model, token_features, is_ngboost, args.sigma_lambda
         )
 
