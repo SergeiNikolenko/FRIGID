@@ -53,10 +53,18 @@ The first decoding-side gate produced a much stronger signal:
 - Paired 32 delta: tan@1 `+0.2694`, wins/losses/ties `32/0/0`.
 - Formula success improved from `0.0000` to `0.6563`.
 - Exact@1 and exact@10 stayed at `0.0000`.
+- Holdout 64: baseline tan@1 `0.3265`; NGBoost+100 tan@1 `0.6044`;
+  formula success `0.0156 -> 0.6406`; exact@1 stayed `0.0000`.
+- Holdout 200: baseline tan@1 `0.3621`; NGBoost+100 tan@1 `0.7594`;
+  exact@1 `0.000 -> 0.245`, exact@10 `0.000 -> 0.270`, and formula success
+  `0.025 -> 0.840`.
+- Paired 200 tan@1 delta is `+0.3973`, with wins/losses/ties `194/3/3`.
 
-Decision: promote NGBoost token-length guidance plus larger generation budget to
-64/200 gates. This is currently a stronger path than more threshold-only
-sparsification, but exact ranking is now the active bottleneck.
+Decision: validate on 1,024/full and isolate token-length guidance from the
+larger generation budget. The 200 subset has unusually high MIST fingerprint
+quality (`mist_tanimoto_mean=0.9056`), so it is not sufficient for a full-split
+claim. Exact candidate recall, rather than ranking alone, remains the likely
+bottleneck: exact@10 exceeds exact@1 by only `0.025` on this gate.
 
 ## Literature signals
 
@@ -253,6 +261,8 @@ Candidates:
 
 - NGBoost token-length guidance with larger generation budget as the current
   decoding baseline;
+- attempts100 without NGBoost, NGBoost20, NGBoost100, and a higher/adaptive
+  attempt budget on the same paired subset to isolate causal contributions;
 - ICEBERG rerank of DLM candidate lists;
 - formula/mass/fingerprint weighted rerank as a lightweight baseline;
 - diversity-aware reranking to improve exact@10.
@@ -332,21 +342,27 @@ Required improvements:
 - write preflight/run manifest with checkpoint hashes;
 - store paired subset manifests;
 - bootstrap CI for paired deltas;
+- record dataset/split version and hashes before claiming MassSpecGym
+  comparability;
+- avoid relying on one contiguous offset: repeat promoted hypotheses on at least
+  one second block or a frozen stratified subset;
+- use per-spectrum deterministic random seeds for exact paired comparisons;
 - validate artifact schemas after each run.
 
 ## Current decision
 
 Do not scale fixed `0.50`, fixed top-k, or the simple entropy conditional gate
-directly to full test. The next active experimental track is NGBoost-guided
-decoding scale-up plus reranking. NGBoost+100 passed 8, 16, and 32 spectrum
-gates; the 64-spectrum promotion gate is running at:
+directly to full test. NGBoost+100 passed 8, 16, 32, 64, and 200 spectrum gates,
+but the 200 offset is unusually easy by MIST fingerprint quality.
+
+Two independent validations are active:
 
 ```text
-/home/nikolenko/work/Projects/FRIGID_dlm_mist_adapt_cbc854/runs/benchmarks/decoding_ngboost_gate64_20260708
-tmux session: frigid_ngboost_gate64_20260708
+lobachevsky: 1,024-spectrum NGBoost gate with subset/hash manifest and bootstrap CI
+spectrum: full 17,082 baseline followed by full NGBoost+100
 ```
 
-If the 64 gate preserves the gain, promote to 200. In parallel, prepare
-ICEBERG/MARASON-style reranking or MolForge/MSFlow/FlowMS/DiffMS decoder
-replacement because exact match remains flat even when Tanimoto and formula
-coverage improve sharply.
+In parallel, run the budget-isolation ablation on `kolmogorov`. If NGBoost adds
+little over attempts100, replace the fixed budget with confidence-adaptive
+compute. If it adds independent value, keep it and move to a second candidate
+generator/retrieval path such as DiffMS or MS-BART before spectral reranking.
