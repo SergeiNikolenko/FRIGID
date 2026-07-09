@@ -238,6 +238,9 @@ def load_mist_encoder(config: dict, device: torch.device) -> torch.nn.Module:
     checkpoint_path = config['checkpoint']
     print(f"\nLoading MIST encoder from: {checkpoint_path}")
 
+    if not os.path.isfile(checkpoint_path):
+        raise FileNotFoundError(f"MIST checkpoint not found: {checkpoint_path}")
+
     encoder = SpectraEncoderGrowing(
         form_embedder=config.get('form_embedder', 'pos-cos'),
         output_size=config.get('output_size', 4096),
@@ -259,19 +262,20 @@ def load_mist_encoder(config: dict, device: torch.device) -> torch.nn.Module:
         top_layers=config.get('top_layers', 1),
     )
 
-    if os.path.exists(checkpoint_path):
-        checkpoint = torch.load(checkpoint_path, map_location=device)
-        if 'state_dict' in checkpoint:
+    checkpoint = torch.load(checkpoint_path, map_location=device)
+    if 'state_dict' in checkpoint:
+        state_dict = checkpoint['state_dict']
+        state_dict = {
+            k.replace('encoder.', ''): v
+            for k, v in state_dict.items()
+            if k.startswith('encoder.')
+        }
+        if not state_dict:
             state_dict = checkpoint['state_dict']
-            state_dict = {k.replace('encoder.', ''): v for k, v in state_dict.items() if k.startswith('encoder.')}
-            if not state_dict:
-                state_dict = checkpoint['state_dict']
-        else:
-            state_dict = checkpoint
-        encoder.load_state_dict(state_dict, strict=False)
-        print('✓ Loaded MIST encoder weights')
     else:
-        print(f"WARNING: MIST checkpoint not found: {checkpoint_path}")
+        state_dict = checkpoint
+    encoder.load_state_dict(state_dict, strict=False)
+    print('✓ Loaded MIST encoder weights')
 
     encoder = encoder.to(device)
     encoder.eval()

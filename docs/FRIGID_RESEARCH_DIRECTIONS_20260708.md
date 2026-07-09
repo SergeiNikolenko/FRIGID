@@ -66,6 +66,21 @@ quality (`mist_tanimoto_mean=0.9056`), so it is not sufficient for a full-split
 claim. Exact candidate recall, rather than ranking alone, remains the likely
 bottleneck: exact@10 exceeds exact@1 by only `0.025` on this gate.
 
+The causal 64-spectrum gate on a fresh block (`start-index=1024`) changed the
+interpretation:
+
+- no-NGBoost20: tan@1 `0.5873`, exact@1 `0.1719`, exact@10 `0.2031`;
+- no-NGBoost100: tan@1 `0.6734`, exact@1 `0.3594`, exact@10 `0.4219`;
+- NGBoost20: tan@1 `0.6132`, exact@1 `0.2344`, exact@10 `0.2656`;
+- NGBoost100: tan@1 `0.6495`, exact@1 `0.3125`, exact@10 `0.4063`;
+- NGBoost200: tan@1 `0.6499`, exact@1 `0.3906`, exact@10 `0.3906`.
+
+The no-NGBoost `20 -> 100` budget effect is tan@1 `+0.0861`, 95% CI
+`[+0.0536, +0.1203]`, and exact@10 `+0.2188`. At a fixed 100-attempt budget,
+NGBoost changes tan@1 by `-0.0239`, 95% CI `[-0.0447, -0.0042]`. NGBoost is a
+useful efficiency prior (about 2x faster here), but the current model is not the
+quality-maximizing decoder setting. The next quality leader is no-NGBoost100.
+
 ## Literature signals
 
 ### 1. Diffusion decoder with formula constraints
@@ -366,3 +381,9 @@ In parallel, run the budget-isolation ablation on `kolmogorov`. If NGBoost adds
 little over attempts100, replace the fixed budget with confidence-adaptive
 compute. If it adds independent value, keep it and move to a second candidate
 generator/retrieval path such as DiffMS or MS-BART before spectral reranking.
+
+The isolation gate now shows that NGBoost does not add quality at 100 attempts.
+A follow-up sweep is active on the same 64 spectra: no-NGBoost `200/400/800`,
+plus temperature `0.8` and temperature/randomness `1.2/0.2` at 200 attempts.
+Promote only a candidate whose paired CI is positive against no-NGBoost100;
+otherwise keep 100 attempts and redirect compute to a second generator.

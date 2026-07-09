@@ -44,6 +44,7 @@ DLM хорошо работает с clean / ground-truth fingerprints,
 | NGBoost token-length + 100 attempts, holdout 200 | baseline tan@1 `0.3621`, exact@1 `0`, formula success `0.025`; NGBoost tan@1 `0.7594`, exact@1 `0.245`, exact@10 `0.270`, formula success `0.840` | Очень сильный результат, но subset имеет необычно высокий MIST Tanimoto `0.9056`; это ещё не full-split доказательство. |
 | Новый full baseline, partial 10,000/17,082 | tan@1 `0.3975`, exact@1 `0.0775`, exact@10 `0.0830`, formula success `0.5099`, MIST Tanimoto `0.5543` | Baseline продолжает считаться на `spectrum`; full NGBoost стартует после него. |
 | NGBoost validation, 1,024 spectra | baseline first-1024: tan@1 `0.4409`, exact@1 `0.0879`, formula success `0.4316`, MIST Tanimoto `0.6978` | NGBoost+100 запущен на `lobachevsky`; результат ожидается. |
+| NGBoost/budget isolation, fresh holdout 64 | no-NGBoost `20 -> 100`: tan@1 `0.5873 -> 0.6734`, exact@10 `0.2031 -> 0.4219`; NGBoost100 tan@1 `0.6495`, exact@10 `0.4063` | Основной quality gain даёт generation budget. При одинаковых 100 attempts NGBoost снижает tan@1 на `0.0239`; он быстрее, но не quality leader. |
 | Full FRIGID-base MSG test, 17,082 spectra | Exact top-1 `10.97%`, top-10 `12.39%`, Tanimoto top-1 `0.4598` | Pipeline работает, но качество ограничено MIST/DLM interface. |
 | ICEBERG small run, 50 spectra, 2 rounds | Exact top-1 `16%`, Tanimoto top-1 `0.4505` | Не доказано улучшение; нужен identical-subset comparison. |
 | Oracle fingerprint, 8 hard cases | Tanimoto `0.313 -> 0.712`, exact всё равно `0%` | Fingerprint важен, но generation/ranking тоже bottleneck. |
@@ -437,9 +438,22 @@ wins/losses/ties by tan@1: 194 / 3 / 3
 объектах полного split с manifest, subset hash и bootstrap CI. Полный baseline
 на `spectrum` прошёл 10,000/17,082; full NGBoost ещё не стартовал.
 
-Главная неопределённость сейчас: сколько gain даёт NGBoost, а сколько просто
-`100` attempts вместо `20`. Для этого запущен одинаковый paired subset с пятью
-режимами: no-NGBoost/20 и `/100`, NGBoost/20, `/100` и `/200`.
+Причинная проверка на новом 64-spectrum блоке завершена:
+
+```text
+no-NGBoost20:  tan@1 0.5873, exact@1 0.1719, exact@10 0.2031, 179 s
+NGBoost20:     tan@1 0.6132, exact@1 0.2344, exact@10 0.2656, 130 s
+no-NGBoost100: tan@1 0.6734, exact@1 0.3594, exact@10 0.4219, 796 s
+NGBoost100:    tan@1 0.6495, exact@1 0.3125, exact@10 0.4063, 406 s
+NGBoost200:    tan@1 0.6499, exact@1 0.3906, exact@10 0.3906, 499 s
+```
+
+Budget-only effect, no-NGBoost `20 -> 100`: tan@1 `+0.0861`, 95% CI
+`[+0.0536, +0.1203]`; exact@10 `+0.2188`. NGBoost effect при одинаковых
+`100` attempts: tan@1 `-0.0239`, CI `[-0.0447, -0.0042]`. Значит предыдущий
+сильный gain был в основном эффектом большего candidate budget. NGBoost полезен
+как ускоритель: он примерно вдвое быстрее, но текущая length prior ухудшает
+максимальное качество.
 
 ## Что делать дальше
 
@@ -454,9 +468,12 @@ wins/losses/ties by tan@1: 194 / 3 / 3
 7. Завершить 1,024-spectrum и full paired validation NGBoost+100; не считать
    200-gate финальным из-за смещённого subset.
 8. Разделить эффект NGBoost и generation budget на одном subset: attempts100
-   без NGBoost, NGBoost20, NGBoost100 и повышенный/adaptive budget.
+   без NGBoost, NGBoost20, NGBoost100 и повышенный/adaptive budget. Выполнено:
+   quality leader сейчас no-NGBoost100.
 9. После candidate-recall диагностики открыть второй generator/retrieval track:
    DiffMS/MS-BART или retrieval candidates, затем reranking по spectrum score.
+10. Проверить no-NGBoost `200/400/800` attempts и temperature/diversity sweep;
+    продвигать только вариант с положительным paired CI против no-NGBoost100.
 
 Gate для следующего DLM tuning:
 
