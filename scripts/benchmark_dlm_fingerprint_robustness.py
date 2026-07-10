@@ -50,6 +50,11 @@ from dlm.utils.benchmark_utils import (  # noqa: E402
     normalize_formula,
     sparsify_fingerprint,
 )
+from dlm.utils.benchmark_selection import (  # noqa: E402
+    hash_spec_names,
+    load_spec_manifest,
+    resolve_selected_indices,
+)
 from mist.data.datasets import get_paired_loader  # noqa: E402
 
 RDLogger.DisableLog('rdApp.*')
@@ -83,6 +88,12 @@ def parse_args():
     parser.add_argument('--split', type=str, choices=['train', 'val', 'test'])
     parser.add_argument('--max-spectra', type=int, default=None)
     parser.add_argument('--start-index', type=int, default=0, help='Start offset within the selected split.')
+    parser.add_argument(
+        '--spec-manifest',
+        type=str,
+        default=None,
+        help="Ordered CSV/TSV subset with a unique 'spec_name' column.",
+    )
     parser.add_argument('--batch-size', type=int)
     parser.add_argument('--softmax-temp', type=float)
     parser.add_argument('--randomness', type=float)
@@ -250,6 +261,16 @@ def evaluate_one_source(
         'total_formula_matched': total_matched,
         'generation_time': gen_time,
         'all_matched_smiles': matched_smiles,
+        'ranked_predictions': [
+            {
+                'smiles': prediction['smiles'],
+                'inchi_key': prediction.get('inchi_key'),
+                'ranking_similarity': prediction.get('similarity', 0.0),
+                'frequency': prediction.get('frequency', 0),
+                'source': prediction.get('source'),
+            }
+            for prediction in predictions
+        ],
     })
     return result
 
@@ -269,6 +290,7 @@ def run_paired_benchmark(
     sigma_lambda: float = 3.0,
     output_dir: Optional[str] = None,
     partial_save_every: int = 100,
+    spec_names: Optional[List[str]] = None,
 ) -> Tuple[Dict[str, Any], List[Dict[str, Any]], List[Dict[str, Any]]]:
     fp_cfg = config['fingerprint']
     fp_bits = fp_cfg['bits']
@@ -285,21 +307,31 @@ def run_paired_benchmark(
     fp_gate_direction = fp_cfg.get('gate_direction', 'le')
     start_index = int(config.get('evaluation', {}).get('start_index', 0) or 0)
 
-    dataloader = get_paired_loader(dataset, shuffle=False, batch_size=1, num_workers=0)
-    if start_index < 0 or start_index >= len(dataset):
-        raise ValueError(f'start_index must be in [0, {len(dataset) - 1}]')
-    available = len(dataset) - start_index
-    num_to_process = min(available, max_spectra) if max_spectra else available
+    selected_indices = resolve_selected_indices(
+        split_data,
+        spec_names,
+        start_index,
+        max_spectra,
+    )
+
+    class _FeaturizedSubset(torch.utils.data.Subset):
+        def get_featurizer(self):
+            return self.dataset.get_featurizer()
+
+    selected_dataset = _FeaturizedSubset(dataset, selected_indices)
+    dataloader = get_paired_loader(
+        selected_dataset,
+        shuffle=False,
+        batch_size=1,
+        num_workers=0,
+    )
+    num_to_process = len(selected_indices)
     results = []
     fp_drift_rows = []
     start_time = time.time()
 
     progress = tqdm(total=num_to_process, desc='Processing spectra')
-    for idx, batch in enumerate(dataloader):
-        if idx < start_index:
-            continue
-        if len(fp_drift_rows) >= num_to_process:
-            break
+    for idx, batch in zip(selected_indices, dataloader):
 
         batch = {k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in batch.items()}
         spec, mol = split_data[idx]
@@ -400,26 +432,49 @@ def save_outputs(
 
     save_rows = []
     for row in results:
-        save_rows.append({k: v for k, v in row.items() if k not in ('top_predictions', 'all_matched_smiles')})
+        save_rows.append({
+            k: v
+            for k, v in row.items()
+            if k not in ('top_predictions', 'all_matched_smiles', 'ranked_predictions')
+        })
     details = pd.DataFrame(save_rows)
     details.to_csv(os.path.join(output_dir, 'detailed_results.csv'), index=False)
     pd.DataFrame(fp_drift_rows).to_csv(os.path.join(output_dir, 'fingerprint_drift.csv'), index=False)
 
     for source in sorted(details['fingerprint_source'].unique()):
         source_rows = []
+        score_rows = []
         for row in results:
             if row['fingerprint_source'] != source:
                 continue
-            matched = row.get('all_matched_smiles', [])
+            ranked = row.get('ranked_predictions')
+            if ranked is None:
+                ranked = [
+                    {'smiles': smiles}
+                    for smiles in row.get('all_matched_smiles', [])
+                ]
+            if ranked and row.get('proposal_smiles') != ranked[0]['smiles']:
+                raise ValueError(
+                    f"Final ranking mismatch for {row.get('spec_name')} ({source})."
+                )
             out_row = {
                 'true_smiles': row.get('target_smiles', ''),
                 'name': row.get('spec_name', ''),
             }
-            for idx, smiles in enumerate(matched, start=1):
-                out_row[f'pred_smiles_{idx}'] = smiles
+            for idx, prediction in enumerate(ranked, start=1):
+                out_row[f'pred_smiles_{idx}'] = prediction['smiles']
+                score_rows.append({
+                    'spec_name': row.get('spec_name', ''),
+                    'rank': idx,
+                    **prediction,
+                })
             source_rows.append(out_row)
         pd.DataFrame(source_rows).to_csv(
             os.path.join(output_dir, f'predictions_{source}.csv'),
+            index=False,
+        )
+        pd.DataFrame(score_rows).to_csv(
+            os.path.join(output_dir, f'prediction_scores_{source}.csv'),
             index=False,
         )
 
@@ -465,6 +520,14 @@ def main():
     config['fingerprint']['gate_threshold'] = args.fp_gate_threshold
     config['fingerprint']['gate_direction'] = args.fp_gate_direction
     config['evaluation']['start_index'] = args.start_index
+    spec_names = None
+    if args.spec_manifest:
+        spec_names = load_spec_manifest(args.spec_manifest)
+        config['evaluation']['spec_manifest'] = str(
+            os.path.abspath(os.path.expanduser(args.spec_manifest))
+        )
+        config['evaluation']['spec_manifest_size'] = len(spec_names)
+        config['evaluation']['spec_manifest_sha256_ordered'] = hash_spec_names(spec_names)
     if args.output_dir:
         config['output']['results_dir'] = args.output_dir
     else:
@@ -493,6 +556,9 @@ def main():
     )
     mist_encoder = load_mist_encoder(config['mist_encoder'], device)
     sampler = load_dlm_sampler(config['dlm'], args.use_shared_cross_attention)
+    max_spectra = args.max_spectra or config.get('evaluation', {}).get('max_spectra')
+    if spec_names is not None and args.max_spectra is None:
+        max_spectra = len(spec_names)
 
     aggregate, results, fp_drift_rows = run_paired_benchmark(
         mist_encoder=mist_encoder,
@@ -502,13 +568,14 @@ def main():
         config=config,
         device=device,
         fingerprint_sources=args.fingerprint_sources,
-        max_spectra=args.max_spectra or config.get('evaluation', {}).get('max_spectra'),
+        max_spectra=max_spectra,
         token_model=token_model,
         token_features=token_features,
         is_ngboost=is_ngboost,
         sigma_lambda=args.sigma_lambda,
         output_dir=config['output']['results_dir'],
         partial_save_every=args.partial_save_every,
+        spec_names=spec_names,
     )
 
     save_outputs(
