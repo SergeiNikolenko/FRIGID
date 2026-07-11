@@ -188,7 +188,7 @@ def test_no_target_smiles_leaks_into_ranking(monkeypatch, tmp_path):
         lambda smiles: {"cand_a": "A", "cand_b": "B"}[smiles],
     )
 
-    predictions, _, _ = MODULE.run_fuse_candidate_sources(
+    predictions, _, detailed = MODULE.run_fuse_candidate_sources(
         source_specs=[("src", source_path)],
         mist_metadata_csv=metadata_path,
         mist_fingerprints_npz=npz_path,
@@ -201,6 +201,8 @@ def test_no_target_smiles_leaks_into_ranking(monkeypatch, tmp_path):
     first_prediction = predictions.set_index("name").loc["q1", "pred_smiles_1"]
     second_prediction = predictions.set_index("name").loc["q2", "pred_smiles_1"]
     assert first_prediction == second_prediction == "cand_a"
+    assert detailed["fingerprint_source"].unique().tolist() == ["mist_binary"]
+    assert detailed["candidate_method"].unique().tolist() == ["fused_candidates"]
 
 
 def test_top10_tanimoto_is_max_not_mean():
