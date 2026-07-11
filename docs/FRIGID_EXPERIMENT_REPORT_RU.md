@@ -480,3 +480,46 @@ ensemble и нового reranker.
 
 Первый gate: те же 64 molecule-diverse spectra. На 200 продвигается только
 подход, который улучшает paired exact@10 или Tanimoto с положительным CI.
+
+**Эксперимент 13: объединить разные источники кандидатов**
+
+Что проверили:
+
+- обычный DLM со `100 attempts`;
+- DLM с `temperature=0.8`;
+- прямой генератор `MS-BART`;
+- retrieval только по train-молекулам;
+- общий список кандидатов с единым ranking по MIST fingerprint.
+
+Отдельно новые источники были слабыми:
+
+| Source | Tanimoto top-1 | Tanimoto top-10 | Exact |
+| --- | ---: | ---: | ---: |
+| MS-BART | `0.1843` | `0.2229` | `0` |
+| Train-only retrieval | `0.3032` | `0.3664` | `0` |
+
+Но они находили другие структуры, поэтому retrieval оказался полезен в
+объединённом candidate pool.
+
+Результат на 64 molecule-diverse spectra:
+
+| Metric | DLM baseline | DLM + temp + retrieval |
+| --- | ---: | ---: |
+| Exact top-1 | `0.2188` | `0.2188` |
+| Exact top-10 | `0.2500` | `0.2656` |
+| Tanimoto top-1 | `0.5175` | `0.5379` |
+| Tanimoto top-10 | `0.5427` | `0.5752` |
+
+- Tanimoto top-1: `+0.0204`, 95% CI `[+0.0078, +0.0356]`;
+- Tanimoto top-10: `+0.0325`, 95% CI `[+0.0153, +0.0538]`.
+
+Вывод:
+
+```text
+Новые источники не обязаны побеждать DLM по отдельности.
+Главное улучшение даёт разнообразный candidate pool и единый reranking.
+```
+
+`MS-BART` в текущем виде не добавляет пользы и остановлен. Связка
+`DLM control + DLM temperature 0.8 + train retrieval` продвинута на новый
+disjoint molecule-diverse набор из 200 spectra.
