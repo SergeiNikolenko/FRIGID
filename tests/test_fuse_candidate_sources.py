@@ -1,13 +1,17 @@
 import importlib.util
+import sys
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import pytest
 
 SCRIPT_PATH = Path(__file__).parents[1] / "scripts" / "fuse_candidate_sources.py"
 SPEC = importlib.util.spec_from_file_location("fuse_candidate_sources", SCRIPT_PATH)
 MODULE = importlib.util.module_from_spec(SPEC)
 assert SPEC.loader is not None
+sys.path.insert(0, str(SCRIPT_PATH.parent))
+sys.modules["fuse_candidate_sources"] = MODULE
 SPEC.loader.exec_module(MODULE)
 
 
@@ -148,6 +152,11 @@ def test_no_target_smiles_leaks_into_ranking(monkeypatch, tmp_path):
         raise AssertionError(f"unexpected smiles {smiles!r}")
 
     monkeypatch.setattr(MODULE, "compute_morgan_fingerprint", fake_compute_morgan_fingerprint)
+    monkeypatch.setattr(
+        MODULE,
+        "_compute_inchi_key_first_block",
+        lambda smiles: {"cand_a": "A", "cand_b": "B"}[smiles],
+    )
 
     predictions, _, _ = MODULE.run_fuse_candidate_sources(
         source_specs=[("src", source_path)],
@@ -199,3 +208,23 @@ def test_top10_tanimoto_is_max_not_mean():
 
     assert metrics["tanimoto_top1"] == 0.25
     assert metrics["tanimoto_top10"] == 0.75
+
+
+def test_rejects_misaligned_metadata_and_mist_rows(tmp_path):
+    metadata_path = tmp_path / "metadata.csv"
+    pd.DataFrame(
+        [{"spec_name": "q1", "target_smiles": "C", "target_inchi_key": "KEY"}]
+    ).to_csv(metadata_path, index=False)
+    npz_path = tmp_path / "fingerprints.npz"
+    np.savez_compressed(npz_path, mist_binary=np.zeros((2, 4), dtype=np.float32))
+
+    with pytest.raises(ValueError, match="different row counts"):
+        MODULE.run_fuse_candidate_sources(
+            source_specs=[],
+            mist_metadata_csv=metadata_path,
+            mist_fingerprints_npz=npz_path,
+            output_dir=tmp_path / "out",
+            top_k=2,
+            fingerprint_bits=4,
+            fingerprint_radius=2,
+        )

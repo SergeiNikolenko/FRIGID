@@ -379,6 +379,11 @@ def run_fuse_candidate_sources(
             "mist_binary width does not match --fingerprint-bits: "
             f"{mist_binary.shape[1]} != {fingerprint_bits}"
         )
+    if mist_binary.shape[0] != len(query_order):
+        raise ValueError(
+            "metadata and mist_binary have different row counts: "
+            f"{len(query_order)} != {mist_binary.shape[0]}"
+        )
 
     source_rows_by_query: dict[str, list[SourceCandidate]] = defaultdict(list)
     source_rows: dict[str, int] = {}
@@ -411,10 +416,6 @@ def run_fuse_candidate_sources(
             raise ValueError(f"Missing target smiles for {query_spec_name}")
         if not target_inchi_block:
             raise ValueError(f"Missing target inchi_key for {query_spec_name}")
-        if query_index >= mist_binary.shape[0]:
-            raise ValueError(
-                f"metadata and mist_binary are misaligned: missing row for {query_spec_name}"
-            )
         query_fp = mist_binary[query_index]
 
         raw_candidates = source_rows_by_query.get(query_spec_name, [])
