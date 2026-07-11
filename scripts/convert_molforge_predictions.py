@@ -69,6 +69,7 @@ def convert_predictions(
         )
 
     rows: list[dict[str, Any]] = []
+    queries_with_no_candidates = 0
     for record in records:
         spec_name = str(record["spec_name"]).strip()
         raw_predictions = record.get("pred_smiles_top10")
@@ -76,7 +77,8 @@ def convert_predictions(
             raise ValueError(f"pred_smiles_top10 is not a list for {spec_name}")
         predictions = [str(value).strip() for value in raw_predictions if str(value).strip()]
         if not predictions:
-            raise ValueError(f"MolForge produced no candidates for {spec_name}")
+            queries_with_no_candidates += 1
+            continue
         if len(predictions) > 10:
             raise ValueError(f"MolForge produced more than 10 candidates for {spec_name}")
         threshold = record.get("threshold", "")
@@ -122,6 +124,7 @@ def convert_predictions(
         },
         "query_count": len(records),
         "candidate_count": len(rows),
+        "queries_with_no_candidates": queries_with_no_candidates,
         "target_fields_used": [],
     }
     manifest_path.write_text(json.dumps(manifest_payload, indent=2) + "\n")

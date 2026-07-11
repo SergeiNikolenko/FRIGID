@@ -85,11 +85,20 @@ def test_rejects_prediction_order_mismatch(tmp_path):
         MODULE.convert_predictions(predictions, tmp_path / "out.csv", manifest)
 
 
-def test_rejects_empty_candidate_list(tmp_path):
+def test_records_empty_candidate_list_without_padding(tmp_path):
     manifest = tmp_path / "subset.tsv"
     manifest.write_text("spec_name\nq1\n")
     predictions = tmp_path / "predictions.jsonl"
     write_jsonl(predictions, [{"spec_name": "q1", "pred_smiles_top10": []}])
 
-    with pytest.raises(ValueError, match="no candidates"):
-        MODULE.convert_predictions(predictions, tmp_path / "out.csv", manifest)
+    output = tmp_path / "out.csv"
+    query_count, candidate_count = MODULE.convert_predictions(
+        predictions, output, manifest
+    )
+
+    assert (query_count, candidate_count) == (1, 0)
+    assert output.read_text().splitlines() == [
+        "query_spec_name,rank,candidate_smiles,source_threshold"
+    ]
+    run_manifest = json.loads(output.with_suffix(".csv.manifest.json").read_text())
+    assert run_manifest["queries_with_no_candidates"] == 1
