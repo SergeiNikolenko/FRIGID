@@ -110,7 +110,9 @@ def select_hard_queries(
     limit: int,
     selection_seed: int,
     top_k: int = 10,
-) -> tuple[list[str], pd.DataFrame, int]:
+    query_formulas: dict[str, str] | None = None,
+    min_formula_valid_candidates: int = 0,
+) -> tuple[list[str], pd.DataFrame, int, int]:
     """Select target-absent queries, then order them without target information."""
 
     if limit <= 0:
@@ -122,6 +124,7 @@ def select_hard_queries(
     if metadata["spec_name"].duplicated().any():
         raise ValueError("Metadata contains duplicate spec_name values")
 
+    target_absent: list[dict[str, str]] = []
     eligible: list[dict[str, str]] = []
     for row in metadata.to_dict(orient="records"):
         spec_name = str(row["spec_name"])
@@ -135,13 +138,28 @@ def select_hard_queries(
         unchanged_keys.update(_top_candidate_keys(molforge, spec_name, top_k))
         if target_key in unchanged_keys:
             continue
-        eligible.append(
-            {
-                "spec_name": spec_name,
-                "target_smiles": target_smiles,
-                "target_inchi_key_connectivity": target_key,
+        target_row = {
+            "spec_name": spec_name,
+            "target_smiles": target_smiles,
+            "target_inchi_key_connectivity": target_key,
+        }
+        target_absent.append(target_row)
+        if min_formula_valid_candidates > 0:
+            if query_formulas is None or spec_name not in query_formulas:
+                raise ValueError(f"Missing query formula for {spec_name}")
+            query_formula = query_formulas[spec_name]
+            formula_valid_keys = {
+                key
+                for candidate_frame in (current, molforge)
+                for smiles in candidate_frame[
+                    candidate_frame["query_spec_name"] == spec_name
+                ].nsmallest(top_k, "rank")["candidate_smiles"]
+                for key in [connectivity_key(smiles)]
+                if key is not None and molecular_formula(smiles) == query_formula
             }
-        )
+            if len(formula_valid_keys) < min_formula_valid_candidates:
+                continue
+        eligible.append(target_row)
 
     eligible.sort(
         key=lambda row: (
@@ -152,10 +170,15 @@ def select_hard_queries(
     selected = eligible[:limit]
     if len(selected) < limit:
         raise ValueError(
-            f"Only {len(selected)} hard queries are available; requested {limit}"
+            f"Only {len(selected)} viable hard queries are available; requested {limit}"
         )
     targets = pd.DataFrame(selected)
-    return targets["spec_name"].tolist(), targets, len(eligible)
+    return (
+        targets["spec_name"].tolist(),
+        targets,
+        len(target_absent),
+        len(eligible),
+    )
 
 
 def _candidate_records(
@@ -186,15 +209,10 @@ def _round_robin_seeds(
     selected: list[dict[str, Any]] = []
     seen: set[str] = set()
     rejected: Counter[str] = Counter()
-    source_rows = [
-        current_rows[:seeds_per_source],
-        molforge_rows[:seeds_per_source],
-    ]
-    for rank_index in range(seeds_per_source):
-        for rows in source_rows:
-            if rank_index >= len(rows) or len(selected) >= max_seeds:
-                continue
-            row = rows[rank_index]
+    source_rows = []
+    for rows in (current_rows, molforge_rows):
+        valid_rows = []
+        for row in rows:
             key = connectivity_key(row["candidate_smiles"])
             formula = molecular_formula(row["candidate_smiles"])
             if key is None or formula is None:
@@ -203,11 +221,21 @@ def _round_robin_seeds(
             if formula != query_formula:
                 rejected["formula_mismatch_seed"] += 1
                 continue
+            valid_rows.append({**row, "candidate_inchi_key_connectivity": key})
+            if len(valid_rows) >= seeds_per_source:
+                break
+        source_rows.append(valid_rows)
+    for rank_index in range(seeds_per_source):
+        for rows in source_rows:
+            if rank_index >= len(rows) or len(selected) >= max_seeds:
+                continue
+            row = rows[rank_index]
+            key = row["candidate_inchi_key_connectivity"]
             if key in seen:
                 rejected["duplicate_seed"] += 1
                 continue
             seen.add(key)
-            selected.append({**row, "candidate_inchi_key_connectivity": key})
+            selected.append(row)
     return selected, rejected
 
 
@@ -272,6 +300,8 @@ def build_search_space(
             max_seeds=max_seeds,
             query_formula=query_formula,
         )
+        if not seeds:
+            raise ValueError(f"No formula-valid search seeds for {spec_name}")
         seed_keys = {row["candidate_inchi_key_connectivity"] for row in seeds}
 
         by_key: dict[str, dict[str, Any]] = {}
@@ -818,13 +848,20 @@ def command_prepare(args: argparse.Namespace) -> int:
     metadata = pd.read_csv(metadata_path)
     labels = pd.read_csv(labels_path, sep="\t")
     search_labels = labels[["spec", "formula", "ionization", "instrument"]].copy()
-    selected, targets, eligible_count = select_hard_queries(
+    query_formulas = (
+        search_labels.set_index("spec", verify_integrity=True)["formula"]
+        .astype(str)
+        .to_dict()
+    )
+    selected, targets, target_absent_count, viable_count = select_hard_queries(
         metadata,
         current,
         molforge,
         limit=args.limit,
         selection_seed=args.selection_seed,
         top_k=args.baseline_top_k,
+        query_formulas=query_formulas,
+        min_formula_valid_candidates=args.min_valid_seeds,
     )
     queries, candidates, edits = build_search_space(
         selected,
@@ -869,8 +906,10 @@ def command_prepare(args: argparse.Namespace) -> int:
             "max_seeds": args.max_seeds,
             "max_proposals_per_seed": args.max_proposals_per_seed,
             "max_neighbors_per_seed": args.max_neighbors_per_seed,
+            "min_valid_seeds": args.min_valid_seeds,
         },
-        "hard_eligible_query_count": eligible_count,
+        "hard_target_absent_query_count": target_absent_count,
+        "search_viable_query_count": viable_count,
         "selected_spec_names": selected,
         "query_count": len(queries),
         "candidate_count": len(candidates),
@@ -1036,6 +1075,7 @@ def build_parser() -> argparse.ArgumentParser:
     prepare.add_argument("--baseline-top-k", type=int, default=10)
     prepare.add_argument("--seeds-per-source", type=int, default=4)
     prepare.add_argument("--max-seeds", type=int, default=8)
+    prepare.add_argument("--min-valid-seeds", type=int, default=4)
     prepare.add_argument("--max-proposals-per-seed", type=int, default=256)
     prepare.add_argument("--max-neighbors-per-seed", type=int, default=64)
     prepare.set_defaults(func=command_prepare)

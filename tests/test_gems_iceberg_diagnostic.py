@@ -50,14 +50,14 @@ def test_hard_query_selection_is_seeded_after_target_absence_filter():
         ]
     )
 
-    selected, targets, eligible_count = MODULE.select_hard_queries(
+    selected, targets, target_absent_count, viable_count = MODULE.select_hard_queries(
         metadata,
         current,
         molforge,
         limit=2,
         selection_seed=134,
     )
-    repeated, _, _ = MODULE.select_hard_queries(
+    repeated, _, _, _ = MODULE.select_hard_queries(
         metadata,
         current,
         molforge,
@@ -67,7 +67,8 @@ def test_hard_query_selection_is_seeded_after_target_absence_filter():
 
     assert "q1" not in selected
     assert selected == repeated
-    assert eligible_count == 2
+    assert target_absent_count == 2
+    assert viable_count == 2
     assert targets["spec_name"].tolist() == selected
 
 
