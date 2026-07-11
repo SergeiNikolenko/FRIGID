@@ -86,6 +86,36 @@ def test_rank_tie_break_is_deterministic_by_source_name():
     assert [row.candidate_smiles for row in ranked] == ["CCC", "CC"]
 
 
+def test_rank_tie_prefers_later_source_priority():
+    query_fp = np.array([1.0, 1.0], dtype=np.float32)
+    candidates = [
+        MODULE.SourceCandidate(
+            query_spec_name="q1",
+            source_name="control",
+            source_rank=1,
+            smiles="CC",
+            candidate_spec_name=None,
+            inchi_key_first_block="A",
+            fingerprint=np.array([1.0, 0.0], dtype=np.float32),
+            source_priority=0,
+        ),
+        MODULE.SourceCandidate(
+            query_spec_name="q1",
+            source_name="retrieval",
+            source_rank=1,
+            smiles="CCC",
+            candidate_spec_name=None,
+            inchi_key_first_block="B",
+            fingerprint=np.array([0.0, 1.0], dtype=np.float32),
+            source_priority=1,
+        ),
+    ]
+
+    ranked = MODULE.rank_query_candidates(query_fp, candidates, top_k=2)
+
+    assert [row.source_name for row in ranked] == ["retrieval", "control"]
+
+
 def test_no_target_smiles_leaks_into_ranking(monkeypatch, tmp_path):
     metadata = pd.DataFrame(
         [

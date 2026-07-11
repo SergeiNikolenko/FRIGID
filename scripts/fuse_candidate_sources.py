@@ -119,6 +119,7 @@ class SourceCandidate:
     candidate_spec_name: str | None
     inchi_key_first_block: str
     fingerprint: np.ndarray
+    source_priority: int = 0
 
 
 @dataclass(frozen=True)
@@ -137,6 +138,7 @@ class RankedCandidate:
 def _load_source_rows(
     source_name: str,
     source_path: Path,
+    source_priority: int,
     fingerprint_bits: int,
     fingerprint_radius: int,
 ) -> list[SourceCandidate]:
@@ -187,14 +189,16 @@ def _load_source_rows(
                 candidate_spec_name=candidate_spec_name,
                 inchi_key_first_block=inchi_key_first_block,
                 fingerprint=fingerprint,
+                source_priority=source_priority,
             )
         )
     return rows
 
 
-def _dedupe_key(candidate: SourceCandidate) -> tuple[int, str, str, str]:
+def _dedupe_key(candidate: SourceCandidate) -> tuple[int, int, str, str, str]:
     return (
         candidate.source_rank,
+        -candidate.source_priority,
         candidate.source_name,
         candidate.candidate_spec_name or "",
         candidate.smiles,
@@ -218,7 +222,13 @@ def deduplicate_by_inchikey_first_block(
 
 
 def _rank_key(candidate: SourceCandidate, similarity: float) -> tuple:
-    return (-similarity, candidate.source_rank, candidate.source_name, candidate.smiles)
+    return (
+        -similarity,
+        candidate.source_rank,
+        -candidate.source_priority,
+        candidate.source_name,
+        candidate.smiles,
+    )
 
 
 def rank_query_candidates(
@@ -302,7 +312,10 @@ def parse_args() -> argparse.Namespace:
         action="append",
         required=True,
         type=_parse_source_argument,
-        help="Repeated source spec in NAME=PATH form.",
+        help=(
+            "Repeated source spec in NAME=PATH form. Later sources win exact "
+            "MIST-similarity and rank ties."
+        ),
     )
     parser.add_argument(
         "--mist-metadata-csv",
@@ -387,10 +400,11 @@ def run_fuse_candidate_sources(
 
     source_rows_by_query: dict[str, list[SourceCandidate]] = defaultdict(list)
     source_rows: dict[str, int] = {}
-    for source_name, source_path in source_specs:
+    for source_priority, (source_name, source_path) in enumerate(source_specs):
         rows = _load_source_rows(
             source_name=source_name,
             source_path=source_path,
+            source_priority=source_priority,
             fingerprint_bits=fingerprint_bits,
             fingerprint_radius=fingerprint_radius,
         )
