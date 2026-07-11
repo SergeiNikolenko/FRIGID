@@ -603,6 +603,30 @@ Threshold `0.5` оказался хуже, а объединение двух Mo
 архитектур. Вернёмся после публикации checkpoint или через отдельный
 scorer-backed DiffMS adapter.
 
+**Эксперимент 18: DualLGD graph diffusion audit**
+
+DualLGD проверен как ещё один независимый graph-diffusion decoder. У проекта
+есть официальный код, MIT-лицензия и опубликованные weights, но готовый
+checkpoint не принимает текущий `MIST` fingerprint из FRIGID:
+
+- его spectrum encoder и projection являются частью модели;
+- conditioning использует `Morgan-2048`, а текущий FRIGID contract использует
+  `Morgan-4096`;
+- поэтому нельзя честно подать в checkpoint текущий MIST output как drop-in
+  replacement для DLM.
+
+Вывод:
+
+```text
+DualLGD не запускаем как baseline.
+Сначала нужен train-only test, что фиксированное folding Morgan-4096
+строго эквивалентно native Morgan-2048; только после него допустим
+locked 64 -> 200 candidate-union gate.
+```
+
+Это сохраняет идею как потенциально сильную архитектурную ветку, но исключает
+ложное улучшение от несовместимого encoder или test-label formula leakage.
+
 **Что сейчас считается**
 
 - на 1,024 контроль DLM завершён, temperature-ветка ещё работает;
