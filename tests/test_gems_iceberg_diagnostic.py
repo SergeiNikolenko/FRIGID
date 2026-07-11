@@ -184,3 +184,57 @@ def test_score_evaluation_ranking_is_target_blind_until_metrics():
     assert details.loc[0, "exact_match_top10"] == 1
     assert aggregate["new_candidate_recoveries"] == 1
     assert aggregate["target_fields_used_by_generation_or_scoring"] == []
+
+
+def test_diagnostic_16_pass_requires_a_separate_standard64_gate():
+    score_rows = []
+    target_rows = []
+    edit_rows = []
+    for index in range(16):
+        spec_name = f"q{index:02d}"
+        target_smiles = "CCO"
+        target_key = MODULE.connectivity_key(target_smiles)
+        score_rows.extend(
+            [
+                {
+                    "query_spec_name": spec_name,
+                    "candidate_index": 0,
+                    "candidate_smiles": "CCN",
+                    "candidate_inchi_key_connectivity": MODULE.connectivity_key("CCN"),
+                    "is_neighbor": 0,
+                    "iceberg_score": 0.8,
+                },
+                {
+                    "query_spec_name": spec_name,
+                    "candidate_index": 1,
+                    "candidate_smiles": target_smiles,
+                    "candidate_inchi_key_connectivity": target_key,
+                    "is_neighbor": 1,
+                    "iceberg_score": 0.9,
+                },
+            ]
+        )
+        target_rows.append(
+            {
+                "spec_name": spec_name,
+                "target_smiles": target_smiles,
+                "target_inchi_key_connectivity": target_key,
+            }
+        )
+        edit_rows.append(
+            {
+                "accepted_unique": 1,
+                "proposals_considered": 1,
+                "invalid_counts_json": "{}",
+            }
+        )
+
+    _, aggregate = MODULE.evaluate_scores(
+        pd.DataFrame(score_rows),
+        pd.DataFrame(target_rows),
+        pd.DataFrame(edit_rows),
+        {"iceberg_calls": 16, "iceberg_wall_seconds": 1.0},
+    )
+
+    assert aggregate["decision"] == "DIAGNOSTIC_PASS_REQUIRES_STANDARD64"
+    assert aggregate["gate_semantics"]["can_promote_to_standard64"] is False

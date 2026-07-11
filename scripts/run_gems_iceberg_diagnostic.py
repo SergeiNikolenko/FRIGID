@@ -802,13 +802,13 @@ def evaluate_scores(
     gate_nondegenerate = nondegenerate_fraction >= 0.75
     if query_count == 4:
         decision = (
-            "EXPAND_TO_16"
+            "EXPAND_TO_DIAGNOSTIC_16"
             if new_recovery > 0 and gate_nondegenerate
             else "REJECT_PILOT"
         )
     elif query_count >= 16:
         decision = (
-            "PROMOTE_TO_64"
+            "DIAGNOSTIC_PASS_REQUIRES_STANDARD64"
             if new_recovery > 0 and gate_nondegenerate
             else "REJECT_DIAGNOSTIC"
         )
@@ -831,6 +831,11 @@ def evaluate_scores(
         "iceberg_calls": score_manifest["iceberg_calls"],
         "iceberg_wall_seconds": score_manifest["iceberg_wall_seconds"],
         "decision": decision,
+        "gate_semantics": {
+            "scope": "locked_target_absent_diagnostic",
+            "can_promote_to_standard64": False,
+            "passing_16_decision": "DIAGNOSTIC_PASS_REQUIRES_STANDARD64",
+        },
         "target_fields_used_by_generation_or_scoring": [],
     }
     return details_frame, aggregate
@@ -918,6 +923,11 @@ def command_prepare(args: argparse.Namespace) -> int:
             "generation": [],
             "forward_scoring": [],
             "ranking": [],
+        },
+        "gate_semantics": {
+            "scope": "locked_target_absent_diagnostic",
+            "can_promote_to_standard64": False,
+            "passing_16_decision": "DIAGNOSTIC_PASS_REQUIRES_STANDARD64",
         },
     }
     write_prepare_artifacts(output_dir, queries, candidates, edits, targets, manifest)
