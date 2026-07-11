@@ -212,7 +212,7 @@ def evaluate_ranked_predictions(
     exact_top1 = 1.0 if top_inchis and top_inchis[0] == target_inchi_key_first_block else 0.0
     exact_top10 = 1.0 if target_inchi_key_first_block in top_inchis[:10] else 0.0
     tanimoto_top1 = formula_tanimotos[0] if formula_tanimotos else 0.0
-    tanimoto_top10 = float(np.mean(formula_tanimotos)) if formula_tanimotos else 0.0
+    tanimoto_top10 = float(np.max(formula_tanimotos)) if formula_tanimotos else 0.0
 
     return {
         "exact_match_top1": float(exact_top1),
@@ -242,6 +242,22 @@ def validate_query_leakage(
             "Query first-block InChI keys overlap the train split: "
             + ", ".join(overlap[:20])
         )
+
+
+def select_exported_query_specs(
+    metadata_spec_names: list[str], allowed_query_specs: set[str]
+) -> list[str]:
+    unexpected_specs = [
+        spec_name
+        for spec_name in metadata_spec_names
+        if spec_name not in allowed_query_specs
+    ]
+    if unexpected_specs:
+        raise ValueError(
+            "Exported MIST metadata contains spectra outside --query-splits: "
+            + ", ".join(unexpected_specs[:20])
+        )
+    return metadata_spec_names
 
 
 def parse_args() -> argparse.Namespace:
@@ -292,6 +308,7 @@ def _build_library_from_train(
     formula_col: str,
 ) -> list[MoleculeCandidate]:
     candidates: list[MoleculeCandidate] = []
+    seen_inchi_keys: set[str] = set()
     for spec_name in train_specs:
         if spec_name not in labels_by_spec:
             raise ValueError(f"Train spec missing from labels.tsv: {spec_name}")
@@ -304,6 +321,9 @@ def _build_library_from_train(
         if not inchi_key:
             raise ValueError(f"Missing InChIKey for train spec: {spec_name}")
         inchi_key_first_block = inchi_key.split("-")[0]
+        if inchi_key_first_block in seen_inchi_keys:
+            continue
+        seen_inchi_keys.add(inchi_key_first_block)
 
         formula_raw = row.get(formula_col, "")
         formula = normalize_formula(formula_raw) if formula_raw else ""
@@ -410,6 +430,11 @@ def main() -> int:
             raise ValueError(f"Duplicate spec name in metadata.csv: {spec_name}")
         metadata_index[spec_name] = index
 
+    query_specs = select_exported_query_specs(
+        list(metadata_index),
+        set(query_specs),
+    )
+
     detailed_rows: list[dict[str, Any]] = []
     predictions_rows: list[dict[str, Any]] = []
     candidate_score_rows: list[dict[str, Any]] = []
@@ -475,19 +500,28 @@ def main() -> int:
             ranked=ranked,
             top_k=args.top_k,
         )
+        mist_tanimoto = (
+            compute_tanimoto_similarity(query_target_fp, query_fp)
+            if query_target_fp is not None
+            else 0.0
+        )
 
         detailed_rows.append(
             {
-                "query_spec_name": query_spec_name,
-                "query_smiles": query_smiles,
-                "query_inchi_key_first_block": query_inchi_block,
-                "query_formula": query_formula,
+                "spec_name": query_spec_name,
+                "fingerprint_source": "train_retrieval",
+                "target_smiles": query_smiles,
+                "target_inchi_key": query_inchi_block,
+                "target_formula": query_formula,
+                "mist_tanimoto": mist_tanimoto,
                 "num_ranked_candidates": len(ranked),
                 "exact_match_top1": metrics["exact_match_top1"],
                 "exact_match_top10": metrics["exact_match_top10"],
                 "tanimoto_top1": metrics["tanimoto_top1"],
                 "tanimoto_top10": metrics["tanimoto_top10"],
-                "formula_match_count": metrics["formula_match_count"],
+                "total_formula_matched": metrics["formula_match_count"],
+                "total_valid": len(ranked),
+                "total_generated": len(train_library),
             }
         )
 

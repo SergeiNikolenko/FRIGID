@@ -57,6 +57,19 @@ def test_leakage_rejection_default_fails_and_override_allows():
     MODULE.validate_query_leakage(query_blocks, {c.inchi_key_first_block for c in deduped}, True)
 
 
+def test_exported_queries_are_restricted_to_requested_splits():
+    assert MODULE.select_exported_query_specs(
+        ["s_test_2", "s_test_1"],
+        {"s_test_1", "s_test_2", "s_test_3"},
+    ) == ["s_test_2", "s_test_1"]
+
+    with pytest.raises(ValueError, match="outside --query-splits"):
+        MODULE.select_exported_query_specs(
+            ["s_train_1"],
+            {"s_test_1", "s_test_2"},
+        )
+
+
 def test_formula_first_ranking_and_global_fallback():
     candidates = [
         MODULE.MoleculeCandidate(
@@ -153,5 +166,5 @@ def test_metrics_are_computed_for_ranked_predictions():
     assert metrics["exact_match_top1"] == 0.0
     assert metrics["exact_match_top10"] == 1.0
     assert metrics["tanimoto_top1"] == 0.5
-    assert metrics["tanimoto_top10"] == 0.25
+    assert metrics["tanimoto_top10"] == 0.5
     assert metrics["formula_match_count"] == 1.0
