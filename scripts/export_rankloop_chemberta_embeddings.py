@@ -11,6 +11,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import torch
+from rdkit import Chem
 from tqdm import tqdm
 from transformers import AutoModelForMaskedLM, AutoTokenizer
 
@@ -21,7 +22,6 @@ if str(SRC_PATH) not in sys.path:
 
 from frigid.rankloop_corpus import (  # noqa: E402
     _git_revision,
-    molecule_record_from_smiles,
     sha256_file,
 )
 
@@ -79,6 +79,16 @@ def require_tied_input_output_embeddings(masked_language_model) -> None:
         )
 
 
+def inchi_key_first_block_from_smiles(smiles: str) -> str:
+    molecule = Chem.MolFromSmiles(smiles)
+    if molecule is None:
+        raise ValueError(f"Invalid candidate SMILES: {smiles!r}")
+    inchi_key = Chem.MolToInchiKey(molecule)
+    if not inchi_key:
+        raise ValueError(f"Could not compute candidate InChIKey: {smiles!r}")
+    return inchi_key.split("-", maxsplit=1)[0]
+
+
 def main() -> int:
     args = parse_args()
     if args.batch_size <= 0 or args.max_length <= 0:
@@ -134,16 +144,11 @@ def main() -> int:
 
     metadata_rows = []
     for index, smiles in enumerate(smiles_values):
-        molecule = molecule_record_from_smiles(smiles)
-        if molecule is None:
-            raise ValueError(
-                f"Invalid candidate SMILES after corpus validation: {smiles!r}"
-            )
         metadata_rows.append(
             {
                 "embedding_index": index,
                 "smiles": smiles,
-                "inchi_key_first_block": molecule.inchi_key_first_block,
+                "inchi_key_first_block": inchi_key_first_block_from_smiles(smiles),
             }
         )
     output_dir = Path(args.output_dir).expanduser().resolve()

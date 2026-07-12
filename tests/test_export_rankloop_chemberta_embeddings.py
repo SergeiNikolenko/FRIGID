@@ -57,3 +57,9 @@ def test_chemberta_loader_requires_tied_mlm_embeddings():
         MODULE.require_tied_input_output_embeddings(
             _MaskedLanguageModelStub(tied=False)
         )
+
+
+def test_candidate_identity_accepts_rdkit_valid_atoms_outside_mist_vocabulary():
+    value = MODULE.inchi_key_first_block_from_smiles("C[At]")
+
+    assert len(value) == 14

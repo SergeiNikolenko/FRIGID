@@ -2,16 +2,24 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from rdkit import Chem, DataStructs
+from rdkit.Chem import rdFingerprintGenerator
 
-from frigid.rankloop_corpus import molecule_record_from_smiles
 from frigid.rankloop_inference import (
     candidate_identity_sha256,
     forbidden_inference_columns,
 )
+
+
+@dataclass(frozen=True)
+class EvaluationMolecule:
+    inchi_key_first_block: str
+    fingerprint: np.ndarray
 
 
 def _resolve_column(columns: list[str], options: tuple[str, ...], purpose: str) -> str:
@@ -122,6 +130,31 @@ def _tanimoto(left: np.ndarray, right: np.ndarray) -> float:
     return float(np.logical_and(left_bool, right_bool).sum() / union)
 
 
+def featurize_evaluation_molecule(
+    smiles: str,
+    *,
+    fingerprint_bits: int,
+    fingerprint_radius: int,
+) -> EvaluationMolecule:
+    molecule = Chem.MolFromSmiles(smiles)
+    if molecule is None:
+        raise ValueError(f"Could not parse candidate SMILES {smiles!r}.")
+    inchi_key = Chem.MolToInchiKey(molecule)
+    if not inchi_key:
+        raise ValueError(f"Could not compute candidate InChIKey {smiles!r}.")
+    generator = rdFingerprintGenerator.GetMorganGenerator(
+        radius=fingerprint_radius,
+        fpSize=fingerprint_bits,
+    )
+    bit_vector = generator.GetFingerprint(molecule)
+    fingerprint = np.zeros((fingerprint_bits,), dtype=np.uint8)
+    DataStructs.ConvertToNumpyArray(bit_vector, fingerprint)
+    return EvaluationMolecule(
+        inchi_key_first_block=inchi_key.split("-", maxsplit=1)[0],
+        fingerprint=fingerprint,
+    )
+
+
 def evaluate_ranked_candidates(
     ranked: pd.DataFrame,
     targets: pd.DataFrame,
@@ -140,18 +173,15 @@ def evaluate_ranked_candidates(
     if missing_targets:
         raise ValueError(f"Missing target metadata for {missing_targets[0]!r}.")
 
-    molecule_cache = {}
+    molecule_cache: dict[str, EvaluationMolecule] = {}
 
-    def molecule(smiles: str):
+    def molecule(smiles: str) -> EvaluationMolecule:
         if smiles not in molecule_cache:
-            record = molecule_record_from_smiles(
+            molecule_cache[smiles] = featurize_evaluation_molecule(
                 smiles,
                 fingerprint_bits=fingerprint_bits,
                 fingerprint_radius=fingerprint_radius,
             )
-            if record is None:
-                raise ValueError(f"Could not featurize candidate SMILES {smiles!r}.")
-            molecule_cache[smiles] = record
         return molecule_cache[smiles]
 
     detailed_rows = []

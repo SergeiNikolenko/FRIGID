@@ -5,6 +5,7 @@ import pytest
 
 from frigid.rankloop_evaluation import (
     evaluate_ranked_candidates,
+    featurize_evaluation_molecule,
     validate_identical_candidate_pool,
 )
 
@@ -60,3 +61,14 @@ def test_rankloop_evaluation_rejects_candidate_pool_changes():
 
     with pytest.raises(ValueError, match="differs from the frozen reference"):
         validate_identical_candidate_pool(reference, candidate)
+
+
+def test_evaluation_accepts_rdkit_valid_atoms_outside_mist_vocabulary():
+    molecule = featurize_evaluation_molecule(
+        "C[At]",
+        fingerprint_bits=128,
+        fingerprint_radius=2,
+    )
+
+    assert len(molecule.inchi_key_first_block) == 14
+    assert molecule.fingerprint.shape == (128,)
