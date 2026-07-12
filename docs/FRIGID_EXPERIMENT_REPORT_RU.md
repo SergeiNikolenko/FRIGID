@@ -828,3 +828,19 @@ Scoring остановился до получения predictions из-за о�
 CPU-only DGL на GPU path (`Device API cuda is not enabled`). Это технический
 no-go smoke, не rejection модели. Добавлен CPU fallback и environment
 diagnostics; paired quality gate не запускался.
+
+**Эксперимент 27: перенос full orchestration на Spectrum Slurm**
+
+По рабочему правилу FRIGID теперь считается только на `spectrum`. Все DLM
+full/shard jobs на Kolmogorovsky остановлены; их частичные каталоги сохранены
+исключительно как historical audit и не будут использованы как full evidence.
+
+Для Spectrum добавлен `scripts/submit_msg_full_shard.sbatch`:
+
+- `gpu`: одна full-GPU job;
+- `gpu-shared`: пять jobs с `shard:1`;
+- каждый shard получает непересекающийся `start-index/max-spectra`, отдельный
+  `RUN_MANIFEST.json` и одинаковые checkpoint/seed/settings.
+
+Новый full run будет считаться только после проверки покрытия всех `17,082`
+`spec_name` и paired bootstrap. Это изменение orchestration, не quality claim.

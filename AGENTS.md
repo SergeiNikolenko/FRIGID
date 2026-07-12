@@ -34,6 +34,10 @@
 - Use the local machine only for orchestration, documentation, lightweight
   validation, and paired analysis. Run model inference and training on a
   configured remote host in a persistent session.
+- FRIGID model calculations are allowed only on `spectrum`. Use Spectrum Slurm
+  (`gpu` or `gpu-shared` with explicit GRES) for full and sharded runs. Other
+  hosts may be used only for documentation, artifact inspection, or cleanup;
+  never launch FRIGID inference or training there.
 - Never update a dirty server checkout in place. Fetch the required commit into
   a dedicated clean worktree and preserve active run directories and user edits.
 - A candidate may enter the production union only after target-blind paired
