@@ -56,4 +56,6 @@ For every architecture, report one of these outcomes:
 
 The Russian experiment narrative remains in
 `docs/FRIGID_EXPERIMENT_REPORT_RU.md`; detailed commands and historical runs
-remain in `docs/FRIGID_TECHNICAL_RUN_LOG_RU.md`.
+remain in `docs/FRIGID_TECHNICAL_RUN_LOG_RU.md`. The literature-backed
+bottleneck diagnosis and architecture priorities are recorded in
+`docs/FRIGID_2026_RESEARCH_PRIORITIES.md`.

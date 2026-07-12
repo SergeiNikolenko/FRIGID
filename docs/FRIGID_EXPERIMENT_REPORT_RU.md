@@ -914,3 +914,17 @@ SELFIES-мутаций.
   SHA-256 `74703c99bc9e4e4604a604afd4968026db895270e21ce63a28019c46cb0b5321`;
 - insertion/deletion: `stoned_fixed16_allops_ablation_v1`, commit `6024fe6`,
   manifest SHA-256 `921210b88ea4f954c34f77596c59ca1f94fe57e7763f5806e800ae6e81360adf`.
+
+**Зафиксированный исследовательский приоритет на 2026 год**
+
+Диагноз после candidate-union и STONED экспериментов: основной управляемый
+bottleneck сейчас находится в spectrum-aware ranking близких formula-matched
+кандидатов, а не в количестве слепых генераций. Обзор MSAlign, SECS, FlowMS,
+MARLIN, scaffold/template-guided generation, forward consistency и uncertainty
+methods вместе с caveats по splits/formula/oracle conditions записан в
+`docs/FRIGID_2026_RESEARCH_PRIORITIES.md`.
+
+Принятый порядок: завершить full frozen union -> dual-encoder contrastive
+reranker (`SPA-159`) -> при положительном compact gate cross-encoder -> отдельно
+проверить forward-consistency ensemble. Новую генерацию добавлять только для
+заранее определённых low-recall queries.
