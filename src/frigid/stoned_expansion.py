@@ -9,12 +9,13 @@ import json
 import random
 from typing import Iterable, Sequence
 
-from rdkit import Chem
+from rdkit import Chem, RDLogger
 from rdkit.Chem import rdMolDescriptors
 import selfies as sf
 
 
 SUPPORTED_OPERATIONS = ("replacement", "insertion", "deletion")
+RDLogger.DisableLog("rdApp.*")
 
 
 @dataclass(frozen=True)
