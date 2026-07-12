@@ -50,6 +50,17 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--bootstrap-resamples", type=int, default=10_000)
     parser.add_argument("--confidence", type=float, default=0.95)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument(
+        "--bootstrap-unit",
+        choices=("row", "molecule"),
+        default="row",
+        help="Resample rows or whole molecule-connectivity clusters.",
+    )
+    parser.add_argument(
+        "--cluster-column",
+        default="target_inchi_key",
+        help="Connectivity identifier used when --bootstrap-unit=molecule.",
+    )
     return parser.parse_args()
 
 
@@ -168,6 +179,43 @@ def bootstrap_mean_interval(
     return float(low), float(high)
 
 
+def cluster_bootstrap_mean_interval(
+    deltas: np.ndarray,
+    clusters: np.ndarray,
+    resamples: int,
+    confidence: float,
+    rng: np.random.Generator,
+) -> tuple[float, float]:
+    if resamples <= 0:
+        raise ValueError("bootstrap_resamples must be positive.")
+    if not 0.0 < confidence < 1.0:
+        raise ValueError("confidence must be between 0 and 1.")
+    unique_clusters, inverse = np.unique(clusters.astype(str), return_inverse=True)
+    if unique_clusters.size < 2:
+        raise ValueError("Molecule bootstrap requires at least two clusters.")
+    cluster_sums = np.bincount(inverse, weights=deltas).astype(np.float64)
+    cluster_counts = np.bincount(inverse).astype(np.float64)
+    cluster_count = unique_clusters.size
+    max_index_elements = 4_000_000
+    batch_size = max(1, min(512, max_index_elements // cluster_count))
+    bootstrap_means = np.empty(resamples, dtype=np.float64)
+    offset = 0
+    while offset < resamples:
+        current = min(batch_size, resamples - offset)
+        indices = rng.integers(
+            0,
+            cluster_count,
+            size=(current, cluster_count),
+        )
+        numerator = cluster_sums[indices].sum(axis=1)
+        denominator = cluster_counts[indices].sum(axis=1)
+        bootstrap_means[offset : offset + current] = numerator / denominator
+        offset += current
+    alpha = (1.0 - confidence) / 2.0
+    low, high = np.quantile(bootstrap_means, [alpha, 1.0 - alpha])
+    return float(low), float(high)
+
+
 def hash_names(names: Iterable[str]) -> str:
     payload = "".join(f"{name}\n" for name in names).encode("utf-8")
     return hashlib.sha256(payload).hexdigest()
@@ -180,6 +228,8 @@ def compare_runs(
     bootstrap_resamples: int,
     confidence: float,
     seed: int,
+    bootstrap_unit: str = "row",
+    cluster_column: str = "target_inchi_key",
 ) -> tuple[dict, pd.DataFrame]:
     reference, candidate, same_order = validate_and_align(reference, candidate)
     reference = add_derived_metrics(reference)
@@ -195,6 +245,30 @@ def compare_runs(
 
     names = reference["spec_name"].tolist()
     paired = pd.DataFrame({"spec_name": names})
+    clusters: np.ndarray | None = None
+    if bootstrap_unit == "molecule":
+        if (
+            cluster_column not in reference.columns
+            or cluster_column not in candidate.columns
+        ):
+            raise ValueError(
+                f"Molecule bootstrap requires cluster column {cluster_column!r}."
+            )
+        clusters = (
+            reference[cluster_column]
+            .fillna("")
+            .astype(str)
+            .str.split("-", n=1)
+            .str[0]
+            .to_numpy()
+        )
+        if any(not value for value in clusters):
+            raise ValueError(
+                f"Cluster column {cluster_column!r} contains empty values."
+            )
+        paired["bootstrap_cluster"] = clusters
+    elif bootstrap_unit != "row":
+        raise ValueError(f"Unsupported bootstrap unit: {bootstrap_unit!r}")
     summary = {
         "schema_version": 1,
         "n_pairs": len(names),
@@ -205,6 +279,11 @@ def compare_runs(
             "resamples": bootstrap_resamples,
             "confidence": confidence,
             "seed": seed,
+            "unit": bootstrap_unit,
+            "cluster_column": cluster_column if clusters is not None else None,
+            "n_clusters": int(np.unique(clusters).size)
+            if clusters is not None
+            else len(names),
         },
         "metrics": {},
     }
@@ -218,12 +297,21 @@ def compare_runs(
         ):
             raise ValueError(f"Metric {metric!r} contains non-finite values.")
         deltas = candidate_values - reference_values
-        ci_low, ci_high = bootstrap_mean_interval(
-            deltas,
-            bootstrap_resamples,
-            confidence,
-            rng,
-        )
+        if clusters is None:
+            ci_low, ci_high = bootstrap_mean_interval(
+                deltas,
+                bootstrap_resamples,
+                confidence,
+                rng,
+            )
+        else:
+            ci_low, ci_high = cluster_bootstrap_mean_interval(
+                deltas,
+                clusters,
+                bootstrap_resamples,
+                confidence,
+                rng,
+            )
         paired[f"{metric}_reference"] = reference_values
         paired[f"{metric}_candidate"] = candidate_values
         paired[f"{metric}_delta"] = deltas
@@ -275,6 +363,8 @@ def main() -> int:
         args.bootstrap_resamples,
         args.confidence,
         args.seed,
+        args.bootstrap_unit,
+        args.cluster_column,
     )
     summary.update(
         {

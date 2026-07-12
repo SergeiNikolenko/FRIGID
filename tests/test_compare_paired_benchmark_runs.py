@@ -93,6 +93,33 @@ class ComparePairedBenchmarkRunsTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "multiple fingerprint sources"):
                 MODULE.load_results(path, fingerprint_source=None)
 
+    def test_molecule_bootstrap_resamples_connectivity_clusters(self):
+        reference = make_frame(
+            ["s1", "s2", "s3", "s4"],
+            [0.1, 0.2, 0.3, 0.4],
+            [0, 0, 0, 0],
+            [0, 0, 0, 0],
+        )
+        candidate = reference.copy()
+        candidate["tanimoto_top1"] = [0.2, 0.3, 0.3, 0.4]
+        reference["target_inchi_key"] = ["A-X", "A-Y", "B-X", "C-X"]
+        candidate["target_inchi_key"] = reference["target_inchi_key"]
+
+        summary, paired = MODULE.compare_runs(
+            reference,
+            candidate,
+            ["tanimoto_top1"],
+            bootstrap_resamples=200,
+            confidence=0.95,
+            seed=9,
+            bootstrap_unit="molecule",
+            cluster_column="target_inchi_key",
+        )
+
+        self.assertEqual(summary["bootstrap"]["unit"], "molecule")
+        self.assertEqual(summary["bootstrap"]["n_clusters"], 3)
+        self.assertEqual(paired["bootstrap_cluster"].tolist(), ["A", "A", "B", "C"])
+
 
 if __name__ == "__main__":
     unittest.main()
