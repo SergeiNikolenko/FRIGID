@@ -147,6 +147,7 @@ def generate_two_switch_neighbors(
     max_proposals: int,
     max_neighbors: int,
     exclude_connectivity_keys: Iterable[str] = (),
+    continue_after_neighbor_budget: bool = False,
 ) -> tuple[list[TwoSwitchNeighbor], TwoSwitchStatistics]:
     """Generate a bounded deterministic set of validated one-step neighbors."""
 
@@ -175,7 +176,7 @@ def generate_two_switch_neighbors(
     neighbors: list[TwoSwitchNeighbor] = []
 
     for proposal in proposals[:max_proposals]:
-        if len(neighbors) >= max_neighbors:
+        if len(neighbors) >= max_neighbors and not continue_after_neighbor_budget:
             break
         stats.proposals_considered += 1
 
@@ -224,6 +225,9 @@ def generate_two_switch_neighbors(
             continue
         if candidate_key in excluded:
             stats.invalid_counts["duplicate_connectivity"] += 1
+            continue
+        if len(neighbors) >= max_neighbors:
+            stats.invalid_counts["accepted_budget_exceeded"] += 1
             continue
 
         candidate_smiles = Chem.MolToSmiles(
