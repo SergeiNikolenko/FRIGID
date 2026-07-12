@@ -11,8 +11,8 @@ from frigid.rankloop_dreams import (
 def test_merge_spectrum_peaks_preserves_all_rows_and_sorts_by_mz():
     peaks = merge_spectrum_peaks(
         [
-            ("energy_1", np.array([[200.0, 0.2], [50.0, 1.0]])),
-            ("energy_2", np.array([[100.0, 0.5]])),
+            np.array([[200.0, 0.2], [50.0, 1.0]]),
+            np.array([[100.0, 0.5]]),
         ]
     )
 

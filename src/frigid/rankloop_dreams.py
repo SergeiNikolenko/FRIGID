@@ -8,11 +8,11 @@ import numpy as np
 
 
 def merge_spectrum_peaks(
-    spectra: Sequence[tuple[str, np.ndarray]],
+    spectra: Sequence[np.ndarray],
 ) -> np.ndarray:
     """Merge all MS2 arrays into one deterministic m/z-sorted peak list."""
     arrays: list[np.ndarray] = []
-    for _name, peaks in spectra:
+    for peaks in spectra:
         peak_array = np.asarray(peaks, dtype=np.float64)
         if peak_array.size == 0:
             continue
