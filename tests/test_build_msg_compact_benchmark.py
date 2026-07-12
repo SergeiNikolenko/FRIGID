@@ -122,3 +122,4 @@ def test_formula_parser_tracks_heavy_atoms_and_element_flags():
         "has_sulfur": 1,
         "has_halogen": 1,
     }
+    assert MODULE.formula_features("C22H28N7O+")["formula_heavy_atoms"] == 30

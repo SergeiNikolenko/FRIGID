@@ -77,15 +77,16 @@ FORMULA_TOKEN = re.compile(r"([A-Z][a-z]?)(\d*)")
 
 
 def formula_features(formula: str) -> dict[str, int]:
+    normalized = re.sub(r"[+-]$", "", str(formula).strip())
     counts: dict[str, int] = {}
     position = 0
-    for match in FORMULA_TOKEN.finditer(str(formula).strip()):
+    for match in FORMULA_TOKEN.finditer(normalized):
         if match.start() != position:
             raise ValueError(f"Unsupported molecular formula: {formula!r}")
         element, raw_count = match.groups()
         counts[element] = counts.get(element, 0) + int(raw_count or 1)
         position = match.end()
-    if position != len(str(formula).strip()) or not counts:
+    if position != len(normalized) or not counts:
         raise ValueError(f"Unsupported molecular formula: {formula!r}")
     return {
         "formula_heavy_atoms": sum(
