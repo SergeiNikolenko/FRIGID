@@ -54,8 +54,12 @@ def fuse_forward_consistency_scores(
     ranked_parts: list[pd.DataFrame] = []
     for _query_name, query_rows in frame.groupby("query_spec_name", sort=False):
         rows = query_rows.copy()
-        reference = rows["tanimoto_to_mist"].to_numpy(dtype=np.float64)
-        forward = rows["forward_score"].to_numpy(dtype=np.float64)
+        reference = pd.to_numeric(
+            rows["tanimoto_to_mist"], errors="raise"
+        ).to_numpy(dtype=np.float64)
+        forward = pd.to_numeric(rows["forward_score"], errors="coerce").to_numpy(
+            dtype=np.float64
+        )
         complete = bool(np.isfinite(forward).all())
         nondegenerate = complete and float(forward.max() - forward.min()) > 1e-8
         rows["forward_fallback"] = not nondegenerate

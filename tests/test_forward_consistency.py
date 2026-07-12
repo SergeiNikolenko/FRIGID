@@ -183,6 +183,18 @@ def test_missing_forward_score_falls_back_to_reference_order():
     assert ranked["forward_fallback"].all()
 
 
+def test_blank_csv_forward_score_falls_back_to_reference_order():
+    ranked = fuse_forward_consistency_scores(
+        _frame(("0.1", "", "0.2")),
+        alpha=1.0,
+        normalization="zscore",
+        mode="blend",
+    )
+
+    assert ranked["candidate_smiles"].tolist() == ["CC", "CCC", "CCCC"]
+    assert ranked["forward_fallback"].all()
+
+
 def test_degenerate_forward_scores_fall_back_to_reference_order():
     ranked = fuse_forward_consistency_scores(
         _frame((0.5, 0.5, 0.5)),
