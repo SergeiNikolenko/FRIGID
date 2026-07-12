@@ -92,11 +92,7 @@ def main() -> int:
     )
     report["record_rejections"] = record_rejections
     report["source_statistics"] = source_stats
-    parameters = {
-        key: value
-        for key, value in vars(args).items()
-        if key != "source"
-    }
+    parameters = {key: value for key, value in vars(args).items() if key != "source"}
     parameters["source_names"] = [name for name, _ in args.source]
     manifest = write_rankloop_corpus(
         frame,

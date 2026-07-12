@@ -47,9 +47,10 @@ def test_scaffold_groups_are_partitioned_together(tmp_path: Path):
 
     aromatic = [record for record in records if record.spec_name in {"q5", "q6"}]
     assert aromatic[0].molecule.scaffold == aromatic[1].molecule.scaffold
-    assert partitions[aromatic[0].molecule.partition_group] == partitions[
-        aromatic[1].molecule.partition_group
-    ]
+    assert (
+        partitions[aromatic[0].molecule.partition_group]
+        == partitions[aromatic[1].molecule.partition_group]
+    )
 
 
 def test_candidate_source_rejects_supervision_columns(tmp_path: Path):
@@ -118,6 +119,7 @@ def test_corpus_is_leakage_safe_and_deterministic(tmp_path: Path):
         output_dir=second_dir,
         **common,
     )
-    assert first_manifest["outputs"]["candidate_corpus_sha256"] == second_manifest[
-        "outputs"
-    ]["candidate_corpus_sha256"]
+    assert (
+        first_manifest["outputs"]["candidate_corpus_sha256"]
+        == second_manifest["outputs"]["candidate_corpus_sha256"]
+    )

@@ -235,11 +235,12 @@ def split_partition_groups(
     if len(groups) < 2:
         raise ValueError("At least two scaffold/connectivity groups are required.")
     ordered = sorted(groups, key=lambda value: (_stable_digest(seed, value), value))
-    development_count = max(1, min(len(groups) - 1, round(len(groups) * development_fraction)))
+    development_count = max(
+        1, min(len(groups) - 1, round(len(groups) * development_fraction))
+    )
     development = set(ordered[:development_count])
     return {
-        group: "development" if group in development else "train"
-        for group in groups
+        group: "development" if group in development else "train" for group in groups
     }
 
 
@@ -253,13 +254,23 @@ def _resolve_source_columns(frame: pd.DataFrame) -> tuple[str, str, str | None]:
         or "ground_truth" in column
     )
     if forbidden:
-        raise ValueError(f"Candidate source contains forbidden supervision columns: {forbidden}")
+        raise ValueError(
+            f"Candidate source contains forbidden supervision columns: {forbidden}"
+        )
     query_column = next(
-        (column for column in ("query_spec_name", "spec_name") if column in frame.columns),
+        (
+            column
+            for column in ("query_spec_name", "spec_name")
+            if column in frame.columns
+        ),
         None,
     )
     smiles_column = next(
-        (column for column in ("candidate_smiles", "smiles") if column in frame.columns),
+        (
+            column
+            for column in ("candidate_smiles", "smiles")
+            if column in frame.columns
+        ),
         None,
     )
     if query_column is None or smiles_column is None:
@@ -309,7 +320,9 @@ def load_candidate_source(
         else:
             rank = row_index + 1
         if rank < 0:
-            raise ValueError(f"Negative rank at row {row_index} in source {source_name!r}.")
+            raise ValueError(
+                f"Negative rank at row {row_index} in source {source_name!r}."
+            )
         rows_by_query[query].append(
             SourceCandidate(
                 query_spec_name=query,
@@ -410,7 +423,9 @@ def choose_candidates(
                 choice.molecule.inchi_key_first_block,
             ),
         ),
-        _rank_library_candidates(query, formula_index.get(query.formula, ()), "formula_morgan"),
+        _rank_library_candidates(
+            query, formula_index.get(query.formula, ()), "formula_morgan"
+        ),
     ]
     if query.scaffold:
         tiers.append(
@@ -495,7 +510,9 @@ def build_rankloop_corpus(
     for connectivity, molecule_records in sorted(by_connectivity.items()):
         molecule_records.sort(key=lambda record: record.spec_name)
         limit = max_spectra_per_molecule
-        selected_records.extend(molecule_records if not limit else molecule_records[:limit])
+        selected_records.extend(
+            molecule_records if not limit else molecule_records[:limit]
+        )
     selected_records.sort(
         key=lambda record: (
             _stable_digest(seed, record.molecule.inchi_key_first_block),
@@ -517,7 +534,9 @@ def build_rankloop_corpus(
         key=lambda molecule: molecule.inchi_key_first_block,
     )
     if len(train_library) <= negatives_per_query:
-        raise ValueError("Training molecule library is too small for the requested negatives.")
+        raise ValueError(
+            "Training molecule library is too small for the requested negatives."
+        )
     formula_index: dict[str, list[MoleculeRecord]] = defaultdict(list)
     scaffold_index: dict[str, list[MoleculeRecord]] = defaultdict(list)
     nominal_mass_index: dict[int, list[MoleculeRecord]] = defaultdict(list)
@@ -597,9 +616,9 @@ def build_rankloop_corpus(
             ),
             *negative_choices,
         ]
-        random.Random(
-            int(_stable_digest(seed, record.spec_name)[:16], 16)
-        ).shuffle(choices)
+        random.Random(int(_stable_digest(seed, record.spec_name)[:16], 16)).shuffle(
+            choices
+        )
         for candidate_rank, choice in enumerate(choices, start=1):
             candidate = choice.molecule
             rows.append(
@@ -670,12 +689,16 @@ def build_rankloop_corpus(
             .items()
         },
         "negative_tier_counts": {
-            str(key): int(value) for key, value in frame["negative_tier"].value_counts().items()
+            str(key): int(value)
+            for key, value in frame["negative_tier"].value_counts().items()
         },
         "source_counts": {
-            str(key): int(value) for key, value in frame["source_name"].value_counts().items()
+            str(key): int(value)
+            for key, value in frame["source_name"].value_counts().items()
         },
-        "formula_match_rate": float(frame.loc[frame["label"] == 0, "formula_match"].mean()),
+        "formula_match_rate": float(
+            frame.loc[frame["label"] == 0, "formula_match"].mean()
+        ),
         "train_library_molecule_count": len(train_library),
         "scaffold_overlap_count": len(scaffold_overlap),
         "connectivity_overlap_count": len(connectivity_overlap),
@@ -703,14 +726,22 @@ def write_rankloop_corpus(
 
     final_report = dict(report)
     final_report["candidate_corpus_sha256"] = sha256_file(corpus_path)
-    quality_path.write_text(json.dumps(final_report, indent=2, sort_keys=True), encoding="utf-8")
+    quality_path.write_text(
+        json.dumps(final_report, indent=2, sort_keys=True), encoding="utf-8"
+    )
     revision, dirty = _git_revision(Path(repo_root))
     manifest = {
         "schema_version": 1,
         "repo": {"commit": revision, "dirty": dirty},
         "inputs": {
-            "labels_tsv": {"path": str(Path(labels_tsv).resolve()), "sha256": sha256_file(labels_tsv)},
-            "split_tsv": {"path": str(Path(split_tsv).resolve()), "sha256": sha256_file(split_tsv)},
+            "labels_tsv": {
+                "path": str(Path(labels_tsv).resolve()),
+                "sha256": sha256_file(labels_tsv),
+            },
+            "split_tsv": {
+                "path": str(Path(split_tsv).resolve()),
+                "sha256": sha256_file(split_tsv),
+            },
             "candidate_sources": [
                 {
                     "name": name,
@@ -728,5 +759,7 @@ def write_rankloop_corpus(
             "quality_report_sha256": sha256_file(quality_path),
         },
     }
-    manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8")
+    manifest_path.write_text(
+        json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8"
+    )
     return manifest
