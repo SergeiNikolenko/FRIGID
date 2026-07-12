@@ -794,3 +794,11 @@ bootstrap на всей выборке. Рабочая задача: `SPA-155`.
 fusion проверим отсутствие пересечений по `spec_name`, полное покрытие 17,082
 строк и совпадение commit/checkpoint/seed/settings. Это только ускорение
 получения того же evidence, не новый quality claim.
+
+**Следующая гипотеза после full-gate**
+
+Параллельно зарегистрирована `SPA-156`: query-local selective TTT по train-only
+MIST-соседям. Сейчас это только `prepared`: neighbor builder и safeguards есть,
+но adapter execution ещё не реализован. Кандидат не будет допущен к compact
+quality gate без 16-32 smoke, зафиксированного бюджета и согласованного
+micro256 + macro64 результата против frozen four-source union.
