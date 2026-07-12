@@ -802,3 +802,13 @@ MIST-соседям. Сейчас это только `prepared`: neighbor build
 но adapter execution ещё не реализован. Кандидат не будет допущен к compact
 quality gate без 16-32 smoke, зафиксированного бюджета и согласованного
 micro256 + macro64 результата против frozen four-source union.
+
+Второй sidecar-аудит выбрал следующую более близкую к запуску гипотезу:
+
+- `SPA-157`: ICEBERG-guided refinement/union-extension;
+- текущий статус: `prepared`, quality claim отсутствует;
+- обязательный порядок: target-safe smoke -> micro128 futility -> micro256 +
+  macro64 paired gate -> только затем 1024/full.
+
+ICEBERG рассматривается только как дополнительный источник кандидатов. Его
+нельзя использовать для замены подтверждённого frozen union до paired evidence.
