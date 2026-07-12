@@ -596,11 +596,6 @@ def _run_official_iceberg(
         environment["CUDA_VISIBLE_DEVICES"] = str(gpu)
         command.append("--gpu")
     pythonpath = [str(ms_pred_root / "src"), str(SRC_ROOT)]
-    # Keep subprocess imports stable when the selected interpreter is a uv
-    # symlink and the parent shell has no active virtualenv variables.
-    site_packages = python_path.parent.parent / "lib" / "python3.10" / "site-packages"
-    if site_packages.is_dir():
-        pythonpath.append(str(site_packages))
     if environment.get("PYTHONPATH"):
         pythonpath.append(environment["PYTHONPATH"])
     environment["PYTHONPATH"] = os.pathsep.join(pythonpath)
