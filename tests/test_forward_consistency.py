@@ -1,8 +1,20 @@
+import importlib.util
+import sys
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 
 from frigid.forward_consistency import fuse_forward_consistency_scores
 from frigid.rankloop_inference import candidate_identity_sha256
+
+
+SCRIPT_PATH = Path(__file__).parents[1] / "scripts" / "score_rankloop_forward_consistency.py"
+SPEC = importlib.util.spec_from_file_location("score_rankloop_forward_consistency", SCRIPT_PATH)
+MODULE = importlib.util.module_from_spec(SPEC)
+assert SPEC.loader is not None
+sys.modules[SPEC.name] = MODULE
+SPEC.loader.exec_module(MODULE)
 
 
 def _frame(forward_scores=(0.1, 0.9, 0.2)):
@@ -15,6 +27,18 @@ def _frame(forward_scores=(0.1, 0.9, 0.2)):
             "forward_score": list(forward_scores),
         }
     )
+
+
+def test_python_executable_path_preserves_virtualenv_symlink(tmp_path):
+    base_python = tmp_path / "base-python"
+    base_python.touch()
+    venv_python = tmp_path / "venv-python"
+    venv_python.symlink_to(base_python)
+
+    executable = MODULE._python_executable_path(str(venv_python))
+
+    assert executable == venv_python
+    assert executable.resolve() == base_python
 
 
 def test_forward_blend_can_promote_consistent_candidate_without_identity_change():

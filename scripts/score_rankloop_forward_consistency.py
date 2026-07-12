@@ -59,6 +59,12 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def _python_executable_path(value: str) -> Path:
+    """Return an absolute executable path without resolving a virtualenv symlink."""
+
+    return Path(value).expanduser().absolute()
+
+
 def main() -> int:
     args = parse_args()
     if args.top_k <= 0 or args.batch_size <= 0 or args.num_workers < 0:
@@ -67,7 +73,7 @@ def main() -> int:
     spec_dir = Path(args.spec_dir).expanduser().resolve()
     output_dir = Path(args.output_dir).expanduser().resolve()
     ms_pred_root = Path(args.ms_pred_root).expanduser().resolve()
-    python_path = Path(args.python_path).expanduser().resolve()
+    python_path = _python_executable_path(args.python_path)
     gen_checkpoint = Path(args.gen_checkpoint).expanduser().resolve()
     inten_checkpoint = Path(args.inten_checkpoint).expanduser().resolve()
     manifest_path = (
