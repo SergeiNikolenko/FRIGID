@@ -78,6 +78,25 @@ def _unsupported_iceberg_elements(
     )
 
 
+def _normalized_iceberg_instrument(value: object) -> str | None:
+    try:
+        return normalize_instrument(value)
+    except ValueError:
+        return None
+
+
+def _missing_forward_rows(candidates: pd.DataFrame) -> list[dict[str, object]]:
+    return [
+        {
+            **candidate,
+            "iceberg_score": math.nan,
+            "best_collision_energy_ev": math.nan,
+            "precursor_mz": math.nan,
+        }
+        for candidate in candidates.to_dict(orient="records")
+    ]
+
+
 def main() -> int:
     args = parse_args()
     if args.top_k <= 0 or args.batch_size <= 0 or args.num_workers < 0:
@@ -168,26 +187,19 @@ def main() -> int:
             }
         )
         query = observed_map.loc[query_name]
+        normalized_instrument = _normalized_iceberg_instrument(query["instrument"])
         query_payload = {
             "spec_name": query_name,
             "ionization": str(query["ionization"]),
-            "instrument": normalize_instrument(query["instrument"]),
+            "instrument": normalized_instrument,
         }
         query_dir = predictions_root / query_name
         observed_path = spec_dir / f"{query_name}.ms"
-        if supported_rows.empty:
+        if normalized_instrument is None or supported_rows.empty:
             prediction_path = None
             wall_seconds = 0.0
             missing_predictions = len(rows)
-            rows_scored = [
-                {
-                    **candidate,
-                    "iceberg_score": math.nan,
-                    "best_collision_energy_ev": math.nan,
-                    "precursor_mz": math.nan,
-                }
-                for candidate in rows.to_dict(orient="records")
-            ]
+            rows_scored = _missing_forward_rows(rows)
         else:
             prediction_path, wall_seconds = _run_official_iceberg(
                 query=query_payload,
@@ -213,9 +225,14 @@ def main() -> int:
             {
                 "spec_name": query_name,
                 "candidate_count": len(rows),
-                "iceberg_input_count": len(supported_rows),
+                "iceberg_input_count": (
+                    len(supported_rows) if normalized_instrument is not None else 0
+                ),
                 "unsupported_candidate_count": len(rows) - len(supported_rows),
                 "unsupported_elements": unsupported_elements,
+                "unsupported_instrument": (
+                    str(query["instrument"]) if normalized_instrument is None else None
+                ),
                 "missing_predictions": missing_predictions,
                 "wall_seconds": wall_seconds,
                 "prediction_path": str(prediction_path) if prediction_path else None,
