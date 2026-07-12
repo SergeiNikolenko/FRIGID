@@ -58,3 +58,23 @@
   Morgan-2048 interface without target leakage.
 - Treat selective TTT as prepared only. It requires train-neighbor provenance,
   a frozen selection policy, and a paired compact result before promotion.
+
+## Complex-model research registry
+
+- The current quality leader is the frozen four-source union documented in
+  `docs/FRIGID_MODEL_STATUS.md`; do not replace it with a single architecture
+  without a paired gate.
+- DreaMS, NGBoost, ICEBERG, DiffMS, MBGen, DualLGD, GEMS-style search, and
+  selective TTT must be reported with an explicit state (`confirmed`,
+  `rejected`, `bounded`, `prepared`, `blocked`, or `running`) and an exact
+  evidence path. Code availability is not benchmark evidence.
+- Any new complex model must first run on 16-32 spectra for a smoke check,
+  then on the locked compact panels. A result is not a quality claim until
+  molecule-cluster paired confidence intervals are recorded.
+- Maintain complementary candidate sources when they improve union recall;
+  do not discard the complete frozen pipeline because a standalone model is
+  weaker. Add one Linear issue per promoted hypothesis and close rejected
+  hypotheses with their evidence.
+- Full runs are tracked in Linear and in the Russian report with host, GPU,
+  session, worktree commit, checkpoint hash, manifest hash, run directory, and
+  next artifact. Never restart an active run merely to change reporting.

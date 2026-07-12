@@ -748,5 +748,34 @@ Union улучшает и replicate-frequency выборку micro256,
 
 **Что сейчас считается**
 
-- следующий gate: тот же frozen union на 1,024 molecule-diverse spectra;
-- после положительного 1,024 gate — полный 17,082-spectrum union.
+**Эксперимент 23: аудит locked 1,024 gate**
+
+Повторно проверили уже сохранённый exact-subset результат без изменения
+кандидата, seed или ranking policy. Это не новый tuning-run, а контроль
+воспроизводимости перед большим прогоном.
+
+| Metric | Four-source union vs DLM control | 95% CI |
+| --- | ---: | ---: |
+| Tanimoto top-1 | `+0.0189` | `[+0.0148, +0.0232]` |
+| Tanimoto top-10 | `+0.0294` | `[+0.0246, +0.0344]` |
+| Exact top-1 | `+0.0127` | `[+0.0049, +0.0215]` |
+| Exact top-10 | `+0.0283` | `[+0.0186, +0.0391]` |
+
+Вывод:
+
+```text
+Locked 1,024 gate подтверждён: все четыре целевые метрики улучшились.
+SPA-153 закрыта в Linear. Запущен frozen full-gate на 17,082 spectra.
+```
+
+**Эксперимент 24: полный frozen union, в работе**
+
+Запущены только уже подтверждённые источники, без подстройки по test labels:
+
+- DLM control, 100 attempts: Kolmogorovsky GPU4;
+- DLM temperature 0.8, 200 attempts: Kolmogorovsky GPU3, уже обработано `3,750 / 17,082`;
+- MolForge 0.172: Spectrum GPU0, первые `30 / 17,082`;
+- train-only retrieval: готовый candidate table.
+
+После завершения источников будет собран target-blind union и выполнен paired
+bootstrap на всей выборке. Рабочая задача: `SPA-155`.
