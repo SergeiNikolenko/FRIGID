@@ -885,3 +885,23 @@ futility -> concordant molecule-cluster `micro256` + molecule-disjoint `macro64`
 -> locked `1,024` -> full. При положительном результате следующий этап —
 top-32/64 cross-encoder. До завершения текущего full baseline ветка остаётся
 `Todo` и не запускается.
+
+**Эксперимент 30: constrained STONED-SELFIES expansion**
+
+На Spectrum проверили target-blind расширение frozen four-source union на
+фиксированных 16 сложных спектрах. Это диагностическая target-absent панель,
+поэтому она может остановить слабую ветку, но не подтвердить улучшение.
+
+| Вариант | Delta best-candidate Tanimoto | 95% CI | Новые targets | MIST Tanimoto@10 |
+| --- | ---: | ---: | ---: | ---: |
+| STONED replacement | `+0.0079` | `[+0.0021, +0.0150]` | `0` | `-0.0012` |
+| STONED paired swap | `+0.0091` | `[+0.0033, +0.0156]` | `0` | `-0.0015` |
+| Two-switch control | `+0.0152` | `[+0.0070, +0.0243]` | `0` | `+0.0010` |
+
+Insertion/deletion дали только `4.86%` exact-formula survival и были отклонены
+по stop rule. Replacement и paired swap создают много новых связностей
+(`778` и `2,342`, которых нет у two-switch), но не достигли порога `+0.01`, не
+нашли новые правильные структуры и не улучшили ranking. Итог: ветка
+`bounded`, без перехода на `micro128`. Следующий архитектурный шаг должен
+использовать spectrum-aware selection/reranking, а не увеличивать число слепых
+SELFIES-мутаций.
