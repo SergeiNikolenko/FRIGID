@@ -18,6 +18,11 @@ set -euo pipefail
 PYTHON_BIN="${PYTHON_BIN:-$FRIGID_REPO/.venv/bin/python}"
 BATCH_SIZE="${BATCH_SIZE:-16}"
 INFERENCE_DTYPE="${INFERENCE_DTYPE:-float32}"
+CACHE_CONDITIONING="${CACHE_CONDITIONING:-0}"
+CACHE_ARGS=()
+if [[ "$CACHE_CONDITIONING" == "1" ]]; then
+  CACHE_ARGS+=(--cache-conditioning)
+fi
 mkdir -p "$OUT_DIR"
 cat > "$OUT_DIR/RUN_MANIFEST.json" <<JSON
 {
@@ -38,6 +43,7 @@ cat > "$OUT_DIR/RUN_MANIFEST.json" <<JSON
   "max_attempts": $MAX_ATTEMPTS,
   "batch_size": $BATCH_SIZE,
   "inference_dtype": "$INFERENCE_DTYPE",
+  "cache_conditioning": "$CACHE_CONDITIONING",
   "fingerprint_source": "mist_binary",
   "seed": 42
 }
@@ -54,6 +60,7 @@ CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0}" "$PYTHON_BIN" \
   --split test \
   --batch-size "$BATCH_SIZE" \
   --inference-dtype "$INFERENCE_DTYPE" \
+  "${CACHE_ARGS[@]}" \
   --start-index "$START_INDEX" \
   --max-spectra "$MAX_SPECTRA" \
   --softmax-temp "$SOFTMAX_TEMP" \

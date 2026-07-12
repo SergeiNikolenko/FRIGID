@@ -305,6 +305,20 @@ class Sampler:
                 device=fingerprint_tensor.device,
                 dtype=torch.float32
             )
+
+        cached_formula_embeddings = None
+        cached_formula_mask = None
+        cached_fingerprint_embeddings = None
+        cached_fingerprint_mask = None
+        if getattr(self, 'cache_conditioning', False):
+            if formula is not None and getattr(self.model, 'conditioner_type', None) == 'cross_attention':
+                cached_formula_embeddings, cached_formula_mask = (
+                    self.model._prepare_formula_sequence_embeddings(formula, x)
+                )
+            if fingerprint_tensor is not None and getattr(self.model, 'fingerprint_conditioner_type', None) == 'cross_attention':
+                cached_fingerprint_embeddings, cached_fingerprint_mask = (
+                    self.model._prepare_fingerprint_sequence_embeddings(fingerprint_tensor, x)
+                )
         
         for i in range(num_steps):
             # Use model's forward method which supports formula conditioning
@@ -313,7 +327,11 @@ class Sampler:
                 attention_mask,
                 formula=formula,
                 fingerprint=fingerprint_tensor,
-                fingerprint_mask=fingerprint_mask
+                fingerprint_mask=fingerprint_mask,
+                formula_embeddings=cached_formula_embeddings,
+                formula_condition_mask=cached_formula_mask,
+                fingerprint_embeddings=cached_fingerprint_embeddings,
+                fingerprint_condition_mask=cached_fingerprint_mask,
             )
 
             if gamma and w:
