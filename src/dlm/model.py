@@ -751,7 +751,10 @@ class DLM(L.LightningModule):
             if profile_enabled and torch.cuda.is_available():
                 torch.cuda.synchronize(x.device)
 
-        with torch.amp.autocast('cuda', dtype=torch.float32):
+        autocast_dtype = getattr(self, 'inference_autocast_dtype', torch.float32)
+        if self.training:
+            autocast_dtype = torch.float32
+        with torch.amp.autocast('cuda', dtype=autocast_dtype):
             # Prepare formula conditioning (if using cross-attention)
             if profile_enabled:
                 sync_if_profiled()

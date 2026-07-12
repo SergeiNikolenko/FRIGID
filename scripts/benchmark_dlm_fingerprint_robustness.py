@@ -99,6 +99,12 @@ def parse_args():
     parser.add_argument('--randomness', type=float)
     parser.add_argument('--formula-matches', type=int, help='Required formula matches per spectrum')
     parser.add_argument('--max-attempts', type=int, help='Max generation attempts per spectrum')
+    parser.add_argument(
+        '--inference-dtype',
+        choices=['float32', 'bfloat16', 'float16'],
+        default='float32',
+        help='Autocast dtype for the DLM forward pass during inference.',
+    )
     parser.add_argument('--seed', type=int, default=42)
     parser.add_argument('--use-shared-cross-attention', action='store_true')
     parser.add_argument('--token-model', type=str, default=None)
@@ -556,6 +562,7 @@ def main():
     )
     mist_encoder = load_mist_encoder(config['mist_encoder'], device)
     sampler = load_dlm_sampler(config['dlm'], args.use_shared_cross_attention)
+    sampler.model.inference_autocast_dtype = getattr(torch, args.inference_dtype)
     max_spectra = args.max_spectra or config.get('evaluation', {}).get('max_spectra')
     if spec_names is not None and args.max_spectra is None:
         max_spectra = len(spec_names)
