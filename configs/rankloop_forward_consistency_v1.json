@@ -44,6 +44,8 @@
     "target_metadata_sha256": "80547189d6f40f3f7c8cc53290aab8e2be2b9558f100e33d6337e2afb1fa352e",
     "candidate_identity_sha256": "e6423da4166c8a1c17b1ab74378293aa2f4ac3c7007d9face47b687608525f26",
     "query_count": 128,
-    "candidate_count": 1280
+    "candidate_count": 1280,
+    "futility_rule": "continue only when Tanimoto@1 mean delta is positive and Exact@1 mean delta is nonnegative",
+    "interpretation": "a positive micro128 result is not confirmation; confirmation requires concordant micro256 and molecule-disjoint macro64"
   }
 }
