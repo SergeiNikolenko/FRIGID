@@ -607,6 +607,10 @@ def _run_official_iceberg(
     log_path = query_dir / "iceberg.log"
     started = time.perf_counter()
     with log_path.open("w", encoding="utf-8") as log_handle:
+        log_handle.write(
+            f"python_path={python_path}\nPYTHONPATH={environment.get('PYTHONPATH', '')}\n"
+        )
+        log_handle.flush()
         result = subprocess.run(
             command,
             cwd=ms_pred_root,
