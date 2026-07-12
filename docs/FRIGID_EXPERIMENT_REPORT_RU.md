@@ -905,3 +905,12 @@ Insertion/deletion дали только `4.86%` exact-formula survival и бы�
 `bounded`, без перехода на `micro128`. Следующий архитектурный шаг должен
 использовать spectrum-aware selection/reranking, а не увеличивать число слепых
 SELFIES-мутаций.
+
+Доказательства на `spectrum`:
+
+- replacement-only: `stoned_fixed16_replacement_v4_clean`, commit `6024fe6`,
+  manifest SHA-256 `b0884d6a7fae59c769abf8ef1fc42cc0896182c653916e31d82d49925a9c70a7`;
+- paired swap: `stoned_fixed16_paired_swap_v1`, commit `94ce6cc`, manifest
+  SHA-256 `74703c99bc9e4e4604a604afd4968026db895270e21ce63a28019c46cb0b5321`;
+- insertion/deletion: `stoned_fixed16_allops_ablation_v1`, commit `6024fe6`,
+  manifest SHA-256 `921210b88ea4f954c34f77596c59ca1f94fe57e7763f5806e800ae6e81360adf`.

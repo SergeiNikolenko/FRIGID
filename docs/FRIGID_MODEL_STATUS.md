@@ -28,7 +28,7 @@ changes state and link the corresponding run evidence and Linear issue.
 | MS-BART | rejected as current source | Weak standalone candidates and no useful union gain | Revisit only with a materially stronger checkpoint. |
 | Consensus reranker | rejected | Positive first 32, negative held-out last 32 | Overfit; do not scale. |
 | Oracle refinement model | rejected | Refined Tanimoto below baseline | Redesign training target and scorer. |
-| Constrained STONED-SELFIES expansion | bounded diagnostic | Fixed16 target-absent panel: replacement `+0.0079`, paired swap `+0.0091`, no new target recoveries or MIST-ranking gain; insertion/deletion failed the formula-survival stop rule | Do not advance unchanged to micro128. Revisit only with a materially different formula-preserving operator or spectrum-aware selection. |
+| Constrained STONED-SELFIES expansion | bounded diagnostic | Fixed16 target-absent panel: replacement `+0.0079` (`stoned_fixed16_replacement_v4_clean`, `6024fe6`), paired swap `+0.0091` (`stoned_fixed16_paired_swap_v1`, `94ce6cc`), no new target recoveries or MIST-ranking gain; insertion/deletion failed the formula-survival stop rule | Do not advance unchanged to micro128. Revisit only with a materially different formula-preserving operator or spectrum-aware selection. |
 
 ## Audited and prepared research branches
 
