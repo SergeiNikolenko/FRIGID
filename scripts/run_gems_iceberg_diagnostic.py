@@ -1044,7 +1044,11 @@ def command_score(args: argparse.Namespace) -> int:
             f"Target fields are forbidden in score inputs: {sorted(forbidden)}"
         )
     ms_pred_root = Path(args.ms_pred_root).expanduser().resolve()
-    python_path = Path(args.python_path).expanduser().resolve()
+    # Keep a venv symlink intact. Resolving it can escape the venv and lose
+    # site-packages when uv creates the interpreter link.
+    python_path = Path(args.python_path).expanduser()
+    if not python_path.is_absolute():
+        python_path = (Path.cwd() / python_path).absolute()
     gen_checkpoint = Path(args.gen_checkpoint).expanduser().resolve()
     inten_checkpoint = Path(args.inten_checkpoint).expanduser().resolve()
     ms_pred_info = verify_official_ms_pred(ms_pred_root, args.expected_ms_pred_commit)
