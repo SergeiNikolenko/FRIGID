@@ -93,6 +93,61 @@ def load_union_candidates(path: Path) -> pd.DataFrame:
     return frame.sort_values(["query_spec_name", "rank"], kind="stable")
 
 
+def load_fixed_spec_names(path: Path) -> list[str]:
+    """Load a predeclared query order without inspecting target structures."""
+    separator = "\t" if path.suffix.lower() in {".tsv", ".tab"} else ","
+    frame = pd.read_csv(path, sep=separator, dtype=str).fillna("")
+    if "spec_name" not in frame.columns:
+        raise ValueError(f"Fixed query manifest is missing spec_name: {path}")
+    names = frame["spec_name"].astype(str).str.strip().tolist()
+    if not names or any(not name for name in names) or len(names) != len(set(names)):
+        raise ValueError("Fixed query manifest spec_name values must be unique and non-empty")
+    return names
+
+
+def load_observed_query_labels(
+    spec_dir: Path,
+    spec_names: list[str],
+) -> pd.DataFrame:
+    """Read only observed-spectrum conditions needed by ICEBERG."""
+    rows: list[dict[str, str]] = []
+    for spec_name in spec_names:
+        path = spec_dir / f"{spec_name}.ms"
+        if not path.is_file():
+            raise FileNotFoundError(path)
+        values: dict[str, str] = {}
+        for raw_line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+            line = raw_line.strip()
+            for prefix, key in ((">formula", "formula"), (">ionization", "ionization"), ("#instrumentation", "instrument")):
+                if line.startswith(prefix):
+                    values[key] = line[len(prefix):].strip()
+        missing = {"formula", "ionization", "instrument"}.difference(values)
+        if missing:
+            raise ValueError(f"Observed spectrum {path} is missing: {sorted(missing)}")
+        rows.append({"spec": spec_name, **values})
+    return pd.DataFrame(rows, columns=["spec", "formula", "ionization", "instrument"])
+
+
+def build_evaluation_targets(metadata: pd.DataFrame, spec_names: list[str]) -> pd.DataFrame:
+    """Create post-scoring targets; never passed to generation or ranking."""
+    metadata = metadata.copy()
+    if "spec_name" not in metadata.columns or "smiles" not in metadata.columns:
+        raise ValueError("Metadata must contain spec_name and smiles")
+    metadata["spec_name"] = metadata["spec_name"].astype(str)
+    rows = metadata.set_index("spec_name").loc[spec_names]
+    targets = []
+    for spec_name, row in rows.iterrows():
+        key = connectivity_key(str(row["smiles"]))
+        if not key:
+            raise ValueError(f"Cannot derive target connectivity key for {spec_name}")
+        targets.append({
+            "spec_name": spec_name,
+            "target_smiles": str(row["smiles"]),
+            "target_inchi_key_connectivity": key,
+        })
+    return pd.DataFrame(targets)
+
+
 def _top_candidate_keys(frame: pd.DataFrame, spec_name: str, top_k: int) -> set[str]:
     rows = frame[frame["query_spec_name"] == spec_name].nsmallest(top_k, "rank")
     return {
@@ -851,23 +906,35 @@ def command_prepare(args: argparse.Namespace) -> int:
     current = load_union_candidates(current_path)
     molforge = load_union_candidates(molforge_path)
     metadata = pd.read_csv(metadata_path)
-    labels = pd.read_csv(labels_path, sep="\t")
-    search_labels = labels[["spec", "formula", "ionization", "instrument"]].copy()
-    query_formulas = (
-        search_labels.set_index("spec", verify_integrity=True)["formula"]
-        .astype(str)
-        .to_dict()
-    )
-    selected, targets, target_absent_count, viable_count = select_hard_queries(
-        metadata,
-        current,
-        molforge,
-        limit=args.limit,
-        selection_seed=args.selection_seed,
-        top_k=args.baseline_top_k,
-        query_formulas=query_formulas,
-        min_formula_valid_candidates=args.min_valid_seeds,
-    )
+    if args.fixed_spec_manifest:
+        fixed_manifest_path = Path(args.fixed_spec_manifest).expanduser().resolve()
+        selected = load_fixed_spec_names(fixed_manifest_path)
+        if len(selected) != args.limit:
+            raise ValueError(
+                f"Fixed query manifest has {len(selected)} rows; --limit is {args.limit}"
+            )
+        search_labels = load_observed_query_labels(spec_dir, selected)
+        targets = build_evaluation_targets(metadata, selected)
+        target_absent_count = None
+        viable_count = None
+    else:
+        labels = pd.read_csv(labels_path, sep="\t")
+        search_labels = labels[["spec", "formula", "ionization", "instrument"]].copy()
+        query_formulas = (
+            search_labels.set_index("spec", verify_integrity=True)["formula"]
+            .astype(str)
+            .to_dict()
+        )
+        selected, targets, target_absent_count, viable_count = select_hard_queries(
+            metadata,
+            current,
+            molforge,
+            limit=args.limit,
+            selection_seed=args.selection_seed,
+            top_k=args.baseline_top_k,
+            query_formulas=query_formulas,
+            min_formula_valid_candidates=args.min_valid_seeds,
+        )
     queries, candidates, edits = build_search_space(
         selected,
         current,
@@ -901,6 +968,14 @@ def command_prepare(args: argparse.Namespace) -> int:
                 "path": str(labels_path),
                 "sha256": sha256_file(labels_path),
             },
+            "fixed_spec_manifest": (
+                {
+                    "path": str(fixed_manifest_path),
+                    "sha256": sha256_file(fixed_manifest_path),
+                }
+                if args.fixed_spec_manifest
+                else None
+            ),
         },
         "parameters": {
             "limit": args.limit,
@@ -919,7 +994,11 @@ def command_prepare(args: argparse.Namespace) -> int:
         "query_count": len(queries),
         "candidate_count": len(candidates),
         "target_use": {
-            "selection": "target connectivity absent from unchanged current+MolForge top-10",
+            "selection": (
+                "predeclared fixed manifest; no target fields"
+                if args.fixed_spec_manifest
+                else "target connectivity absent from unchanged current+MolForge top-10"
+            ),
             "generation": [],
             "forward_scoring": [],
             "ranking": [],
@@ -1080,6 +1159,10 @@ def build_parser() -> argparse.ArgumentParser:
     prepare.add_argument("--spec-dir", required=True)
     prepare.add_argument("--output-dir", required=True)
     prepare.add_argument("--limit", type=int, choices=(4, 16, 64), required=True)
+    prepare.add_argument(
+        "--fixed-spec-manifest",
+        help="Predeclared ordered query manifest. Uses observed .ms headers and never target-based selection.",
+    )
     prepare.add_argument("--selection-seed", type=int, default=13420260711)
     prepare.add_argument("--neighbor-seed", type=int, default=13420260711)
     prepare.add_argument("--baseline-top-k", type=int, default=10)

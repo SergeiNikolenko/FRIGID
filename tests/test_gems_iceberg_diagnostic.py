@@ -72,6 +72,25 @@ def test_hard_query_selection_is_seeded_after_target_absence_filter():
     assert targets["spec_name"].tolist() == selected
 
 
+def test_fixed_manifest_reads_observed_conditions_without_target_selection(tmp_path):
+    manifest = tmp_path / "fixed.tsv"
+    manifest.write_text("spec_name\nq2\nq1\n", encoding="utf-8")
+    spec_dir = tmp_path / "specs"
+    spec_dir.mkdir()
+    for name in ("q1", "q2"):
+        (spec_dir / f"{name}.ms").write_text(
+            f">compound {name}\n>formula C2H6\n>ionization [M+H]+\n"
+            "#instrumentation Orbitrap\n>ms2peaks\n",
+            encoding="utf-8",
+        )
+
+    assert MODULE.load_fixed_spec_names(manifest) == ["q2", "q1"]
+    labels = MODULE.load_observed_query_labels(spec_dir, ["q2", "q1"])
+    assert labels["spec"].tolist() == ["q2", "q1"]
+    assert labels["formula"].tolist() == ["C2H6", "C2H6"]
+    assert labels["instrument"].tolist() == ["Orbitrap", "Orbitrap"]
+
+
 def test_sparse_cosine_uses_20ppm_assignment_and_ignores_precursor():
     observed = np.array([[100.0, 1.0], [200.0, 0.5], [499.5, 10.0]])
     matching = np.array([[100.001, 1.0], [199.999, 0.5], [499.5, 0.0]])
