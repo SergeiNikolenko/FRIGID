@@ -590,10 +590,11 @@ def _run_official_iceberg(
         "--adduct-shift",
         "--seed",
         "42",
-        "--gpu",
     ]
     environment = os.environ.copy()
-    environment["CUDA_VISIBLE_DEVICES"] = str(gpu)
+    if gpu is not None:
+        environment["CUDA_VISIBLE_DEVICES"] = str(gpu)
+        command.append("--gpu")
     pythonpath = [str(ms_pred_root / "src"), str(SRC_ROOT)]
     if environment.get("PYTHONPATH"):
         pythonpath.append(environment["PYTHONPATH"])
@@ -1188,7 +1189,12 @@ def build_parser() -> argparse.ArgumentParser:
         nargs="+",
         default=list(DEFAULT_COLLISION_ENERGIES),
     )
-    score.add_argument("--gpu", type=int, required=True)
+    score.add_argument(
+        "--gpu",
+        type=int,
+        default=None,
+        help="GPU index; omit to run the official ICEBERG scorer on CPU.",
+    )
     score.add_argument("--batch-size", type=int, default=8)
     score.add_argument("--num-workers", type=int, default=6)
     score.set_defaults(func=command_score)
