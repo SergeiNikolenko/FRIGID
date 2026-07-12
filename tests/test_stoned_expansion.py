@@ -223,3 +223,63 @@ def test_seed_selection_backfills_unique_candidates_after_cross_source_duplicate
     assert len(seeds) == 3
     assert seeds["seed_inchi_key_connectivity"].nunique() == 3
     assert rejected["duplicate_seed"] >= 1
+
+
+def test_positive_subthreshold_diagnostic_is_bounded_not_rejected():
+    metrics = pd.DataFrame(
+        [
+            {"query_spec_name": "q1", "variant": "A_union", "candidate_recall": 0},
+            {
+                "query_spec_name": "q1",
+                "variant": "C_union_stoned",
+                "candidate_recall": 0,
+            },
+        ]
+    )
+    comparisons = {
+        "C_union_stoned": {
+            "best_candidate_tanimoto": {
+                "mean_delta": 0.008,
+                "ci95": [0.002, 0.015],
+            },
+            "mist_ranked_exact_top10": {"mean_delta": 0.0},
+        }
+    }
+    accepted = pd.DataFrame(
+        [
+            {
+                "query_spec_name": "q1",
+                "generator": "stoned_C",
+                "candidate_inchi_key_connectivity": "STONED",
+            },
+            {
+                "query_spec_name": "q1",
+                "generator": "two_switch_B",
+                "candidate_inchi_key_connectivity": "TWO",
+            },
+        ]
+    )
+    rejection_statistics = {
+        "generators": {
+            "stoned_C": {
+                "proposals_considered": 100,
+                "exact_formula_molecules": 10,
+            }
+        }
+    }
+    timing = pd.DataFrame(
+        [{"query_spec_name": "q1", "generator": "stoned_C", "wall_seconds": 1.0}]
+    )
+    decision = RUNNER.decide(
+        metrics,
+        comparisons,
+        accepted,
+        rejection_statistics,
+        timing,
+        dlm_runtime_seconds_per_query=42.0,
+        panel_semantics="target_absent_diagnostic",
+    )
+    assert decision["decision"] == "bounded"
+    assert decision["gate_passed"] is False
+    assert decision["next_gate"] is None
+    assert decision["next_action"] == "run_predeclared_mutation_operator_ablation"

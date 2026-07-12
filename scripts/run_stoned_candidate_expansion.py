@@ -690,6 +690,7 @@ def summarize_ranking(metrics: pd.DataFrame) -> dict[str, Any]:
         "mist_ranked_exact_top10",
         "mist_ranked_tanimoto_top1",
         "mist_ranked_tanimoto_top10",
+        "runtime_seconds",
     ]
     return {
         variant: {
@@ -751,14 +752,21 @@ def decide(
     exact10_delta = comparisons["C_union_stoned"]["mist_ranked_exact_top10"][
         "mean_delta"
     ]
-    if panel_semantics == "target_absent_diagnostic" and primary_pass and not stop_reasons:
+    positive_subthreshold = best["mean_delta"] > 0.0 and best["ci95"][0] > 0.0
+    if stop_reasons:
+        decision = "rejected"
+    elif panel_semantics == "target_absent_diagnostic" and primary_pass:
         decision = "bounded"
-    elif primary_pass and not stop_reasons and exact10_delta > 0:
+    elif primary_pass and exact10_delta > 0:
         decision = "promoted"
-    elif primary_pass and not stop_reasons:
+    elif primary_pass or positive_subthreshold:
         decision = "bounded"
     else:
         decision = "rejected"
+    next_gate = "micro128" if primary_pass and decision in {"promoted", "bounded"} else None
+    next_action = None
+    if positive_subthreshold and not primary_pass:
+        next_action = "run_predeclared_mutation_operator_ablation"
     return {
         "decision": decision,
         "new_target_recoveries": new_recoveries,
@@ -769,7 +777,9 @@ def decide(
         "stoned_runtime_seconds_per_query": runtime_per_query,
         "dlm_runtime_seconds_per_query_guard": dlm_runtime_seconds_per_query,
         "stop_reasons": stop_reasons,
-        "next_gate": "micro128" if decision in {"promoted", "bounded"} else None,
+        "gate_passed": primary_pass,
+        "next_gate": next_gate,
+        "next_action": next_action,
         "panel_semantics": panel_semantics,
         "can_promote_from_this_panel": panel_semantics == "target_blind",
     }
