@@ -9,6 +9,7 @@ from frigid.rankloop_corpus import (
     build_rankloop_corpus,
     load_candidate_source,
     load_spectrum_records,
+    molecule_record_from_smiles,
     split_partition_groups,
     write_rankloop_corpus,
 )
@@ -67,6 +68,18 @@ def test_candidate_source_rejects_supervision_columns(tmp_path: Path):
             fingerprint_bits=128,
             fingerprint_radius=2,
         )
+
+
+def test_computed_connectivity_is_used_when_label_inchikey_disagrees():
+    molecule = molecule_record_from_smiles(
+        "CCO",
+        inchi_key="AAAAAAAAAAAAAA",
+        fingerprint_bits=128,
+    )
+
+    assert molecule is not None
+    assert molecule.inchi_key_first_block == "LFQSCWFLJHTTHZ"
+    assert molecule.provided_inchi_key_first_block == "AAAAAAAAAAAAAA"
 
 
 def test_corpus_is_leakage_safe_and_deterministic(tmp_path: Path):

@@ -70,6 +70,7 @@ def _git_revision(repo_root: Path) -> tuple[str | None, bool | None]:
 class MoleculeRecord:
     smiles: str
     inchi_key_first_block: str
+    provided_inchi_key_first_block: str
     formula: str
     scaffold: str
     exact_mass: float
@@ -124,12 +125,7 @@ def molecule_record_from_smiles(
     computed_inchi_key = Chem.MolToInchiKey(molecule)
     computed_first_block = computed_inchi_key.split("-", maxsplit=1)[0]
     provided_first_block = str(inchi_key or "").split("-", maxsplit=1)[0]
-    if provided_first_block and provided_first_block != computed_first_block:
-        raise ValueError(
-            f"Provided InChIKey {provided_first_block!r} does not match SMILES "
-            f"connectivity {computed_first_block!r}."
-        )
-    inchi_key_first_block = provided_first_block or computed_first_block
+    inchi_key_first_block = computed_first_block
     if not inchi_key_first_block:
         return None
 
@@ -147,6 +143,7 @@ def molecule_record_from_smiles(
     return MoleculeRecord(
         smiles=canonical_smiles,
         inchi_key_first_block=inchi_key_first_block,
+        provided_inchi_key_first_block=provided_first_block,
         formula=str(formula or rdMolDescriptors.CalcMolFormula(molecule)),
         scaffold=scaffold,
         exact_mass=float(Descriptors.ExactMolWt(molecule)),
@@ -208,6 +205,12 @@ def load_spectrum_records(
         if molecule is None:
             rejected["invalid_or_unsupported_molecule"] += 1
             continue
+        if (
+            molecule.provided_inchi_key_first_block
+            and molecule.provided_inchi_key_first_block
+            != molecule.inchi_key_first_block
+        ):
+            rejected["inchi_key_mismatch_rows"] += 1
         records.append(
             SpectrumRecord(
                 spec_name=spec_name,
@@ -644,6 +647,9 @@ def build_rankloop_corpus(
                     "rankloop_split": partition,
                     "query_formula": query.formula,
                     "query_inchi_key_first_block": query.inchi_key_first_block,
+                    "query_label_inchi_key_first_block": (
+                        query.provided_inchi_key_first_block
+                    ),
                     "query_scaffold": query.scaffold,
                     "ionization": record.ionization,
                     "instrument": record.instrument,

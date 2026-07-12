@@ -59,7 +59,7 @@ def main() -> int:
     args = parse_args()
     labels_path = Path(args.labels_tsv).expanduser().resolve()
     split_path = Path(args.split_tsv).expanduser().resolve()
-    records, record_rejections = load_spectrum_records(
+    records, record_stats = load_spectrum_records(
         labels_path,
         split_path,
         dataset_split=args.dataset_split,
@@ -90,7 +90,7 @@ def main() -> int:
         max_query_spectra=args.max_query_spectra,
         seed=args.seed,
     )
-    report["record_rejections"] = record_rejections
+    report["record_statistics"] = record_stats
     report["source_statistics"] = source_stats
     parameters = {key: value for key, value in vars(args).items() if key != "source"}
     parameters["source_names"] = [name for name, _ in args.source]
