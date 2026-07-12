@@ -78,3 +78,8 @@
 - Full runs are tracked in Linear and in the Russian report with host, GPU,
   session, worktree commit, checkpoint hash, manifest hash, run directory, and
   next artifact. Never restart an active run merely to change reporting.
+- When a full DLM run is too slow on one GPU, shard it only by explicit
+  `--start-index` and `--max-spectra` ranges on the locked ordered test split.
+  Give every shard its own run directory and manifest, preserve the original
+  unsharded run as an audit source, and merge only after checking disjoint
+  `spec_name` coverage and identical code/checkpoint/settings hashes.

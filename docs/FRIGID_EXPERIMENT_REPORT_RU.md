@@ -779,3 +779,18 @@ SPA-153 закрыта в Linear. Запущен frozen full-gate на 17,082 sp
 
 После завершения источников будет собран target-blind union и выполнен paired
 bootstrap на всей выборке. Рабочая задача: `SPA-155`.
+
+**Эксперимент 25: parallel full-run orchestration**
+
+Один DLM full-run оказался слишком медленным: примерно `10-14 s/spectrum`.
+Не меняя frozen модель, seed или параметры генерации, запустили точные чанки
+по индексам locked test split:
+
+- control: `[1000,5000)`, `[5000,9000)`, `[9000,13000)`, `[13000,17082)`;
+- temperature 0.8: `[4000,7000)`, `[7000,10000)`, `[10000,13000)`, `[13000,17082)`;
+- исходные unsharded control и temperature runs сохранены как audit/fallback.
+
+Каждый chunk получил отдельный run directory, GPU, session и manifest. Перед
+fusion проверим отсутствие пересечений по `spec_name`, полное покрытие 17,082
+строк и совпадение commit/checkpoint/seed/settings. Это только ускорение
+получения того же evidence, не новый quality claim.
