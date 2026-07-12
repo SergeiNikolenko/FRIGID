@@ -37,6 +37,12 @@ BALANCE_COLUMNS = (
     "has_sulfur",
     "has_halogen",
 )
+PANEL_ACCEPTANCE = {
+    "micro128": {"max_smd": 0.15, "max_category_share_difference": 0.03},
+    "micro256": {"max_smd": 0.10, "max_category_share_difference": 0.03},
+    "micro512": {"max_smd": 0.10, "max_category_share_difference": 0.03},
+    "macro64": {"max_smd": 0.15, "max_category_share_difference": 0.05},
+}
 
 
 def sha256_file(path: Path) -> str:
@@ -477,15 +483,51 @@ def build_compact_benchmark(
         namespace=f"{SELECTION_NAMESPACE}:macro",
     )
 
+    macro_name = f"macro{macro_size}"
+    distribution_checks = {
+        **{
+            f"micro{size}_vs_population": profile_discrepancy(
+                population, micro.iloc[:size]
+            )
+            for size in micro_sizes
+        },
+        f"{macro_name}_vs_unique_molecule_population": profile_discrepancy(
+            macro_population, macro
+        ),
+    }
+    acceptance = {}
+    evaluated_panels = [*(f"micro{size}" for size in micro_sizes), macro_name]
+    for panel_name in evaluated_panels:
+        limits = PANEL_ACCEPTANCE.get(panel_name)
+        check_name = (
+            f"{macro_name}_vs_unique_molecule_population"
+            if panel_name == macro_name
+            else f"{panel_name}_vs_population"
+        )
+        values = distribution_checks[check_name]
+        accepted = limits is None or (
+            values["max_absolute_smd"] <= limits["max_smd"]
+            and values["max_absolute_category_share_difference"]
+            <= limits["max_category_share_difference"]
+        )
+        acceptance[panel_name] = {
+            **(limits or {}),
+            "accepted": accepted,
+            "threshold_configured": limits is not None,
+        }
+    if not all(values["accepted"] for values in acceptance.values()):
+        raise ValueError(f"Compact panel distribution acceptance failed: {acceptance}")
+
     output_dir.mkdir(parents=True, exist_ok=False)
     outputs = {}
     for size in micro_sizes:
         name = f"msg_compact_micro{size}_v1"
         outputs[name] = write_panel(micro.iloc[:size], output_dir / f"{name}.tsv", name)
-    outputs["msg_compact_macro64_v1"] = write_panel(
+    macro_output_name = f"msg_compact_{macro_name}_v1"
+    outputs[macro_output_name] = write_panel(
         macro,
-        output_dir / "msg_compact_macro64_v1.tsv",
-        "msg_compact_macro64_v1",
+        output_dir / f"{macro_output_name}.tsv",
+        macro_output_name,
     )
 
     micro_names = set(micro["spec_name"])
@@ -533,6 +575,8 @@ def build_compact_benchmark(
             "micro_macro_spec_overlap": 0,
             "macro_prior_or_micro_molecule_overlap": 0,
             "target_fields_used_for_model_scoring": [],
+            "distribution_acceptance": acceptance,
+            "all_panels_accepted": True,
         },
         "profiles": {
             "population_micro": panel_profile(population),
@@ -540,19 +584,9 @@ def build_compact_benchmark(
             **{
                 f"micro{size}": panel_profile(micro.iloc[:size]) for size in micro_sizes
             },
-            "macro64": panel_profile(macro),
+            macro_name: panel_profile(macro),
         },
-        "distribution_checks": {
-            **{
-                f"micro{size}_vs_population": profile_discrepancy(
-                    population, micro.iloc[:size]
-                )
-                for size in micro_sizes
-            },
-            "macro64_vs_unique_molecule_population": profile_discrepancy(
-                macro_population, macro
-            ),
-        },
+        "distribution_checks": distribution_checks,
         "outputs": outputs,
     }
     report_path = output_dir / "msg_compact_selection_report_v1.json"

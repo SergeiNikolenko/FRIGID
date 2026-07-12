@@ -86,7 +86,7 @@ def test_compact_panels_are_deterministic_nested_and_disjoint(tmp_path):
     micro8 = pd.read_csv(first_dir / "msg_compact_micro8_v1.tsv", sep="\t")
     micro12 = pd.read_csv(first_dir / "msg_compact_micro12_v1.tsv", sep="\t")
     micro16 = pd.read_csv(first_dir / "msg_compact_micro16_v1.tsv", sep="\t")
-    macro = pd.read_csv(first_dir / "msg_compact_macro64_v1.tsv", sep="\t")
+    macro = pd.read_csv(first_dir / "msg_compact_macro4_v1.tsv", sep="\t")
     repeated = pd.read_csv(second_dir / "msg_compact_micro16_v1.tsv", sep="\t")
 
     assert micro16["spec_name"].tolist() == repeated["spec_name"].tolist()
@@ -98,6 +98,7 @@ def test_compact_panels_are_deterministic_nested_and_disjoint(tmp_path):
     )
     assert first["quality_checks"]["labels_join_coverage"] == 1.0
     assert first["quality_checks"]["target_fields_used_for_model_scoring"] == []
+    assert first["quality_checks"]["all_panels_accepted"] is True
 
 
 def test_population_join_fails_closed_on_missing_label(tmp_path):
