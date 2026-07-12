@@ -812,3 +812,19 @@ micro256 + macro64 результата против frozen four-source union.
 
 ICEBERG рассматривается только как дополнительный источник кандидатов. Его
 нельзя использовать для замены подтверждённого frozen union до paired evidence.
+
+**Эксперимент 26: ICEBERG fixed-manifest smoke preflight**
+
+Проверили target-safe путь на 16 заранее выбранных molecule-diverse queries.
+Подготовка прошла успешно:
+
+- `16` predeclared queries;
+- `2,215` union-extension candidates;
+- query selection без target SMILES/InChIKey/fingerprint;
+- условия formula/ionization/instrument прочитаны из observed `.ms`.
+
+Scoring остановился до получения predictions из-за окружения: исходный
+попытался импортировать отсутствующий Lightning, после исправления выявился
+CPU-only DGL на GPU path (`Device API cuda is not enabled`). Это технический
+no-go smoke, не rejection модели. Добавлен CPU fallback и environment
+diagnostics; paired quality gate не запускался.
