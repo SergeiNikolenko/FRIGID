@@ -82,4 +82,6 @@
   `--start-index` and `--max-spectra` ranges on the locked ordered test split.
   Give every shard its own run directory and manifest, preserve the original
   unsharded run as an audit source, and merge only after checking disjoint
-  `spec_name` coverage and identical code/checkpoint/settings hashes.
+  `spec_name` coverage and identical code/checkpoint/settings hashes. Use
+  `scripts/merge_dlm_benchmark_shards.py`; do not concatenate shard CSVs by
+  hand.
