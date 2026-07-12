@@ -23,10 +23,12 @@ if str(SRC_PATH) not in sys.path:
 
 from frigid.rankloop_corpus import _git_revision, sha256_file  # noqa: E402
 from frigid.rankloop_model import (  # noqa: E402
-    MorganRankLoopDualEncoder,
+    DenseRankLoopDualEncoder,
     RankLoopCorpusDataset,
+    RankLoopDenseCorpusDataset,
     collate_rankloop_lists,
     compute_rankloop_loss,
+    load_molecule_embedding_table,
     load_spectrum_embedding_table,
 )
 
@@ -39,6 +41,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--candidate-corpus", required=True)
     parser.add_argument("--spectrum-metadata", required=True)
     parser.add_argument("--spectrum-embeddings", required=True)
+    parser.add_argument("--molecule-metadata")
+    parser.add_argument("--molecule-embeddings")
     parser.add_argument("--output-dir", required=True)
     parser.add_argument("--epochs", type=int, default=20)
     parser.add_argument("--batch-size", type=int, default=32)
@@ -87,7 +91,7 @@ def _move_batch(batch: dict[str, object], device: torch.device) -> dict[str, obj
 
 
 def run_epoch(
-    model: MorganRankLoopDualEncoder,
+    model: DenseRankLoopDualEncoder,
     loader: DataLoader,
     *,
     device: torch.device,
@@ -112,7 +116,7 @@ def run_epoch(
         with torch.set_grad_enabled(training):
             logits, spectrum_latent, candidate_latent = model(
                 batch["spectrum_embeddings"],
-                batch["candidate_fingerprints"],
+                batch["candidate_features"],
             )
             logit_scale = model.logit_scale.clamp(max=math.log(100.0)).exp()
             metrics = compute_rankloop_loss(
@@ -139,7 +143,7 @@ def run_epoch(
 
 
 def _checkpoint_payload(
-    model: MorganRankLoopDualEncoder,
+    model: DenseRankLoopDualEncoder,
     *,
     model_config: dict[str, Any],
     epoch: int,
@@ -148,7 +152,7 @@ def _checkpoint_payload(
 ) -> dict[str, Any]:
     return {
         "schema_version": 1,
-        "architecture": "morgan_projection_dual_encoder",
+        "architecture": "dense_projection_dual_encoder",
         "model_config": model_config,
         "epoch": epoch,
         "model_state_dict": model.state_dict(),
@@ -173,26 +177,56 @@ def main() -> int:
     candidate_corpus = Path(args.candidate_corpus).expanduser().resolve()
     spectrum_metadata = Path(args.spectrum_metadata).expanduser().resolve()
     spectrum_embeddings = Path(args.spectrum_embeddings).expanduser().resolve()
+    if bool(args.molecule_metadata) != bool(args.molecule_embeddings):
+        raise ValueError(
+            "molecule_metadata and molecule_embeddings must be provided together."
+        )
     output_dir = Path(args.output_dir).expanduser().resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
     embedding_table = load_spectrum_embedding_table(
         spectrum_metadata,
         spectrum_embeddings,
     )
-    train_dataset = RankLoopCorpusDataset(
-        candidate_corpus,
-        embedding_table,
-        partition="train",
-        fingerprint_bits=args.fingerprint_bits,
-        fingerprint_radius=args.fingerprint_radius,
-    )
-    development_dataset = RankLoopCorpusDataset(
-        candidate_corpus,
-        embedding_table,
-        partition="development",
-        fingerprint_bits=args.fingerprint_bits,
-        fingerprint_radius=args.fingerprint_radius,
-    )
+    if args.molecule_metadata:
+        molecule_metadata = Path(args.molecule_metadata).expanduser().resolve()
+        molecule_embeddings = Path(args.molecule_embeddings).expanduser().resolve()
+        molecule_table = load_molecule_embedding_table(
+            molecule_metadata,
+            molecule_embeddings,
+        )
+        train_dataset = RankLoopDenseCorpusDataset(
+            candidate_corpus,
+            embedding_table,
+            molecule_table,
+            partition="train",
+        )
+        development_dataset = RankLoopDenseCorpusDataset(
+            candidate_corpus,
+            embedding_table,
+            molecule_table,
+            partition="development",
+        )
+        molecule_mode = "precomputed"
+        molecule_dimension = molecule_table.dimension
+    else:
+        molecule_metadata = None
+        molecule_embeddings = None
+        train_dataset = RankLoopCorpusDataset(
+            candidate_corpus,
+            embedding_table,
+            partition="train",
+            fingerprint_bits=args.fingerprint_bits,
+            fingerprint_radius=args.fingerprint_radius,
+        )
+        development_dataset = RankLoopCorpusDataset(
+            candidate_corpus,
+            embedding_table,
+            partition="development",
+            fingerprint_bits=args.fingerprint_bits,
+            fingerprint_radius=args.fingerprint_radius,
+        )
+        molecule_mode = "morgan"
+        molecule_dimension = args.fingerprint_bits
     generator = torch.Generator().manual_seed(args.seed)
     train_loader = DataLoader(
         train_dataset,
@@ -215,13 +249,13 @@ def main() -> int:
     )
     model_config = {
         "spectrum_dimension": embedding_table.dimension,
-        "fingerprint_bits": args.fingerprint_bits,
+        "molecule_dimension": molecule_dimension,
         "embedding_dimension": args.embedding_dimension,
         "hidden_dimension": args.hidden_dimension,
         "dropout": args.dropout,
         "temperature": args.temperature,
     }
-    model = MorganRankLoopDualEncoder(**model_config).to(device)
+    model = DenseRankLoopDualEncoder(**model_config).to(device)
     optimizer = torch.optim.AdamW(
         model.parameters(),
         lr=args.learning_rate,
@@ -232,6 +266,13 @@ def main() -> int:
         "spectrum_metadata": sha256_file(spectrum_metadata),
         "spectrum_embeddings": sha256_file(spectrum_embeddings),
     }
+    if molecule_metadata is not None and molecule_embeddings is not None:
+        input_hashes.update(
+            {
+                "molecule_metadata": sha256_file(molecule_metadata),
+                "molecule_embeddings": sha256_file(molecule_embeddings),
+            }
+        )
 
     history: list[dict[str, Any]] = []
     best_key = (-math.inf, -math.inf)
@@ -308,8 +349,13 @@ def main() -> int:
     manifest = {
         "schema_version": 1,
         "state": "completed",
-        "architecture": "morgan_projection_dual_encoder",
-        "evidence_class": "infrastructure_baseline_not_quality_candidate",
+        "architecture": "dense_projection_dual_encoder",
+        "molecule_mode": molecule_mode,
+        "evidence_class": (
+            "development_quality_candidate"
+            if molecule_mode == "precomputed"
+            else "infrastructure_baseline_not_quality_candidate"
+        ),
         "repo": {"commit": revision, "dirty": dirty},
         "device": str(device),
         "parameters": vars(args),

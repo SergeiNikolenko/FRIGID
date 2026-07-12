@@ -10,9 +10,11 @@ import torch
 from frigid.rankloop_model import (
     MorganRankLoopDualEncoder,
     RankLoopCorpusDataset,
+    RankLoopDenseCorpusDataset,
     collate_rankloop_lists,
     compute_rankloop_loss,
     load_spectrum_embedding_table,
+    load_molecule_embedding_table,
     positive_set_nll,
 )
 
@@ -70,7 +72,7 @@ def test_embedding_contract_and_corpus_collation(tmp_path: Path):
 
     assert table.dimension == 2
     assert batch["spectrum_embeddings"].shape == (2, 2)
-    assert batch["candidate_fingerprints"].shape == (2, 2, 64)
+    assert batch["candidate_features"].shape == (2, 2, 64)
     assert batch["positive_mask"].sum(dim=1).tolist() == [1, 1]
 
 
@@ -82,6 +84,40 @@ def test_embedding_contract_rejects_misaligned_names(tmp_path: Path):
 
     with pytest.raises(ValueError, match="do not match metadata order"):
         load_spectrum_embedding_table(metadata, embeddings)
+
+
+def test_precomputed_molecule_embeddings_use_the_same_corpus_contract(tmp_path: Path):
+    spectrum_metadata, spectrum_embeddings = _write_embeddings(tmp_path)
+    corpus = _write_corpus(tmp_path)
+    molecule_metadata = tmp_path / "molecule_metadata.csv"
+    molecule_embeddings = tmp_path / "molecule_embeddings.npz"
+    pd.DataFrame([{"smiles": "CCO"}, {"smiles": "COC"}]).to_csv(
+        molecule_metadata,
+        index=False,
+    )
+    np.savez_compressed(
+        molecule_embeddings,
+        molecule_embeddings=np.array([[1.0, 0.0], [0.0, 1.0]], dtype=np.float32),
+        smiles=np.array(["CCO", "COC"]),
+    )
+    spectrum_table = load_spectrum_embedding_table(
+        spectrum_metadata,
+        spectrum_embeddings,
+    )
+    molecule_table = load_molecule_embedding_table(
+        molecule_metadata,
+        molecule_embeddings,
+    )
+    dataset = RankLoopDenseCorpusDataset(
+        corpus,
+        spectrum_table,
+        molecule_table,
+        partition="train",
+    )
+    batch = collate_rankloop_lists([dataset[0]])
+
+    assert molecule_table.dimension == 2
+    assert batch["candidate_features"].shape == (1, 2, 2)
 
 
 def test_positive_set_nll_supports_multiple_positives():

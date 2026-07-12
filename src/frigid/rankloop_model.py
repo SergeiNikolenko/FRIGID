@@ -35,6 +35,12 @@ class SpectrumEmbeddingTable:
     dimension: int
 
 
+@dataclass(frozen=True)
+class MoleculeEmbeddingTable:
+    by_smiles: dict[str, np.ndarray]
+    dimension: int
+
+
 def load_spectrum_embedding_table(
     metadata_csv: str | Path,
     embeddings_npz: str | Path,
@@ -70,6 +76,50 @@ def load_spectrum_embedding_table(
         by_spec_name={
             spec_name: embeddings[index]
             for index, spec_name in enumerate(metadata_names)
+        },
+        dimension=int(embeddings.shape[1]),
+    )
+
+
+def load_molecule_embedding_table(
+    metadata_csv: str | Path,
+    embeddings_npz: str | Path,
+) -> MoleculeEmbeddingTable:
+    metadata = pd.read_csv(metadata_csv, dtype=str).fillna("")
+    smiles_column = next(
+        (column for column in ("candidate_smiles", "smiles") if column in metadata),
+        None,
+    )
+    if smiles_column is None:
+        raise ValueError(
+            "Molecule embedding metadata requires candidate_smiles or smiles."
+        )
+    if metadata[smiles_column].duplicated().any():
+        duplicate = metadata.loc[
+            metadata[smiles_column].duplicated(), smiles_column
+        ].iloc[0]
+        raise ValueError(f"Duplicate molecule embedding metadata row: {duplicate}")
+    with np.load(embeddings_npz, allow_pickle=False) as archive:
+        if "molecule_embeddings" not in archive:
+            raise ValueError("Embedding NPZ requires molecule_embeddings.")
+        embeddings = np.asarray(archive["molecule_embeddings"], dtype=np.float32)
+        archived_smiles = (
+            [str(value) for value in archive["smiles"]] if "smiles" in archive else None
+        )
+    if embeddings.ndim != 2:
+        raise ValueError("molecule_embeddings must be a two-dimensional array.")
+    metadata_smiles = metadata[smiles_column].astype(str).tolist()
+    if len(metadata_smiles) != len(embeddings):
+        raise ValueError(
+            "Molecule embedding metadata and NPZ have different row counts."
+        )
+    if archived_smiles is not None and archived_smiles != metadata_smiles:
+        raise ValueError("Molecule embedding NPZ smiles do not match metadata order.")
+    if not np.isfinite(embeddings).all():
+        raise ValueError("Molecule embeddings contain non-finite values.")
+    return MoleculeEmbeddingTable(
+        by_smiles={
+            smiles: embeddings[index] for index, smiles in enumerate(metadata_smiles)
         },
         dimension=int(embeddings.shape[1]),
     )
@@ -149,9 +199,90 @@ class RankLoopCorpusDataset(Dataset):
             "query_spec_name": query_name,
             "query_group": str(rows["query_inchi_key_first_block"].iloc[0]),
             "spectrum_embedding": self.embedding_table.by_spec_name[query_name],
-            "candidate_fingerprints": np.stack(
+            "candidate_features": np.stack(
                 [
                     self.fingerprints_by_smiles[str(smiles)]
+                    for smiles in rows["candidate_smiles"]
+                ]
+            ),
+            "candidate_labels": rows["label"].to_numpy(dtype=np.bool_),
+            "candidate_smiles": rows["candidate_smiles"].astype(str).tolist(),
+            "candidate_inchi_key_first_block": rows["candidate_inchi_key_first_block"]
+            .astype(str)
+            .tolist(),
+        }
+
+
+class RankLoopDenseCorpusDataset(Dataset):
+    """RankLoop lists backed by precomputed frozen molecule embeddings."""
+
+    def __init__(
+        self,
+        corpus_csv: str | Path,
+        spectrum_embedding_table: SpectrumEmbeddingTable,
+        molecule_embedding_table: MoleculeEmbeddingTable,
+        *,
+        partition: str,
+    ) -> None:
+        frame = pd.read_csv(corpus_csv).fillna("")
+        if missing := sorted(REQUIRED_CORPUS_COLUMNS.difference(frame.columns)):
+            raise ValueError(f"RankLoop corpus is missing columns: {missing}")
+        frame = frame.loc[frame["rankloop_split"] == partition].copy()
+        if frame.empty:
+            raise ValueError(
+                f"RankLoop corpus has no rows for partition {partition!r}."
+            )
+        frame["label"] = pd.to_numeric(frame["label"], errors="raise").astype(int)
+        if not set(frame["label"]).issubset({0, 1}):
+            raise ValueError("RankLoop labels must be binary.")
+        self.query_names: list[str] = []
+        self.rows_by_query: list[pd.DataFrame] = []
+        self.spectrum_embedding_table = spectrum_embedding_table
+        self.molecule_embedding_table = molecule_embedding_table
+        for query_name, query_rows in frame.groupby("query_spec_name", sort=True):
+            query_name = str(query_name)
+            if query_name not in spectrum_embedding_table.by_spec_name:
+                raise ValueError(
+                    f"Missing spectrum embedding for query {query_name!r}."
+                )
+            if int(query_rows["label"].sum()) != 1:
+                raise ValueError(
+                    f"Query {query_name!r} must contain exactly one positive."
+                )
+            query_connectivity = set(
+                query_rows["query_inchi_key_first_block"].astype(str)
+            )
+            if len(query_connectivity) != 1:
+                raise ValueError(
+                    f"Query {query_name!r} has inconsistent connectivity labels."
+                )
+            missing_smiles = sorted(
+                set(query_rows["candidate_smiles"].astype(str)).difference(
+                    molecule_embedding_table.by_smiles
+                )
+            )
+            if missing_smiles:
+                raise ValueError(
+                    f"Missing molecule embedding for candidate {missing_smiles[0]!r}."
+                )
+            self.query_names.append(query_name)
+            self.rows_by_query.append(query_rows.reset_index(drop=True))
+
+    def __len__(self) -> int:
+        return len(self.query_names)
+
+    def __getitem__(self, index: int) -> dict[str, object]:
+        query_name = self.query_names[index]
+        rows = self.rows_by_query[index]
+        return {
+            "query_spec_name": query_name,
+            "query_group": str(rows["query_inchi_key_first_block"].iloc[0]),
+            "spectrum_embedding": self.spectrum_embedding_table.by_spec_name[
+                query_name
+            ],
+            "candidate_features": np.stack(
+                [
+                    self.molecule_embedding_table.by_smiles[str(smiles)]
                     for smiles in rows["candidate_smiles"]
                 ]
             ),
@@ -168,11 +299,11 @@ def collate_rankloop_lists(items: Sequence[dict[str, object]]) -> dict[str, obje
         raise ValueError("Cannot collate an empty RankLoop batch.")
     batch_size = len(items)
     max_candidates = max(len(item["candidate_labels"]) for item in items)
-    fingerprint_bits = int(items[0]["candidate_fingerprints"].shape[1])
+    molecule_dimension = int(items[0]["candidate_features"].shape[1])
     spectrum_dimension = int(items[0]["spectrum_embedding"].shape[0])
     spectra = np.zeros((batch_size, spectrum_dimension), dtype=np.float32)
     candidates = np.zeros(
-        (batch_size, max_candidates, fingerprint_bits),
+        (batch_size, max_candidates, molecule_dimension),
         dtype=np.float32,
     )
     candidate_mask = np.zeros((batch_size, max_candidates), dtype=np.bool_)
@@ -184,11 +315,11 @@ def collate_rankloop_lists(items: Sequence[dict[str, object]]) -> dict[str, obje
     candidate_connectivity: list[list[str]] = []
 
     for row_index, item in enumerate(items):
-        item_candidates = np.asarray(item["candidate_fingerprints"], dtype=np.float32)
+        item_candidates = np.asarray(item["candidate_features"], dtype=np.float32)
         item_labels = np.asarray(item["candidate_labels"], dtype=np.bool_)
         candidate_count = len(item_labels)
-        if item_candidates.shape != (candidate_count, fingerprint_bits):
-            raise ValueError("Candidate fingerprint dimensions are inconsistent.")
+        if item_candidates.shape != (candidate_count, molecule_dimension):
+            raise ValueError("Candidate feature dimensions are inconsistent.")
         if int(item_labels.sum()) != 1:
             raise ValueError("Each RankLoop list must contain exactly one positive.")
         spectra[row_index] = np.asarray(item["spectrum_embedding"], dtype=np.float32)
@@ -205,7 +336,7 @@ def collate_rankloop_lists(items: Sequence[dict[str, object]]) -> dict[str, obje
         "query_spec_names": query_names,
         "query_group_ids": torch.from_numpy(group_ids),
         "spectrum_embeddings": torch.from_numpy(spectra),
-        "candidate_fingerprints": torch.from_numpy(candidates),
+        "candidate_features": torch.from_numpy(candidates),
         "candidate_mask": torch.from_numpy(candidate_mask),
         "positive_mask": torch.from_numpy(positive_mask),
         "candidate_smiles": candidate_smiles,
@@ -236,13 +367,13 @@ class ProjectionHead(nn.Module):
         return F.normalize(self.network(values), dim=-1)
 
 
-class MorganRankLoopDualEncoder(nn.Module):
-    """Dual encoder used for data-path smoke and Morgan baseline experiments."""
+class DenseRankLoopDualEncoder(nn.Module):
+    """Projection-only alignment of frozen spectrum and molecule representations."""
 
     def __init__(
         self,
         spectrum_dimension: int,
-        fingerprint_bits: int,
+        molecule_dimension: int,
         *,
         embedding_dimension: int = 256,
         hidden_dimension: int = 512,
@@ -259,7 +390,7 @@ class MorganRankLoopDualEncoder(nn.Module):
             dropout=dropout,
         )
         self.molecule_projection = ProjectionHead(
-            fingerprint_bits,
+            molecule_dimension,
             embedding_dimension,
             hidden_dimension=hidden_dimension,
             dropout=dropout,
@@ -269,19 +400,35 @@ class MorganRankLoopDualEncoder(nn.Module):
     def encode_spectra(self, spectrum_embeddings: torch.Tensor) -> torch.Tensor:
         return self.spectrum_projection(spectrum_embeddings)
 
-    def encode_molecules(self, fingerprints: torch.Tensor) -> torch.Tensor:
-        return self.molecule_projection(fingerprints)
+    def encode_molecules(self, molecule_features: torch.Tensor) -> torch.Tensor:
+        return self.molecule_projection(molecule_features)
 
     def forward(
         self,
         spectrum_embeddings: torch.Tensor,
-        candidate_fingerprints: torch.Tensor,
+        candidate_features: torch.Tensor,
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         spectrum_latent = self.encode_spectra(spectrum_embeddings)
-        candidate_latent = self.encode_molecules(candidate_fingerprints)
+        candidate_latent = self.encode_molecules(candidate_features)
         scale = self.logit_scale.clamp(max=math.log(100.0)).exp()
         logits = torch.einsum("bd,bkd->bk", spectrum_latent, candidate_latent) * scale
         return logits, spectrum_latent, candidate_latent
+
+
+class MorganRankLoopDualEncoder(DenseRankLoopDualEncoder):
+    """Dense alignment instantiated with Morgan fingerprints for a control baseline."""
+
+    def __init__(
+        self,
+        spectrum_dimension: int,
+        fingerprint_bits: int,
+        **kwargs,
+    ) -> None:
+        super().__init__(
+            spectrum_dimension,
+            fingerprint_bits,
+            **kwargs,
+        )
 
 
 def positive_set_nll(
