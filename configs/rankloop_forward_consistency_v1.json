@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "state": "frozen_for_locked_micro128",
+  "selection": {
+    "development_manifest": "configs/benchmarks/msg_diverse_dev64_v1.tsv",
+    "grid_manifest_sha256": "c55c7ca06f5ffd55fcd3dc207b1f288c5ba10345020c9d36520482b9c1ed9682",
+    "grid_summary_sha256": "2008b71a9b8ecf5aa03791e26fc1673768ab8990883c7f2fe4134e4d347cc170",
+    "selected_variant": "blend_zscore_a0p5",
+    "selection_policy": "maximum development Tanimoto@1 mean delta, then Exact@1 mean delta, then lexical variant",
+    "promotion_rule": "positive Tanimoto@1 mean delta and nonnegative Exact@1 mean delta",
+    "development_metrics": {
+      "tanimoto_top1_mean_delta": 0.014085259252016837,
+      "tanimoto_top1_ci_low": -0.005212724937267055,
+      "tanimoto_top1_ci_high": 0.04225155959723512,
+      "exact_match_top1_mean_delta": 0.0625,
+      "exact_match_top1_ci_low": 0.015625,
+      "exact_match_top1_ci_high": 0.125,
+      "fallback_query_count": 15
+    }
+  },
+  "forward_scoring": {
+    "top_k": 10,
+    "collision_energies_ev": [10, 20, 30, 40, 50],
+    "seed": 42,
+    "ms_pred_commit": "3fdd1d95f7661c5c8e465b2527be37094f45f040",
+    "generator_checkpoint_sha256": "748761b24ed50726a8d63ce68d34c37e4a8eaabfcbbd470796a3f38c35b7a253",
+    "intensity_checkpoint_sha256": "ec461ef26d61ce2ef3ea2269b879afcdd99a03822f9e311558ad5a3909a58ac2",
+    "unsupported_element_policy": "preserve candidate with missing forward score",
+    "unsupported_instrument_policy": "preserve query with missing forward scores; do not impute instrument",
+    "candidate_local_failure_policy": "deterministic bisection; preserve isolated failed candidate with missing forward score",
+    "unknown_failure_policy": "abort"
+  },
+  "fusion": {
+    "mode": "blend",
+    "normalization": "zscore",
+    "alpha": 0.5,
+    "contradiction_quantile": 0.25,
+    "incomplete_or_degenerate_query_policy": "retain frozen reference order"
+  },
+  "locked_micro128": {
+    "manifest": "configs/benchmarks/msg_compact_micro128_v1.tsv",
+    "manifest_sha256": "40012b2534eeb8b12c6c752ef630707dbfff61236f44270db8a0eba6a583973c",
+    "candidate_input_sha256": "064ed7cf1b37a53ec8e20c86e57abb3fb8023a96c27c085da43033e70d25baee",
+    "target_metadata_sha256": "80547189d6f40f3f7c8cc53290aab8e2be2b9558f100e33d6337e2afb1fa352e",
+    "candidate_identity_sha256": "e6423da4166c8a1c17b1ab74378293aa2f4ac3c7007d9face47b687608525f26",
+    "query_count": 128,
+    "candidate_count": 1280
+  }
+}
