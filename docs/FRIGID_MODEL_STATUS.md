@@ -29,6 +29,8 @@ changes state and link the corresponding run evidence and Linear issue.
 | Consensus reranker | rejected | Positive first 32, negative held-out last 32 | Overfit; do not scale. |
 | Oracle refinement model | rejected | Refined Tanimoto below baseline | Redesign training target and scorer. |
 | Constrained STONED-SELFIES expansion | bounded diagnostic | Fixed16 target-absent panel: replacement `+0.0079` (`stoned_fixed16_replacement_v4_clean`, `6024fe6`), paired swap `+0.0091` (`stoned_fixed16_paired_swap_v1`, `94ce6cc`), no new target recoveries or MIST-ranking gain; insertion/deletion failed the formula-survival stop rule | Do not advance unchanged to micro128. Revisit only with a materially different formula-preserving operator or spectrum-aware selection. |
+| RankLoop MIST + ChemBERTa dual encoder | rejected | Direct dev64 Tanimoto@1 `-0.1016`, CI `[-0.1417, -0.0648]`; residual fusion selected on dev64 failed locked micro128 with `-0.00393`, CI `[-0.00776, -0.00065]` | Do not repeat direct replacement or residual score tuning on this corpus. |
+| RankLoop DreaMS + ChemBERTa dual encoder | rejected | Direct dev64 Tanimoto@1 `-0.0960`, CI `[-0.1318, -0.0641]`; dev-selected residual failed micro256 with `-0.00470`, CI `[-0.01010, -0.00053]`, and was also negative on molecule-disjoint macro64 | Do not advance to 1,024 or full. Move to an independently ablated forward-spectrum scorer. |
 
 ## Audited and prepared research branches
 
@@ -41,7 +43,7 @@ changes state and link the corresponding run evidence and Linear issue.
 | DualLGD graph diffusion | interface blocked | Published model uses its own spectrum encoder and Morgan-2048; FRIGID uses MIST Morgan-4096 | Prove train-only folding/interface equivalence before any test run. |
 | Selective train-neighbor TTT | prepared, unevaluated | Audit-safe neighbor bundle builder and tests exist | Freeze policy, run micro gate, then macro64 with paired CI. |
 | Spectral JEPA | research branch, no confirmed gate | Pretraining direction exists but no confirmed downstream quality gain | Require a frozen downstream candidate or reranking evaluation. |
-| RankLoop MIST + ChemBERTa dual encoder | prepared, smoke passed | Corrected 32-spectrum Spectrum smoke: target-blind candidate identity preserved, train top-1 `20/20`, internal development top-1 `1/12`; jobs `83-85`, commit `147660d`, checkpoint SHA-256 `57c47c6a85d33ae90b3e790939b23ca9b31fa6d5054d1b75a077992393dc71d0` | Build the production-shaped train corpus and require a paired frozen-union development gain before compact evaluation. |
+| RankLoop corpus v1 | prepared, distribution-limited | `4,096` train-only queries and `64` negatives per query with zero train/development scaffold overlap, but only `3.805%` formula-matched negatives and no production-source candidate lists | Reuse infrastructure, but rebuild harder inference-shaped negatives before another learned reranker. |
 
 ## Reporting contract
 

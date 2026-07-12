@@ -858,8 +858,9 @@ full/shard jobs на Kolmogorovsky остановлены; их частичны
 - frozen DLM/MIST checkpoints, seed `42`, `100 attempts`, threshold `0.187`;
 - GPU utilization при старте `100%`.
 
-Результата качества пока нет: расчёт идёт. ICEBERG smoke также продолжает
-работать на Spectrum CPU и пока не является quality evidence.
+Job `60` был отменён через `3:20` и не создал quality artifact. Активного full
+прогона сейчас нет. ICEBERG smoke сохранён только как диагностический artifact
+и пока не является quality evidence.
 
 **Эксперимент 29: ускорение DLM inference на Spectrum**
 
@@ -883,8 +884,9 @@ full/shard jobs на Kolmogorovsky остановлены; их частичны
 top-50/100 кандидатов. Gate: `16-32` smoke -> development panel -> `micro128`
 futility -> concordant molecule-cluster `micro256` + molecule-disjoint `macro64`
 -> locked `1,024` -> full. При положительном результате следующий этап —
-top-32/64 cross-encoder. До завершения текущего full baseline ветка остаётся
-`Todo` и не запускается.
+top-32/64 cross-encoder. Ветка была реализована и проверена в экспериментах
+31-32 ниже. Прямой ranker и residual fusion не прошли locked gates, поэтому
+unchanged вариант закрыт.
 
 **Эксперимент 30: constrained STONED-SELFIES expansion**
 
@@ -962,3 +964,48 @@ production-shaped train corpus и paired reranking frozen development union.
 - `/home/nikolenko/work/Projects/FRIGID_rankloop_runs/dual_chemberta_smoke32_147660d`;
 - `/home/nikolenko/work/Projects/FRIGID_rankloop_runs/rerank_smoke32_147660d`;
 - Linear: `SPA-159`, `SPA-165`.
+
+**Эксперимент 32: RankLoop MIST/DreaMS на frozen four-source union**
+
+Собрали train-only корпус из `4,096` spectra и `4,096` molecules: `64`
+negatives на query, train/development разделены по scaffold/connectivity без
+пересечения. Ограничение корпуса: только `3.805%` negatives совпадают по
+формуле, а production-source candidate lists пока не воспроизведены.
+
+Обучили два одинаковых dual encoder с frozen ChemBERTa:
+
+1. frozen MIST `640d` как spectrum encoder;
+2. frozen DreaMS `1024d` как materially different spectrum encoder.
+
+Candidate pool во всех paired сравнениях оставался неизменным.
+
+| Вариант | Panel | Delta Tanimoto@1 | 95% molecule CI | Delta Exact@1 |
+| --- | --- | ---: | ---: | ---: |
+| MIST direct ranker | dev64 | `-0.10159` | `[-0.14172, -0.06480]` | `-0.20313` |
+| MIST residual, z-score `0.3` | dev64 | `+0.00794` | `[-0.00045, +0.02004]` | `0.00000` |
+| MIST residual, frozen `0.3` | micro128 | `-0.00393` | `[-0.00776, -0.00065]` | `-0.00781` |
+| DreaMS direct ranker | dev64 | `-0.09603` | `[-0.13176, -0.06409]` | `-0.23438` |
+| DreaMS residual, z-score `0.2` | dev64 | `+0.00416` | `[+0.00039, +0.00963]` | `+0.01563` |
+| DreaMS residual, frozen `0.2` | micro128 | `+0.00095` | `[-0.00107, +0.00324]` | `-0.00781` |
+| DreaMS residual, frozen `0.2` | micro256 | `-0.00470` | `[-0.01010, -0.00053]` | `-0.01172` |
+| DreaMS residual, frozen `0.2` | macro64 | `-0.00210` | `[-0.01156, +0.00390]` | `-0.01563` |
+
+Вывод:
+
+```text
+Оба direct ranker заметно хуже frozen union. Малые положительные dev residual
+эффекты не переносятся на locked panels. MIST и DreaMS dual-encoder branches
+закрыты без 1,024/full. Следующая независимая гипотеза — candidate-to-spectrum
+forward consistency, а не новый подбор fusion alpha.
+```
+
+Основные доказательства на `spectrum`:
+
+- commit `68c716e1e64c16067c8efbb7baf07dd0e07b25cf`;
+- RankLoop checkpoint `d16101fbdac34d961ebd34664bf5efa2adfd21797023c7d1f51be635e0670a7b`;
+- `/home/nikolenko/work/Projects/FRIGID_rankloop_runs/evaluation_micro128_a44d172`;
+- `/home/nikolenko/work/Projects/FRIGID_rankloop_runs/evaluation_dreams_dev64_68c716e`;
+- `/home/nikolenko/work/Projects/FRIGID_rankloop_runs/evaluation_dreams_micro128_68c716e`;
+- `/home/nikolenko/work/Projects/FRIGID_rankloop_runs/evaluation_dreams_micro256_68c716e`;
+- `/home/nikolenko/work/Projects/FRIGID_rankloop_runs/evaluation_dreams_macro64_68c716e`;
+- Linear: `SPA-159`, `SPA-165`, следующий `SPA-169`.
