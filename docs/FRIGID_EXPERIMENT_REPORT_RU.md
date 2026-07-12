@@ -844,3 +844,19 @@ full/shard jobs на Kolmogorovsky остановлены; их частичны
 
 Новый full run будет считаться только после проверки покрытия всех `17,082`
 `spec_name` и paired bootstrap. Это изменение orchestration, не quality claim.
+
+**Эксперимент 28: Spectrum-only full control на целой A100**
+
+Пробный запуск пяти одновременных `gpu-shared` shard jobs показал, что они
+делят одну A100: каждый процесс обрабатывал примерно `3-4 spectra / 10 min`.
+Это неприемлемо для полного прогона, поэтому эти задачи остановлены и
+сохранены только как технический audit.
+
+Запущен новый контрольный прогон на Spectrum Slurm с `gres/gpu=1`:
+
+- job `60`, partition `gpu`, диапазон `[0,17082)`, `softmax_temp=1.0`;
+- frozen DLM/MIST checkpoints, seed `42`, `100 attempts`, threshold `0.187`;
+- GPU utilization при старте `100%`.
+
+Результата качества пока нет: расчёт идёт. ICEBERG smoke также продолжает
+работать на Spectrum CPU и пока не является quality evidence.
