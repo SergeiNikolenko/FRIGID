@@ -147,3 +147,11 @@ def test_corpus_is_leakage_safe_and_deterministic(tmp_path: Path):
         first_manifest["outputs"]["candidate_corpus_sha256"]
         == second_manifest["outputs"]["candidate_corpus_sha256"]
     )
+    assert (
+        first_manifest["outputs"]["query_manifest_sha256"]
+        == second_manifest["outputs"]["query_manifest_sha256"]
+    )
+    query_manifest = pd.read_csv(first_dir / "query_manifest.tsv", sep="\t")
+    assert list(query_manifest.columns) == ["spec_name", "rankloop_split"]
+    assert query_manifest["spec_name"].is_unique
+    assert set(query_manifest["spec_name"]) == set(first["query_spec_name"])

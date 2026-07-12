@@ -759,9 +759,16 @@ def write_rankloop_corpus(
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
     corpus_path = output_path / "candidate_corpus.csv"
+    query_manifest_path = output_path / "query_manifest.tsv"
     quality_path = output_path / "quality_report.json"
     manifest_path = output_path / "run_manifest.json"
     frame.to_csv(corpus_path, index=False, float_format="%.8g")
+    query_manifest = (
+        frame[["query_spec_name", "rankloop_split"]]
+        .drop_duplicates("query_spec_name", keep="first")
+        .rename(columns={"query_spec_name": "spec_name"})
+    )
+    query_manifest.to_csv(query_manifest_path, sep="\t", index=False)
 
     final_report = dict(report)
     final_report["candidate_corpus_sha256"] = sha256_file(corpus_path)
@@ -794,6 +801,8 @@ def write_rankloop_corpus(
         "outputs": {
             "candidate_corpus_csv": str(corpus_path.resolve()),
             "candidate_corpus_sha256": final_report["candidate_corpus_sha256"],
+            "query_manifest_tsv": str(query_manifest_path.resolve()),
+            "query_manifest_sha256": sha256_file(query_manifest_path),
             "quality_report_json": str(quality_path.resolve()),
             "quality_report_sha256": sha256_file(quality_path),
         },

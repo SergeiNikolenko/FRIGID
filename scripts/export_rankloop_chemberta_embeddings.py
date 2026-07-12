@@ -12,7 +12,7 @@ import numpy as np
 import pandas as pd
 import torch
 from tqdm import tqdm
-from transformers import AutoModel, AutoTokenizer
+from transformers import AutoModelForMaskedLM, AutoTokenizer
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SRC_PATH = PROJECT_ROOT / "src"
@@ -68,6 +68,17 @@ def pool_hidden_states(
     return (hidden_states * weights).sum(dim=1) / denominator
 
 
+def require_tied_input_output_embeddings(masked_language_model) -> None:
+    input_embeddings = masked_language_model.get_input_embeddings()
+    output_embeddings = masked_language_model.get_output_embeddings()
+    if output_embeddings is None or (
+        input_embeddings.weight.data_ptr() != output_embeddings.weight.data_ptr()
+    ):
+        raise RuntimeError(
+            "ChemBERTa input embeddings are not tied to the loaded MLM decoder."
+        )
+
+
 def main() -> int:
     args = parse_args()
     if args.batch_size <= 0 or args.max_length <= 0:
@@ -84,13 +95,15 @@ def main() -> int:
         revision=args.model_revision,
         trust_remote_code=False,
     )
-    model = AutoModel.from_pretrained(
+    masked_language_model = AutoModelForMaskedLM.from_pretrained(
         args.model_name,
         revision=args.model_revision,
         trust_remote_code=False,
     ).to(device)
+    require_tied_input_output_embeddings(masked_language_model)
+    model = masked_language_model.base_model
     model.eval()
-    for parameter in model.parameters():
+    for parameter in masked_language_model.parameters():
         parameter.requires_grad_(False)
 
     embedding_batches: list[np.ndarray] = []
@@ -157,6 +170,8 @@ def main() -> int:
             "resolved_revision": resolved_model_revision,
             "hidden_size": int(model.config.hidden_size),
             "frozen": True,
+            "loader": "AutoModelForMaskedLM.base_model",
+            "tied_input_output_embeddings": True,
         },
         "inputs": {
             "candidate_corpus": str(corpus_path),

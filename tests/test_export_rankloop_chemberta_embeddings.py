@@ -4,6 +4,8 @@ import importlib.util
 from pathlib import Path
 
 import torch
+from torch import nn
+import pytest
 
 
 SCRIPT_PATH = (
@@ -32,3 +34,26 @@ def test_cls_and_masked_mean_pooling():
 
     assert torch.equal(cls, torch.tensor([[1.0, 2.0], [2.0, 4.0]]))
     assert torch.equal(mean, torch.tensor([[2.0, 3.0], [4.0, 8.0]]))
+
+
+class _MaskedLanguageModelStub:
+    def __init__(self, *, tied: bool) -> None:
+        self.input_embeddings = nn.Embedding(4, 3)
+        self.output_embeddings = nn.Linear(3, 4, bias=False)
+        if tied:
+            self.output_embeddings.weight = self.input_embeddings.weight
+
+    def get_input_embeddings(self):
+        return self.input_embeddings
+
+    def get_output_embeddings(self):
+        return self.output_embeddings
+
+
+def test_chemberta_loader_requires_tied_mlm_embeddings():
+    MODULE.require_tied_input_output_embeddings(_MaskedLanguageModelStub(tied=True))
+
+    with pytest.raises(RuntimeError, match="not tied"):
+        MODULE.require_tied_input_output_embeddings(
+            _MaskedLanguageModelStub(tied=False)
+        )

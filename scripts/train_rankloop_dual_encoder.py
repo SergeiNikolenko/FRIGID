@@ -35,7 +35,7 @@ from frigid.rankloop_model import (  # noqa: E402
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Train the RankLoop Morgan molecular-encoder baseline.",
+        description="Train RankLoop projection heads over frozen representations.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument("--candidate-corpus", required=True)
