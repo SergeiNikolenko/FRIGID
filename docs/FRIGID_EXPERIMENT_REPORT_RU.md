@@ -42,6 +42,31 @@ DLM умеет читать чистые fingerprints
 а научить DLM жить с fingerprints, которые реально выдаёт MIST
 ```
 
+**Краткий статус сложных моделей**
+
+| Модель или подход | Статус | Что получилось |
+| --- | --- | --- |
+| MolForge | подтверждён | Даёт независимые кандидаты; на 1,024 добавил `+0.0178` Tanimoto top-10 и `+0.0186` Exact top-10 поверх union. |
+| DreaMS | отклонён как замена MIST | Frozen, calibration, distillation и full fine-tune остались далеко от MIST; full fine-tune переобучился. |
+| DLM adaptation | отклонён | Gap между clean и MIST уменьшился, но абсолютное качество стало хуже. |
+| NGBoost | только ускорение | При одинаковом budget быстрее, но хуже обычного DLM по качеству. |
+| ICEBERG / GEMS-style refinement | диагностика | Код и малый запуск есть, но честного paired улучшения пока нет. |
+| DiffMS | исследован | Интеграционный путь понятен, подтверждённых FRIGID-метрик нет. |
+| MBGen | заблокирован | Нет совместимых публичных весов и полного loader; есть проблемы evaluation. |
+| DualLGD | заблокирован интерфейсом | Native Morgan-2048 и собственный spectrum encoder несовместимы с текущим MIST Morgan-4096 без отдельного доказательства. |
+| Selective TTT | подготовлен | Train-only neighbor builder реализован и протестирован, quality gate ещё не запускался. |
+| Spectral JEPA | исследовательская ветка | Подтверждённого downstream improvement пока нет. |
+
+Главный доказанный результат сейчас получен не полной заменой архитектуры, а
+объединением разных источников кандидатов:
+
+```text
+DLM control + DLM temperature 0.8 + train-only retrieval + MolForge 0.172
+```
+
+На 1,024 molecule-diverse spectra этот union дал Tanimoto top-10 `0.5277`
+против `0.4805` у DLM baseline и Exact top-10 `0.2119` против `0.1650`.
+
 **Эксперимент 1: DreaMS как простая замена MIST**
 
 Что хотели проверить:
