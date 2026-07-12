@@ -11,7 +11,7 @@ changes state and link the corresponding run evidence and Linear issue.
 | DLM temperature 0.8, 200 attempts | confirmed candidate source | Compact Exact@10 `+0.0469` on micro128 and macro64; Tanimoto intervals include zero | Keep inside union, not as standalone ranker. |
 | Train-only retrieval | confirmed candidate source | Positive union gain at 64, 200, and 1,024 | Keep inside union. |
 | MolForge 0.172 | confirmed candidate source | At 1,024, adds Tanimoto@10 `+0.0178`, CI `[+0.0129, +0.0231]`; Exact@10 `+0.0186`, CI `[+0.0107, +0.0273]` | Keep inside union. |
-| Four-source union | confirmed leader | 1,024 Tanimoto@10 `0.5277`, Exact@10 `0.2119` | Validate on compact micro256 + macro64, then full. |
+| Four-source union | confirmed leader | 1,024 Tanimoto@10 `0.5277`, Exact@10 `0.2119`; compact micro256 Tanimoto@10 `+0.0796` CI `[+0.0566, +0.1051]`; macro64 `+0.0428` CI `[+0.0207, +0.0678]` | Promote to locked 1,024 gate, then full. |
 
 ## Rejected or bounded branches
 

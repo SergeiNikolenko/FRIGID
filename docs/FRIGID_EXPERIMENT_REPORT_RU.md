@@ -723,8 +723,30 @@ Temperature 0.8 одинаково добавляет exact-кандидатов
 Оставляем её источником кандидатов внутри union, не отдельным победителем.
 ```
 
+**Эксперимент 22: four-source union на representative compact gate**
+
+Проверили frozen-связку `DLM control + DLM temperature 0.8 + train-only
+retrieval + MolForge 0.172` на двух типах выборки. Confidence intervals
+считались cluster-bootstrap по connectivity molecule.
+
+| Panel | Metric | Baseline | Four-source union | Delta, 95% CI |
+| --- | --- | ---: | ---: | ---: |
+| micro256 | Tanimoto top-1 | `0.4868` | `0.5519` | `+0.0651` `[+0.0428, +0.0903]` |
+| micro256 | Tanimoto top-10 | `0.5101` | `0.5897` | `+0.0796` `[+0.0566, +0.1051]` |
+| micro256 | Exact top-1 | `0.1484` | `0.2031` | `+0.0547` `[+0.0161, +0.1037]` |
+| micro256 | Exact top-10 | `0.1719` | `0.2617` | `+0.0898` `[+0.0462, +0.1402]` |
+| macro64 | Tanimoto top-1 | `0.4724` | `0.5041` | `+0.0318` `[+0.0083, +0.0590]` |
+| macro64 | Tanimoto top-10 | `0.4856` | `0.5284` | `+0.0428` `[+0.0207, +0.0678]` |
+| macro64 | Exact top-10 | `0.1875` | `0.2344` | `+0.0469` `[0.0000, +0.1094]` |
+
+Вывод:
+
+```text
+Union улучшает и replicate-frequency выборку micro256,
+и molecule-disjoint macro64. Compact promotion подтверждён.
+```
+
 **Что сейчас считается**
 
-- full temperature run: `2,750 / 17,082` spectra;
-- следующий compact gate: полный четырёхисточниковый union на `micro256 + macro64`;
-- после него считаем лучший union на full.
+- следующий gate: тот же frozen union на 1,024 molecule-diverse spectra;
+- после положительного 1,024 gate — полный 17,082-spectrum union.
