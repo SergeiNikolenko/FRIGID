@@ -234,7 +234,10 @@ def split_partition_groups(
     groups = sorted({record.molecule.partition_group for record in records})
     if len(groups) < 2:
         raise ValueError("At least two scaffold/connectivity groups are required.")
-    ordered = sorted(groups, key=lambda value: (_stable_digest(seed, value), value))
+    ordered = sorted(
+        groups,
+        key=lambda value: (_stable_digest(seed, f"partition:{value}"), value),
+    )
     development_count = max(
         1, min(len(groups) - 1, round(len(groups) * development_fraction))
     )
@@ -455,7 +458,15 @@ def choose_candidates(
             if len(selected) == negatives_per_query:
                 return selected
 
-    rng = random.Random(int(_stable_digest(seed, query.inchi_key_first_block)[:16], 16))
+    rng = random.Random(
+        int(
+            _stable_digest(
+                seed,
+                f"random-negatives:{query.inchi_key_first_block}",
+            )[:16],
+            16,
+        )
+    )
     remaining = [
         molecule
         for molecule in train_library
@@ -515,7 +526,10 @@ def build_rankloop_corpus(
         )
     selected_records.sort(
         key=lambda record: (
-            _stable_digest(seed, record.molecule.inchi_key_first_block),
+            _stable_digest(
+                seed,
+                f"query-sampling:{record.molecule.inchi_key_first_block}",
+            ),
             record.spec_name,
         )
     )
@@ -616,9 +630,12 @@ def build_rankloop_corpus(
             ),
             *negative_choices,
         ]
-        random.Random(int(_stable_digest(seed, record.spec_name)[:16], 16)).shuffle(
-            choices
-        )
+        random.Random(
+            int(
+                _stable_digest(seed, f"candidate-order:{record.spec_name}")[:16],
+                16,
+            )
+        ).shuffle(choices)
         for candidate_rank, choice in enumerate(choices, start=1):
             candidate = choice.molecule
             rows.append(
