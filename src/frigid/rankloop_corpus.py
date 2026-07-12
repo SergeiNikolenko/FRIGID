@@ -73,6 +73,7 @@ class MoleculeRecord:
     provided_inchi_key_first_block: str
     formula: str
     scaffold: str
+    scaffold_fallback: bool
     exact_mass: float
     fingerprint: np.ndarray
 
@@ -136,16 +137,25 @@ def molecule_record_from_smiles(
     bit_vector = generator.GetFingerprint(molecule)
     fingerprint = np.zeros((fingerprint_bits,), dtype=np.uint8)
     DataStructs.ConvertToNumpyArray(bit_vector, fingerprint)
-    scaffold = MurckoScaffold.MurckoScaffoldSmiles(
-        mol=molecule,
-        includeChirality=False,
-    )
+    scaffold_fallback = False
+    try:
+        scaffold_molecule = MurckoScaffold.GetScaffoldForMol(Chem.Mol(molecule))
+        Chem.RemoveStereochemistry(scaffold_molecule)
+        scaffold = Chem.MolToSmiles(
+            scaffold_molecule,
+            canonical=True,
+            isomericSmiles=False,
+        )
+    except RuntimeError:
+        scaffold = ""
+        scaffold_fallback = True
     return MoleculeRecord(
         smiles=canonical_smiles,
         inchi_key_first_block=inchi_key_first_block,
         provided_inchi_key_first_block=provided_first_block,
         formula=str(formula or rdMolDescriptors.CalcMolFormula(molecule)),
         scaffold=scaffold,
+        scaffold_fallback=scaffold_fallback,
         exact_mass=float(Descriptors.ExactMolWt(molecule)),
         fingerprint=fingerprint,
     )
@@ -211,6 +221,8 @@ def load_spectrum_records(
             != molecule.inchi_key_first_block
         ):
             rejected["inchi_key_mismatch_rows"] += 1
+        if molecule.scaffold_fallback:
+            rejected["scaffold_fallback_rows"] += 1
         records.append(
             SpectrumRecord(
                 spec_name=spec_name,
@@ -316,6 +328,8 @@ def load_candidate_source(
         if molecule is None:
             stats["invalid_or_unsupported_candidate"] += 1
             continue
+        if molecule.scaffold_fallback:
+            stats["scaffold_fallback_rows"] += 1
         if rank_column:
             try:
                 rank = int(float(str(row[rank_column]).strip()))
@@ -651,6 +665,7 @@ def build_rankloop_corpus(
                         query.provided_inchi_key_first_block
                     ),
                     "query_scaffold": query.scaffold,
+                    "query_scaffold_fallback": int(query.scaffold_fallback),
                     "ionization": record.ionization,
                     "instrument": record.instrument,
                     "candidate_rank": candidate_rank,
@@ -658,6 +673,7 @@ def build_rankloop_corpus(
                     "candidate_inchi_key_first_block": candidate.inchi_key_first_block,
                     "candidate_formula": candidate.formula,
                     "candidate_scaffold": candidate.scaffold,
+                    "candidate_scaffold_fallback": int(candidate.scaffold_fallback),
                     "source_name": choice.source_name,
                     "source_rank": choice.source_rank,
                     "negative_tier": choice.negative_tier,

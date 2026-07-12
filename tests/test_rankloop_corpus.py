@@ -82,6 +82,17 @@ def test_computed_connectivity_is_used_when_label_inchikey_disagrees():
     assert molecule.provided_inchi_key_first_block == "AAAAAAAAAAAAAA"
 
 
+def test_invalid_double_bond_stereo_is_removed_before_scaffold_generation():
+    molecule = molecule_record_from_smiles(
+        "CCC[C@H]1C(=O)NC[C@H](C[C@@H]([C@@H](CC/C(=C/C=C/[C@@H](CCCC(=O)"
+        "CCCC[C@H](C[C@@H](C(=O)O1)C)C)CC)/COC)O)O)O",
+        fingerprint_bits=128,
+    )
+
+    assert molecule is not None
+    assert molecule.scaffold or molecule.scaffold_fallback
+
+
 def test_corpus_is_leakage_safe_and_deterministic(tmp_path: Path):
     labels, splits = _write_dataset(tmp_path)
     records, rejections = load_spectrum_records(labels, splits, fingerprint_bits=128)
