@@ -37,6 +37,11 @@ from run_gems_iceberg_diagnostic import (  # noqa: E402
 )
 
 
+CANDIDATE_LOCAL_FAILURE_MARKERS = (
+    "ValueError: need at least one array to concatenate",
+)
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Target-blind ICEBERG forward scoring of frozen candidates.",
@@ -95,6 +100,91 @@ def _missing_forward_rows(candidates: pd.DataFrame) -> list[dict[str, object]]:
         }
         for candidate in candidates.to_dict(orient="records")
     ]
+
+
+def _is_candidate_local_failure(error: RuntimeError) -> bool:
+    message = str(error)
+    return any(marker in message for marker in CANDIDATE_LOCAL_FAILURE_MARKERS)
+
+
+def _score_iceberg_candidates(
+    *,
+    query: dict[str, object],
+    candidates: pd.DataFrame,
+    query_dir: Path,
+    observed_path: Path,
+    ms_pred_root: Path,
+    python_path: Path,
+    gen_checkpoint: Path,
+    inten_checkpoint: Path,
+    collision_energies: tuple[int, ...],
+    gpu: int | None,
+    batch_size: int,
+    num_workers: int,
+) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
+    attempts: list[dict[str, object]] = []
+
+    def score_batch(batch: pd.DataFrame) -> list[dict[str, object]]:
+        candidate_indices = batch["candidate_index"].astype(int).tolist()
+        attempt_dir = query_dir / (
+            f"candidates_{candidate_indices[0]}_{candidate_indices[-1]}"
+        )
+        started = time.perf_counter()
+        try:
+            prediction_path, model_wall_seconds = _run_official_iceberg(
+                query=query,
+                candidates=batch,
+                query_dir=attempt_dir,
+                ms_pred_root=ms_pred_root,
+                python_path=python_path,
+                gen_checkpoint=gen_checkpoint,
+                inten_checkpoint=inten_checkpoint,
+                collision_energies=collision_energies,
+                gpu=gpu,
+                batch_size=batch_size,
+                num_workers=num_workers,
+            )
+        except RuntimeError as error:
+            local_failure = _is_candidate_local_failure(error)
+            attempts.append(
+                {
+                    "state": "failed",
+                    "candidate_indices": candidate_indices,
+                    "candidate_count": len(batch),
+                    "wall_seconds": time.perf_counter() - started,
+                    "candidate_local_failure": local_failure,
+                    "error_tail": "\n".join(str(error).splitlines()[-20:]),
+                }
+            )
+            if not local_failure:
+                raise
+            if len(batch) == 1:
+                return _missing_forward_rows(batch)
+            midpoint = len(batch) // 2
+            return score_batch(batch.iloc[:midpoint].copy()) + score_batch(
+                batch.iloc[midpoint:].copy()
+            )
+
+        rows_scored, missing_predictions = _load_and_score_predictions(
+            prediction_path=prediction_path,
+            candidates=batch,
+            observed_path=observed_path,
+            ms_pred_root=ms_pred_root,
+        )
+        attempts.append(
+            {
+                "state": "completed",
+                "candidate_indices": candidate_indices,
+                "candidate_count": len(batch),
+                "missing_predictions": missing_predictions,
+                "wall_seconds": model_wall_seconds,
+                "prediction_path": str(prediction_path),
+                "prediction_sha256": sha256_file(prediction_path),
+            }
+        )
+        return rows_scored
+
+    return score_batch(candidates), attempts
 
 
 def main() -> int:
@@ -195,16 +285,16 @@ def main() -> int:
         }
         query_dir = predictions_root / query_name
         observed_path = spec_dir / f"{query_name}.ms"
+        query_started = time.perf_counter()
+        iceberg_attempts: list[dict[str, object]] = []
         if normalized_instrument is None or supported_rows.empty:
-            prediction_path = None
-            wall_seconds = 0.0
-            missing_predictions = len(rows)
             rows_scored = _missing_forward_rows(rows)
         else:
-            prediction_path, wall_seconds = _run_official_iceberg(
+            supported_scored, iceberg_attempts = _score_iceberg_candidates(
                 query=query_payload,
                 candidates=supported_rows,
                 query_dir=query_dir,
+                observed_path=observed_path,
                 ms_pred_root=ms_pred_root,
                 python_path=python_path,
                 gen_checkpoint=gen_checkpoint,
@@ -214,12 +304,29 @@ def main() -> int:
                 batch_size=args.batch_size,
                 num_workers=args.num_workers,
             )
-            rows_scored, missing_predictions = _load_and_score_predictions(
-                prediction_path=prediction_path,
-                candidates=rows,
-                observed_path=observed_path,
-                ms_pred_root=ms_pred_root,
-            )
+            unsupported_rows = rows.loc[
+                ~rows["candidate_index"].isin(supported_rows["candidate_index"])
+            ]
+            rows_scored = supported_scored + _missing_forward_rows(unsupported_rows)
+        rows_scored = (
+            pd.DataFrame(rows_scored)
+            .sort_values("candidate_index", kind="mergesort")
+            .to_dict(orient="records")
+        )
+        missing_predictions = sum(
+            not math.isfinite(float(row["iceberg_score"])) for row in rows_scored
+        )
+        completed_attempts = [
+            attempt for attempt in iceberg_attempts if attempt["state"] == "completed"
+        ]
+        isolated_failures = [
+            attempt
+            for attempt in iceberg_attempts
+            if attempt["state"] == "failed" and attempt["candidate_count"] == 1
+        ]
+        single_prediction = (
+            completed_attempts[0] if len(iceberg_attempts) == 1 else None
+        )
         score_rows.extend(rows_scored)
         query_stats.append(
             {
@@ -233,10 +340,23 @@ def main() -> int:
                 "unsupported_instrument": (
                     str(query["instrument"]) if normalized_instrument is None else None
                 ),
+                "isolated_model_failure_count": len(isolated_failures),
                 "missing_predictions": missing_predictions,
-                "wall_seconds": wall_seconds,
-                "prediction_path": str(prediction_path) if prediction_path else None,
-                "prediction_sha256": sha256_file(prediction_path) if prediction_path else None,
+                "wall_seconds": time.perf_counter() - query_started,
+                "prediction_path": (
+                    single_prediction["prediction_path"] if single_prediction else None
+                ),
+                "prediction_sha256": (
+                    single_prediction["prediction_sha256"] if single_prediction else None
+                ),
+                "prediction_artifacts": [
+                    {
+                        "path": attempt["prediction_path"],
+                        "sha256": attempt["prediction_sha256"],
+                    }
+                    for attempt in completed_attempts
+                ],
+                "iceberg_attempts": iceberg_attempts,
             }
         )
 

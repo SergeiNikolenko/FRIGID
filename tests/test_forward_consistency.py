@@ -1,9 +1,11 @@
 import importlib.util
+import math
 import sys
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from frigid.forward_consistency import fuse_forward_consistency_scores
 from frigid.rankloop_inference import candidate_identity_sha256
@@ -51,6 +53,93 @@ def test_unsupported_iceberg_elements_are_detected_without_target_metadata():
 def test_unsupported_instrument_is_explicitly_skipped():
     assert MODULE._normalized_iceberg_instrument("Q-TOF") == "QTOF"
     assert MODULE._normalized_iceberg_instrument(np.nan) is None
+
+
+def test_candidate_local_iceberg_failure_isolated_by_bisection(tmp_path, monkeypatch):
+    candidates = pd.DataFrame(
+        {
+            "candidate_index": [0, 1, 2],
+            "candidate_smiles": ["CC", "bad", "CCC"],
+        }
+    )
+
+    def fake_run_official_iceberg(**kwargs):
+        batch = kwargs["candidates"]
+        if "bad" in set(batch["candidate_smiles"]):
+            raise RuntimeError("ValueError: need at least one array to concatenate")
+        prediction_path = kwargs["query_dir"] / "prediction" / "preds.hdf5"
+        prediction_path.parent.mkdir(parents=True)
+        prediction_path.write_bytes(b"prediction")
+        return prediction_path, 0.1
+
+    def fake_load_and_score_predictions(*, candidates, **kwargs):
+        return [
+            {
+                **row,
+                "iceberg_score": 0.5,
+                "best_collision_energy_ev": 20.0,
+                "precursor_mz": 100.0,
+            }
+            for row in candidates.to_dict(orient="records")
+        ], 0
+
+    monkeypatch.setattr(MODULE, "_run_official_iceberg", fake_run_official_iceberg)
+    monkeypatch.setattr(
+        MODULE, "_load_and_score_predictions", fake_load_and_score_predictions
+    )
+
+    rows, attempts = MODULE._score_iceberg_candidates(
+        query={"spec_name": "q1", "ionization": "[M+H]+", "instrument": "Orbitrap"},
+        candidates=candidates,
+        query_dir=tmp_path / "query",
+        observed_path=tmp_path / "q1.ms",
+        ms_pred_root=tmp_path,
+        python_path=tmp_path / "python",
+        gen_checkpoint=tmp_path / "gen.ckpt",
+        inten_checkpoint=tmp_path / "inten.ckpt",
+        collision_energies=(10, 20),
+        gpu=0,
+        batch_size=4,
+        num_workers=0,
+    )
+
+    scores = {row["candidate_smiles"]: row["iceberg_score"] for row in rows}
+    assert scores["CC"] == 0.5
+    assert math.isnan(scores["bad"])
+    assert scores["CCC"] == 0.5
+    assert (
+        sum(
+            attempt["state"] == "failed" and attempt["candidate_count"] == 1
+            for attempt in attempts
+        )
+        == 1
+    )
+
+
+def test_unknown_iceberg_failure_is_not_hidden(tmp_path, monkeypatch):
+    candidates = pd.DataFrame(
+        {"candidate_index": [0, 1], "candidate_smiles": ["CC", "CCC"]}
+    )
+
+    def fail_systemically(**kwargs):
+        raise RuntimeError("CUDA out of memory")
+
+    monkeypatch.setattr(MODULE, "_run_official_iceberg", fail_systemically)
+    with pytest.raises(RuntimeError, match="CUDA out of memory"):
+        MODULE._score_iceberg_candidates(
+            query={"spec_name": "q1", "ionization": "[M+H]+", "instrument": "Orbitrap"},
+            candidates=candidates,
+            query_dir=tmp_path / "query",
+            observed_path=tmp_path / "q1.ms",
+            ms_pred_root=tmp_path,
+            python_path=tmp_path / "python",
+            gen_checkpoint=tmp_path / "gen.ckpt",
+            inten_checkpoint=tmp_path / "inten.ckpt",
+            collision_energies=(10, 20),
+            gpu=0,
+            batch_size=4,
+            num_workers=0,
+        )
 
 
 def test_forward_blend_can_promote_consistent_candidate_without_identity_change():
