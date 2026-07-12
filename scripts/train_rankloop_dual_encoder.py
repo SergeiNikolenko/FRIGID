@@ -352,7 +352,7 @@ def main() -> int:
         "architecture": "dense_projection_dual_encoder",
         "molecule_mode": molecule_mode,
         "evidence_class": (
-            "development_quality_candidate"
+            "prepared_model_not_quality_evidence"
             if molecule_mode == "precomputed"
             else "infrastructure_baseline_not_quality_candidate"
         ),

@@ -928,3 +928,37 @@ methods вместе с caveats по splits/formula/oracle conditions запис
 reranker (`SPA-159`) -> при положительном compact gate cross-encoder -> отдельно
 проверить forward-consistency ensemble. Новую генерацию добавлять только для
 заранее определённых low-recall queries.
+
+**Эксперимент 31: первый RankLoop dual-encoder smoke**
+
+Реализованы train-only corpus builder, frozen MIST/ChemBERTa exports,
+candidate-list + symmetric InfoNCE training и target-blind reranking. Первый
+ChemBERTa запуск `81-82` признан невалидным: `AutoModel` не подхватил tied MLM
+token embeddings и создал случайную входную матрицу.
+
+После исправления loader полный smoke повторён на Spectrum:
+
+| Артефакт | Результат |
+| --- | --- |
+| Commit | `147660d5326a1880d54c6fae21a62d27f8144386` |
+| Slurm | jobs `83`, `84`, `85`, все `COMPLETED` |
+| Данные | `32` train-only spectra, `1,056` кандидатов |
+| Encoders | frozen MIST `640d` + frozen ChemBERTa `768d` |
+| Checkpoint | SHA-256 `57c47c6a85d33ae90b3e790939b23ca9b31fa6d5054d1b75a077992393dc71d0` |
+| Candidate identity | SHA-256 `fe3ea27363ff15c93ab88b8ea91e0faf6b7a4e38bd87c8d5a13be3eafa380bbf`, до и после одинаковый |
+| Top-1 | train `20/20`; internal development `1/12` |
+
+Вывод:
+
+```text
+Архитектура и target-blind inference работают end-to-end, но маленький smoke
+сильно переобучился и не доказал улучшение FRIGID. Следующий обязательный этап —
+production-shaped train corpus и paired reranking frozen development union.
+```
+
+Доказательства:
+
+- `/home/nikolenko/work/Projects/FRIGID_rankloop_runs/chemberta_embeddings_smoke32_147660d`;
+- `/home/nikolenko/work/Projects/FRIGID_rankloop_runs/dual_chemberta_smoke32_147660d`;
+- `/home/nikolenko/work/Projects/FRIGID_rankloop_runs/rerank_smoke32_147660d`;
+- Linear: `SPA-159`, `SPA-165`.
