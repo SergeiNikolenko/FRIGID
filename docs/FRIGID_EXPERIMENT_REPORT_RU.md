@@ -860,3 +860,28 @@ full/shard jobs на Kolmogorovsky остановлены; их частичны
 
 Результата качества пока нет: расчёт идёт. ICEBERG smoke также продолжает
 работать на Spectrum CPU и пока не является quality evidence.
+
+**Эксперимент 29: ускорение DLM inference на Spectrum**
+
+Проверили два варианта на фиксированных первых `8` test spectra, `batch=64`,
+`100 attempts`, seed `42`:
+
+- `bfloat16` (job `62`) отклонён: categorical sampler получил invalid
+  probabilities на каждом generation batch, кандидаты не были построены;
+- float32 conditioning cache (job `63`, commit `45aea1c`) сохранил proposal,
+  число генераций, formula matches и tanimoto идентичными control; время
+  сократилось с `4:54` до `4:40` (`~4.8%`).
+
+Кэш разрешён для следующих Spectrum full runs как техническое ускорение, но
+это не quality improvement и не меняет frozen ranking protocol.
+
+**Будущая основная гипотеза: contrastive spectrum-molecule reranker**
+
+Зарегистрирована `SPA-159`. Идея: оставить frozen four-source candidate union
+и обучить dual encoder с symmetric InfoNCE, используя train-only hard negatives
+с той же формулой/массой и близким Morgan/scaffold. На inference rerank только
+top-50/100 кандидатов. Gate: `16-32` smoke -> development panel -> `micro128`
+futility -> concordant molecule-cluster `micro256` + molecule-disjoint `macro64`
+-> locked `1,024` -> full. При положительном результате следующий этап —
+top-32/64 cross-encoder. До завершения текущего full baseline ветка остаётся
+`Todo` и не запускается.
