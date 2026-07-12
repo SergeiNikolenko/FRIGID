@@ -245,8 +245,8 @@ def build_population_frame(
         frame[f"{column}_bin"] = quantile_bins(frame[column])
     frame["replicate_count_bin"] = pd.cut(
         frame["replicate_count"],
-        bins=[0, 1, 4, 16, math.inf],
-        labels=["1", "2-4", "5-16", "17+"],
+        bins=[0, 1, 4, 16, 64, 128, math.inf],
+        labels=["1", "2-4", "5-16", "17-64", "65-128", "129+"],
     ).astype(str)
     return frame
 
