@@ -5,12 +5,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import sys
 import time
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from rdkit import Chem
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SRC_ROOT = PROJECT_ROOT / "src"
@@ -63,6 +65,17 @@ def _python_executable_path(value: str) -> Path:
     """Return an absolute executable path without resolving a virtualenv symlink."""
 
     return Path(value).expanduser().absolute()
+
+
+def _unsupported_iceberg_elements(
+    smiles: str, valid_elements: set[str]
+) -> tuple[str, ...]:
+    mol = Chem.MolFromSmiles(str(smiles))
+    if mol is None:
+        raise ValueError(f"Cannot parse candidate SMILES: {smiles!r}")
+    return tuple(
+        sorted({atom.GetSymbol() for atom in mol.GetAtoms()} - valid_elements)
+    )
 
 
 def main() -> int:
@@ -131,6 +144,11 @@ def main() -> int:
     if actual_inten_hash != args.expected_inten_sha256:
         raise RuntimeError(f"ICEBERG intensity hash mismatch: {actual_inten_hash}")
 
+    sys.path.insert(0, str(ms_pred_root / "src"))
+    from ms_pred.common.chem_utils import VALID_ELEMENTS
+
+    valid_elements = set(VALID_ELEMENTS)
+
     score_rows: list[dict[str, object]] = []
     query_stats: list[dict[str, object]] = []
     started = time.perf_counter()
@@ -138,6 +156,17 @@ def main() -> int:
     predictions_root.mkdir()
     for query_name in query_names:
         rows = selected[selected["query_spec_name"] == query_name].copy()
+        unsupported_by_candidate = rows["candidate_smiles"].map(
+            lambda smiles: _unsupported_iceberg_elements(smiles, valid_elements)
+        )
+        supported_rows = rows.loc[unsupported_by_candidate.map(len).eq(0)].copy()
+        unsupported_elements = sorted(
+            {
+                element
+                for candidate_elements in unsupported_by_candidate
+                for element in candidate_elements
+            }
+        )
         query = observed_map.loc[query_name]
         query_payload = {
             "spec_name": query_name,
@@ -145,35 +174,52 @@ def main() -> int:
             "instrument": normalize_instrument(query["instrument"]),
         }
         query_dir = predictions_root / query_name
-        prediction_path, wall_seconds = _run_official_iceberg(
-            query=query_payload,
-            candidates=rows,
-            query_dir=query_dir,
-            ms_pred_root=ms_pred_root,
-            python_path=python_path,
-            gen_checkpoint=gen_checkpoint,
-            inten_checkpoint=inten_checkpoint,
-            collision_energies=tuple(args.collision_energies),
-            gpu=args.gpu,
-            batch_size=args.batch_size,
-            num_workers=args.num_workers,
-        )
         observed_path = spec_dir / f"{query_name}.ms"
-        rows_scored, missing_predictions = _load_and_score_predictions(
-            prediction_path=prediction_path,
-            candidates=rows,
-            observed_path=observed_path,
-            ms_pred_root=ms_pred_root,
-        )
+        if supported_rows.empty:
+            prediction_path = None
+            wall_seconds = 0.0
+            missing_predictions = len(rows)
+            rows_scored = [
+                {
+                    **candidate,
+                    "iceberg_score": math.nan,
+                    "best_collision_energy_ev": math.nan,
+                    "precursor_mz": math.nan,
+                }
+                for candidate in rows.to_dict(orient="records")
+            ]
+        else:
+            prediction_path, wall_seconds = _run_official_iceberg(
+                query=query_payload,
+                candidates=supported_rows,
+                query_dir=query_dir,
+                ms_pred_root=ms_pred_root,
+                python_path=python_path,
+                gen_checkpoint=gen_checkpoint,
+                inten_checkpoint=inten_checkpoint,
+                collision_energies=tuple(args.collision_energies),
+                gpu=args.gpu,
+                batch_size=args.batch_size,
+                num_workers=args.num_workers,
+            )
+            rows_scored, missing_predictions = _load_and_score_predictions(
+                prediction_path=prediction_path,
+                candidates=rows,
+                observed_path=observed_path,
+                ms_pred_root=ms_pred_root,
+            )
         score_rows.extend(rows_scored)
         query_stats.append(
             {
                 "spec_name": query_name,
                 "candidate_count": len(rows),
+                "iceberg_input_count": len(supported_rows),
+                "unsupported_candidate_count": len(rows) - len(supported_rows),
+                "unsupported_elements": unsupported_elements,
                 "missing_predictions": missing_predictions,
                 "wall_seconds": wall_seconds,
-                "prediction_path": str(prediction_path),
-                "prediction_sha256": sha256_file(prediction_path),
+                "prediction_path": str(prediction_path) if prediction_path else None,
+                "prediction_sha256": sha256_file(prediction_path) if prediction_path else None,
             }
         )
 

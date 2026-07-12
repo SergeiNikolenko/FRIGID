@@ -41,6 +41,13 @@ def test_python_executable_path_preserves_virtualenv_symlink(tmp_path):
     assert executable.resolve() == base_python
 
 
+def test_unsupported_iceberg_elements_are_detected_without_target_metadata():
+    valid_elements = {"C", "H", "N", "O"}
+
+    assert MODULE._unsupported_iceberg_elements("CCO", valid_elements) == ()
+    assert MODULE._unsupported_iceberg_elements("[Ge]", valid_elements) == ("Ge",)
+
+
 def test_forward_blend_can_promote_consistent_candidate_without_identity_change():
     frame = _frame()
     expected_identity = candidate_identity_sha256(frame)
