@@ -283,3 +283,26 @@ def test_positive_subthreshold_diagnostic_is_bounded_not_rejected():
     assert decision["gate_passed"] is False
     assert decision["next_gate"] is None
     assert decision["next_action"] == "run_predeclared_mutation_operator_ablation"
+
+
+def test_paired_swap_is_deterministic_formula_filtered_and_bounded():
+    kwargs = {
+        "seed_smiles": SEED_SMILES,
+        "query_formula": SEED_FORMULA,
+        "seed": 13420260711,
+        "raw_proposals": 128,
+        "mutation_depths": (1, 2),
+        "operations": ("paired_swap",),
+        "max_accepted": 16,
+    }
+    first = generate_stoned_candidates(**kwargs)
+    second = generate_stoned_candidates(**kwargs)
+    assert first == second
+    candidates, proposals, stats = first
+    assert len(proposals) == 128
+    assert len(candidates) <= 16
+    assert stats.exact_formula_molecules > 0
+    for candidate in candidates:
+        mol = Chem.MolFromSmiles(candidate.smiles)
+        assert mol is not None
+        assert rdMolDescriptors.CalcMolFormula(mol) == SEED_FORMULA

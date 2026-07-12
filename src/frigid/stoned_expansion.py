@@ -14,7 +14,7 @@ from rdkit.Chem import rdMolDescriptors
 import selfies as sf
 
 
-SUPPORTED_OPERATIONS = ("replacement", "insertion", "deletion")
+SUPPORTED_OPERATIONS = ("replacement", "insertion", "deletion", "paired_swap")
 RDLogger.DisableLog("rdApp.*")
 
 
@@ -157,6 +157,18 @@ def _mutate_once(
         position = rng.randrange(len(tokens))
         old = tokens.pop(position)
         return {"operation": operation, "position": position, "old": old}
+    if operation == "paired_swap":
+        if len(tokens) <= 1:
+            return {"operation": operation, "positions": [], "skipped": "minimum_length"}
+        first, second = sorted(rng.sample(range(len(tokens)), 2))
+        old = [tokens[first], tokens[second]]
+        tokens[first], tokens[second] = tokens[second], tokens[first]
+        return {
+            "operation": operation,
+            "positions": [first, second],
+            "old": old,
+            "new": [tokens[first], tokens[second]],
+        }
     raise AssertionError(operation)
 
 
