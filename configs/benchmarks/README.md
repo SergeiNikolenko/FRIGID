@@ -26,3 +26,28 @@ Ordered spectrum-name hashes:
 Run a manifest with `benchmark_dlm_fingerprint_robustness.py --spec-manifest
 <path>`. Do not combine a manifest with a nonzero `--start-index`, and do not
 truncate it with a different `--max-spectra` value.
+
+## Compact representative panels
+
+The `msg_compact_*_v1.tsv` manifests provide faster checks against the exact
+17,082-row benchmark population:
+
+- `micro128`, `micro256`, and `micro512` are nested and preserve the row-level
+  mixture, including replicate frequency, precursor mass, peak count, spectral
+  entropy, instrument, adduct, formula, and MIST fingerprint density.
+- `macro64` contains one spectrum per connectivity block and is molecule-
+  disjoint from all prior diverse gates and all micro panels.
+
+The locked manifests and their generation audit are:
+
+| Manifest | Rows | Unique molecules | File SHA-256 |
+| --- | ---: | ---: | --- |
+| `msg_compact_micro128_v1.tsv` | 128 | 115 | `40012b2534eeb8b12c6c752ef630707dbfff61236f44270db8a0eba6a583973c` |
+| `msg_compact_micro256_v1.tsv` | 256 | 198 | `aa8fed6ed186c3158aa7e51b9890cdaed61252db3222e4a9165fce22f9c9f0ef` |
+| `msg_compact_micro512_v1.tsv` | 512 | 348 | `cb90a309a1baf0719b4fbd31123fbbfbb2e7792a6eb68d8dd8044d4c76efe124` |
+| `msg_compact_macro64_v1.tsv` | 64 | 64 | `70ec7a7e8344f2b118abea1057a42e37d872b5ec5334bd87923ddceffd3ac458` |
+
+`msg_compact_selection_report_v1.json` records the input joins, distribution
+checks, acceptance thresholds, overlap checks, profiles, and ordered-name
+hashes. Regeneration fails if a locked production panel exceeds its specified
+distribution limits.
