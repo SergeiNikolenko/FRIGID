@@ -1200,3 +1200,42 @@ finalization, fusion, conversion, shard merge, paired comparison и reranking.
 их SHA-256 можно заморозить только после фактической проверки completed jobs и
 возможных точечных retries. MCES остаётся отдельным обязательным post-fusion
 расчётом и не будет молча подменён Tanimoto/Exact. Linear: `SPA-155`.
+
+**Эксперимент 39: воспроизводимый full MCES runtime**
+
+Аудит показал, что текущие local и Spectrum FRIGID environments не содержат
+`pulp` и `myopic_mces`. Поэтому старые `compute_metrics.py` и
+`multi_compute.py` не могли реально посчитать MCES: первый только печатал
+warning, второй падал при импорте.
+
+Версия восстановлена по времени и API исходного FRIGID-кода. Initial commit
+FRIGID датирован апрелем 2026 и использует API `solver_options` /
+`always_stronger_bound`; подходящая предшествующая версия —
+[`myopic-mces 1.0.1`](https://pypi.org/project/myopic-mces/1.0.1/) от июля 2024.
+Релизы `1.1+` вышли уже после initial commit. Для solver зафиксирован
+[`PuLP 2.7.0`](https://pypi.org/project/PuLP/2.7.0/), соответствующий upstream
+tested configuration.
+
+Создан отдельный read-only overlay, активная FRIGID `.venv` не менялась:
+
+- `myopic-mces==1.0.1`, wheel SHA-256 `d382a31c...`;
+- `PuLP==2.7.0`, wheel SHA-256 `b6de42c9...`;
+- `PULP_CBC_CMD` binary SHA-256 `2e170777...`;
+- smoke `CC` vs `CCC`: expected/observed distance `1`;
+- runtime manifest:
+  `/home/nikolenko/work/Projects/FRIGID_mces_runtime_1p0p1_183fdd2/RUNTIME_MANIFEST.json`;
+- runtime manifest SHA-256:
+  `5d5a07bc948741acf11b1347cb6738c92256099bca031147797fc265a1735128`.
+
+На commits `d72cc59` и `1def8b6` подготовлен sharded evaluator для двух frozen
+prediction tables (`control`, `union`). Он проверяет полный manifest order,
+runtime/CBC hashes, считает `mces@1..10`, пишет partial outputs и отдельный
+RUN_MANIFEST для каждого диапазона. Старый необязательный `tqdm_joblib` import
+перенесён внутрь aggregate-функции; metric core теперь загружается без изменения
+MCES-семантики.
+
+Важно: это paper-compatible **thresholded myopic MCES** с threshold `15`,
+`always_stronger_bound=True` и CBC time limit `600 s`, а не безусловно exact
+graph-edit distance. Full MCES job пока не поставлен: сначала должны появиться
+frozen control/union predictions, затем обязателен малый runtime smoke для
+выбора shard size. Linear: `SPA-155`.

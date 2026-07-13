@@ -497,3 +497,9 @@ mist_binary quality must improve without collapsing ground_truth quality
   lists, nested manifest validation, frozen four-source order, contribution
   ablations and molecule-cluster bootstrap. It remains unqueued until all
   selected shard directories are validated and their list hashes are frozen.
+- MCES audit found missing `pulp`/`myopic_mces` in both active environments.
+  A separate pinned overlay now uses `myopic-mces 1.0.1`, `PuLP 2.7.0`, and
+  CBC SHA-256 `2e170777...`; runtime manifest SHA-256 is `5d5a07bc...`.
+- Sharded paper-compatible thresholded-MCES evaluation is prepared at commits
+  `d72cc59`/`1def8b6`, but remains unqueued until frozen full control/union
+  prediction tables exist and a small Spectrum Slurm timing smoke is possible.
