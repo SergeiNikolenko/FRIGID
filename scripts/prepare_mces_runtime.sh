@@ -106,7 +106,8 @@ manifest = {
         "dirty": False,
     },
     "base_python": {
-        "path": str(pathlib.Path(os.environ["BASE_PYTHON"]).resolve()),
+        "path": os.environ["BASE_PYTHON"],
+        "resolved_path": str(pathlib.Path(os.environ["BASE_PYTHON"]).resolve()),
         "version": sys.version,
         "platform": platform.platform(),
     },
@@ -134,6 +135,7 @@ manifest = {
         "selected": "PULP_CBC_CMD",
         "available": available_solvers,
         "path": pulp.PULP_CBC_CMD().path,
+        "sha256": sha256_file(pathlib.Path(pulp.PULP_CBC_CMD().path)),
     },
     "metric_contract": {
         "threshold": 15,
