@@ -58,6 +58,13 @@ For every external generator, convert its ordered JSONL output with
 that the ordered manifest hash matches, and only then pass the candidate CSV to
 `fuse_candidate_sources.py`.
 
+If a MolForge run is interrupted, never restart into the same output path.
+Preserve and hash the valid manifest prefix, generate the exact remaining
+suffix in a new run directory, and pass each ordered part with a repeated
+`--input-jsonl` argument to `scripts/convert_molforge_predictions.py`. The
+converter accepts the parts only when their concatenated `spec_name` sequence
+exactly matches the locked manifest.
+
 ## Server roles
 
 - The local machine orchestrates and performs lightweight paired analysis.

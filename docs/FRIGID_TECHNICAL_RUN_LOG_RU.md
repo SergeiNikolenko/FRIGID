@@ -480,3 +480,16 @@ Gate для следующего DLM tuning:
 ```text
 mist_binary quality must improve without collapsing ground_truth quality
 ```
+
+## Full four-source orchestration, 2026-07-13
+
+- Frozen DLM jobs `133-168` запущены на `spectrum`; job `133` выполняется.
+- Full train-only retrieval job `169` ждёт завершения всех DLM shards.
+- Обнаруженный direct MolForge process остановлен с exit status `130`.
+- Сохранён exact manifest prefix `8,630/17,082`, SHA-256
+  `2b67438042922592e900a5264acb49ab686308d1db52aeda658a15153eca47c7`.
+- Resume preflight подтвердил suffix `[8,630, 17,082)` и оба checkpoint hash.
+- MolForge suffix job `170` поставлен с dependency `afterany:169`,
+  `gpu`, `gres/gpu:1`; он не конкурирует с активным frozen queue.
+- Full run root:
+  `/home/nikolenko/work/Projects/FRIGID_full_runs/four_source_full_e1b18a9_20260713`.

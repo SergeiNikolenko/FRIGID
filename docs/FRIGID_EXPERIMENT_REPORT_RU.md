@@ -1132,3 +1132,41 @@ molecule overlap в MSG равен `0`.
 Это orchestration/preparation, а не новый quality claim. Источник войдёт в
 full union только после hash/coverage validation и воспроизведения frozen
 compact retrieval policy. Linear: `SPA-155`.
+
+**Эксперимент 37: сохранение и продолжение full MolForge**
+
+Аудит обнаружил, что старый full MolForge продолжал считать напрямую на
+`cuda:0` вне Slurm и конкурировал с DLM job `133`. Процесс остановлен через
+`SIGINT`; файл закрылся корректно и сохранил точный prefix полного manifest:
+
+- `8,630/17,082` spectra, остаток `8,452`;
+- последний сохранённый spectrum: `MassSpecGymID0219269`;
+- predictions SHA-256:
+  `2b67438042922592e900a5264acb49ab686308d1db52aeda658a15153eca47c7`;
+- порядок prefix полностью совпадает с locked manifest;
+- после остановки на A100 остался только Slurm DLM process.
+
+В `convert_molforge_predictions.py` добавлено безопасное объединение нескольких
+JSONL parts: результат принимается только при точном совпадении полного
+`spec_name` order. Добавлен Slurm resume с отдельными suffix labels/split,
+проверкой обоих checkpoint hashes и target-blind conversion.
+
+Spectrum preflight прошёл на реальных данных:
+
+- FRIGID clean worktree commit
+  `ad8cf6aca26c9785752660aa11bc8be2187364c4`;
+- MolForge clean worktree commit
+  `2e5f37cef6edb47991f94f03ba2552833ef3e225`;
+- suffix range `[8,630, 17,082)`, ровно `8,452` spectra;
+- suffix manifest SHA-256
+  `97a35e9e3946bb0ff5f99945f49cbec5a594fe1455c2c83983e886ee25684c5e`;
+- five focused converter tests passed.
+
+Job `170` поставлен в `PENDING (Dependency)` с `afterany:169`, partition
+`gpu`, `gres/gpu:1`. Поэтому MolForge не конкурирует ни с jobs `133-168`, ни с
+full retrieval job `169`. Run directory:
+`/home/nikolenko/work/Projects/FRIGID_full_runs/four_source_full_e1b18a9_20260713/sources/molforge_full_resume_ad8cf6a`.
+
+Это исправление orchestration, а не новая метрика качества. Следующий валидный
+результат MolForge: suffix `8,452/8,452`, затем общий candidate source с exact
+coverage `17,082/17,082`. Linear: `SPA-155`.
