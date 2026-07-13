@@ -1009,3 +1009,34 @@ forward consistency, а не новый подбор fusion alpha.
 - `/home/nikolenko/work/Projects/FRIGID_rankloop_runs/evaluation_dreams_micro256_68c716e`;
 - `/home/nikolenko/work/Projects/FRIGID_rankloop_runs/evaluation_dreams_macro64_68c716e`;
 - Linear: `SPA-159`, `SPA-165`, следующий `SPA-169`.
+
+**Эксперимент 33: ICEBERG forward consistency reranker**
+
+Для top-10 frozen four-source union рассчитали predicted MS/MS официальным
+ICEBERG и смешали forward cosine с исходным MIST score. Target labels не
+использовались до paired evaluation. Неподдерживаемые candidates и spectra без
+instrument metadata сохранялись с baseline fallback.
+
+На `dev64` из 20 заранее заданных вариантов выбран и заморожен
+`blend + z-score + alpha 0.5`:
+
+| Panel | Delta Tanimoto@1 | 95% molecule CI | Delta Exact@1 |
+| --- | ---: | ---: | ---: |
+| dev64 | `+0.01409` | `[-0.00521, +0.04225]` | `+0.06250` |
+| locked micro128 | `-0.00761` | `[-0.01688, +0.00013]` | `-0.00781` |
+
+Locked `micro128` сохранил все `1,280` candidates: `1,247` forward scores
+finite, `33` missing, полностью недегенеративны `102/128` queries. Frozen
+futility rule не пройден, поэтому ветка закрыта без `micro256`, `macro64`,
+`1,024` и full. Compact alpha не перенастраивался.
+
+Доказательства:
+
+- `spectrum`, jobs `127`, `129`, `130`, `131`;
+- commits `2d09853aa71f134cf9df2787aedfddccc161e4ca`,
+  `da705b2d6fcd0c978e27b40ca408d6f170aafd25`, `62558f1cc8272d7bc324d8f2a956d81f57c66c63`;
+- `/home/nikolenko/work/Projects/FRIGID_forward_runs/iceberg_forward_dev64_2d09853`;
+- `/home/nikolenko/work/Projects/FRIGID_forward_runs/forward_fusion_dev64_da705b2`;
+- `/home/nikolenko/work/Projects/FRIGID_forward_runs/iceberg_forward_micro128_520231f`;
+- `/home/nikolenko/work/Projects/FRIGID_forward_runs/forward_fusion_micro128_62558f1`;
+- Linear: `SPA-169`.

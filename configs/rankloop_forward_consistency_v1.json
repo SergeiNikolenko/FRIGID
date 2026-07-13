@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "state": "frozen_for_locked_micro128",
+  "state": "rejected_locked_micro128",
   "selection": {
     "development_manifest": "configs/benchmarks/msg_diverse_dev64_v1.tsv",
     "grid_manifest_sha256": "c55c7ca06f5ffd55fcd3dc207b1f288c5ba10345020c9d36520482b9c1ed9682",
@@ -46,6 +46,22 @@
     "query_count": 128,
     "candidate_count": 1280,
     "futility_rule": "continue only when Tanimoto@1 mean delta is positive and Exact@1 mean delta is nonnegative",
-    "interpretation": "a positive micro128 result is not confirmation; confirmation requires concordant micro256 and molecule-disjoint macro64"
-  }
+    "interpretation": "a positive micro128 result is not confirmation; confirmation requires concordant micro256 and molecule-disjoint macro64",
+    "result": {
+      "futility_pass": false,
+      "tanimoto_top1_mean_delta": -0.007606015887398757,
+      "tanimoto_top1_ci_low": -0.016881440566075705,
+      "tanimoto_top1_ci_high": 0.00012648548300536665,
+      "exact_match_top1_mean_delta": -0.0078125,
+      "exact_match_top1_ci_low": -0.024,
+      "exact_match_top1_ci_high": 0.0,
+      "finite_forward_scores": 1247,
+      "missing_forward_scores": 33,
+      "nondegenerate_query_count": 102,
+      "scoring_manifest_sha256": "193d8a2359ca86dcd377a5b7d7e61600caea4049b3462706247bf4063089c3d6",
+      "forward_scores_sha256": "4eb9ee16cc45a15958d6a4afd9a051d77d9221877393e6c1fd7ad94dd931f8a5",
+      "gate_manifest_sha256": "d7e797b79bd47ef2f993fb5ef6ebf34deae9d34bc94c72ab0b3057132c4be185"
+    }
+  },
+  "decision": "reject without micro256, macro64, locked 1024, or full evaluation; do not retune fusion on compact panels"
 }
