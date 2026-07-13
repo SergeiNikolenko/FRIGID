@@ -1068,3 +1068,42 @@ Submission manifest SHA-256:
 валидный результат — merge каждого DLM source при точном покрытии
 `17,082/17,082`; затем нужно завершить отсутствующие MolForge/retrieval ranges
 и выполнить frozen target-blind fusion. Linear: `SPA-155`.
+
+**Эксперимент 35: conformal candidate sets и abstention**
+
+На `dev64` раздельно и детерминированно обучены temperature `0.01` и
+conformal quantiles. Ranking и candidate pool не менялись. Locked labels
+использовались только для coverage metrics; inference target-blind.
+
+| Panel | Exact recall@10 | RAPS conditional coverage | Mean set size | Abstention risk |
+| --- | ---: | ---: | ---: | ---: |
+| micro128 | `0.2734` | `0.8857` | `5.10` | `0.4000` |
+| micro256 | `0.2617` | `0.9104` | `5.23` | `0.3158` |
+| macro64 | `0.2344` | `1.0000` | `5.22` | `0.3000` |
+
+APS дал `100%` conditional coverage, но почти всегда возвращал весь top-10:
+mean set size `8.67-9.26`. RAPS был компактнее и прошёл marginal target на
+micro256/macro64, однако low-margin subgroup на micro256 получил только
+`0.8462`, а development abstention с risk `0` не перенёсся на locked panels.
+
+Вывод:
+
+```text
+Ветка bounded: RAPS полезен как честный uncertainty diagnostic только при
+условии, что правильная молекула уже есть в frozen candidate pool. Он не
+улучшает ranking и не даёт 90% unconditional coverage: exact recall top-10
+остаётся лишь 23-27%. Confidence-conditional calibration и abstention не
+подтверждены. Без перенастройки на locked panels ветка не идёт в 1,024/full.
+```
+
+Доказательства на `spectrum`:
+
+- code/config commit `d936d86fa4aa5f02f89abbe75b743e9dbeb4f3ad`;
+- micro128 run manifest SHA-256
+  `a9bdaaa29bdc48c8c78d80bca400a3c1279600bae905ee49dca3981a1c7e5ef0`;
+- micro256 run manifest SHA-256
+  `cd4736df4f5040e63505eaa45da7fa96385ff4e5fa55ef9253b57214b2764155`;
+- macro64 run manifest SHA-256
+  `cdb51c1477aef78647bb8ddf7e842a78d231dfdec693268be0b707a785d8e753`;
+- `/home/nikolenko/work/Projects/FRIGID_conformal_runs/`;
+- Linear: `SPA-172`.
