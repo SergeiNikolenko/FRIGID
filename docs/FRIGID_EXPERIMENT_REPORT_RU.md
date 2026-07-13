@@ -1259,3 +1259,26 @@ settings hashes, проверяет непересекающиеся ranges и �
 `git diff --check` пройдены. Состояние: `prepared`, не quality result. MCES
 shards будут поставлены только после frozen full fusion и отдельного timing
 smoke на `spectrum`. Linear: `SPA-155`.
+
+**Эксперимент 41: первый валидированный full DLM shard**
+
+Job `133` завершился на `spectrum` за `07:06:47` с exit code `0`. Отдельный
+post-run audit подтвердил:
+
+- control source, frozen range `[0, 1000)` и exact locked order `1,000/1,000`;
+- `10,000` candidate-score rows, ровно `10` ranks на каждый query;
+- commit `e1b18a9`, clean worktree, temperature `1.0`, attempts `100`,
+  batch `16`, float32, conditioning cache и seed `42`;
+- фактические hashes config, split, labels, MIST/DLM checkpoints и manifest;
+- hashes и row counts всех восьми записанных outputs.
+
+Run manifest SHA-256:
+`e51ce54d41c0811d499bdc94da927d2f04a63fd9264d9ad928dceed0269c4a5b`.
+Audit artifact:
+`/home/nikolenko/work/Projects/FRIGID_full_runs/four_source_full_e1b18a9_20260713/audits/job_133_validation.json`,
+SHA-256 `84d0139a8585dae5136ed3e55ae291396f69d66cb12394c5d6eae4031c68bf39`.
+
+Это orchestration milestone, не частичный quality claim: результаты первых
+`1,000` не используются для tuning. Job `134` автоматически начал frozen
+range `[1000, 2000)`; retries и изменения настроек не потребовались. Linear:
+`SPA-155`.

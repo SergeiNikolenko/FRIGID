@@ -506,3 +506,7 @@ mist_binary quality must improve without collapsing ground_truth quality
 - Strict MCES shard merge is prepared at commit `35ffd06`: exact ordered full
   coverage, frozen provenance/settings, output hashes, per-variant aggregates,
   and `10,000`-sample molecule-cluster bootstrap for `union - control`.
+- Control job `133` completed in `07:06:47` and passed an independent audit for
+  exact range `[0,1000)`, `1,000` ordered queries, `10,000` score rows, all
+  input/output hashes and frozen settings. Audit SHA-256 is `84d0139a...` at
+  `audits/job_133_validation.json`; job `134` then started automatically.
