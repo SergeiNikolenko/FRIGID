@@ -1107,3 +1107,28 @@ micro256/macro64, однако low-margin subgroup на micro256 получил 
   `cdb51c1477aef78647bb8ddf7e842a78d231dfdec693268be0b707a785d8e753`;
 - `/home/nikolenko/work/Projects/FRIGID_conformal_runs/`;
 - Linear: `SPA-172`.
+
+**Эксперимент 36: подготовка full train-only retrieval**
+
+Старый full MIST fingerprint export удалён; в compact report сохранились только
+его hashes. Legacy retrieval также непригоден для full: он выполняет Python
+loop по `17,082 x 22,746` парам query/train molecule.
+
+Реализован exact matrix backend, который пакетно считает Morgan-4096 Tanimoto,
+но сохраняет прежние formula-first ranking и stable tie order. Synthetic
+legacy-vs-matrix тесты дают идентичные candidates, ranks и scores. Train/test
+molecule overlap в MSG равен `0`.
+
+На `spectrum` поставлен job `169`:
+
+- clean commit `733c588e547c57c024db60e6f7266c686c6d9388`;
+- состояние `PENDING (Dependency)`;
+- dependency: все DLM jobs `133-168`, поэтому job не конкурирует за A100;
+- сначала MIST export для ordered `17,082`, затем exact train-only retrieval;
+- обязательный результат: `17,082` queries и `170,820` candidate rows;
+- run directory:
+  `/home/nikolenko/work/Projects/FRIGID_full_runs/four_source_full_e1b18a9_20260713/sources/train_only_retrieval_full_733c588`.
+
+Это orchestration/preparation, а не новый quality claim. Источник войдёт в
+full union только после hash/coverage validation и воспроизведения frozen
+compact retrieval policy. Linear: `SPA-155`.
