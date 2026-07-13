@@ -8,7 +8,7 @@ import csv
 import hashlib
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, Sequence
 
 
 def sha256_file(path: Path) -> str:
@@ -51,11 +51,21 @@ def load_prediction_records(path: Path) -> list[dict[str, Any]]:
 
 
 def convert_predictions(
-    input_jsonl: Path,
+    input_jsonl: Path | Sequence[Path],
     output_csv: Path,
     spec_manifest: Path,
 ) -> tuple[int, int]:
-    records = load_prediction_records(input_jsonl)
+    input_paths = (
+        [input_jsonl] if isinstance(input_jsonl, Path) else list(input_jsonl)
+    )
+    if not input_paths:
+        raise ValueError("At least one MolForge prediction JSONL is required")
+    part_records = [load_prediction_records(input_path) for input_path in input_paths]
+    records = [
+        record
+        for records_for_part in part_records
+        for record in records_for_part
+    ]
     expected_names = load_manifest_spec_names(spec_manifest)
 
     actual_names = [str(record.get("spec_name", "")).strip() for record in records]
@@ -110,10 +120,14 @@ def convert_predictions(
     manifest_payload = {
         "schema_version": 1,
         "converter": str(Path(__file__).resolve()),
-        "input_jsonl": {
-            "path": str(input_jsonl),
-            "sha256": sha256_file(input_jsonl),
-        },
+        "input_jsonl_parts": [
+            {
+                "path": str(input_path),
+                "sha256": sha256_file(input_path),
+                "record_count": len(records_for_part),
+            }
+            for input_path, records_for_part in zip(input_paths, part_records)
+        ],
         "spec_manifest": {
             "path": str(spec_manifest),
             "sha256": sha256_file(spec_manifest),
@@ -127,13 +141,15 @@ def convert_predictions(
         "queries_with_no_candidates": queries_with_no_candidates,
         "target_fields_used": [],
     }
+    if len(input_paths) == 1:
+        manifest_payload["input_jsonl"] = manifest_payload["input_jsonl_parts"][0]
     manifest_path.write_text(json.dumps(manifest_payload, indent=2) + "\n")
     return len(records), len(rows)
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--input-jsonl", required=True)
+    parser.add_argument("--input-jsonl", action="append", required=True)
     parser.add_argument("--output-csv", required=True)
     parser.add_argument("--spec-manifest", required=True)
     return parser.parse_args()
@@ -142,7 +158,7 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
     queries, candidates = convert_predictions(
-        input_jsonl=Path(args.input_jsonl).expanduser().resolve(),
+        input_jsonl=[Path(path).expanduser().resolve() for path in args.input_jsonl],
         output_csv=Path(args.output_csv).expanduser().resolve(),
         spec_manifest=Path(args.spec_manifest).expanduser().resolve(),
     )

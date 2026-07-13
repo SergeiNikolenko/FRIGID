@@ -102,3 +102,34 @@ def test_records_empty_candidate_list_without_padding(tmp_path):
     ]
     run_manifest = json.loads(output.with_suffix(".csv.manifest.json").read_text())
     assert run_manifest["queries_with_no_candidates"] == 1
+
+
+def test_convert_accepts_ordered_prediction_parts(tmp_path):
+    manifest = tmp_path / "subset.tsv"
+    manifest.write_text("spec_name\nq1\nq2\nq3\n")
+    prefix = tmp_path / "prefix.jsonl"
+    suffix = tmp_path / "suffix.jsonl"
+    write_jsonl(
+        prefix,
+        [
+            {"spec_name": "q1", "threshold": 0.172, "pred_smiles_top10": ["C"]},
+            {"spec_name": "q2", "threshold": 0.172, "pred_smiles_top10": ["CC"]},
+        ],
+    )
+    write_jsonl(
+        suffix,
+        [{"spec_name": "q3", "threshold": 0.172, "pred_smiles_top10": ["CCC"]}],
+    )
+    output = tmp_path / "candidates.csv"
+
+    query_count, candidate_count = MODULE.convert_predictions(
+        [prefix, suffix], output, manifest
+    )
+
+    assert (query_count, candidate_count) == (3, 3)
+    run_manifest = json.loads(output.with_suffix(".csv.manifest.json").read_text())
+    assert [part["record_count"] for part in run_manifest["input_jsonl_parts"]] == [
+        2,
+        1,
+    ]
+    assert run_manifest["target_fields_used"] == []
