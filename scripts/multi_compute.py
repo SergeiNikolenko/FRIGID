@@ -11,7 +11,6 @@ from rdkit.Chem import AllChem
 from rdkit.Chem import DataStructs
 from joblib import Parallel, delayed
 from tqdm import tqdm
-from tqdm_joblib import tqdm_joblib
 
 from rdkit import RDLogger
 RDLogger.DisableLog('rdApp.*')
@@ -269,6 +268,8 @@ def compute_metrics(true_smiles, pred_smiles_lists, csv_path, doMCES=False, doFu
         dict: Final metrics
     """
     
+    from tqdm_joblib import tqdm_joblib
+
     if doMCES:
         solver = pulp.listSolvers(onlyAvailable=True)[0]
     else:
