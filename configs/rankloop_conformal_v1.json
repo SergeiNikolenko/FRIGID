@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "alpha": 0.1,
+  "coverage_scope": "conditional_on_target_in_frozen_candidate_pool",
+  "score_column": "tanimoto_to_mist",
+  "temperature_grid": [0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1.0, 2.0],
+  "temperature_fit_fraction": 0.5,
+  "split_seed": 1729,
+  "minimum_temperature_targets": 5,
+  "minimum_conformal_targets": 5,
+  "raps_lambda": 0.01,
+  "raps_k_reg": 3,
+  "confidence_group_quantile": 0.5,
+  "minimum_group_targets": 8,
+  "maximum_calibration_risk": 0.1,
+  "minimum_abstention_queries": 5
+}
