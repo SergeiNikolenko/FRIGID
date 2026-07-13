@@ -510,3 +510,7 @@ mist_binary quality must improve without collapsing ground_truth quality
   exact range `[0,1000)`, `1,000` ordered queries, `10,000` score rows, all
   input/output hashes and frozen settings. Audit SHA-256 is `84d0139a...` at
   `audits/job_133_validation.json`; job `134` then started automatically.
+- Control job `134` completed in `06:45:34` and passed the same audit for exact
+  range `[1000,2000)`, including equality with job `133` frozen signature and
+  actual input/output hashes. Audit SHA-256 is `cfdeb9f5...` at
+  `audits/job_134_validation.json`; job `135` then started automatically.
