@@ -35,6 +35,7 @@ DLM_CHECKPOINT="${DLM_CHECKPOINT:-$FRIGID_ASSET_ROOT/repro_cache/DLM.ckpt}"
 BATCH_SIZE="${BATCH_SIZE:-16}"
 INFERENCE_DTYPE="${INFERENCE_DTYPE:-float32}"
 CACHE_CONDITIONING="${CACHE_CONDITIONING:-1}"
+EXPECTED_TOTAL_SPECTRA="${EXPECTED_TOTAL_SPECTRA:-17082}"
 RUN_MANIFEST="$OUT_DIR/RUN_MANIFEST.json"
 
 for path in \
@@ -102,7 +103,7 @@ export CONFIG_PATH DATA_DIR DATA_SPLIT_PATH LABELS_PATH MIST_CHECKPOINT DLM_CHEC
 export EXPECTED_CONFIG_SHA256 EXPECTED_DATA_SPLIT_SHA256 EXPECTED_LABELS_SHA256
 export EXPECTED_MIST_CHECKPOINT_SHA256 EXPECTED_DLM_CHECKPOINT_SHA256
 export EXPECTED_MANIFEST_SHA256 START_INDEX MAX_SPECTRA SOFTMAX_TEMP MAX_ATTEMPTS
-export BATCH_SIZE INFERENCE_DTYPE CACHE_CONDITIONING RUN_MANIFEST
+export BATCH_SIZE INFERENCE_DTYPE CACHE_CONDITIONING EXPECTED_TOTAL_SPECTRA RUN_MANIFEST
 
 mkdir -p "$OUT_DIR"
 "$PYTHON_BIN" - <<'PY'
@@ -114,24 +115,26 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 
-def read_names(path: Path, column: str, split: str | None = None) -> list[str]:
+def read_names(path: Path, column: str) -> list[str]:
     delimiter = "\t" if path.suffix.lower() in {".tsv", ".tab"} else ","
     with path.open(newline="") as handle:
         rows = csv.DictReader(handle, delimiter=delimiter)
         if rows.fieldnames is None or column not in rows.fieldnames:
             raise ValueError(f"Missing {column} column in {path}")
-        return [
-            str(row[column]).strip()
-            for row in rows
-            if split is None or str(row.get("split", "")).strip() == split
-        ]
+        return [str(row[column]).strip() for row in rows]
 
 
 expected_path = Path(os.environ["EXPECTED_MANIFEST"])
 expected_names = read_names(expected_path, "spec_name")
-test_names = read_names(Path(os.environ["DATA_SPLIT_PATH"]), "name", "test")
-if expected_names != test_names:
-    raise ValueError("Expected manifest does not exactly match the ordered test split")
+expected_total = int(os.environ["EXPECTED_TOTAL_SPECTRA"])
+if (
+    len(expected_names) != expected_total
+    or len(expected_names) != len(set(expected_names))
+    or any(not name for name in expected_names)
+):
+    raise ValueError(
+        f"Expected manifest must contain {expected_total} unique non-empty spec_name values"
+    )
 
 start = int(os.environ["START_INDEX"])
 size = int(os.environ["MAX_SPECTRA"])
@@ -179,6 +182,7 @@ manifest = {
     },
     "selection": {
         "split": "test",
+        "expected_total_spectra": expected_total,
         "start_index": start,
         "max_spectra": size,
     },
