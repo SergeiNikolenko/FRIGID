@@ -223,6 +223,11 @@ Path(os.environ["RUN_MANIFEST"]).write_text(
 )
 PY
 
+if [[ "${PREFLIGHT_ONLY:-0}" == "1" ]]; then
+  echo "MolForge suffix preflight completed: $RUN_MANIFEST"
+  exit 0
+fi
+
 mark_failed() {
   local status="$?"
   trap - EXIT
