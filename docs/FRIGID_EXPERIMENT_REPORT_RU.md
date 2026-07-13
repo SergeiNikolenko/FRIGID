@@ -1040,3 +1040,31 @@ futility rule не пройден, поэтому ветка закрыта бе
 - `/home/nikolenko/work/Projects/FRIGID_forward_runs/iceberg_forward_micro128_520231f`;
 - `/home/nikolenko/work/Projects/FRIGID_forward_runs/forward_fusion_micro128_62558f1`;
 - Linear: `SPA-169`.
+
+**Эксперимент 34: запуск full 17,082 frozen reference**
+
+Аудит показал, что старые full-артефакты нельзя объединять: завершённый DLM
+использовал NGBoost, no-NGBoost был отменён без пригодного результата, а
+MolForge содержит только `7,613/17,082`. Полной retrieval-таблицы также нет.
+
+На `spectrum` создан чистый worktree и проверен реальный порядок benchmark:
+
+- commit `e1b18a9d7a68d2244a981b36c0b4bc261db78223`;
+- manifest `17,082/17,082`, SHA-256
+  `5fdb73ae3a5ea5ef5dc13b0eaa0a138e9871a099b03eecc0c6af8d802949e69e`;
+- MIST checkpoint `09b4e93e...`, DLM checkpoint `b6177c2d...`;
+- preflight job `132`: `COMPLETED`, `2/2` spectra, все outputs захэшированы;
+- control jobs `133-150`: temperature `1.0`, `100` attempts;
+- complementary jobs `151-168`: temperature `0.8`, `200` attempts;
+- каждый job использует полную A100, batch `16`, float32, seed `42`, без
+  NGBoost; диапазоны непересекающиеся, последний shard содержит `82` spectra.
+
+Run root:
+`/home/nikolenko/work/Projects/FRIGID_full_runs/four_source_full_e1b18a9_20260713`.
+Submission manifest SHA-256:
+`1ec9e607bcbe18ee177f76fc082523450ccd07d330a79c9e9d5476652ac2c906`.
+
+Состояние: `running`, job `133` уже считает первый control shard. Следующий
+валидный результат — merge каждого DLM source при точном покрытии
+`17,082/17,082`; затем нужно завершить отсутствующие MolForge/retrieval ranges
+и выполнить frozen target-blind fusion. Linear: `SPA-155`.
