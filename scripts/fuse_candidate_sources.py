@@ -331,6 +331,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--top-k", type=int, default=10, help="Number of predictions to output.")
     parser.add_argument("--fingerprint-bits", type=int, default=4096)
     parser.add_argument("--fingerprint-radius", type=int, default=2)
+    parser.add_argument(
+        "--source-contributions",
+        action="store_true",
+        help="Write source-only and leave-one-source-out quality diagnostics.",
+    )
     return parser.parse_args()
 
 
@@ -370,6 +375,7 @@ def run_fuse_candidate_sources(
     top_k: int,
     fingerprint_bits: int,
     fingerprint_radius: int,
+    source_contributions: bool = False,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     if top_k <= 0:
         raise ValueError("--top-k must be positive.")
@@ -400,6 +406,7 @@ def run_fuse_candidate_sources(
 
     source_rows_by_query: dict[str, list[SourceCandidate]] = defaultdict(list)
     source_rows: dict[str, int] = {}
+    known_queries = set(query_order)
     for source_priority, (source_name, source_path) in enumerate(source_specs):
         rows = _load_source_rows(
             source_name=source_name,
@@ -410,6 +417,11 @@ def run_fuse_candidate_sources(
         )
         source_rows[source_name] = len(rows)
         for row in rows:
+            if row.query_spec_name not in known_queries:
+                raise ValueError(
+                    f"{source_name} contains query absent from MIST metadata: "
+                    f"{row.query_spec_name}"
+                )
             source_rows_by_query[row.query_spec_name].append(row)
 
     source_spec_names = [name for name, _ in source_specs]
@@ -420,6 +432,8 @@ def run_fuse_candidate_sources(
     metrics_top10: list[float] = []
     candidate_metrics_top1: list[float] = []
     candidate_metrics_top10: list[float] = []
+    candidate_recall_exact: list[float] = []
+    contribution_rows: list[dict[str, Any]] = []
 
     for query_index, query_spec_name in enumerate(query_order):
         metadata = metadata_by_spec[query_spec_name]
@@ -446,6 +460,10 @@ def run_fuse_candidate_sources(
             ranked=ranked,
             top_k=top_k,
         )
+        target_present = float(
+            target_inchi_block
+            in {candidate.inchi_key_first_block for candidate in unique_candidates}
+        )
 
         mist_tanimoto = (
             compute_tanimoto_similarity(target_fingerprint, query_fp)
@@ -469,8 +487,83 @@ def run_fuse_candidate_sources(
                 "total_formula_matched": metrics["total_formula_matched"],
                 "total_valid": len(ranked),
                 "total_generated": total_generated,
+                "candidate_recall_exact": target_present,
             }
         )
+
+        if source_contributions:
+            variants = [("full", "", unique_candidates, ranked, metrics)]
+            for source_name in source_spec_names:
+                source_only = deduplicate_by_inchikey_first_block(
+                    [
+                        candidate
+                        for candidate in raw_candidates
+                        if candidate.source_name == source_name
+                    ]
+                )
+                source_only_ranked = rank_query_candidates(
+                    query_fp, source_only, top_k=top_k
+                )
+                source_only_metrics = evaluate_ranked_predictions(
+                    target_inchi_key_first_block=target_inchi_block,
+                    target_fingerprint=target_fingerprint,
+                    ranked=source_only_ranked,
+                    top_k=top_k,
+                )
+                without_source = deduplicate_by_inchikey_first_block(
+                    [
+                        candidate
+                        for candidate in raw_candidates
+                        if candidate.source_name != source_name
+                    ]
+                )
+                without_source_ranked = rank_query_candidates(
+                    query_fp, without_source, top_k=top_k
+                )
+                without_source_metrics = evaluate_ranked_predictions(
+                    target_inchi_key_first_block=target_inchi_block,
+                    target_fingerprint=target_fingerprint,
+                    ranked=without_source_ranked,
+                    top_k=top_k,
+                )
+                variants.extend(
+                    [
+                        (
+                            "source_only",
+                            source_name,
+                            source_only,
+                            source_only_ranked,
+                            source_only_metrics,
+                        ),
+                        (
+                            "without_source",
+                            source_name,
+                            without_source,
+                            without_source_ranked,
+                            without_source_metrics,
+                        ),
+                    ]
+                )
+
+            for variant, source_name, candidates, variant_ranked, variant_metrics in variants:
+                contribution_rows.append(
+                    {
+                        "spec_name": query_spec_name,
+                        "target_inchi_key": target_inchi_block,
+                        "variant": variant,
+                        "source_name": source_name,
+                        "candidate_count": len(candidates),
+                        "returned_count": len(variant_ranked),
+                        "candidate_recall_exact": float(
+                            target_inchi_block
+                            in {
+                                candidate.inchi_key_first_block
+                                for candidate in candidates
+                            }
+                        ),
+                        **variant_metrics,
+                    }
+                )
 
         prediction_row = {"true_smiles": target_smiles, "name": query_spec_name}
         for index in range(top_k):
@@ -500,6 +593,7 @@ def run_fuse_candidate_sources(
         metrics_top10.append(metrics["exact_match_top10"])
         candidate_metrics_top1.append(metrics["tanimoto_top1"])
         candidate_metrics_top10.append(metrics["tanimoto_top10"])
+        candidate_recall_exact.append(target_present)
 
     if not detailed_rows:
         raise ValueError("No queries were processed from metadata.")
@@ -524,7 +618,30 @@ def run_fuse_candidate_sources(
         "exact_match_top10": exact_match_top10,
         "tanimoto_top1_mean": tanimoto_top1,
         "tanimoto_top10_mean": tanimoto_top10,
+        "candidate_recall_exact": float(np.mean(candidate_recall_exact)),
+        "target_fields_used_by_ranking": [],
     }
+
+    if source_contributions:
+        contributions = pd.DataFrame(contribution_rows)
+        contribution_metrics = (
+            contributions.groupby(["variant", "source_name"], dropna=False)[
+                [
+                    "candidate_count",
+                    "returned_count",
+                    "candidate_recall_exact",
+                    "exact_match_top1",
+                    "exact_match_top10",
+                    "tanimoto_top1",
+                    "tanimoto_top10",
+                ]
+            ]
+            .mean()
+            .reset_index()
+        )
+        aggregate_statistics["source_contributions"] = contribution_metrics.to_dict(
+            orient="records"
+        )
 
     output_dir.mkdir(parents=True, exist_ok=True)
     pd.DataFrame(detailed_rows).to_csv(
@@ -539,6 +656,11 @@ def run_fuse_candidate_sources(
         output_dir / "prediction_scores.csv",
         index=False,
     )
+    if source_contributions:
+        pd.DataFrame(contribution_rows).to_csv(
+            output_dir / "source_contributions.csv",
+            index=False,
+        )
     with (output_dir / "aggregate_statistics.json").open("w", encoding="utf-8") as handle:
         json.dump(aggregate_statistics, handle, indent=2)
 
@@ -570,6 +692,15 @@ def run_fuse_candidate_sources(
                     "top_k": top_k,
                     "fingerprint_bits": fingerprint_bits,
                     "fingerprint_radius": fingerprint_radius,
+                    "source_contributions": source_contributions,
+                },
+                "ranking_contract": {
+                    "source_order": source_spec_names,
+                    "target_fields_used_by_ranking": [],
+                    "target_fields_used_by_metrics": [
+                        "target_smiles",
+                        "target_inchi_key",
+                    ],
                 },
                 "outputs": {
                     "prediction_scores_csv": str(output_dir / "prediction_scores.csv"),
@@ -577,6 +708,11 @@ def run_fuse_candidate_sources(
                     "detailed_results_csv": str(output_dir / "detailed_results.csv"),
                     "aggregate_statistics_json": str(
                         output_dir / "aggregate_statistics.json"
+                    ),
+                    "source_contributions_csv": (
+                        str(output_dir / "source_contributions.csv")
+                        if source_contributions
+                        else None
                     ),
                     "run_manifest_json": str(output_dir / "run_manifest.json"),
                 },
@@ -617,6 +753,7 @@ def main() -> int:
         top_k=args.top_k,
         fingerprint_bits=args.fingerprint_bits,
         fingerprint_radius=args.fingerprint_radius,
+        source_contributions=args.source_contributions,
     )
 
     return 0

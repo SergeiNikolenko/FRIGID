@@ -1,4 +1,5 @@
 import importlib.util
+import json
 import sys
 from pathlib import Path
 
@@ -196,6 +197,7 @@ def test_no_target_smiles_leaks_into_ranking(monkeypatch, tmp_path):
         top_k=2,
         fingerprint_bits=2,
         fingerprint_radius=2,
+        source_contributions=True,
     )
 
     first_prediction = predictions.set_index("name").loc["q1", "pred_smiles_1"]
@@ -203,6 +205,15 @@ def test_no_target_smiles_leaks_into_ranking(monkeypatch, tmp_path):
     assert first_prediction == second_prediction == "cand_a"
     assert detailed["fingerprint_source"].unique().tolist() == ["mist_binary"]
     assert detailed["candidate_method"].unique().tolist() == ["fused_candidates"]
+    contributions = pd.read_csv(tmp_path / "out/source_contributions.csv").fillna("")
+    assert set(contributions["variant"]) == {
+        "full",
+        "source_only",
+        "without_source",
+    }
+    assert len(contributions) == 6
+    run_manifest = json.loads((tmp_path / "out/run_manifest.json").read_text())
+    assert run_manifest["ranking_contract"]["target_fields_used_by_ranking"] == []
 
 
 def test_top10_tanimoto_is_max_not_mean():
@@ -257,6 +268,44 @@ def test_rejects_misaligned_metadata_and_mist_rows(tmp_path):
             mist_fingerprints_npz=npz_path,
             output_dir=tmp_path / "out",
             top_k=2,
+            fingerprint_bits=4,
+            fingerprint_radius=2,
+        )
+
+
+def test_rejects_source_query_absent_from_mist_metadata(monkeypatch, tmp_path):
+    metadata_path = tmp_path / "metadata.csv"
+    pd.DataFrame(
+        [{"spec_name": "q1", "target_smiles": "C", "target_inchi_key": "KEY"}]
+    ).to_csv(metadata_path, index=False)
+    npz_path = tmp_path / "fingerprints.npz"
+    np.savez_compressed(npz_path, mist_binary=np.zeros((1, 4), dtype=np.float32))
+    source_path = tmp_path / "source.csv"
+    source_path.write_text("query_spec_name,rank,candidate_smiles\nunknown,1,C\n")
+
+    monkeypatch.setattr(
+        MODULE,
+        "_load_source_rows",
+        lambda **_: [
+            MODULE.SourceCandidate(
+                query_spec_name="unknown",
+                source_name="source",
+                source_rank=1,
+                smiles="C",
+                candidate_spec_name=None,
+                inchi_key_first_block="KEY",
+                fingerprint=np.zeros(4, dtype=np.float32),
+            )
+        ],
+    )
+
+    with pytest.raises(ValueError, match="absent from MIST metadata"):
+        MODULE.run_fuse_candidate_sources(
+            source_specs=[("source", source_path)],
+            mist_metadata_csv=metadata_path,
+            mist_fingerprints_npz=npz_path,
+            output_dir=tmp_path / "out",
+            top_k=10,
             fingerprint_bits=4,
             fingerprint_radius=2,
         )
