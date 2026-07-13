@@ -493,3 +493,7 @@ mist_binary quality must improve without collapsing ground_truth quality
   `gpu`, `gres/gpu:1`; он не конкурирует с активным frozen queue.
 - Full run root:
   `/home/nikolenko/work/Projects/FRIGID_full_runs/four_source_full_e1b18a9_20260713`.
+- Full finalization prepared at commit `01a98d6`: explicit `18 + 18` shard
+  lists, nested manifest validation, frozen four-source order, contribution
+  ablations and molecule-cluster bootstrap. It remains unqueued until all
+  selected shard directories are validated and their list hashes are frozen.

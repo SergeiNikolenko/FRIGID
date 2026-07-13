@@ -1170,3 +1170,33 @@ full retrieval job `169`. Run directory:
 Это исправление orchestration, а не новая метрика качества. Следующий валидный
 результат MolForge: suffix `8,452/8,452`, затем общий candidate source с exact
 coverage `17,082/17,082`. Linear: `SPA-155`.
+
+**Эксперимент 38: подготовка full four-source finalization**
+
+Восстановлен точный frozen source order из подтверждённых compact/1,024
+manifests:
+
+```text
+control -> temperature -> retrieval -> molforge0p172
+```
+
+На commit `01a98d6` подготовлен hash-gated финализатор. После завершения
+jobs `133-170` он должен:
+
+1. принять только явно зафиксированные списки `18 + 18` DLM shards;
+2. проверить completed status, ranges, code/checkpoint/data/settings hashes;
+3. объединить каждый DLM source через `merge_dlm_benchmark_shards.py`;
+4. проверить nested manifests retrieval и MolForge;
+5. выполнить frozen MIST fusion без target fields в ranking;
+6. посчитать full/source-only/leave-one-out вклад каждого источника за один
+   проход;
+7. сравнить union с control через `10,000` molecule-cluster bootstrap samples.
+
+Дополнительно fusion теперь отклоняет candidate rows с query ID вне MIST
+metadata и записывает exact candidate recall. Проверки: `33 passed` для
+finalization, fusion, conversion, shard merge, paired comparison и reranking.
+
+Состояние: `prepared`, job не поставлен. Это намеренно: shard-list manifests и
+их SHA-256 можно заморозить только после фактической проверки completed jobs и
+возможных точечных retries. MCES остаётся отдельным обязательным post-fusion
+расчётом и не будет молча подменён Tanimoto/Exact. Linear: `SPA-155`.
