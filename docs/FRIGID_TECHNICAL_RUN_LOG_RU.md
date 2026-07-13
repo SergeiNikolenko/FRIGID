@@ -503,3 +503,6 @@ mist_binary quality must improve without collapsing ground_truth quality
 - Sharded paper-compatible thresholded-MCES evaluation is prepared at commits
   `d72cc59`/`1def8b6`, but remains unqueued until frozen full control/union
   prediction tables exist and a small Spectrum Slurm timing smoke is possible.
+- Strict MCES shard merge is prepared at commit `35ffd06`: exact ordered full
+  coverage, frozen provenance/settings, output hashes, per-variant aggregates,
+  and `10,000`-sample molecule-cluster bootstrap for `union - control`.

@@ -1239,3 +1239,23 @@ MCES-семантики.
 graph-edit distance. Full MCES job пока не поставлен: сначала должны появиться
 frozen control/union predictions, затем обязателен малый runtime smoke для
 выбора shard size. Linear: `SPA-155`.
+
+**Эксперимент 40: строгий merge full MCES**
+
+На commit `35ffd06` подготовлен финальный merge-контракт для MCES shards. Он
+принимает только completed runs с одинаковыми code, runtime, prediction и
+settings hashes, проверяет непересекающиеся ranges и точный порядок всех
+`17,082 x 2` строк (`control`, затем `union`). Изменённый output, неполное
+покрытие или provenance drift приводят к остановке без частичного merge.
+
+После полного покрытия скрипт создаёт:
+
+- ordered `per_sample_mces.csv` и mean/median `mces@1..10` по каждому variant;
+- paired `union - control` deltas, где отрицательная дельта означает улучшение;
+- `10,000` molecule-cluster bootstrap samples по `inchikey_first_block`;
+- hash-gated `MERGE_MANIFEST.json` с исходными shard manifests и outputs.
+
+Проверки: `11 passed` для evaluator, merge и paired-bootstrap core; Ruff и
+`git diff --check` пройдены. Состояние: `prepared`, не quality result. MCES
+shards будут поставлены только после frozen full fusion и отдельного timing
+smoke на `spectrum`. Linear: `SPA-155`.
