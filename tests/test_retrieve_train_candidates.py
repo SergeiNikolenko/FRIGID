@@ -4,6 +4,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+import torch
 
 SCRIPT_PATH = Path(__file__).parents[1] / "scripts" / "retrieve_train_candidates.py"
 SPEC = importlib.util.spec_from_file_location("retrieve_train_candidates", SCRIPT_PATH)
@@ -100,6 +101,52 @@ def test_formula_first_ranking_and_global_fallback():
 
     assert [entry.candidate.spec_name for entry in ranked[:2]] == ["match_low", "match_high"]
     assert ranked[2].candidate.spec_name == "non_match"
+
+
+def test_matrix_backend_matches_legacy_formula_and_tie_order():
+    rng = np.random.default_rng(17)
+    candidates = []
+    for index in range(24):
+        fingerprint = rng.integers(0, 2, size=64).astype(np.float32)
+        if index == 1:
+            fingerprint = candidates[0].fingerprint.copy()
+        candidates.append(
+            MODULE.MoleculeCandidate(
+                spec_name=f"train_{index}",
+                smiles=f"C{index}",
+                inchi_key_first_block=f"KEY{index}",
+                formula="MATCH" if index < 4 else f"F{index}",
+                fingerprint=fingerprint,
+            )
+        )
+    query_fingerprints = np.stack(
+        [
+            candidates[0].fingerprint,
+            rng.integers(0, 2, size=64).astype(np.float32),
+        ]
+    )
+    formulas = ["MATCH", "ABSENT"]
+    matrix = MODULE.MatrixTrainCandidateIndex(candidates, torch.device("cpu"))
+
+    observed = matrix.rank_batch(query_fingerprints, formulas, top_k=10)
+    expected = [
+        MODULE.rank_train_candidates(query_fp, formula, candidates, top_k=10)
+        for query_fp, formula in zip(query_fingerprints, formulas)
+    ]
+
+    for observed_query, expected_query in zip(observed, expected):
+        assert [row.candidate.spec_name for row in observed_query] == [
+            row.candidate.spec_name for row in expected_query
+        ]
+        assert [row.formula_match for row in observed_query] == [
+            row.formula_match for row in expected_query
+        ]
+        assert np.allclose(
+            [row.tanimoto for row in observed_query],
+            [row.tanimoto for row in expected_query],
+            rtol=0,
+            atol=0,
+        )
 
 
 def test_deduplicate_by_inchi_key_first_block_keeps_first_occurrence():

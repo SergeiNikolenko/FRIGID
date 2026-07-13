@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import json
 import os
+import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -14,6 +15,7 @@ import re
 
 import numpy as np
 import pandas as pd
+import torch
 
 ELEMENT_PATTERN = re.compile(r"([A-Z][a-z]?)(\d*)")
 
@@ -23,6 +25,38 @@ def _sha256_hex(path: Path) -> str:
     with path.open("rb") as handle:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _git_revision(repo: Path) -> tuple[str, bool]:
+    commit = subprocess.run(
+        ["git", "-C", str(repo), "rev-parse", "HEAD"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    dirty = bool(
+        subprocess.run(
+            ["git", "-C", str(repo), "status", "--porcelain", "--untracked-files=all"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+    )
+    return commit, dirty
+
+
+def _candidate_identity_hash(rows: list[dict[str, Any]]) -> str:
+    digest = hashlib.sha256()
+    for row in rows:
+        digest.update(
+            (
+                f"{row['query_spec_name']}\t{row['rank']}\t"
+                f"{row['candidate_inchi_key_first_block']}\t"
+                f"{float(row['candidate_tanimoto']):.17g}\t"
+                f"{row['candidate_formula_match']}\n"
+            ).encode()
+        )
     return digest.hexdigest()
 
 
@@ -182,6 +216,125 @@ def rank_train_candidates(
     return ranked
 
 
+def _rank_indices_exact(
+    scores: np.ndarray,
+    top_k: int,
+    eligible_indices: np.ndarray | None = None,
+    excluded_indices: np.ndarray | None = None,
+) -> list[int]:
+    """Select exact top-k by score, preserving original order for ties."""
+    if top_k <= 0:
+        return []
+    if eligible_indices is not None:
+        eligible = np.asarray(eligible_indices, dtype=np.int64)
+        order = np.lexsort((eligible, -scores[eligible]))
+        return eligible[order[:top_k]].tolist()
+
+    working = np.asarray(scores, dtype=np.float32).copy()
+    if excluded_indices is not None and len(excluded_indices):
+        working[np.asarray(excluded_indices, dtype=np.int64)] = -np.inf
+    valid_count = int(np.isfinite(working).sum())
+    if valid_count == 0:
+        return []
+    size = min(top_k, valid_count)
+    partition = np.argpartition(working, len(working) - size)[-size:]
+    threshold = float(np.min(working[partition]))
+    higher = np.flatnonzero(working > threshold)
+    ties = np.flatnonzero(working == threshold)
+    higher_order = np.lexsort((higher, -working[higher]))
+    ordered_higher = higher[higher_order].tolist()
+    remaining = size - len(ordered_higher)
+    ordered_ties = ties[:remaining].tolist()
+    return ordered_higher + ordered_ties
+
+
+class MatrixTrainCandidateIndex:
+    """Batch exact Tanimoto scoring with legacy-equivalent ranking."""
+
+    def __init__(
+        self,
+        train_library: list[MoleculeCandidate],
+        device: torch.device,
+    ) -> None:
+        self.train_library = train_library
+        self.device = device
+        fingerprints = np.stack(
+            [candidate.fingerprint for candidate in train_library]
+        ).astype(np.float32, copy=False)
+        self.fingerprints = torch.from_numpy(fingerprints).to(device)
+        self.fingerprint_counts = self.fingerprints.sum(dim=1)
+        self.formula_indices: dict[str, np.ndarray] = {}
+        grouped: dict[str, list[int]] = {}
+        for index, candidate in enumerate(train_library):
+            grouped.setdefault(candidate.formula, []).append(index)
+        for formula, indices in grouped.items():
+            self.formula_indices[formula] = np.asarray(indices, dtype=np.int64)
+
+    def score_batch(self, query_fingerprints: np.ndarray) -> np.ndarray:
+        queries = torch.from_numpy(
+            np.asarray(query_fingerprints, dtype=np.float32)
+        ).to(self.device)
+        with torch.no_grad():
+            intersections = queries @ self.fingerprints.T
+            unions = (
+                queries.sum(dim=1, keepdim=True)
+                + self.fingerprint_counts.unsqueeze(0)
+                - intersections
+            )
+            similarities = torch.where(
+                unions > 0,
+                intersections / unions,
+                torch.zeros_like(intersections),
+            )
+        return similarities.cpu().numpy().astype(np.float32, copy=False)
+
+    def rank_scores(
+        self,
+        scores: np.ndarray,
+        query_formula: str,
+        top_k: int,
+    ) -> list[RankedCandidate]:
+        formula_indices = self.formula_indices.get(
+            query_formula, np.empty(0, dtype=np.int64)
+        )
+        formula_ranked = _rank_indices_exact(
+            scores,
+            min(top_k, len(formula_indices)),
+            eligible_indices=formula_indices,
+        )
+        remaining = top_k - len(formula_ranked)
+        other_ranked = _rank_indices_exact(
+            scores,
+            remaining,
+            excluded_indices=formula_indices,
+        )
+        indices = formula_ranked + other_ranked
+        formula_ranked_set = set(formula_ranked)
+        return [
+            RankedCandidate(
+                rank=rank,
+                candidate=self.train_library[index],
+                tanimoto=float(scores[index]),
+                formula_match=index in formula_ranked_set,
+            )
+            for rank, index in enumerate(indices, start=1)
+        ]
+
+    def rank_batch(
+        self,
+        query_fingerprints: np.ndarray,
+        query_formulas: list[str],
+        top_k: int,
+    ) -> list[list[RankedCandidate]]:
+        scores = self.score_batch(query_fingerprints)
+        if len(scores) != len(query_formulas):
+            raise ValueError("Query fingerprint/formula batch size mismatch")
+        return [
+            self.rank_scores(row, formula, top_k)
+            for row, formula in zip(scores, query_formulas)
+        ]
+
+
 def evaluate_ranked_predictions(
     target_inchi_key_first_block: str,
     target_fingerprint: np.ndarray | None,
@@ -282,6 +435,23 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--fingerprint-bits", type=int, default=4096)
     parser.add_argument("--fingerprint-radius", type=int, default=2)
     parser.add_argument(
+        "--similarity-backend",
+        choices=("legacy", "matrix"),
+        default="legacy",
+        help="Exact similarity implementation; matrix preserves legacy ranking.",
+    )
+    parser.add_argument(
+        "--device",
+        default="auto",
+        help="Matrix backend device: auto, cpu, cuda, or an explicit torch device.",
+    )
+    parser.add_argument(
+        "--query-batch-size",
+        type=int,
+        default=256,
+        help="Query batch size for the matrix backend.",
+    )
+    parser.add_argument(
         "--query-splits",
         nargs="+",
         default=("val", "test"),
@@ -355,12 +525,16 @@ def main() -> int:
         raise ValueError("--fingerprint-bits must be positive.")
     if args.fingerprint_radius < 0:
         raise ValueError("--fingerprint-radius must be non-negative.")
+    if args.query_batch_size <= 0:
+        raise ValueError("--query-batch-size must be positive.")
 
     labels_path = Path(args.labels_tsv).expanduser().resolve()
     split_path = Path(args.split_tsv).expanduser().resolve()
     metadata_path = Path(args.mist_metadata_csv).expanduser().resolve()
     fp_path = Path(args.mist_fingerprints_npz).expanduser().resolve()
     output_path = Path(args.output_dir).expanduser().resolve()
+    if output_path.exists() and any(output_path.iterdir()):
+        raise ValueError(f"Output directory is not empty: {output_path}")
     output_path.mkdir(parents=True, exist_ok=True)
 
     labels_df = pd.read_csv(labels_path, sep="\t", dtype=str).fillna("")
@@ -475,19 +649,45 @@ def main() -> int:
 
     validate_query_leakage(query_inchi_blocks, train_inchi_set, args.allow_query_in_train)
 
-    for payload in query_payloads:
+    if args.device == "auto":
+        matrix_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    else:
+        matrix_device = torch.device(args.device)
+    if args.similarity_backend == "matrix" and matrix_device.type == "cuda":
+        torch.backends.cuda.matmul.allow_tf32 = False
+
+    ranked_queries: list[list[RankedCandidate]] = []
+    if args.similarity_backend == "matrix":
+        candidate_index = MatrixTrainCandidateIndex(train_library, matrix_device)
+        for start in range(0, len(query_payloads), args.query_batch_size):
+            batch = query_payloads[start : start + args.query_batch_size]
+            ranked_queries.extend(
+                candidate_index.rank_batch(
+                    np.stack([payload["query_fp"] for payload in batch]),
+                    [payload["formula"] for payload in batch],
+                    args.top_k,
+                )
+            )
+    else:
+        ranked_queries = [
+            rank_train_candidates(
+                query_fp=payload["query_fp"],
+                query_formula=payload["formula"],
+                train_library=train_library,
+                top_k=args.top_k,
+            )
+            for payload in query_payloads
+        ]
+
+    if len(ranked_queries) != len(query_payloads):
+        raise AssertionError("Retrieval ranking did not cover every query payload")
+
+    for payload, ranked in zip(query_payloads, ranked_queries):
         query_spec_name = payload["spec_name"]
         query_smiles = payload["smiles"]
         query_inchi_block = payload["inchi_key_first_block"]
         query_formula = payload["formula"]
         query_fp = payload["query_fp"]
-
-        ranked = rank_train_candidates(
-            query_fp=query_fp,
-            query_formula=query_formula,
-            train_library=train_library,
-            top_k=args.top_k,
-        )
 
         query_target_fp = compute_morgan_fingerprint(
             query_smiles,
@@ -571,6 +771,8 @@ def main() -> int:
         "top_k": args.top_k,
         "fingerprint_bits": args.fingerprint_bits,
         "fingerprint_radius": args.fingerprint_radius,
+        "similarity_backend": args.similarity_backend,
+        "matrix_device": str(matrix_device),
         "query_splits": list(args.query_splits),
         "allow_query_in_train": args.allow_query_in_train,
         "train_library_size": len(train_library),
@@ -582,9 +784,19 @@ def main() -> int:
     with (output_path / "aggregate_statistics.json").open("w", encoding="utf-8") as handle:
         json.dump(aggregate, handle, indent=2)
 
+    project_root = Path(__file__).resolve().parents[1]
+    code_commit, code_dirty = _git_revision(project_root)
+    output_files = {
+        "candidate_scores_csv": output_path / "candidate_scores.csv",
+        "predictions_csv": output_path / "predictions.csv",
+        "detailed_results_csv": output_path / "detailed_results.csv",
+        "aggregate_statistics_json": output_path / "aggregate_statistics.json",
+    }
     run_manifest = {
         "schema_version": 1,
         "script": os.path.abspath(__file__),
+        "status": "completed",
+        "code": {"commit": code_commit, "dirty": code_dirty},
         "labels_tsv": {
             "path": str(labels_path),
             "sha256": _sha256_hex(labels_path),
@@ -602,11 +814,20 @@ def main() -> int:
             "sha256": _sha256_hex(fp_path),
         },
         "parameters": vars(args),
+        "ranking_contract": {
+            "candidate_library": "train split only, deduplicated by InChIKey first block",
+            "query_features": ["MIST Morgan-4096", "known molecular formula"],
+            "sort_order": ["formula_match descending", "Tanimoto descending", "stable train order"],
+            "target_fields_used_by_ranking": [],
+            "target_fields_used_for_metrics_only": ["SMILES", "InChIKey"],
+        },
+        "candidate_identity_sha256": _candidate_identity_hash(candidate_score_rows),
         "outputs": {
-            "candidate_scores_csv": str(output_path / "candidate_scores.csv"),
-            "predictions_csv": str(output_path / "predictions.csv"),
-            "detailed_results_csv": str(output_path / "detailed_results.csv"),
-            "aggregate_statistics_json": str(output_path / "aggregate_statistics.json"),
+            name: {
+                "path": str(path),
+                "sha256": _sha256_hex(path),
+            }
+            for name, path in output_files.items()
         },
     }
     with (output_path / "run_manifest.json").open("w", encoding="utf-8") as handle:
