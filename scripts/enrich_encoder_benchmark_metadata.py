@@ -20,6 +20,7 @@ from frigid.encoder_benchmark import sha256_file  # noqa: E402
 
 
 ANALYSIS_COLUMNS = ("dataset", "ionization", "formula", "instrument")
+MISSING_CATEGORY = "unknown"
 
 
 def parse_args() -> argparse.Namespace:
@@ -70,14 +71,16 @@ def enrich_metadata(
         right_on=labels_id_column,
         validate="one_to_one",
         sort=False,
+        indicator="_label_merge",
     )
+    missing_labels = enriched["_label_merge"] != "both"
+    if missing_labels.any():
+        missing = enriched.loc[missing_labels, reference_id_column].head(5)
+        raise ValueError(f"Reference IDs missing label rows: {missing.tolist()}")
+    enriched = enriched.drop(columns=["_label_merge"])
     if labels_id_column != reference_id_column:
         enriched = enriched.drop(columns=[labels_id_column])
-    if enriched[available_columns].isna().any(axis=None):
-        missing = enriched.loc[
-            enriched[available_columns].isna().any(axis=1), reference_id_column
-        ].head(5)
-        raise ValueError(f"Reference IDs missing label fields: {missing.tolist()}")
+    enriched[available_columns] = enriched[available_columns].fillna(MISSING_CATEGORY)
     if not enriched[reference_id_column].equals(
         reference[reference_id_column].reset_index(drop=True)
     ):

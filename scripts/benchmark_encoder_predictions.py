@@ -527,14 +527,17 @@ def main(argv: list[str] | None = None) -> int:
         mean_delta = float(deltas.mean())
         passes_gain = mean_delta >= args.minimum_gain and ci_low > 0.0
         overlap_status = aggregates[name]["passes_training_overlap_check"]
-        if not passes_gain:
+        if (
+            overlap_status is False
+            and aggregates[name]["external_training_overlap_status"] == "checked"
+        ):
+            promotion_status = "failed_training_overlap_check"
+        elif not passes_gain:
             promotion_status = "failed_quality_gate"
         elif overlap_status is None:
             promotion_status = "needs_training_overlap_evidence"
         elif aggregates[name]["external_training_overlap_status"] != "checked":
             promotion_status = "needs_external_pretraining_overlap_evidence"
-        elif not overlap_status:
-            promotion_status = "failed_training_overlap_check"
         else:
             promotion_status = "passed_encoder_gate"
         aggregates[name].update(

@@ -102,6 +102,19 @@ def test_cli_writes_ranked_and_per_spectrum_outputs(tmp_path: Path):
         == "needs_external_pretraining_overlap_evidence"
     )
 
+    overlapping_output = tmp_path / "overlapping_results"
+    training_path.write_text("AAAAAAAAAAAAAA\n")
+    overlapping_arguments = arguments.copy()
+    overlapping_arguments[-1] = str(overlapping_output)
+    assert MODULE.main(overlapping_arguments) == 0
+    overlapping_summary = json.loads(
+        (overlapping_output / "benchmark_summary.json").read_text()
+    )
+    assert (
+        overlapping_summary["ranking"][0]["promotion_status"]
+        == "failed_training_overlap_check"
+    )
+
 
 def test_cli_calibrates_thresholds_on_disjoint_partition(tmp_path: Path):
     metadata_path = tmp_path / "metadata.csv"

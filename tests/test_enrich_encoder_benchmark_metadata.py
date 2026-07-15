@@ -46,10 +46,26 @@ def test_enrich_metadata_rejects_missing_labels():
     reference = pd.DataFrame({"spec_name": ["a", "missing"]})
     labels = pd.DataFrame({"spec": ["a"], "ionization": ["[M+H]+"]})
 
-    with pytest.raises(ValueError, match="missing label fields"):
+    with pytest.raises(ValueError, match="missing label rows"):
         MODULE.enrich_metadata(
             reference,
             labels,
             reference_id_column="spec_name",
             labels_id_column="spec",
         )
+
+
+def test_enrich_metadata_keeps_rows_with_missing_categories():
+    reference = pd.DataFrame({"spec_name": ["a"]})
+    labels = pd.DataFrame(
+        {"spec": ["a"], "ionization": ["[M+H]+"], "instrument": [None]}
+    )
+
+    enriched = MODULE.enrich_metadata(
+        reference,
+        labels,
+        reference_id_column="spec_name",
+        labels_id_column="spec",
+    )
+
+    assert enriched["instrument"].tolist() == ["unknown"]
