@@ -47,6 +47,9 @@ Residual gain: **+0.000684**, below the **+0.005** gate.
 Independent replay: MIST `0.5420425046`, zero train/evaluation structure
 overlap, 19,043 per-spectrum rows retained.
 
+Prospective split: threshold `0.25` selected on 3,718 calibration rows; untouched
+15,325-row evaluation baseline **0.5414976816**.
+
 ---
 
 ## Decision: close the DreaMS replacement line

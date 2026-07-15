@@ -88,6 +88,47 @@ hashes are:
 - `per_spectrum_metrics.csv`:
   `c2374f9548947acef0c5ee69143c3151ad58eea1227fbce2b88565391db28021`.
 
+### Prospective decision surface
+
+The final molecule-clustered split and calibration replay completed as Slurm
+job `174` with exit `0:0` using code revision
+`036567d02eb107ebaa637d0eb8ade36620cd35e9`.
+
+| Partition | Rows | Unique structure clusters | Purpose |
+|---|---:|---:|---|
+| Calibration | 3,718 | 614 | Threshold selection only |
+| Evaluation | 15,325 | 2,458 | Candidate promotion decisions |
+
+The calibration curve selected threshold 0.25 with mean Tanimoto 0.544288.
+Threshold 0.30 was second at 0.544126. The untouched evaluation result is the
+new prospective MIST baseline:
+
+| Metric | Prospective baseline |
+|---|---:|
+| Mean fingerprint Tanimoto | **0.5414976816** |
+| Median fingerprint Tanimoto | 0.5483870968 |
+| Molecule-balanced mean Tanimoto | 0.5129821085 |
+| Mean false-positive bits | 15.5486 |
+| Mean false-negative bits | 22.0872 |
+| Train/evaluation structure overlap | 0 / 15,325 |
+
+Future candidates must use this exact manifest and beat 0.5414976816 by at
+least 0.005 with a positive paired cluster-bootstrap lower bound. The legacy
+full-validation value 0.5420425046 remains useful only for continuity.
+
+Key prospective hashes:
+
+- partition manifest:
+  `29dc9736467a8deb24f8decf93c2ca8ebf6bf56a6193677c7d7d84f32ac94262`;
+- evaluation ordered spectrum IDs:
+  `4cadc15bcc093e435fb397b2754eb159c1ab1433de7e51a0af8e4e77b3d91b83`;
+- threshold calibration curve:
+  `54a586c27b960ccd089dc00ca6f28237aedcaba4a64054a65a00e529377e8c34`;
+- calibrated benchmark summary:
+  `e1641ba5400f184a7fe43283813331c32e15c970f88769c734ecf1619c54f71f`;
+- evaluation per-spectrum metrics:
+  `1db3a6e5aac13cab807f30adfdb98e80575bc163de72a7dcc5a8a4dfae872325`.
+
 ## Existing results, kept in separate lanes
 
 ### Encoder-level validation
@@ -286,10 +327,9 @@ non-empty directory. It writes:
 4. Create the prospective calibration/evaluation manifests and freeze the MIST
    threshold without reading evaluation labels.
 
-Steps 1-3 are complete in jobs `172` and `173`. Step 4 is deliberately kept
-separate because the historical full-validation value above is a continuity
-reference, while future promotion decisions need a disjoint calibration
-surface.
+All four steps are complete in jobs `172`, `173`, and `174`. The historical
+full-validation value remains a continuity reference; the partitioned result
+above is the decision surface for all future candidates.
 
 ### Wave 1: cheap pretrained probes
 
