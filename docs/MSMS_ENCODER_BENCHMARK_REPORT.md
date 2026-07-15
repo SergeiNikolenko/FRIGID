@@ -129,6 +129,8 @@ Key prospective hashes:
 - evaluation per-spectrum metrics:
   `1db3a6e5aac13cab807f30adfdb98e80575bc163de72a7dcc5a8a4dfae872325`.
 
+![MIST threshold calibration curve](encoder_benchmark_figures/mist_threshold_calibration.png)
+
 ## Existing results, kept in separate lanes
 
 ### Encoder-level validation
@@ -147,6 +149,8 @@ radius 2 with 4096 bits, and selected threshold 0.25.
 | DreaMS spectral JEPA | 0.192590 | Closed |
 | MIST + DreaMS residual | 0.542726 | Gain 0.000684; fails 0.005 gate |
 | SpecEmbedding historical probe | 0.3184 | Below MIST; no DLM run |
+
+![Historical fingerprint-encoder results](encoder_benchmark_figures/historical_encoder_metrics.png)
 
 The historical MIST threshold was selected on the same full validation surface
 used for reporting. It remains the continuity reference, but it is not the
@@ -167,6 +171,8 @@ A separate 1,400-spectrum paired diagnostic showed the decoder upper bound:
 |---|---:|---:|---:|
 | Ground truth | 0.4879 | 0.8130 | 0.7643 |
 | MIST binary | 0.1386 | 0.5677 | 0.6936 |
+
+![DLM outcomes by fingerprint source](encoder_benchmark_figures/dlm_fingerprint_upper_bound.png)
 
 The run was partial (`completed: false`), so it is diagnostic evidence rather
 than a final benchmark. Two attempted DLM adaptations (2,500 and 10,000 steps)

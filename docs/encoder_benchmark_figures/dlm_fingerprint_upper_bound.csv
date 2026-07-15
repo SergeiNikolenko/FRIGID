@@ -1,0 +1,4 @@
+metric,ground_truth_fingerprint,mist_binary_fingerprint
+Exact Top-1,0.4879,0.1386
+Molecular Tanimoto Top-1,0.8130,0.5677
+Formula Success,0.7643,0.6936

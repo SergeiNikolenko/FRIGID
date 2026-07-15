@@ -52,6 +52,24 @@ Prospective split: threshold `0.25` selected on 3,718 calibration rows; untouche
 
 ---
 
+## Historical encoder comparison
+
+![width:980px](encoder_benchmark_figures/historical_encoder_metrics.png)
+
+---
+
+## Calibration is separate from evaluation
+
+![width:980px](encoder_benchmark_figures/mist_threshold_calibration.png)
+
+---
+
+## Fingerprint quality changes downstream outcomes
+
+![width:980px](encoder_benchmark_figures/dlm_fingerprint_upper_bound.png)
+
+---
+
 ## Decision: close the DreaMS replacement line
 
 - Frozen, distilled, adapter, JEPA, and full fine-tune variants all fail.
