@@ -66,6 +66,8 @@ def test_cli_writes_ranked_and_per_spectrum_outputs(tmp_path: Path):
             "4",
             "--training-identifiers",
             f"candidate={training_path}",
+            "--external-training-overlap",
+            "candidate=checked",
             "--stratify-column",
             "adduct",
             "--code-revision",
@@ -81,6 +83,7 @@ def test_cli_writes_ranked_and_per_spectrum_outputs(tmp_path: Path):
     assert summary["benchmark_code_revision"] == "test-revision"
     assert [row["model"] for row in summary["ranking"]] == ["candidate", "mist"]
     assert summary["ranking"][0]["promotion_status"] == "passed_encoder_gate"
+    assert summary["ranking"][0]["external_training_overlap_status"] == "checked"
     assert (output_dir / "per_spectrum_metrics.csv").exists()
     assert (output_dir / "aggregate_metrics.csv").exists()
     assert (output_dir / "paired_deltas.csv").exists()
@@ -147,6 +150,8 @@ def test_cli_calibrates_thresholds_on_disjoint_partition(tmp_path: Path):
             "20",
             "--training-identifiers",
             f"candidate={training_path}",
+            "--external-training-overlap",
+            "candidate=unknown",
             "--output-dir",
             str(output_dir),
         ]
@@ -158,4 +163,8 @@ def test_cli_calibrates_thresholds_on_disjoint_partition(tmp_path: Path):
     assert summary["selection"]["evaluation_rows"] == 1
     assert summary["ranking"][0]["model"] == "candidate"
     assert summary["ranking"][0]["threshold_source"] == "calibration_partition"
+    assert (
+        summary["ranking"][0]["promotion_status"]
+        == "needs_external_pretraining_overlap_evidence"
+    )
     assert (output_dir / "threshold_calibration.csv").exists()

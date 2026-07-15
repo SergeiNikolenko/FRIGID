@@ -154,6 +154,16 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         metavar="NAME=PATH",
         help="Optional CSV/TXT training structure identifiers for leakage audit.",
     )
+    parser.add_argument(
+        "--external-training-overlap",
+        action="append",
+        default=[],
+        metavar="NAME=checked|unknown",
+        help=(
+            "Declare whether pretrained-backbone training overlap was audited. "
+            "Unknown overlap prevents promotion even when probe training IDs are clean."
+        ),
+    )
     parser.add_argument("--output-dir", required=True)
     return parser.parse_args(argv)
 
@@ -179,6 +189,9 @@ def main(argv: list[str] | None = None) -> int:
     )
     threshold_values = parse_named_values(args.threshold, kind="threshold")
     training_paths = parse_named_values(args.training_identifiers, kind="training identifiers")
+    external_overlap = parse_named_values(
+        args.external_training_overlap, kind="external training overlap"
+    )
 
     if args.expected_bits <= 0:
         raise ValueError(f"Expected fingerprint bits must be positive, got {args.expected_bits}")
@@ -210,6 +223,32 @@ def main(argv: list[str] | None = None) -> int:
     if unknown_training:
         raise ValueError(
             f"Training identifiers were supplied for unknown models: {sorted(unknown_training)}"
+        )
+    unknown_external_overlap = set(external_overlap) - set(model_names)
+    if unknown_external_overlap:
+        raise ValueError(
+            "External training overlap was supplied for unknown models: "
+            f"{sorted(unknown_external_overlap)}"
+        )
+    invalid_external_overlap = {
+        name: status
+        for name, status in external_overlap.items()
+        if status not in {"checked", "unknown"}
+    }
+    if invalid_external_overlap:
+        raise ValueError(
+            "External training overlap values must be 'checked' or 'unknown': "
+            f"{invalid_external_overlap}"
+        )
+    missing_checked_identifiers = {
+        name
+        for name, status in external_overlap.items()
+        if status == "checked" and name not in training_paths
+    }
+    if missing_checked_identifiers:
+        raise ValueError(
+            "Checked external training overlap requires --training-identifiers for "
+            f"{sorted(missing_checked_identifiers)}"
         )
 
     if args.calibrate_thresholds:
@@ -403,12 +442,21 @@ def main(argv: list[str] | None = None) -> int:
         if name in training_paths:
             training_ids = load_training_identifiers(training_paths[name])
             overlap_rows, overlap_rate = training_overlap(reference.metadata, training_ids)
+            external_status = external_overlap.get(name, "not_declared")
+            all_training_checked = external_status != "unknown"
             aggregates[name].update(
                 {
-                    "training_overlap_status": "checked",
+                    "training_overlap_status": (
+                        "checked"
+                        if all_training_checked
+                        else "external_pretraining_unknown"
+                    ),
                     "training_overlap_rows": overlap_rows,
                     "training_overlap_rate": overlap_rate,
-                    "passes_training_overlap_check": overlap_rows == 0,
+                    "external_training_overlap_status": external_status,
+                    "passes_training_overlap_check": (
+                        overlap_rows == 0 and all_training_checked
+                    ),
                 }
             )
         else:
@@ -417,6 +465,9 @@ def main(argv: list[str] | None = None) -> int:
                     "training_overlap_status": "not_provided",
                     "training_overlap_rows": None,
                     "training_overlap_rate": None,
+                    "external_training_overlap_status": external_overlap.get(
+                        name, "not_declared"
+                    ),
                     "passes_training_overlap_check": None,
                 }
             )
@@ -440,6 +491,9 @@ def main(argv: list[str] | None = None) -> int:
                 }
                 if name in training_paths
                 else None
+            ),
+            "external_training_overlap_status": external_overlap.get(
+                name, "not_declared"
             ),
         }
         del predictions, source_predictions
@@ -477,6 +531,8 @@ def main(argv: list[str] | None = None) -> int:
             promotion_status = "failed_quality_gate"
         elif overlap_status is None:
             promotion_status = "needs_training_overlap_evidence"
+        elif aggregates[name]["external_training_overlap_status"] == "unknown":
+            promotion_status = "needs_external_pretraining_overlap_evidence"
         elif not overlap_status:
             promotion_status = "failed_training_overlap_check"
         else:
