@@ -7,7 +7,7 @@ description: Completed evidence, errors, caveats, and production decision
 # MS/MS Encoder Benchmark for FRIGID
 
 Completed evidence, errors, caveats, and production decision
-2026-07-15
+2026-07-16
 
 ---
 
@@ -25,11 +25,12 @@ Completed evidence, errors, caveats, and production decision
 - MSG: 231,104 total spectra.
 - Eligible train / validation / test: 191,216 / 19,043 / 17,082.
 - Calibration: 3,718 rows; untouched evaluation: 15,325 rows.
-- MIST, released DiffMS MIST512, JESTR, and MSBERT were scored.
+- MIST, released DiffMS MIST512, JESTR, MS2DeepScore 2.0, SpecEmbedding,
+  and MSBERT were scored.
 - Every result is tied to row-aligned IDs, targets, checkpoints, and manifests.
 
-The evaluated audited subset is complete; MS2DeepScore remains deferred pending
-external-training overlap mapping.
+The released MS2DeepScore training data were mapped explicitly; CMSSP was also
+audited for checkpoint semantics and released-training overlap.
 
 ---
 
@@ -101,6 +102,8 @@ A candidate proceeds only if:
 | MIST | **0.5414977** | — | Keep |
 | Released DiffMS MIST512 | 0.4371332 | -0.1043645 | Below gate |
 | JESTR | 0.2777330 | -0.2637647 | Proxy overlap; below gate |
+| MS2DeepScore 2.0 | 0.2276923 | -0.3138054 | 94.7% row overlap; below gate |
+| SpecEmbedding | 0.1942398 | -0.3472579 | Below gate; overlap unknown |
 | MSBERT | 0.1844215 | -0.3570762 | Below gate |
 
 No candidate reached the required **+0.005** gain.
@@ -117,8 +120,9 @@ No candidate reached the required **+0.005** gain.
 
 - Released DiffMS MIST512 is the strongest tested replacement, but trails MIST
   by **0.1043645** mean Tanimoto.
+- MS2DeepScore 2.0 and SpecEmbedding trail by **0.3138054** and **0.3472579**.
 - MSBERT trails by **0.3570762**.
-- Neither result is close to the promotion boundary.
+- None of these results is close to the promotion boundary.
 - The encoder gate failed, so no candidate was connected to DLM.
 
 This is a negative result for the evaluated subset; the locked gate leaves no
@@ -191,6 +195,19 @@ insufficient for a promotion-safe held-out claim.
 
 ---
 
+## CMSSP cannot enter the shared probe unchanged
+
+- Exact positive checkpoint: 349.8M parameters, Apache-2.0 model bundle.
+- A fixed spectrum changes when batch neighbors change (`L2=15.4131`).
+- Cause: the released 2D tensor is interpreted by `MultiheadAttention` as one
+  unbatched sequence across spectra.
+- Released GNPS/MassBank data overlap **5,611 / 15,325** evaluation rows.
+
+Using batch size one would change the released computation, not reproduce a
+stable pretrained per-spectrum encoder.
+
+---
+
 ## Completed evidence package
 
 - strict prediction-bundle validation;
@@ -202,14 +219,17 @@ insufficient for a promotion-safe held-out claim.
 
 ---
 
-## Remaining work
+## Current 2026 landscape
 
 - Preserve MIST and the locked evaluation contract as the production reference.
-- **IDSL_MINT:** next distinct direct Morgan-4096 hypothesis; requires training,
-  because no ready checkpoint matches the contract.
-- **MS2DeepScore / public SpecEmbedding:** run only after exact checkpoint,
-  license, and external-training overlap evidence is complete.
-- Treat retrieval/reranking as a separate leakage-clean track.
+- **IDSL_MINT** and **ms-mole** require new training; neither provides a
+  promotion-ready Morgan-4096 checkpoint. The ms-mole paper reports 0.1942
+  test Tanimoto for its best IoU-loss model.
+- **SpecBridge, MVP, FLARE, and MSAlign** are retrieval methods, not drop-in
+  fingerprint encoders; current artifact availability is incomplete.
+- **MARLIN, MSFlow, FlowMS, and MSAnchor** are separate end-to-end generators.
+- MARLIN is especially current, but explicitly defers code and model release
+  until publication.
 
 The locked gate intentionally skipped DLM, so literal end-to-end acceptance is
 partial rather than pending execution for these failed candidates.
@@ -220,11 +240,12 @@ partial rather than pending execution for these failed candidates.
 
 - Keep MIST in production.
 - Released DiffMS MIST512 and MSBERT do not reach the encoder gate.
+- MS2DeepScore 2.0 and SpecEmbedding do not reach the encoder gate.
 - JESTR is not promotion-safe under the strongest official pretraining proxy
   and is also below the baseline.
 - No candidate reached **MIST + 0.005**.
 - No DLM run was triggered.
 
-The evaluated audited subset is finished: MIST remains. The broader search is
-not exhausted, and end-to-end acceptance is partial by the predeclared gate;
-any next candidate must enter through the same contract.
+MIST is the best audited released encoder for FRIGID's exact Morgan-4096
+contract. This is not a claim that MIST is universally best for retrieval or
+formula-free generation; those are different, separately evaluated tasks.

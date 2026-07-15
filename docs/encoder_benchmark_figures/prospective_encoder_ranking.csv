@@ -2,4 +2,6 @@ model,mean_fingerprint_tanimoto,paired_delta,ci95_low,ci95_high,status,note
 MIST,0.5414976816,0.0,0.0,0.0,baseline,Locked prospective baseline
 Released DiffMS MIST-512,0.4371332137,-0.1043644678,-0.1436900245,-0.0695263794,quality_fail,Released MIST encoder inside DiffMS; external pretraining overlap unknown
 JESTR,0.2777330088,-0.2637646727,-0.2798887003,-0.2482836702,overlap_fail,Strongest official train+valid proxy overlaps all evaluation rows by exact SMILES; exact checkpoint training manifest unavailable
-MSBERT,0.1844214663,-0.3570762153,-0.3771713566,-0.3379069154,quality_fail,External GNPS pretraining overlap unknown
+MS2DeepScore 2.0,0.2276923295,-0.3138053521,-0.3296342289,-0.2979853417,overlap_fail,Published training MGFs overlap 14514 of 15325 evaluation rows
+SpecEmbedding,0.1942397531,-0.3472579285,-0.3648200068,-0.3292364806,quality_fail,Exact public Space checkpoint; external GNPS training identifiers unavailable
+MSBERT,0.1844214663,-0.3570762153,-0.3768979980,-0.3369246867,quality_fail,External GNPS pretraining overlap unknown
