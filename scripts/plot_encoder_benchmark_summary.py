@@ -21,6 +21,7 @@ BLUE_DARK = "#1D3E60"
 GOLD = "#C58A16"
 NEUTRAL = "#AAB2BF"
 BACKGROUND = "#FBFCFE"
+RED = "#B5474D"
 
 
 def configure_style() -> None:
@@ -29,7 +30,7 @@ def configure_style() -> None:
             "font.family": "DejaVu Sans",
             "font.size": 10,
             "axes.titlesize": 16,
-            "axes.titleweight": "semibold",
+            "axes.titleweight": "bold",
             "axes.labelcolor": INK,
             "axes.edgecolor": MUTED,
             "axes.facecolor": BACKGROUND,
@@ -82,7 +83,7 @@ def historical_encoder_chart() -> None:
     ax.text(
         0.0,
         1.025,
-        "Context only: historical validation surfaces; future candidates use the locked 15,325-row evaluation manifest",
+        "Context only: historical validation surfaces; prospective comparisons use the locked 15,325-row evaluation manifest",
         transform=ax.transAxes,
         color=MUTED,
         fontsize=9.5,
@@ -196,11 +197,67 @@ def dlm_upper_bound_chart() -> None:
     plt.close(fig)
 
 
+def prospective_ranking_chart() -> None:
+    data = pd.read_csv(FIGURE_DIR / "prospective_encoder_ranking.csv").sort_values(
+        "mean_fingerprint_tanimoto"
+    )
+    colors = {
+        "baseline": BLUE,
+        "quality_fail": GOLD,
+        "overlap_fail": RED,
+    }
+    fig, ax = plt.subplots(figsize=(10.8, 5.6))
+    bars = ax.barh(
+        data["model"],
+        data["mean_fingerprint_tanimoto"],
+        color=[colors[value] for value in data["status"]],
+        edgecolor=INK,
+        linewidth=0.55,
+        height=0.62,
+    )
+    for bar, row in zip(bars, data.itertuples(), strict=True):
+        suffix = "baseline" if row.status == "baseline" else f"delta {row.paired_delta:+.4f}"
+        ax.text(
+            row.mean_fingerprint_tanimoto + 0.009,
+            bar.get_y() + bar.get_height() / 2,
+            f"{row.mean_fingerprint_tanimoto:.4f}  ({suffix})",
+            va="center",
+            color=INK,
+            fontsize=9.5,
+        )
+
+    gate = float(
+        data.loc[data["status"].eq("baseline"), "mean_fingerprint_tanimoto"].iloc[0]
+    ) + 0.005
+    ax.axvline(gate, color=INK, linestyle="--", linewidth=1.2)
+    ax.text(gate + 0.004, 0.05, f"promotion gate {gate:.4f}", rotation=90, fontsize=9)
+    ax.set_xlim(0.0, 0.61)
+    ax.set_xlabel("Mean fingerprint Tanimoto")
+    ax.set_title("Locked prospective encoder benchmark", loc="left", pad=34)
+    ax.text(
+        0.0,
+        1.025,
+        "15,325 evaluation spectra; thresholds frozen on 3,718 calibration spectra",
+        transform=ax.transAxes,
+        color=MUTED,
+        fontsize=9.5,
+    )
+    ax.grid(axis="x", color=GRID, linewidth=0.8)
+    ax.set_axisbelow(True)
+    ax.spines[["top", "right"]].set_visible(False)
+    fig.tight_layout()
+    fig.savefig(
+        FIGURE_DIR / "prospective_encoder_ranking.png", dpi=220, bbox_inches="tight"
+    )
+    plt.close(fig)
+
+
 def main() -> None:
     configure_style()
     historical_encoder_chart()
     threshold_calibration_chart()
     dlm_upper_bound_chart()
+    prospective_ranking_chart()
 
 
 if __name__ == "__main__":

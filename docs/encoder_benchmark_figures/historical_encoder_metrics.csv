@@ -1,7 +1,7 @@
 model,mean_fingerprint_tanimoto,series,note
 MIST baseline,0.542042505,MIST,Historical full validation baseline
 MIST + DreaMS residual,0.5427263,Hybrid,Gain 0.000684; below 0.005 gate
-SpecEmbedding probe,0.3184,Alternative,Historical reported probe
+SpecEmbedding report only,0.3184,Alternative,No surviving matching artifact; unverified
 DreaMS full fine-tune,0.2580,DreaMS,Best full fine-tune; overfit
 DreaMS distillation,0.240354,DreaMS,Distilled from MIST
 DreaMS calibrated,0.234203,DreaMS,Calibrated pure DreaMS

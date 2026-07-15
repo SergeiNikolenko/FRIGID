@@ -1,12 +1,12 @@
 ---
 marp: true
 title: MS/MS Encoder Benchmark for FRIGID
-description: Evidence, protocol, shortlist, and execution decision
+description: Completed evidence, errors, caveats, and production decision
 ---
 
 # MS/MS Encoder Benchmark for FRIGID
 
-Evidence, protocol, shortlist, and execution decision
+Completed evidence, errors, caveats, and production decision
 2026-07-15
 
 ---
@@ -20,35 +20,27 @@ Evidence, protocol, shortlist, and execution decision
 
 ---
 
-## Data are available
+## The audited subset is evaluated
 
 - MSG: 231,104 total spectra.
 - Eligible train / validation / test: 191,216 / 19,043 / 17,082.
-- MIST and DLM checkpoints are present and hashed.
-- Historical metrics and candidate checkpoints are present.
-- The missing full per-spectrum validation NPZ has been regenerated and hashed.
+- Calibration: 3,718 rows; untouched evaluation: 15,325 rows.
+- MIST, released DiffMS MIST512, JESTR, and MSBERT were scored.
+- Every result is tied to row-aligned IDs, targets, checkpoints, and manifests.
 
-No additional data handoff is required to start.
+The evaluated audited subset is complete; MS2DeepScore remains deferred pending
+external-training overlap mapping.
 
 ---
 
-## Current baseline
+## Locked MIST baseline
 
-| Model | Mean fingerprint Tanimoto |
-|---|---:|
-| MIST | **0.542043** |
-| DreaMS full fine-tune | 0.2580 |
-| DreaMS distillation | 0.240354 |
-| DreaMS frozen head | 0.123805 |
-| MIST + DreaMS residual | 0.542726 |
+- Threshold `0.25` was selected only on the 3,718-row calibration partition.
+- Untouched 15,325-row evaluation mean Tanimoto: **0.5414977**.
+- Promotion required at least **0.5464977**, plus a positive paired lower
+  confidence bound and zero released-training overlap.
 
-Residual gain: **+0.000684**, below the **+0.005** gate.
-
-Independent replay: MIST `0.5420425046`, zero train/evaluation structure
-overlap, 19,043 per-spectrum rows retained.
-
-Prospective split: threshold `0.25` selected on 3,718 calibration rows; untouched
-15,325-row evaluation baseline **0.5414976816**.
+MIST is the production baseline against which every candidate is judged.
 
 ---
 
@@ -70,12 +62,13 @@ Prospective split: threshold `0.25` selected on 3,718 calibration rows; untouche
 
 ---
 
-## Decision: close the DreaMS replacement line
+## Historical result: close the DreaMS line
 
 - Frozen, distilled, adapter, JEPA, and full fine-tune variants all fail.
 - Full fine-tuning overfits strongly.
 - Residual fusion adds less than the required effect.
-- MSAlign remains a retrieval watch item, not another direct replacement run.
+- The completed prospective benchmark tests whether released alternatives change
+  that conclusion.
 
 ---
 
@@ -101,44 +94,104 @@ A candidate proceeds only if:
 
 ---
 
-## First wave
+## Completed prospective results
 
-| Candidate | Why now | Treatment |
-|---|---|---|
-| MSBERT | Released dense checkpoint | Frozen 512->4096 probe |
-| MS2DeepScore | Mature weights and tooling | Frozen 500->4096 probe + retrieval |
-| JESTR | Closest to structure ranking | Frozen 512->4096 probe + reranking |
-| SpecEmbedding | Strong contrastive control | Frozen 512->4096 probe |
+| Model | Mean Tanimoto | Delta vs MIST | Decision |
+|---|---:|---:|---|
+| MIST | **0.5414977** | — | Keep |
+| Released DiffMS MIST512 | 0.4371332 | -0.1043645 | Below gate |
+| JESTR | 0.2777330 | -0.2637647 | Proxy overlap; below gate |
+| MSBERT | 0.1844215 | -0.3570762 | Below gate |
 
-Every model receives the same `LayerNorm -> Linear` head.
-
----
-
-## Second wave
-
-- **IDSL_MINT:** direct active-bit sequence model, trained as Morgan-4096.
-- **DiffMS:** inspect raw 4096 encoder output and full generator separately.
-- **MSFlow:** compare as an end-to-end generator, not as a direct fingerprint.
-- **CMSSP / ChemEmbed:** follow-up dense probes if Wave 1 justifies expansion.
+No candidate reached the required **+0.005** gain.
 
 ---
 
-## Why two tracks are necessary
+## Final prospective ranking
 
-### Fingerprint track
-
-Can the encoder improve the exact FRIGID/DLM interface?
-
-### Retrieval track
-
-Can a dense embedding improve candidate ranking even if its Morgan probe is
-weak?
-
-Failure in one track does not imply failure in the other.
+![width:980px](encoder_benchmark_figures/prospective_encoder_ranking.png)
 
 ---
 
-## Reproducible evidence package
+## Result: MIST remains the encoder
+
+- Released DiffMS MIST512 is the strongest tested replacement, but trails MIST
+  by **0.1043645** mean Tanimoto.
+- MSBERT trails by **0.3570762**.
+- Neither result is close to the promotion boundary.
+- The encoder gate failed, so no candidate was connected to DLM.
+
+This is a negative result for the evaluated subset; the locked gate leaves no
+DLM follow-up for these failed candidates.
+
+---
+
+## Why the closest alternative loses
+
+- Released MIST512 has fewer false-positive bits than MIST: **13.34 vs 15.55**.
+- It has far more false-negative bits: **34.46 vs 22.09**.
+- Sparse spectra (1-6 peaks): delta **-0.2739**.
+- High-mass quartile: delta **-0.3411**.
+- Sodium adducts: delta **-0.2275**.
+
+Its dominant error is systematic under-call, not excess predicted bits.
+
+---
+
+## One hypothesis-generating signal
+
+- Peak-rich spectra (>32 peaks): MIST512 **0.6908** vs MIST **0.5097**.
+- Delta: **+0.1811**, with 2,636 wins and 1,068 losses.
+- The gain persists in separate Orbitrap and QTOF `[M+H]+` strata.
+- It does not offset failure on sparse, high-mass, dense-target, and `[M+Na]+`
+  spectra.
+
+This has no subgroup bootstrap interval or prospective holdout confirmation. It
+may motivate a predeclared conditional test after external-overlap auditing; it
+does not justify a global encoder swap.
+
+---
+
+## JESTR is not promotion-safe
+
+- The initial train-only JESTR provenance audit was incorrect.
+- Official `load_contrastive_data` with `ignore_test_contr=True` excludes only
+  the official test split; train **and validation** remain in pretraining.
+- Strongest official train+valid proxy overlap by InChIKey:
+  **15,318 / 15,325** rows.
+- Proxy overlap by exact SMILES: **15,325 / 15,325** rows.
+
+The checkpoint predates the released split and has no embedded exact-run
+manifest, so this is conservative proxy evidence. It is nevertheless
+insufficient for a promotion-safe held-out claim.
+
+---
+
+## JESTR caveat
+
+- The measured `0.2777330` is retained only as a non-promotion-safe reference.
+- It cannot support a claim about generalization to unseen evaluation
+  structures or spectra.
+- It is also far below MIST, so correcting the audit does not alter the
+  production decision.
+- Released-training declarations must cover every split actually traversed by
+  the training loader, not only the split named `train`.
+
+---
+
+## What the benchmark did not test
+
+- It did not establish whether dense embeddings improve a separate retrieval or
+  reranking system.
+- It did not test a promotion-safe JESTR retraining with declared data.
+- It did not run DLM with any candidate fingerprint, because none passed the
+  encoder gate.
+- It does not convert non-promotion-safe released-model results into fair held-out
+  comparisons by post-hoc filtering.
+
+---
+
+## Completed evidence package
 
 - strict prediction-bundle validation;
 - per-spectrum FP/FN and Tanimoto;
@@ -149,12 +202,29 @@ Failure in one track does not imply failure in the other.
 
 ---
 
+## Remaining work
+
+- Preserve MIST and the locked evaluation contract as the production reference.
+- **IDSL_MINT:** next distinct direct Morgan-4096 hypothesis; requires training,
+  because no ready checkpoint matches the contract.
+- **MS2DeepScore / public SpecEmbedding:** run only after exact checkpoint,
+  license, and external-training overlap evidence is complete.
+- Treat retrieval/reranking as a separate leakage-clean track.
+
+The locked gate intentionally skipped DLM, so literal end-to-end acceptance is
+partial rather than pending execution for these failed candidates.
+
+---
+
 ## Final decision
 
 - Keep MIST in production.
-- Stop investing in direct DreaMS replacement.
-- Run four identical frozen probes first.
-- Train IDSL_MINT only after the cheap probe wave is locked.
-- Connect only gate-passing encoders to DLM.
+- Released DiffMS MIST512 and MSBERT do not reach the encoder gate.
+- JESTR is not promotion-safe under the strongest official pretraining proxy
+  and is also below the baseline.
+- No candidate reached **MIST + 0.005**.
+- No DLM run was triggered.
 
-This converts an open-ended survey into a finite, falsifiable benchmark.
+The evaluated audited subset is finished: MIST remains. The broader search is
+not exhausted, and end-to-end acceptance is partial by the predeclared gate;
+any next candidate must enter through the same contract.

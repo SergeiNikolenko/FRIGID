@@ -4,22 +4,27 @@ Date: 2026-07-15
 
 ## Executive decision
 
-MIST remains the FRIGID production encoder. The existing DreaMS replacement
-line is closed: its strongest full fine-tune reached approximately 0.258 mean
-fingerprint Tanimoto, while the best MIST+DreaMS residual improved MIST by only
-0.000684, below the 0.005 promotion gate.
+MIST remains the FRIGID production encoder. On the locked 15,325-spectrum
+evaluation partition it reached mean fingerprint Tanimoto **0.541498**. The
+closest reproduced alternative, the released 512-dimensional MIST encoder
+packaged with DiffMS, reached **0.437133**. JESTR reached **0.277733**, but the
+strongest official proxy for its released pretraining pool overlaps all
+evaluation rows by exact SMILES, so the checkpoint is not promotion-safe.
+MSBERT reached **0.184421**. No candidate met the required `+0.005` paired gain,
+so none proceeded to DLM.
 
-The next comparison wave is:
+This is a completed finite comparison of the audited subset, not a proposal to
+rerun DreaMS. The
+practical decision is to retain MIST and focus any next experiment on a
+fundamentally different direct fingerprint objective, primarily IDSL_MINT, or
+on a separately evaluated retrieval/reranking interface. MS2DeepScore and the
+public SpecEmbedding model remain deferred until their exact checkpoint,
+license, and external-pretraining overlap evidence are promotion-safe.
 
-1. MSBERT, MS2DeepScore, JESTR, and SpecEmbedding with the same frozen-backbone
-   `LayerNorm -> Linear(d, 4096)` probe.
-2. IDSL_MINT as the first direct Morgan-4096 challenger trained from scratch.
-3. DiffMS and MSFlow in a separate end-to-end track. Their decoder gains must
-   not be reported as encoder gains.
-
-This repository now contains an ID-safe evaluator that rejects incompatible
-rows, fingerprint dimensions, thresholds, and leakage evidence instead of
-silently producing a score.
+The repository contains an ID-safe evaluator that rejects incompatible rows,
+fingerprint dimensions, thresholds, and leakage evidence instead of silently
+producing a score. All final predictions and per-spectrum metrics are retained
+on `spectrum` with immutable hashes.
 
 ## What the task is about
 
@@ -38,6 +43,20 @@ The task therefore has four separate deliverables:
 - run end-to-end DLM only for encoders that pass the encoder-level gate.
 
 ## Evidence inventory
+
+The mandatory [Google report](https://docs.google.com/document/d/11ZbuJ9a2pTOReFiC6dbnvSrhhDP6z3CfL6AtEphUVro/edit)
+was inspected, including the Encoder/Decoder, Encoder-only, MS2Molecule, MIST,
+DreaMS, and DLM sections. The three linked spreadsheets were also inspected:
+
+- [sheet 1](https://docs.google.com/spreadsheets/d/1L-x3txFGRSIu1ZpJmKG1pz6XO18gmqSWtXtFtU9Mbw8);
+- [sheet 2](https://docs.google.com/spreadsheets/d/1UcAeZZN5QzCysSBI50XFd6yoyxZntfjWnbGeFQrLfnY);
+- [sheet 3](https://docs.google.com/spreadsheets/d/113L6zVP9mqBJMmxMgJohpWdsdKns3MN3OfiTlrLnDrw).
+
+Those sources established the historical MIST value, the closed DreaMS lines,
+the DLM upper bound, and the failed DLM-adaptation checkpoints before new
+experiments were selected. The previously supplied canonical benchmark bundle
+was found and verified on `spectrum`; no separate live request to Sergey was
+made during this run.
 
 The required historical data are already available on `spectrum`; waiting for
 an additional handoff is not necessary.
@@ -131,6 +150,136 @@ Key prospective hashes:
 
 ![MIST threshold calibration curve](encoder_benchmark_figures/mist_threshold_calibration.png)
 
+## Final prospective benchmark
+
+All four rows below use the same ordered Morgan radius-2, 4096-bit targets, the
+same 3,718-row calibration partition, and the same untouched 15,325-row
+evaluation partition. Candidate thresholds were selected only on calibration.
+Confidence intervals are paired molecule-cluster bootstrap intervals over
+2,000 samples.
+
+| Rank | Encoder | Threshold | Mean Tanimoto | Delta vs MIST | 95% CI for delta | Wins / losses / ties | Decision |
+|---:|---|---:|---:|---:|---:|---:|---|
+| 1 | MIST | 0.25 | **0.541498** | 0 | [0, 0] | baseline | Keep |
+| 2 | Released DiffMS MIST-512 | 0.30 | 0.437133 | -0.104364 | [-0.143690, -0.069526] | 5,839 / 9,391 / 95 | Quality gate failed; external pretraining overlap unknown |
+| 3 | JESTR + shared frozen probe | 0.975 | 0.277733 | -0.263765 | [-0.279889, -0.248284] | 2,909 / 12,399 / 17 | Not promotion-safe under the official pretraining proxy; quality also failed |
+| 4 | MSBERT + shared frozen probe | 0.95 | 0.184421 | -0.357076 | [-0.377171, -0.337907] | 1,173 / 14,141 / 11 | Quality gate failed; external GNPS overlap unknown |
+
+![Locked prospective encoder ranking](encoder_benchmark_figures/prospective_encoder_ranking.png)
+
+The DiffMS row is not an end-to-end DiffMS gain. Its 59-tensor encoder state is
+bit-for-bit identical to the released `encoder_msg.pt`: it is a smaller MIST
+fingerprint encoder packaged inside DiffMS. It is reported here only because it
+is a directly compatible released encoder.
+
+### Shared probe and row-lock evidence
+
+MSBERT and JESTR used the same frozen-backbone
+`LayerNorm -> Linear(d, 4096)` head. Model selection used a structure-disjoint
+10% holdout from official train and the locked threshold grid. A fresh head and
+optimizer were then retrained from scratch on all 191,216 eligible train rows
+for the selected number of epochs: 3 for MSBERT and 29 for JESTR. The candidate
+bundles have identical ordered train IDs, InChIKeys, and Morgan targets; their
+19,043 validation targets exactly match the MIST reference bundle.
+
+| Candidate | Released encoder evidence | Final probe/prediction evidence | Practical note |
+|---|---|---|---|
+| MSBERT | source `8e4372abcd93aa3c9d9345527de1d250b3cd0aa8`; 121,580,032 parameters; checkpoint `f6a50e1a5650504370e563a9daf9117b4f4ecd60f5ba508dce2ee9e81f064605` | final probe `dec06c173086c68f4901bd55c665a0c90bbe7f369e8a0e61ec01d7297babee8d`; predictions `1942a79ff4facfd054b58803e57d8435261bc82e995ec06052efca74813d11d5` | MIT code; no separate weight license found; GNPS pretraining overlap remains unknown |
+| JESTR | source `a5619c18a85a49171d60ead079684ae667cc0dd0`; released checkpoint `b9f2ccc25ae7710d17d30bfa7cc5ca6e3065962fd0bf24d57af9527d804972fa` | final probe `39247b7460ad3ea935516f6f0341e918ddbf6426c3776c2958c1e8068e32729a`; predictions `3f38919d9a99fe959f593f91b9ee7266f635b3ded70bf648ab70519c58ebda3d` | Current released loader pools official train+valid; checkpoint lacks an embedded exact-run manifest |
+| Released DiffMS MIST-512 | checkpoint `081885de09513803cdddf8b2230be5482c69de61982edc8f479d276c7cb0a06a`; encoder state `40be750b574c3f8a2cde1e5c5ea72ba9b75778ea566e38ac7efbb61dec14338c` | predictions `270358f6dcfd8c8df27c03fbf976fb1364c3807d80a227f2ff38266fa71b2c7b` | 23,364,644-parameter MIST encoder; all tensors match released `encoder_msg.pt`; not the DiffMS generator |
+
+The JESTR audit uses the strongest official conservative proxy because the
+checkpoint contains no embedded training manifest and predates the currently
+released `split.pkl`. That proxy contains 25,951 structures and overlaps
+15,318/15,325 evaluation rows by first-block InChIKey. The two apparent misses
+are standardization differences: exact SMILES overlap is 15,325/15,325. The
+training-identifier file has SHA-256 `85596499835ec4742a5110847186af0f6178933066d48933f08df2042c5bc0bd`;
+the provenance audit JSON has SHA-256
+`98116f86b12234551f338419d9386114730223fe703e207037dc31d37438bd57`.
+
+### Final evidence package
+
+Final joint run:
+`/home/nikolenko/work/Projects/FRIGID_encoder_benchmark_runs/20260715T193500Z_joint_encoder_ranking/benchmark_final`.
+Evaluator code revision:
+`16e72eddfc7488006039a95574aeaafd63295d78`.
+
+| Artifact | SHA-256 |
+|---|---|
+| `benchmark_summary.json` | `2b2c089f7c7d66b8f267c2a5ed00e16288bc42a17766478190f74e4ce5fa78c9` |
+| `aggregate_metrics.csv` | `b2e069107b8110c6d145a684f7eb77a299bf52bb4522d5bb3a32688806bec6bd` |
+| `per_spectrum_metrics.csv` | `d0bbbd8f903fd3961cdf6a810906da6dc092c232b272bc99ba83e843a8ec7cc7` |
+| `paired_deltas.csv` | `4cc71eb7bd0cf5553e309b15edcc9c48407e356d9b18a83c74eff24de5b2ea58` |
+| `stratified_metrics.csv` | `8c8ef7e8f86ce98da101edef63c7cb334f3918c2afdacd032a5de566f9b08187` |
+| `threshold_calibration.csv` | `893759f8b1f8cfc1b446c20bd3baa6129fa5559da9b0221d309924f9175f0398` |
+| `extended_error_analysis.csv` | `175800409488a612d8331e401c0ee87610ce72a3a52bc2fe02b84fe864525c28` |
+| `representative_spectra.csv` | `03a065dc5044f3f724b5eeeaaf33f62761cd78ca62b0b6f2a58a368e1fb03a40` |
+| `spectrum_characteristic_error_analysis.csv` | `b8d92c568adfdff8be6a58a5173e21e260af1b4ddb7fdd243769bf37bb5afeb9` |
+| `spectrum_characteristic_parse_summary.json` | `2c8f3830bd7052b693db7038762f25f5dccad1fc68868ae9fafd400b8d694ee2` |
+
+Reported MSBERT/JESTR and DiffMS latency values were collected with different
+timing scopes. They are retained for diagnostics but are not ranked against
+one another.
+
+## Error analysis
+
+The global error profile explains why none of the alternatives is a drop-in
+replacement:
+
+| Encoder | Mean FP bits | Mean FN bits | Main failure mode |
+|---|---:|---:|---|
+| MIST | 15.5486 | 22.0872 | Baseline |
+| Released DiffMS MIST-512 | 13.3439 | 34.4639 | Systematic under-call: fewer FP bits but 12.38 more FN bits than MIST |
+| JESTR probe | 29.8779 | 38.0876 | Both over- and under-prediction; checkpoint is not promotion-safe under the official proxy |
+| MSBERT probe | 40.5085 | 45.1088 | Broad failure of the linear fingerprint interface |
+
+The released MIST-512 encoder is the only alternative with coherent local
+wins, but they are strongly conditional:
+
+| Stratum | Rows | MIST | MIST-512 | Delta |
+|---|---:|---:|---:|---:|
+| `[M+H]+` | 11,519 | 0.546190 | 0.482513 | -0.063677 |
+| `[M+Na]+` | 3,806 | 0.527296 | 0.299789 | -0.227508 |
+| Orbitrap | 12,937 | 0.538285 | 0.409710 | -0.128575 |
+| QTOF | 2,019 | 0.563629 | 0.582999 | +0.019370 |
+| Target bits Q1, 15-51 | 4,052 | 0.493195 | 0.536858 | +0.043663 |
+| Target bits Q4, 81-108 | 3,724 | 0.658655 | 0.325157 | -0.333498 |
+| Precursor mass Q1, 197.03-405.12 | 3,834 | 0.461046 | 0.530790 | +0.069744 |
+| Precursor mass Q4, 761.29-997.49 | 3,798 | 0.653156 | 0.312086 | -0.341070 |
+| Peak count Q1, 1-6 | 3,949 | 0.498650 | 0.224749 | -0.273901 |
+| Peak count Q4, 33-299 | 3,734 | 0.509667 | 0.690773 | +0.181106 |
+
+Target active-bit density was used only for post-hoc error analysis after all
+predictions and thresholds were frozen; it was never supplied to an encoder.
+All 15,325 evaluation IDs matched one `.ms` file; precursor mass and peak count
+had zero missing values and zero parse failures. The peak-rich gain persists in
+separate Orbitrap and QTOF `[M+H]+` strata, so it is a hypothesis-generating
+specialist pattern rather than only an instrument-mix artifact. It has no
+subgroup bootstrap interval, multiple-comparison correction, or prospective
+holdout confirmation. It also does not offset collapse on sparse, high-mass,
+dense-target, and sodium-adduct spectra. MIST-512 is therefore at most a
+conditional-ensemble hypothesis after external-overlap auditing and a
+predeclared subgroup validation, not a production replacement.
+
+Formula composition was used only as a chemistry proxy because MSG does not
+contain a structural chemical-class ontology. For MIST-512, deltas versus MIST
+were -0.2121 for CHO-only formulas, -0.0568 for CHNO, -0.0250 for formulas
+containing P or S, and -0.1178 for halogenated formulas. These are composition
+families, not claims about scaffold or functional-group classes.
+
+JESTR is slightly less poor on `[M+Na]+` than `[M+H]+` (0.3150 versus 0.2654),
+but the released encoder's exact-SMILES overlap makes that descriptive only.
+MSBERT is almost flat across adducts (0.1845 versus 0.1840), consistent with a
+generally unsuitable linear fingerprint projection rather than one isolated
+data regime.
+
+Representative extremes are retained for every candidate. For example,
+MIST-512 scored 1.0000 versus MIST 0.0645 on
+`MassSpecGymID0030348` (`C13H22N4O3S`, `[M+H]+`, QTOF), but 0.0769 versus MIST
+1.0000 on `MassSpecGymID0051146` (`C12H4Cl2F6N4OS`, `[M+H]+`, QTOF). Individual
+examples are diagnostic, while the paired cluster-bootstrap result controls
+the decision.
+
 ## Existing results, kept in separate lanes
 
 ### Encoder-level validation
@@ -148,7 +297,7 @@ radius 2 with 4096 bits, and selected threshold 0.25.
 | DreaMS staged adapter | 0.232862 | Closed |
 | DreaMS spectral JEPA | 0.192590 | Closed |
 | MIST + DreaMS residual | 0.542726 | Gain 0.000684; fails 0.005 gate |
-| SpecEmbedding historical probe | 0.3184 | Below MIST; no DLM run |
+| Public SpecEmbedding historical report | 0.3184 | Prediction artifact/checkpoint not found; not independently reproducible |
 
 ![Historical fingerprint-encoder results](encoder_benchmark_figures/historical_encoder_metrics.png)
 
@@ -156,6 +305,16 @@ The historical MIST threshold was selected on the same full validation surface
 used for reporting. It remains the continuity reference, but it is not the
 prospective decision surface. New comparisons must freeze each threshold on a
 calibration partition before evaluating the disjoint decision partition.
+
+The surviving internal `SpecEmbedNet` checkpoint must not be confused with the
+public contrastive SpecEmbedding model. It borrows parts of that implementation
+but directly predicts 4096 fingerprint logits and was trained on 32,768
+`custom_buddy` rows. Its retained metrics are 0.194407 validation Tanimoto and
+0.159031 test Tanimoto at threshold 0.5. Its training structures overlap the
+locked MSG validation surface (77 of 3,072 structures; 495 of 19,043 spectra),
+so it fails the leakage gate and is excluded from the ranking. The older 0.3184
+report has no surviving prediction bundle or matching checkpoint and is kept
+only as an unverified historical note.
 
 ### End-to-end test
 
@@ -175,8 +334,19 @@ A separate 1,400-spectrum paired diagnostic showed the decoder upper bound:
 ![DLM outcomes by fingerprint source](encoder_benchmark_figures/dlm_fingerprint_upper_bound.png)
 
 The run was partial (`completed: false`), so it is diagnostic evidence rather
-than a final benchmark. Two attempted DLM adaptations (2,500 and 10,000 steps)
-regressed and are closed.
+than a final benchmark. The attempted DLM adaptations regressed and remain
+closed:
+
+| DLM checkpoint | Ground-truth-fingerprint molecular Tanimoto top-1 | MIST-fingerprint molecular Tanimoto top-1 |
+|---|---:|---:|
+| Original DLM | 0.3897 | 0.3209 |
+| 2,500-step MIST adaptation | 0.3109 | 0.2796 |
+| 10,000-step mixed adaptation | 0.3486 | 0.2870 |
+
+No new DLM run was launched for the candidates in the prospective table. This
+is a predeclared gate outcome rather than missing compatible evidence: every
+candidate failed the encoder-level quality gate, and JESTR additionally failed
+the overlap gate.
 
 ## Locked benchmark contract
 
@@ -236,33 +406,53 @@ the same formula source, generation budget, seeds, filtering, and ranking.
 
 ## Candidate landscape
 
-| Candidate | Native output | Public implementation status | FRIGID treatment | Priority |
-|---|---|---|---|---|
-| MIST | Morgan fingerprint | Official code/checkpoint available | Direct baseline | Baseline |
-| MSBERT | 512D dense embedding | MIT code and released weights | Shared frozen 512->4096 probe | A |
-| MS2DeepScore 2.x | 500D similarity embedding | Apache-2.0 code and pretrained models | Shared frozen 500->4096 probe; separate retrieval test | A |
-| JESTR | 512D joint spectrum/molecule embedding | MIT code and checkpoints | Shared probe plus reranking track | A |
-| SpecEmbedding | 512D contrastive embedding | Code and published checkpoint bundle | Shared probe; license must be confirmed for the exact bundle | A |
-| IDSL_MINT | Sequence of active fingerprint bits | MIT code; no general pretrained checkpoint | Train directly with exact Morgan-4096 settings | B |
-| CMSSP | 2048D cross-modal embedding | Apache-2.0 code and weights | Shared 2048->4096 probe | B |
-| ChemEmbed | Dense chemical embedding | Code and trained models reported | Shared probe/retrieval track | B |
-| DiffMS | Formula-aware encoder inside a diffusion generator | MIT code and released artifacts | Inspect raw 4096 output and full generator separately | B |
-| MSFlow | 512D continuous representation plus flow decoder | MIT code; weights published separately | End-to-end track, not direct fingerprint claim | B |
-| CLERMS | 200D contrastive embedding | Code; no stable weights/license evidence | Defer | C |
-| MetFID | Custom 5618-bit fingerprint | Code and weights; training partly depends on closed NIST data | Incompatible without a new head and retraining | C |
-| MSAlign | DreaMS/ChemBERTa aligned embedding | Public 2026 code | Retrieval watchlist; not another DreaMS fingerprint replacement | Watch |
+### Representation taxonomy
+
+- **Direct fingerprint predictors:** MIST, released MIST-512 from DiffMS,
+  IDSL_MINT, and MetFID. Only the first two were ready for exact local
+  inference; MetFID uses incompatible bit semantics.
+- **Dense spectrum encoders:** MSBERT, MS2DeepScore, and SpecEmbedding. They
+  require a common projection for the existing DLM interface and should also
+  be judged separately for retrieval.
+- **Contrastive spectrum-molecule encoders:** JESTR, CMSSP, ChemEmbed, CLERMS,
+  and MSAlign. Their native objective is alignment/ranking, not ordered Morgan
+  bit prediction.
+- **Formula-aware or hybrid generators:** DiffMS and MSFlow. These alter more
+  than the encoder and therefore belong in a separate end-to-end track.
+
+### Comparative reproducibility table
+
+| Candidate (year) | Architecture / native representation | Training and reported task | Code, weights, license | FRIGID interface / measured compute | Outcome or principal risk |
+|---|---|---|---|---|---|
+| MIST (2023) | Formula-aware spectrum-to-Morgan predictor | Local MSG checkpoint; fingerprint prediction | MIT code and released weights; separate weight license unknown | Direct Morgan-4096; job `172` took 3m07s for 19,043 rows | Baseline, 0.541498 prospective Tanimoto |
+| MSBERT (2024) | Transformer, 512D dense spectrum embedding | GNPS; library matching, reported recall@1 0.7871 on a structure-disjoint GNPS subset | MIT code and released weights; no separate weight license found | Shared 512->4096 probe; 121.6M parameters; export job `175` took 3m11s | Reproduced, 0.184421; GNPS overlap unknown |
+| MS2DeepScore 2.0 (2026; original 2021) | Siamese dense similarity encoder, 500D | Released model trained on combined GNPS, MoNA, MassBank, and MSnLib; reported metrics are not Morgan Tanimoto | Apache-2.0 code and Zenodo weights; separate weight license unknown | Shared 500->4096 probe plus separate retrieval metric; not run | External-pretraining identifiers not yet mapped to MSG |
+| JESTR (2025) | Binned-spectrum MLP, 512D joint spectrum-molecule embedding | Candidate ranking on NPLIB1 and MassSpecGym-style data | MIT code and released checkpoints; separate weight license unknown | Shared 512->4096 probe; export job `178` took 1m17s | 0.277733; strongest official proxy has 100% exact-SMILES overlap |
+| SpecEmbedding (2025) | Transformer, 512D supervised-contrastive spectrum embedding | GNPS retrieval; reported top-1 hit ratio 0.8173 | Public code; exact checkpoint and weight license not confirmed locally | Shared 512->4096 probe; not run | Historical 0.3184 artifact is missing and internal `SpecEmbedNet` is a different model |
+| IDSL_MINT (2024) | Sequence model over active fingerprint bits | Direct metabolite fingerprint/structure annotation | MIT code; no general checkpoint matching Morgan-4096 | Direct exact-target training required; compute not yet measured | Best remaining distinct direct hypothesis |
+| CMSSP (2024) | 2048D cross-modal spectrum-structure embedding | Metabolite identification; reported CASMI top-1 and independent top-10 gains | Apache-2.0 model-card bundle with `model.pth`; exact mode variants and separate weight license unknown | Shared 2048->4096 probe or retrieval track; not run | Lower priority; checkpoint overlap audit required |
+| ChemEmbed (2026) | Dense chemical/spectrum embedding | Retrieval and structure-related embedding metrics | Code and Drive-hosted weights; MIT stated in README but no separate LICENSE; weight terms unknown | Shared probe or retrieval track; not run | Artifact and overlap evidence incomplete |
+| DiffMS (2025) | Formula-aware MIST encoder plus diffusion generator | Conditional de novo structure generation | MIT code and Zenodo weights; separate weight license unknown | Released MIST-512 direct row evaluated; generator is a separate track | Direct released encoder scored 0.437133; not a DiffMS generator gain |
+| MSFlow (2026 preprint) | 512D continuous spectrum representation plus flow decoder | End-to-end molecular generation | Repository says MIT, paper says non-commercial usage; Drive-hosted weight terms unknown | Not compatible with an encoder-only swap; compute not measured | License conflict and separate generator benchmark required |
+| CLERMS (2023) | 200D contrastive embedding | Spectrum similarity/retrieval | Public code; pretrained weights and license not confirmed | Shared probe/retrieval track; not run | Reproducibility evidence weaker than selected probes |
+| MetFID (2020; public CNN implementation 2022) | Custom 5,618-bit fingerprint | Metabolite identification | Public code and Drive-hosted `.h5` weights; code/weight terms unknown; training partly relies on closed NIST data | Bit identity incompatible with DLM; retraining/new head required | Excluded from direct comparison |
+| MSAlign (2026) | DreaMS/ChemBERTa-aligned embedding | Cross-modal retrieval/ranking | Paper is CC BY 4.0; stated code URL currently returns 404; weights/license unknown | Retrieval watchlist only; not currently reproducible | DreaMS-derived direct fingerprint line is already closed |
 
 Primary references:
 
 - MIST: <https://doi.org/10.1038/s42256-023-00708-3>
 - MSBERT: <https://doi.org/10.1021/acs.analchem.4c02426>
-- MS2DeepScore: <https://doi.org/10.1186/s13321-021-00558-4>
+- MS2DeepScore original: <https://doi.org/10.1186/s13321-021-00558-4>
+- MS2DeepScore 2.0: <https://doi.org/10.1038/s41467-026-69083-y>
 - JESTR: <https://doi.org/10.1093/bioinformatics/btaf354>
 - SpecEmbedding: <https://doi.org/10.1021/acs.analchem.5c02655>
 - IDSL_MINT: <https://doi.org/10.1186/s13321-024-00804-5>
 - CMSSP: <https://doi.org/10.1021/acs.analchem.4c03724>
+- ChemEmbed: <https://pmc.ncbi.nlm.nih.gov/articles/PMC12903953/>
 - DiffMS: <https://arxiv.org/abs/2502.09571>
 - MSFlow: <https://arxiv.org/abs/2602.19912>
+- CLERMS: <https://doi.org/10.1021/acs.analchem.3c00260>
+- MetFID: <https://pmc.ncbi.nlm.nih.gov/articles/PMC9547616/>
 - MSAlign: <https://openreview.net/forum?id=ZoBAklPA7R>
 
 ## Reproducible evaluator
@@ -306,7 +496,12 @@ python scripts/benchmark_encoder_predictions.py \
   --calibrate-thresholds \
   --baseline mist \
   --minimum-gain 0.005 \
+  --training-identifiers mist=runs/mist_train/inchikeys.txt \
+  --external-training-overlap mist=checked \
   --training-identifiers msbert=runs/msbert_train/inchikeys.txt \
+  --external-training-overlap msbert=unknown \
+  --stratify-column ionization \
+  --stratify-column instrument \
   --code-revision <git-commit> \
   --output-dir runs/encoder_comparison
 ```
@@ -322,53 +517,100 @@ non-empty directory. It writes:
 - `benchmark_summary.json` with hashes, versions, thresholds, ranking, gate
   decisions, and the ordered spectrum-ID hash.
 
-## Execution plan
+## Execution record and remaining scope
 
-### Wave 0: baseline restoration
+### Completed for the evaluated audited subset
 
-1. Export MIST probabilities and ground-truth fingerprints for all 19,043
-   eligible validation spectra from the clean historical commit.
-2. Record MSG, config, and checkpoint hashes before inference.
-3. Run the new evaluator and retain per-spectrum metrics and checksums.
-4. Create the prospective calibration/evaluation manifests and freeze the MIST
-   threshold without reading evaluation labels.
+- Jobs `172`, `173`, and `174` restored MIST per-spectrum predictions,
+  reproduced the historical baseline, and created the prospective
+  calibration/evaluation split.
+- MSBERT export completed as job `175`; the shared two-stage frozen probe and
+  immutable prediction bundle were completed and evaluated.
+- JESTR export completed as job `178`; the same probe protocol was completed.
+  A subsequent source-level audit established complete overlap for the
+  strongest official pretraining proxy, so the checkpoint is not
+  promotion-safe.
+- The released DiffMS MIST-512 encoder export completed as job `183`; its state
+  was matched to the official archive and evaluated directly.
+- The final joint evaluator checked row identity, dimensions, frozen
+  thresholds, paired intervals, overlap evidence, categorical strata, and
+  per-spectrum errors in one run.
 
-All four steps are complete in jobs `172`, `173`, and `174`. The historical
-full-validation value remains a continuity reference; the partitioned result
-above is the decision surface for all future candidates.
+### Deferred with an explicit reason
 
-### Wave 1: cheap pretrained probes
+- **MS2DeepScore 2.x:** code and pretrained models are available, but the exact
+  external pretraining identifiers have not been mapped to the locked MSG
+  structures. A numerical probe without that audit would not be
+  promotion-safe.
+- **Public SpecEmbedding:** the historical 0.3184 result has no surviving
+  matching prediction/checkpoint artifact. The exact public bundle and its
+  weight license also remain unconfirmed, so the internal `SpecEmbedNet` was
+  not relabeled as the public model.
+- **IDSL_MINT:** there is no general pretrained checkpoint for this exact
+  Morgan-4096 contract. It requires a new direct training run and is the next
+  distinct encoder hypothesis, not a ready-weight reproduction.
+- **CMSSP, ChemEmbed, and CLERMS:** lower-priority dense/contrastive extensions;
+  their exact checkpoint and training-overlap evidence was not stronger than
+  the selected Wave-1 models.
+- **DiffMS and MSFlow generators:** these change the generator/decoder, so they
+  belong to a separate end-to-end benchmark and cannot be credited as a direct
+  MIST encoder gain.
+- **MSAlign:** kept as a retrieval/reranking watch item; another DreaMS-derived
+  fingerprint replacement is not justified by the closed DreaMS line.
 
-Run MSBERT, MS2DeepScore, JESTR, and SpecEmbedding with identical rules:
+### DLM gate outcome
 
-- frozen backbone;
-- one `LayerNorm -> Linear(d, 4096)` head;
-- class-weighted BCE;
-- identical train/calibration/evaluation structure manifests;
-- the same optimizer budget and early-stopping rule;
-- no model-specific hidden MLP;
-- public checkpoint and preprocessing hashes retained.
+The paired DLM confirmation was not triggered. No clean encoder met the
+encoder-level gain rule. Running DLM anyway would spend compute after reading
+the answer and would mix encoder and decoder effects, contradicting the locked
+methodology.
 
-Fine-tune only the best two probes, with the same limited budget.
+### Remaining evidence limitations
 
-### Wave 2: direct and end-to-end challengers
+- MSBERT and released DiffMS MIST-512 still have `unknown` external pretraining
+  overlap status.
+- Frozen-probe training was deterministic and evaluation uncertainty was
+  measured by 2,000 molecule-cluster bootstrap samples, but independent
+  multi-seed probe training was not run.
+- MSG provides formula but no structural class ontology. Formula composition
+  families were analyzed as explicit proxies; scaffold-class claims were not
+  invented.
+- Current trainer hardening verifies bundle shape and binary targets but does
+  not yet require the canonical train-ID/order/target hash at the CLI boundary.
+  The final run compensated with a separate cross-bundle hash audit.
 
-- Train IDSL_MINT with exact Morgan radius 2, 4096-bit, no-chirality targets.
-- Evaluate DiffMS raw fingerprint-like output separately from its generator.
-- Evaluate MSFlow and DiffMS as full pipelines against the same DLM/generation
-  budget only in the end-to-end table.
+### Acceptance status
 
-### Wave 3: DLM confirmation
-
-For any encoder that passes the 0.005 gate, run the paired DLM benchmark on the
-locked test set. Report encoder gain, exact top-k, generated-structure Tanimoto,
-formula success, wall time, and failure rate as separate columns.
+| Requirement | Status | Evidence or limitation |
+|---|---|---|
+| Study prior report, required sections, and linked sheets | Complete | Historical values and closed branches were extracted before candidate selection |
+| Obtain and lock canonical data and baseline | Complete from prior handoff | Canonical files on `spectrum` were verified by path and SHA-256; no new live contact was needed |
+| Survey and classify current encoders beyond MIST/DreaMS | Complete | Representation taxonomy, candidate table, primary references, reproducibility decisions |
+| Reproduce multiple selected approaches | Partial for the evaluated audited subset | Released MIST-512, JESTR, and MSBERT; ready-weight MS2DeepScore was deferred pending overlap mapping |
+| Run one common benchmark and retain per-spectrum evidence | Complete | 15,325 evaluation rows, frozen thresholds, paired metrics, immutable hashes |
+| Analyze errors and spectrum/chemistry regimes | Complete within available labels | Adduct, instrument, precursor mass, peak count, target density, and formula-composition proxies |
+| Validate compatible winners through DLM | Partial; intentionally skipped by the locked gate | No clean candidate passed the encoder gate, so literal end-to-end acceptance remains unfulfilled |
+| Demonstrate stability | Partial | The protocol is deterministic and cluster-bootstrap uncertainty is present; no identical rerun or independent training seeds were run |
+| Final ranking, recommendation, report, figures, and slides | Complete | MIST retained; artifacts listed above |
 
 ## Final interpretation
 
-The current evidence does not support replacing MIST with DreaMS or a generic
-dense embedding. It does support a focused, inexpensive pretrained-probe wave
-and one direct IDSL_MINT training run. The new evaluator turns that next wave
-from a collection of incomparable experiments into one falsifiable decision:
-either a candidate beats MIST by at least 0.005 with a positive paired interval
-and clean overlap evidence, or it does not proceed to DLM.
+The benchmark does not support replacing MIST. Three distinct practical routes
+were tested: a released direct fingerprint encoder, a contrastive
+spectrum-molecule embedding with a shared probe, and a pretrained spectrum
+transformer with the same probe. All are materially below MIST, and JESTR is
+also invalid for promotion because the strongest official pretraining proxy
+includes the evaluation structures while the checkpoint has no exact-run
+training manifest.
+
+MIST-512's peak-rich local win is the only observed specialist pattern. It may
+justify a prospectively defined conditional ensemble study after
+external-overlap auditing, but not a global swap. The best next direct
+hypothesis is IDSL_MINT trained on the exact Morgan-4096 contract.
+Retrieval-oriented dense encoders should be
+judged in a separate reranking track rather than forced through a weak linear
+fingerprint interface.
+
+Until one of those tracks produces at least `+0.005` mean paired Tanimoto with a
+positive cluster-bootstrap lower bound and clean training evidence, MIST stays
+in production and DLM remains unchanged.
