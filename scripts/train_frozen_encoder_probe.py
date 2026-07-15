@@ -156,6 +156,30 @@ def _internal_validation_metrics(
     )
 
 
+def _train_epoch(
+    model: FrozenFingerprintProbe,
+    loader: DataLoader,
+    criterion: nn.Module,
+    optimizer: torch.optim.Optimizer,
+    device: torch.device,
+) -> float:
+    model.train()
+    loss_sum = 0.0
+    rows = 0
+    for embeddings, targets in loader:
+        embeddings = embeddings.to(
+            device=device, dtype=torch.float32, non_blocking=True
+        )
+        targets = targets.to(device=device, dtype=torch.float32, non_blocking=True)
+        optimizer.zero_grad(set_to_none=True)
+        loss = criterion(model(embeddings), targets)
+        loss.backward()
+        optimizer.step()
+        loss_sum += float(loss.item()) * len(embeddings)
+        rows += len(embeddings)
+    return loss_sum / rows
+
+
 def _predict(
     model: FrozenFingerprintProbe,
     loader: DataLoader,
@@ -267,23 +291,10 @@ def main() -> int:
     best_threshold = 0.0
     best_epoch = 0
     stale_epochs = 0
-    checkpoint_path = output_dir / "frozen_probe.pt"
-    training_started = time.perf_counter()
+    selection_checkpoint_path = output_dir / "selection_probe.pt"
+    selection_started = time.perf_counter()
     for epoch in range(1, args.epochs + 1):
-        model.train()
-        train_loss_sum = 0.0
-        train_rows = 0
-        for embeddings, targets in train_loader:
-            embeddings = embeddings.to(
-                device=device, dtype=torch.float32, non_blocking=True
-            )
-            targets = targets.to(device=device, dtype=torch.float32, non_blocking=True)
-            optimizer.zero_grad(set_to_none=True)
-            loss = criterion(model(embeddings), targets)
-            loss.backward()
-            optimizer.step()
-            train_loss_sum += float(loss.item()) * len(embeddings)
-            train_rows += len(embeddings)
+        train_loss = _train_epoch(model, train_loader, criterion, optimizer, device)
 
         (
             internal_validation_loss,
@@ -298,7 +309,7 @@ def main() -> int:
         )
         row = {
             "epoch": epoch,
-            "train_loss": train_loss_sum / train_rows,
+            "train_loss": train_loss,
             "internal_validation_loss": internal_validation_loss,
             "internal_validation_tanimoto": internal_validation_tanimoto,
             "internal_validation_threshold": internal_validation_threshold,
@@ -324,16 +335,62 @@ def main() -> int:
                     "internal_validation_tanimoto": best_metric,
                     "internal_validation_threshold": best_threshold,
                 },
-                checkpoint_path,
+                selection_checkpoint_path,
             )
         else:
             stale_epochs += 1
             if stale_epochs >= args.patience:
                 break
-    training_seconds = time.perf_counter() - training_started
+    selection_training_seconds = time.perf_counter() - selection_started
 
-    checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=True)
-    model.load_state_dict(checkpoint["state_dict"], strict=True)
+    random.seed(args.seed)
+    np.random.seed(args.seed)
+    torch.manual_seed(args.seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(args.seed)
+    all_train_indexes = np.arange(len(train.spectrum_ids), dtype=np.int64)
+    final_positive_weight = global_positive_weight(train.targets, all_train_indexes)
+    final_train_loader = _make_loader(
+        train_dataset,
+        None,
+        batch_size=args.batch_size,
+        shuffle=True,
+        seed=args.seed,
+        pin_memory=pin_memory,
+    )
+    model = FrozenFingerprintProbe(
+        input_dim=train.embeddings.shape[1], fingerprint_bits=args.fingerprint_bits
+    ).to(device)
+    final_criterion = nn.BCEWithLogitsLoss(
+        pos_weight=torch.tensor(
+            [final_positive_weight], dtype=torch.float32, device=device
+        )
+    )
+    final_optimizer = torch.optim.AdamW(
+        model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay
+    )
+    final_history = []
+    final_training_started = time.perf_counter()
+    for epoch in range(1, best_epoch + 1):
+        train_loss = _train_epoch(
+            model, final_train_loader, final_criterion, final_optimizer, device
+        )
+        final_row = {"epoch": epoch, "train_loss": train_loss}
+        final_history.append(final_row)
+        print(json.dumps({"final_retrain": final_row}, sort_keys=True), flush=True)
+    final_training_seconds = time.perf_counter() - final_training_started
+    checkpoint_path = output_dir / "frozen_probe.pt"
+    torch.save(
+        {
+            "state_dict": model.state_dict(),
+            "input_dim": train.embeddings.shape[1],
+            "fingerprint_bits": args.fingerprint_bits,
+            "selected_epoch": best_epoch,
+            "selection_internal_validation_tanimoto": best_metric,
+            "selection_internal_validation_threshold": best_threshold,
+        },
+        checkpoint_path,
+    )
     probabilities, head_inference_seconds = _predict(model, prediction_loader, device)
     per_row_seconds = np.full(
         len(validation.spectrum_ids),
@@ -364,16 +421,19 @@ def main() -> int:
         "validation_npz_sha256": sha256_file(args.validation_npz),
         "predictions_sha256": sha256_file(predictions_path),
         "checkpoint_sha256": sha256_file(checkpoint_path),
+        "selection_checkpoint_sha256": sha256_file(selection_checkpoint_path),
         "train_rows": len(train.spectrum_ids),
         "probe_train_rows": len(train_indexes),
         "internal_validation_rows": len(internal_validation_indexes),
+        "final_train_rows": len(train.spectrum_ids),
         "validation_rows": len(validation.spectrum_ids),
         "train_structures": len(set(train.structure_ids.tolist())),
         "validation_structures": len(set(validation.structure_ids.tolist())),
         "train_validation_structure_overlap": 0,
         "input_dim": train.embeddings.shape[1],
         "fingerprint_bits": args.fingerprint_bits,
-        "positive_weight": positive_weight,
+        "positive_weight": final_positive_weight,
+        "selection_positive_weight": positive_weight,
         "device": str(device),
         "seed": args.seed,
         "batch_size": args.batch_size,
@@ -387,9 +447,12 @@ def main() -> int:
         "best_internal_validation_tanimoto": best_metric,
         "best_internal_validation_threshold": best_threshold,
         "selection_threshold_grid": selection_thresholds,
-        "training_seconds": training_seconds,
+        "selection_training_seconds": selection_training_seconds,
+        "final_training_seconds": final_training_seconds,
+        "training_seconds": selection_training_seconds + final_training_seconds,
         "head_inference_seconds": head_inference_seconds,
         "history": history,
+        "final_history": final_history,
     }
     (output_dir / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
     return 0
