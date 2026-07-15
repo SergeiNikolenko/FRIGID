@@ -449,10 +449,10 @@ def main(argv: list[str] | None = None) -> int:
                 stop - start,
                 EMBEDDING_DIMENSION,
             )
-        batch_embeddings = batch_embeddings.cpu().numpy().astype(np.float32, copy=False)
         if device.startswith("cuda"):
             torch.cuda.synchronize(device)
         inference_seconds += time.perf_counter() - inference_start
+        batch_embeddings = batch_embeddings.cpu().numpy().astype(np.float32, copy=False)
 
         if not np.isfinite(batch_embeddings).all():
             raise ValueError(f"MSBERT produced non-finite embeddings for rows {start}:{stop}")
@@ -588,6 +588,7 @@ def main(argv: list[str] | None = None) -> int:
             "numpy_version": np.__version__,
             "batch_size": args.batch_size,
             "inference_seconds": inference_seconds,
+            "inference_timing_scope": "synchronized model forward only",
             "wall_seconds": wall_seconds,
             "inference_spectra_per_second": len(metadata) / inference_seconds,
         },

@@ -187,16 +187,18 @@ def _predict(
 ) -> tuple[np.ndarray, float]:
     model.eval()
     predictions = []
-    if device.type == "cuda":
-        torch.cuda.synchronize(device)
-    started = time.perf_counter()
+    elapsed = 0.0
     with torch.inference_mode():
         for embeddings, _ in loader:
             embeddings = embeddings.to(device=device, dtype=torch.float32, non_blocking=True)
-            predictions.append(torch.sigmoid(model(embeddings)).cpu().numpy())
-    if device.type == "cuda":
-        torch.cuda.synchronize(device)
-    elapsed = time.perf_counter() - started
+            if device.type == "cuda":
+                torch.cuda.synchronize(device)
+            started = time.perf_counter()
+            probabilities = torch.sigmoid(model(embeddings))
+            if device.type == "cuda":
+                torch.cuda.synchronize(device)
+            elapsed += time.perf_counter() - started
+            predictions.append(probabilities.cpu().numpy())
     return np.vstack(predictions), elapsed
 
 
@@ -451,6 +453,13 @@ def main() -> int:
         "final_training_seconds": final_training_seconds,
         "training_seconds": selection_training_seconds + final_training_seconds,
         "head_inference_seconds": head_inference_seconds,
+        "head_inference_timing_scope": (
+            "synchronized LayerNorm, linear projection, and sigmoid forward only"
+        ),
+        "combined_inference_timing_scope": (
+            "encoder bundle per-row inference plus probe forward; preprocessing and "
+            "host/device transfers are exporter-dependent and excluded when supported"
+        ),
         "history": history,
         "final_history": final_history,
     }
