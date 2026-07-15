@@ -78,6 +78,7 @@ def test_main_reports_row_and_structure_overlap(tmp_path: Path) -> None:
         }
     ).to_csv(metadata_path, index=False)
     output_path = tmp_path / "audit.json"
+    identifiers_path = tmp_path / "training_identifiers.txt"
 
     assert (
         MODULE.main(
@@ -88,6 +89,8 @@ def test_main_reports_row_and_structure_overlap(tmp_path: Path) -> None:
                 str(metadata_path),
                 "--output",
                 str(output_path),
+                "--identifiers-output",
+                str(identifiers_path),
                 "--filter-column",
                 "benchmark_partition",
                 "--filter-value",
@@ -102,6 +105,11 @@ def test_main_reports_row_and_structure_overlap(tmp_path: Path) -> None:
     result = json.loads(output_path.read_text())
     assert result["training"]["rows"] == 3
     assert result["training"]["unique_structure_blocks"] == 2
+    assert result["training"]["identifiers_output"] == str(identifiers_path)
+    assert identifiers_path.read_text().splitlines() == [
+        "AAAAAAAAAAAAAA",
+        "CCCCCCCCCCCCCC",
+    ]
     assert result["evaluation"]["rows"] == 2
     assert result["overlap"]["rows"] == 2
     assert result["overlap"]["unique_structure_blocks"] == 2

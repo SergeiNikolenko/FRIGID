@@ -71,6 +71,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--training-mgf", action="append", required=True)
     parser.add_argument("--evaluation-metadata", required=True)
     parser.add_argument("--output", required=True)
+    parser.add_argument(
+        "--identifiers-output",
+        help="Optional TXT output containing sorted unique training InChIKey blocks.",
+    )
     parser.add_argument("--id-column", default="spectrum_id")
     parser.add_argument("--structure-column", default="inchi_key_first_block")
     parser.add_argument("--filter-column")
@@ -157,6 +161,17 @@ def main(argv: list[str] | None = None) -> int:
         [args.id_column, args.structure_column, "normalized_structure", "training_spectrum_count"]
     ].head(args.max_examples)
 
+    identifiers_path = (
+        Path(args.identifiers_output).resolve() if args.identifiers_output else None
+    )
+    if identifiers_path:
+        if identifiers_path.exists():
+            raise FileExistsError(
+                f"Refusing to overwrite existing output: {identifiers_path}"
+            )
+        identifiers_path.parent.mkdir(parents=True, exist_ok=True)
+        identifiers_path.write_text("\n".join(sorted(training_counter)) + "\n")
+
     result = {
         "schema_version": 1,
         "training": {
@@ -164,6 +179,10 @@ def main(argv: list[str] | None = None) -> int:
             "rows": training_rows,
             "rows_without_inchikey": missing_training_structures,
             "unique_structure_blocks": len(training_counter),
+            "identifiers_output": str(identifiers_path) if identifiers_path else None,
+            "identifiers_output_sha256": (
+                sha256_file(identifiers_path) if identifiers_path else None
+            ),
         },
         "evaluation": {
             "metadata": str(metadata_path),
