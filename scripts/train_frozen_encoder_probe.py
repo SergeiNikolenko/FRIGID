@@ -290,7 +290,9 @@ def main() -> int:
         "\n".join(sorted(set(train.structure_ids.tolist()))) + "\n"
     )
     summary = {
-        "architecture": "LayerNorm(input_dim) -> Linear(input_dim, 4096)",
+        "architecture": (
+            f"LayerNorm(input_dim) -> Linear(input_dim, {args.fingerprint_bits})"
+        ),
         "train_npz": os.path.abspath(args.train_npz),
         "train_npz_sha256": sha256_file(args.train_npz),
         "validation_npz": os.path.abspath(args.validation_npz),
