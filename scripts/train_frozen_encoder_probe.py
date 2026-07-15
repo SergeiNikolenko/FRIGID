@@ -30,6 +30,12 @@ from frigid.frozen_probe import (  # noqa: E402
 )
 
 
+DEFAULT_SELECTION_THRESHOLD_GRID = (
+    "0.005,0.01,0.02,0.03,0.04,0.05,0.075,0.1,0.125,0.15,0.2,0.25,"
+    "0.3,0.35,0.4,0.45,0.5,0.6,0.7,0.8,0.85,0.9,0.925,0.95,0.975,0.99"
+)
+
+
 class FrozenFingerprintProbe(nn.Module):
     """The architecture shared by every frozen dense encoder candidate."""
 
@@ -56,7 +62,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--batch-size", type=int, default=512)
     parser.add_argument("--epochs", type=int, default=30)
     parser.add_argument("--patience", type=int, default=4)
-    parser.add_argument("--minimum-loss-improvement", type=float, default=1e-5)
+    parser.add_argument("--minimum-tanimoto-improvement", type=float, default=1e-5)
+    parser.add_argument(
+        "--selection-threshold-grid", default=DEFAULT_SELECTION_THRESHOLD_GRID
+    )
     parser.add_argument("--learning-rate", type=float, default=1e-3)
     parser.add_argument("--weight-decay", type=float, default=1e-4)
     parser.add_argument("--device", choices=("auto", "cpu", "cuda"), default="auto")
@@ -92,23 +101,59 @@ def _make_loader(
     )
 
 
-def _mean_loss(
+def _parse_threshold_grid(value: str) -> list[float]:
+    thresholds = sorted({float(item.strip()) for item in value.split(",") if item.strip()})
+    if not thresholds or any(
+        not np.isfinite(threshold) or not 0.0 <= threshold <= 1.0
+        for threshold in thresholds
+    ):
+        raise ValueError(f"Invalid selection threshold grid: {value!r}")
+    return thresholds
+
+
+def _internal_validation_metrics(
     model: FrozenFingerprintProbe,
     loader: DataLoader,
     criterion: nn.Module,
     device: torch.device,
-) -> float:
+    thresholds: list[float],
+) -> tuple[float, float, float]:
     model.eval()
     loss_sum = 0.0
+    tanimoto_sums = np.zeros(len(thresholds), dtype=np.float64)
     rows = 0
     with torch.inference_mode():
         for embeddings, targets in loader:
             embeddings = embeddings.to(device=device, dtype=torch.float32, non_blocking=True)
             targets = targets.to(device=device, dtype=torch.float32, non_blocking=True)
-            loss = criterion(model(embeddings), targets)
+            logits = model(embeddings)
+            probabilities = torch.sigmoid(logits)
+            loss = criterion(logits, targets)
             loss_sum += float(loss.item()) * len(embeddings)
+            target_binary = targets > 0.5
+            for index, threshold in enumerate(thresholds):
+                prediction_binary = probabilities >= threshold
+                intersection = torch.logical_and(
+                    prediction_binary, target_binary
+                ).sum(dim=1)
+                union = torch.logical_or(prediction_binary, target_binary).sum(dim=1)
+                tanimoto = torch.where(
+                    union > 0,
+                    intersection.to(torch.float32) / union.to(torch.float32),
+                    torch.zeros_like(union, dtype=torch.float32),
+                )
+                tanimoto_sums[index] += float(tanimoto.sum().item())
             rows += len(embeddings)
-    return loss_sum / rows
+    mean_tanimotos = tanimoto_sums / rows
+    best_index = max(
+        range(len(thresholds)),
+        key=lambda index: (mean_tanimotos[index], -thresholds[index]),
+    )
+    return (
+        loss_sum / rows,
+        float(mean_tanimotos[best_index]),
+        thresholds[best_index],
+    )
 
 
 def _predict(
@@ -137,6 +182,7 @@ def main() -> int:
         raise ValueError("fingerprint-bits, batch-size, and epochs must be positive")
     if args.patience <= 0:
         raise ValueError("patience must be positive")
+    selection_thresholds = _parse_threshold_grid(args.selection_threshold_grid)
 
     output_dir = Path(args.output_dir)
     if output_dir.exists() and any(output_dir.iterdir()):
@@ -216,7 +262,9 @@ def main() -> int:
     )
 
     history = []
+    best_metric = -1.0
     best_loss = float("inf")
+    best_threshold = 0.0
     best_epoch = 0
     stale_epochs = 0
     checkpoint_path = output_dir / "frozen_probe.pt"
@@ -237,18 +285,33 @@ def main() -> int:
             train_loss_sum += float(loss.item()) * len(embeddings)
             train_rows += len(embeddings)
 
-        internal_validation_loss = _mean_loss(
-            model, internal_validation_loader, criterion, device
+        (
+            internal_validation_loss,
+            internal_validation_tanimoto,
+            internal_validation_threshold,
+        ) = _internal_validation_metrics(
+            model,
+            internal_validation_loader,
+            criterion,
+            device,
+            selection_thresholds,
         )
         row = {
             "epoch": epoch,
             "train_loss": train_loss_sum / train_rows,
             "internal_validation_loss": internal_validation_loss,
+            "internal_validation_tanimoto": internal_validation_tanimoto,
+            "internal_validation_threshold": internal_validation_threshold,
         }
         history.append(row)
         print(json.dumps(row, sort_keys=True), flush=True)
-        if internal_validation_loss < best_loss - args.minimum_loss_improvement:
+        if (
+            internal_validation_tanimoto
+            > best_metric + args.minimum_tanimoto_improvement
+        ):
+            best_metric = internal_validation_tanimoto
             best_loss = internal_validation_loss
+            best_threshold = internal_validation_threshold
             best_epoch = epoch
             stale_epochs = 0
             torch.save(
@@ -258,6 +321,8 @@ def main() -> int:
                     "fingerprint_bits": args.fingerprint_bits,
                     "epoch": epoch,
                     "internal_validation_loss": best_loss,
+                    "internal_validation_tanimoto": best_metric,
+                    "internal_validation_threshold": best_threshold,
                 },
                 checkpoint_path,
             )
@@ -319,6 +384,9 @@ def main() -> int:
         "weight_decay": args.weight_decay,
         "best_epoch": best_epoch,
         "best_internal_validation_loss": best_loss,
+        "best_internal_validation_tanimoto": best_metric,
+        "best_internal_validation_threshold": best_threshold,
+        "selection_threshold_grid": selection_thresholds,
         "training_seconds": training_seconds,
         "head_inference_seconds": head_inference_seconds,
         "history": history,
