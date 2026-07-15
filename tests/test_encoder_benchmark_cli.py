@@ -42,8 +42,7 @@ def test_cli_writes_ranked_and_per_spectrum_outputs(tmp_path: Path):
     )
     training_path.write_text("CCCCCCCCCCCCCC\n")
 
-    exit_code = MODULE.main(
-        [
+    arguments = [
             "--reference-metadata",
             str(metadata_path),
             "--reference-fingerprints",
@@ -75,7 +74,7 @@ def test_cli_writes_ranked_and_per_spectrum_outputs(tmp_path: Path):
             "--output-dir",
             str(output_dir),
         ]
-    )
+    exit_code = MODULE.main(arguments)
 
     assert exit_code == 0
     summary = json.loads((output_dir / "benchmark_summary.json").read_text())
@@ -88,6 +87,20 @@ def test_cli_writes_ranked_and_per_spectrum_outputs(tmp_path: Path):
     assert (output_dir / "aggregate_metrics.csv").exists()
     assert (output_dir / "paired_deltas.csv").exists()
     assert (output_dir / "stratified_metrics.csv").exists()
+
+    undeclared_output = tmp_path / "undeclared_results"
+    undeclared_arguments = arguments.copy()
+    overlap_flag = undeclared_arguments.index("--external-training-overlap")
+    del undeclared_arguments[overlap_flag : overlap_flag + 2]
+    undeclared_arguments[-1] = str(undeclared_output)
+    assert MODULE.main(undeclared_arguments) == 0
+    undeclared_summary = json.loads(
+        (undeclared_output / "benchmark_summary.json").read_text()
+    )
+    assert (
+        undeclared_summary["ranking"][0]["promotion_status"]
+        == "needs_external_pretraining_overlap_evidence"
+    )
 
 
 def test_cli_calibrates_thresholds_on_disjoint_partition(tmp_path: Path):

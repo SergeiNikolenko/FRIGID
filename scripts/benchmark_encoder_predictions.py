@@ -443,13 +443,13 @@ def main(argv: list[str] | None = None) -> int:
             training_ids = load_training_identifiers(training_paths[name])
             overlap_rows, overlap_rate = training_overlap(reference.metadata, training_ids)
             external_status = external_overlap.get(name, "not_declared")
-            all_training_checked = external_status != "unknown"
+            all_training_checked = external_status == "checked"
             aggregates[name].update(
                 {
                     "training_overlap_status": (
                         "checked"
                         if all_training_checked
-                        else "external_pretraining_unknown"
+                        else f"external_pretraining_{external_status}"
                     ),
                     "training_overlap_rows": overlap_rows,
                     "training_overlap_rate": overlap_rate,
@@ -531,7 +531,7 @@ def main(argv: list[str] | None = None) -> int:
             promotion_status = "failed_quality_gate"
         elif overlap_status is None:
             promotion_status = "needs_training_overlap_evidence"
-        elif aggregates[name]["external_training_overlap_status"] == "unknown":
+        elif aggregates[name]["external_training_overlap_status"] != "checked":
             promotion_status = "needs_external_pretraining_overlap_evidence"
         elif not overlap_status:
             promotion_status = "failed_training_overlap_check"
