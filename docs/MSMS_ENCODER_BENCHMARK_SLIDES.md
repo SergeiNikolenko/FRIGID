@@ -44,6 +44,9 @@ No additional data handoff is required to start.
 
 Residual gain: **+0.000684**, below the **+0.005** gate.
 
+Independent replay: MIST `0.5420425046`, zero train/evaluation structure
+overlap, 19,043 per-spectrum rows retained.
+
 ---
 
 ## Decision: close the DreaMS replacement line

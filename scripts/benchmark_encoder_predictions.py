@@ -23,6 +23,7 @@ if src_path not in sys.path:
     sys.path.insert(0, src_path)
 
 from frigid.encoder_benchmark import (  # noqa: E402
+    PredictionBundle,
     aggregate_metrics,
     compute_per_spectrum_metrics,
     load_prediction_bundle,
@@ -30,6 +31,7 @@ from frigid.encoder_benchmark import (  # noqa: E402
     load_reference_predictions,
     load_training_identifiers,
     paired_bootstrap_mean_ci,
+    select_reference_bundle,
     sha256_file,
     structure_identifiers,
     training_overlap,
@@ -37,6 +39,10 @@ from frigid.encoder_benchmark import (  # noqa: E402
 
 
 MODEL_NAME = re.compile(r"^[A-Za-z0-9_.-]+$")
+DEFAULT_THRESHOLD_GRID = (
+    "0.02,0.03,0.04,0.05,0.075,0.1,0.125,0.15,0.2,0.25,"
+    "0.3,0.35,0.4,0.45,0.5,0.6,0.7,0.8"
+)
 
 
 def parse_named_values(values: list[str], *, kind: str) -> dict[str, str]:
@@ -53,6 +59,15 @@ def parse_named_values(values: list[str], *, kind: str) -> dict[str, str]:
             raise ValueError(f"Duplicate {kind} for model {name!r}")
         parsed[name] = payload
     return parsed
+
+
+def parse_threshold_grid(value: str) -> list[float]:
+    values = sorted({float(item.strip()) for item in value.split(",") if item.strip()})
+    if not values:
+        raise ValueError("Threshold grid must contain at least one value")
+    if any(not np.isfinite(item) or not 0.0 <= item <= 1.0 for item in values):
+        raise ValueError(f"Threshold grid values must be finite and in [0, 1]: {values}")
+    return values
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -98,6 +113,23 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=None,
         help="Optional fallback for smoke tests; final benchmarks should set every threshold explicitly.",
     )
+    parser.add_argument(
+        "--selection-manifest",
+        help="CSV that selects benchmark IDs and optionally names data partitions.",
+    )
+    parser.add_argument(
+        "--selection-partition",
+        help="Partition to evaluate when thresholds are already fixed.",
+    )
+    parser.add_argument("--partition-column", default="benchmark_partition")
+    parser.add_argument(
+        "--calibrate-thresholds",
+        action="store_true",
+        help="Select every model threshold on calibration, then score only evaluation.",
+    )
+    parser.add_argument("--calibration-partition", default="calibration")
+    parser.add_argument("--evaluation-partition", default="evaluation")
+    parser.add_argument("--threshold-grid", default=DEFAULT_THRESHOLD_GRID)
     parser.add_argument("--expected-bits", type=int, default=4096)
     parser.add_argument("--baseline", required=True, help="Model used for paired deltas.")
     parser.add_argument("--minimum-gain", type=float, default=0.005)
@@ -180,29 +212,84 @@ def main(argv: list[str] | None = None) -> int:
             f"Training identifiers were supplied for unknown models: {sorted(unknown_training)}"
         )
 
-    missing_thresholds = set(model_names) - set(threshold_values)
-    if missing_thresholds and args.default_threshold is None:
-        raise ValueError(
-            "Every model needs an explicit validation-frozen --threshold; missing for "
-            f"{sorted(missing_thresholds)}"
-        )
-    thresholds = {
-        name: float(
-            threshold_values[name] if name in threshold_values else args.default_threshold
-        )
-        for name in model_names
-    }
-    reference = load_reference_bundle(
+    if args.calibrate_thresholds:
+        if not args.selection_manifest:
+            raise ValueError("--calibrate-thresholds requires --selection-manifest")
+        if threshold_values or args.default_threshold is not None:
+            raise ValueError(
+                "Do not supply evaluation thresholds when --calibrate-thresholds is enabled"
+            )
+        thresholds: dict[str, float] = {}
+        threshold_grid = parse_threshold_grid(args.threshold_grid)
+    else:
+        missing_thresholds = set(model_names) - set(threshold_values)
+        if missing_thresholds and args.default_threshold is None:
+            raise ValueError(
+                "Every model needs an explicit validation-frozen --threshold; missing for "
+                f"{sorted(missing_thresholds)}"
+            )
+        thresholds = {
+            name: float(
+                threshold_values[name] if name in threshold_values else args.default_threshold
+            )
+            for name in model_names
+        }
+        threshold_grid = []
+    if args.selection_partition and not args.selection_manifest:
+        raise ValueError("--selection-partition requires --selection-manifest")
+
+    source_reference = load_reference_bundle(
         args.reference_metadata,
         args.reference_fingerprints,
         target_key=args.target_key,
         id_column=args.id_column,
     )
-    if reference.fingerprint_bits != args.expected_bits:
+    if source_reference.fingerprint_bits != args.expected_bits:
         raise ValueError(
-            f"Reference uses {reference.fingerprint_bits} fingerprint bits; "
+            f"Reference uses {source_reference.fingerprint_bits} fingerprint bits; "
             f"the locked benchmark expects {args.expected_bits}"
         )
+    selection = (
+        pd.read_csv(args.selection_manifest) if args.selection_manifest is not None else None
+    )
+    calibration_reference = None
+    calibration_positions = None
+    if args.calibrate_thresholds:
+        assert selection is not None
+        calibration_reference, calibration_positions = select_reference_bundle(
+            source_reference,
+            selection,
+            id_column=args.id_column,
+            partition=args.calibration_partition,
+            partition_column=args.partition_column,
+        )
+        reference, evaluation_positions = select_reference_bundle(
+            source_reference,
+            selection,
+            id_column=args.id_column,
+            partition=args.evaluation_partition,
+            partition_column=args.partition_column,
+        )
+        calibration_clusters = set(structure_identifiers(calibration_reference.metadata))
+        evaluation_clusters = set(structure_identifiers(reference.metadata))
+        cluster_overlap = calibration_clusters & evaluation_clusters
+        if cluster_overlap:
+            raise ValueError(
+                "Calibration and evaluation partitions share structure clusters: "
+                f"{sorted(cluster_overlap)[:5]}"
+            )
+    elif selection is not None:
+        reference, evaluation_positions = select_reference_bundle(
+            source_reference,
+            selection,
+            id_column=args.id_column,
+            partition=args.selection_partition,
+            partition_column=args.partition_column,
+        )
+    else:
+        reference = source_reference
+        evaluation_positions = np.arange(len(source_reference.metadata), dtype=np.int64)
+
     molecule_ids = structure_identifiers(reference.metadata)
     missing_strata = [column for column in args.stratify_column if column not in reference.metadata]
     if missing_strata:
@@ -215,27 +302,71 @@ def main(argv: list[str] | None = None) -> int:
     per_model: dict[str, pd.DataFrame] = {}
     aggregates: dict[str, dict] = {}
     provenance: dict[str, dict] = {}
+    calibration_rows = []
 
     for name in model_names:
         if name in reference_models:
-            predictions = load_reference_predictions(
+            source_predictions = load_reference_predictions(
                 args.reference_fingerprints,
                 reference_models[name],
-                reference,
+                source_reference,
             )
             source_path = args.reference_fingerprints
             source_key = reference_models[name]
             source_kind = "reference_array"
         else:
             source_path = prediction_paths[name]
-            predictions = load_prediction_bundle(
+            source_predictions = load_prediction_bundle(
                 source_path,
-                reference,
+                source_reference,
                 metadata_path=prediction_metadata_paths.get(name),
                 metadata_id_column=args.id_column,
             )
             source_key = "probs"
             source_kind = "standard_prediction_bundle"
+
+        if args.calibrate_thresholds:
+            assert calibration_reference is not None
+            assert calibration_positions is not None
+            candidate_rows = []
+            calibration_probabilities = source_predictions.probabilities[
+                calibration_positions
+            ]
+            for threshold in threshold_grid:
+                calibration_metrics = compute_per_spectrum_metrics(
+                    calibration_probabilities,
+                    calibration_reference.targets,
+                    threshold,
+                    chunk_size=args.chunk_size,
+                )
+                row = {
+                    "model": name,
+                    "threshold": threshold,
+                    "rows": len(calibration_metrics),
+                    "mean_fingerprint_tanimoto": float(
+                        calibration_metrics["fingerprint_tanimoto"].mean()
+                    ),
+                    "median_fingerprint_tanimoto": float(
+                        calibration_metrics["fingerprint_tanimoto"].median()
+                    ),
+                    "mean_bit_f1": float(calibration_metrics["bit_f1"].mean()),
+                }
+                candidate_rows.append(row)
+                calibration_rows.append(row)
+            best_row = max(
+                candidate_rows,
+                key=lambda row: (row["mean_fingerprint_tanimoto"], -row["threshold"]),
+            )
+            thresholds[name] = float(best_row["threshold"])
+
+        predictions = PredictionBundle(
+            probabilities=source_predictions.probabilities[evaluation_positions],
+            inference_seconds=(
+                source_predictions.inference_seconds[evaluation_positions]
+                if source_predictions.inference_seconds is not None
+                else None
+            ),
+        )
 
         metrics = compute_per_spectrum_metrics(
             predictions.probabilities,
@@ -253,6 +384,11 @@ def main(argv: list[str] | None = None) -> int:
         aggregates[name] = {
             "model": name,
             "threshold": thresholds[name],
+            "threshold_source": (
+                f"{args.calibration_partition}_partition"
+                if args.calibrate_thresholds
+                else "explicit"
+            ),
             **aggregate_metrics(metrics),
         }
         molecule_frame = pd.DataFrame(
@@ -306,7 +442,7 @@ def main(argv: list[str] | None = None) -> int:
                 else None
             ),
         }
-        del predictions
+        del predictions, source_predictions
 
     baseline_tanimoto = per_model[args.baseline]["fingerprint_tanimoto"].to_numpy()
     paired_frames = []
@@ -397,6 +533,10 @@ def main(argv: list[str] | None = None) -> int:
     per_spectrum = pd.concat(per_spectrum_frames, ignore_index=True)
     per_spectrum.to_csv(output_dir / "per_spectrum_metrics.csv", index=False)
     pd.DataFrame(aggregate_rows).to_csv(output_dir / "aggregate_metrics.csv", index=False)
+    if calibration_rows:
+        pd.DataFrame(calibration_rows).to_csv(
+            output_dir / "threshold_calibration.csv", index=False
+        )
     if paired_frames:
         pd.concat(paired_frames, ignore_index=True).to_csv(
             output_dir / "paired_deltas.csv", index=False
@@ -445,6 +585,29 @@ def main(argv: list[str] | None = None) -> int:
             "fingerprint_radius": 2,
             "fingerprint_use_chirality": False,
         },
+        "selection": (
+            {
+                "path": str(Path(args.selection_manifest).resolve()),
+                "sha256": sha256_file(args.selection_manifest),
+                "partition_column": args.partition_column,
+                "calibration_partition": (
+                    args.calibration_partition if args.calibrate_thresholds else None
+                ),
+                "calibration_rows": (
+                    len(calibration_reference.metadata)
+                    if calibration_reference is not None
+                    else None
+                ),
+                "evaluation_partition": (
+                    args.evaluation_partition
+                    if args.calibrate_thresholds
+                    else args.selection_partition
+                ),
+                "evaluation_rows": len(reference.metadata),
+            }
+            if args.selection_manifest
+            else None
+        ),
         "baseline": args.baseline,
         "minimum_gain": args.minimum_gain,
         "bootstrap_samples": args.bootstrap_samples,
@@ -455,6 +618,9 @@ def main(argv: list[str] | None = None) -> int:
         "ranking": aggregate_rows,
         "outputs": {
             "aggregate_metrics": "aggregate_metrics.csv",
+            "threshold_calibration": (
+                "threshold_calibration.csv" if calibration_rows else None
+            ),
             "per_spectrum_metrics": "per_spectrum_metrics.csv",
             "paired_deltas": "paired_deltas.csv" if paired_frames else None,
             "stratified_metrics": "stratified_metrics.csv" if stratified_rows else None,

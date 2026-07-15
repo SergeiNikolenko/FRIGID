@@ -64,6 +64,30 @@ evidence and records input and output hashes:
 - `summary.json`: SHA-256
   `f58f7df65ba4b763a2f69041909d79fa72ba5063dcf209197e62fb90209b8785`.
 
+The new evaluator then reproduced the historical MIST result independently
+from the restored arrays:
+
+| Metric | Reproduced value |
+|---|---:|
+| Mean fingerprint Tanimoto | 0.5420425046 |
+| Median fingerprint Tanimoto | 0.5483870968 |
+| Molecule-balanced mean Tanimoto | 0.5132696630 |
+| Mean false-positive bits | 15.6316 |
+| Mean false-negative bits | 21.9029 |
+| Train/evaluation structure overlap | 0 / 19,043 |
+
+The evaluation used benchmark code revision
+`be9a93c4e08a6a43c78361367450b7ff5c4a0cc8`, 22,746 unique declared training
+structures, and completed as Slurm job `173` with exit `0:0`. Key evidence
+hashes are:
+
+- ordered spectrum IDs:
+  `1a033e1e80e1d52d9bf1c7961229309bf32833c7693f7b0d5c9c1a452f670dd8`;
+- `benchmark_summary.json`:
+  `0bb5c2a8df6db1574d4e7af4e68c12a8d8d94859cdec1deff221d92ffadfcf78`;
+- `per_spectrum_metrics.csv`:
+  `c2374f9548947acef0c5ee69143c3151ad58eea1227fbce2b88565391db28021`.
+
 ## Existing results, kept in separate lanes
 
 ### Encoder-level validation
@@ -197,7 +221,9 @@ Primary references:
 ## Reproducible evaluator
 
 The evaluator is `scripts/benchmark_encoder_predictions.py`; validation and
-metric primitives are in `src/frigid/encoder_benchmark.py`.
+metric primitives are in `src/frigid/encoder_benchmark.py`. The deterministic
+molecule-cluster partition builder is
+`scripts/build_encoder_benchmark_partitions.py`.
 
 New candidate bundle contract:
 
@@ -209,7 +235,18 @@ Historical bundles without embedded IDs are supported only with an explicit
 companion metadata file. The evaluator rejects duplicate, missing, or extra
 IDs and reorders candidate rows by identity rather than position.
 
-Example:
+Build the locked partition manifest once:
+
+```bash
+python scripts/build_encoder_benchmark_partitions.py \
+  --metadata runs/mist_val/metadata.csv \
+  --calibration-fraction 0.2 \
+  --seed 42 \
+  --output-dir runs/encoder_partitions
+```
+
+Then calibrate every model threshold exclusively on the calibration partition
+and score exclusively on evaluation:
 
 ```bash
 python scripts/benchmark_encoder_predictions.py \
@@ -217,8 +254,9 @@ python scripts/benchmark_encoder_predictions.py \
   --reference-fingerprints runs/mist_val/fingerprints.npz \
   --reference-model mist=mist_probs \
   --prediction msbert=runs/msbert_val/predictions.npz \
-  --threshold mist=0.25 \
-  --threshold msbert=<frozen-calibration-threshold> \
+  --selection-manifest \
+    runs/encoder_partitions/encoder_benchmark_partitions.csv \
+  --calibrate-thresholds \
   --baseline mist \
   --minimum-gain 0.005 \
   --training-identifiers msbert=runs/msbert_train/inchikeys.txt \
@@ -230,6 +268,7 @@ The output directory is immutable: the evaluator refuses to overwrite a
 non-empty directory. It writes:
 
 - `aggregate_metrics.csv`;
+- `threshold_calibration.csv` when calibration is requested;
 - `per_spectrum_metrics.csv`;
 - `paired_deltas.csv`;
 - optional `stratified_metrics.csv`;
@@ -246,6 +285,11 @@ non-empty directory. It writes:
 3. Run the new evaluator and retain per-spectrum metrics and checksums.
 4. Create the prospective calibration/evaluation manifests and freeze the MIST
    threshold without reading evaluation labels.
+
+Steps 1-3 are complete in jobs `172` and `173`. Step 4 is deliberately kept
+separate because the historical full-validation value above is a continuity
+reference, while future promotion decisions need a disjoint calibration
+surface.
 
 ### Wave 1: cheap pretrained probes
 

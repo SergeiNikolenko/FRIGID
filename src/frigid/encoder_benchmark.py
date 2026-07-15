@@ -54,7 +54,7 @@ def _decode_ids(values: np.ndarray, *, source: str) -> np.ndarray:
         if isinstance(value, bytes):
             value = value.decode("utf-8")
         text = str(value).strip()
-        if not text:
+        if not text or text.lower() == "nan":
             raise ValueError(f"{source} contains an empty spectrum ID")
         decoded.append(text)
 
@@ -498,6 +498,99 @@ def structure_identifiers(metadata: pd.DataFrame) -> np.ndarray:
     if np.any(identifiers == ""):
         raise ValueError(f"Reference metadata column {column!r} contains empty InChIKeys")
     return identifiers
+
+
+def deterministic_cluster_partitions(
+    metadata: pd.DataFrame,
+    *,
+    calibration_fraction: float,
+    seed: int,
+) -> np.ndarray:
+    """Assign whole structure clusters to deterministic calibration/evaluation sets."""
+
+    if not 0.0 < calibration_fraction < 1.0:
+        raise ValueError(
+            f"Calibration fraction must be in (0, 1), got {calibration_fraction}"
+        )
+    cluster_ids = structure_identifiers(metadata)
+    unique_clusters = sorted(set(cluster_ids.tolist()))
+    if len(unique_clusters) < 2:
+        raise ValueError("At least two structure clusters are required for partitioning")
+
+    calibration_clusters = int(round(len(unique_clusters) * calibration_fraction))
+    calibration_clusters = min(max(calibration_clusters, 1), len(unique_clusters) - 1)
+    ranked_clusters = sorted(
+        unique_clusters,
+        key=lambda cluster: hashlib.sha256(
+            f"{seed}\0{cluster}".encode("utf-8")
+        ).digest(),
+    )
+    calibration_set = set(ranked_clusters[:calibration_clusters])
+    return np.asarray(
+        [
+            "calibration" if cluster_id in calibration_set else "evaluation"
+            for cluster_id in cluster_ids
+        ],
+        dtype=str,
+    )
+
+
+def select_reference_bundle(
+    reference: ReferenceBundle,
+    selection: pd.DataFrame,
+    *,
+    id_column: str,
+    partition: str | None = None,
+    partition_column: str = "benchmark_partition",
+) -> tuple[ReferenceBundle, np.ndarray]:
+    """Select reference rows by ID while preserving canonical reference order."""
+
+    if id_column not in selection:
+        raise ValueError(f"Selection manifest is missing ID column {id_column!r}")
+    selection_ids = _decode_ids(selection[id_column].to_numpy(), source="selection manifest")
+    selection = selection.copy()
+    selection[id_column] = selection_ids
+    unknown_ids = set(selection_ids.tolist()) - set(reference.spectrum_ids.tolist())
+    if unknown_ids:
+        raise ValueError(
+            f"Selection manifest contains IDs absent from the reference: "
+            f"{sorted(unknown_ids)[:5]}"
+        )
+
+    if partition is not None:
+        if partition_column not in selection:
+            raise ValueError(
+                f"Selection manifest is missing partition column {partition_column!r}"
+            )
+        selection = selection.loc[selection[partition_column].astype(str).eq(partition)]
+        if selection.empty:
+            raise ValueError(f"Selection partition {partition!r} is empty")
+
+    selected_ids = set(selection[id_column].tolist())
+    positions = np.flatnonzero(
+        np.asarray([spectrum_id in selected_ids for spectrum_id in reference.spectrum_ids])
+    )
+    if len(positions) != len(selected_ids):
+        raise ValueError("Selection manifest could not be aligned to every requested ID")
+
+    metadata = reference.metadata.iloc[positions].copy().reset_index(drop=True)
+    if "fingerprint_index" in metadata:
+        metadata.insert(
+            metadata.columns.get_loc("fingerprint_index") + 1,
+            "source_fingerprint_index",
+            metadata["fingerprint_index"].to_numpy(),
+        )
+        metadata["fingerprint_index"] = np.arange(len(metadata), dtype=np.int64)
+    if partition is not None:
+        metadata[partition_column] = partition
+
+    selected = ReferenceBundle(
+        metadata=metadata,
+        spectrum_ids=reference.spectrum_ids[positions],
+        targets=reference.targets[positions],
+        fingerprint_bits=reference.fingerprint_bits,
+    )
+    return selected, positions
 
 
 def load_training_identifiers(path: str | Path) -> set[str]:

@@ -6,10 +6,12 @@ import pytest
 
 from frigid.encoder_benchmark import (
     compute_per_spectrum_metrics,
+    deterministic_cluster_partitions,
     load_prediction_bundle,
     load_reference_bundle,
     load_training_identifiers,
     paired_bootstrap_mean_ci,
+    select_reference_bundle,
     training_overlap,
 )
 
@@ -150,3 +152,68 @@ def test_training_identifier_file_must_not_be_empty(tmp_path):
 
     with pytest.raises(ValueError, match="no usable identifiers"):
         load_training_identifiers(path)
+
+
+def test_cluster_partitions_are_deterministic_and_molecule_disjoint():
+    metadata = pd.DataFrame(
+        {
+            "inchi_key_first_block": ["AAAA", "AAAA", "BBBB", "CCCC", "DDDD"],
+        }
+    )
+
+    first = deterministic_cluster_partitions(
+        metadata, calibration_fraction=0.5, seed=42
+    )
+    second = deterministic_cluster_partitions(
+        metadata, calibration_fraction=0.5, seed=42
+    )
+
+    assert first.tolist() == second.tolist()
+    assert first[0] == first[1]
+    partition_by_cluster = pd.DataFrame(
+        {"cluster": metadata["inchi_key_first_block"], "partition": first}
+    ).drop_duplicates()
+    assert partition_by_cluster.groupby("cluster")["partition"].nunique().max() == 1
+    assert set(first) == {"calibration", "evaluation"}
+
+
+def test_reference_selection_preserves_canonical_source_order(tmp_path):
+    metadata_path, fingerprints_path = make_reference(tmp_path)
+    reference = load_reference_bundle(metadata_path, fingerprints_path)
+    selection = pd.DataFrame(
+        {
+            "spec_name": ["spec-b", "spec-a"],
+            "benchmark_partition": ["evaluation", "calibration"],
+        }
+    )
+
+    selected, positions = select_reference_bundle(
+        reference,
+        selection,
+        id_column="spec_name",
+        partition="evaluation",
+    )
+
+    assert positions.tolist() == [1]
+    assert selected.spectrum_ids.tolist() == ["spec-b"]
+    assert selected.metadata["source_fingerprint_index"].tolist() == [1]
+    assert selected.metadata["fingerprint_index"].tolist() == [0]
+
+
+def test_reference_selection_rejects_unknown_ids_in_any_partition(tmp_path):
+    metadata_path, fingerprints_path = make_reference(tmp_path)
+    reference = load_reference_bundle(metadata_path, fingerprints_path)
+    selection = pd.DataFrame(
+        {
+            "spec_name": ["spec-a", "unknown"],
+            "benchmark_partition": ["calibration", "evaluation"],
+        }
+    )
+
+    with pytest.raises(ValueError, match="absent from the reference"):
+        select_reference_bundle(
+            reference,
+            selection,
+            id_column="spec_name",
+            partition="calibration",
+        )
