@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import asdict
 from pathlib import Path
 
 import lightning as L
@@ -87,7 +88,17 @@ class MarlinLightningModule(L.LightningModule):
         ema_decay: float = 0.9999,
     ) -> None:
         super().__init__()
-        self.save_hyperparameters()
+        self.save_hyperparameters(
+            {
+                "config": asdict(config),
+                "learning_rate": learning_rate,
+                "weight_decay": weight_decay,
+                "noise_probability": noise_probability,
+                "noise_min_fraction": noise_min_fraction,
+                "noise_max_fraction": noise_max_fraction,
+                "ema_decay": ema_decay,
+            }
+        )
         self.decoder = MarlinDecoder(config)
         self.learning_rate = learning_rate
         self.weight_decay = weight_decay
