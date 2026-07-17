@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import os
 import sys
+import json
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -21,6 +22,7 @@ from omegaconf import DictConfig, OmegaConf
 from dlm.utils.utils_data import get_tokenizer
 from marlin.model import MarlinDecoderConfig
 from marlin.training import MarlinCollator, MarlinLightningModule
+from marlin.warm_start import load_frigid_decoder
 
 
 @hydra.main(version_base=None, config_path="../configs", config_name="marlin_nplib1")
@@ -39,6 +41,12 @@ def main(config: DictConfig) -> None:
         noise_max_fraction=config.training.noise_max_fraction,
         ema_decay=config.training.ema_decay,
     )
+    if config.get("warm_start_checkpoint"):
+        report = load_frigid_decoder(module.decoder, config.warm_start_checkpoint)
+        module.reset_ema()
+        report_path = Path(config.output.root) / "warm_start.json"
+        report_path.parent.mkdir(parents=True, exist_ok=True)
+        report_path.write_text(json.dumps(report, indent=2) + "\n")
     dataset = datasets.load_dataset(
         config.data.dataset,
         split="train",

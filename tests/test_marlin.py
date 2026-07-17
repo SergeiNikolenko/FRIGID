@@ -10,6 +10,7 @@ from marlin.model import (
 )
 from marlin.noise import symmetric_fingerprint_noise
 from marlin.token_properties import token_properties
+from marlin.warm_start import _copy_attention
 
 
 def test_block_causal_mask_allows_current_and_previous_blocks():
@@ -95,3 +96,14 @@ def test_small_decoder_forward_and_loss():
     loss = model.diffusion_loss(tokens, mass, fingerprint, generator=torch.Generator().manual_seed(3))
     assert logits.shape == (1, 6, 32)
     assert torch.isfinite(loss)
+
+
+def test_attention_warm_start_concatenates_qkv():
+    attention = torch.nn.MultiheadAttention(4, 1, batch_first=True)
+    state = {}
+    for offset, part in enumerate(("query", "key", "value")):
+        state[f"x.{part}.weight"] = torch.full((4, 4), float(offset + 1))
+        state[f"x.{part}.bias"] = torch.full((4,), float(offset + 1))
+    _copy_attention(attention, state, "x", "test")
+    assert torch.equal(attention.in_proj_weight[:4], state["x.query.weight"])
+    assert torch.equal(attention.in_proj_weight[-4:], state["x.value.weight"])

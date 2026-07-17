@@ -78,28 +78,25 @@ class MarlinDecoderLayer(nn.Module):
         padding_mask: torch.Tensor | None,
         condition_padding_mask: torch.Tensor | None,
     ) -> torch.Tensor:
-        normalized = self.norm1(hidden)
         update, _ = self.self_attention(
-            normalized,
-            normalized,
-            normalized,
+            hidden,
+            hidden,
+            hidden,
             attn_mask=attention_mask,
             key_padding_mask=padding_mask,
             need_weights=False,
         )
-        hidden = hidden + self.dropout(update)
-        normalized = self.norm2(hidden)
+        hidden = self.norm1(hidden + self.dropout(update))
         update, _ = self.cross_attention(
-            normalized,
+            hidden,
             condition,
             condition,
             key_padding_mask=condition_padding_mask,
             need_weights=False,
         )
-        hidden = hidden + self.dropout(update)
-        normalized = self.norm3(hidden)
-        update = self.linear2(self.dropout(F.gelu(self.linear1(normalized))))
-        return hidden + self.dropout(update)
+        hidden = self.norm2(hidden + self.dropout(update))
+        update = self.linear2(self.dropout(F.gelu(self.linear1(hidden))))
+        return self.norm3(hidden + self.dropout(update))
 
 
 class MarlinDecoder(nn.Module):
@@ -110,8 +107,10 @@ class MarlinDecoder(nn.Module):
         self.position_embedding = nn.Embedding(config.max_length, config.hidden_size)
         self.conditioner = MarlinConditioner(config.hidden_size, config.fingerprint_bits)
         self.layers = nn.ModuleList(MarlinDecoderLayer(config) for _ in range(config.num_layers))
-        self.final_norm = nn.LayerNorm(config.hidden_size)
+        self.prediction_dense = nn.Linear(config.hidden_size, config.hidden_size)
+        self.prediction_norm = nn.LayerNorm(config.hidden_size)
         self.output = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
+        self.output_bias = nn.Parameter(torch.zeros(config.vocab_size))
         self.output.weight = self.token_embedding.weight
 
     def forward(
@@ -159,7 +158,8 @@ class MarlinDecoder(nn.Module):
                 padding_mask=padding_mask,
                 condition_padding_mask=~condition_mask,
             )
-        return self.output(self.final_norm(hidden))
+        hidden = self.prediction_norm(F.gelu(self.prediction_dense(hidden)))
+        return self.output(hidden) + self.output_bias
 
     def two_stream_logits(
         self,

@@ -92,7 +92,12 @@ class MarlinLightningModule(L.LightningModule):
         self.noise_probability = noise_probability
         self.noise_min_fraction = noise_min_fraction
         self.noise_max_fraction = noise_max_fraction
+        self.ema_decay = ema_decay
         self.ema = ExponentialMovingAverage(self.decoder.parameters(), decay=ema_decay)
+
+    def reset_ema(self) -> None:
+        """Reset EMA after loading warm-start weights."""
+        self.ema = ExponentialMovingAverage(self.decoder.parameters(), decay=self.ema_decay)
 
     def training_step(self, batch: dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:
         fingerprint = symmetric_fingerprint_noise(
