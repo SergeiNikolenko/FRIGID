@@ -28,6 +28,7 @@ from marlin.warm_start import load_frigid_decoder
 @hydra.main(version_base=None, config_path="../configs", config_name="marlin_nplib1")
 def main(config: DictConfig) -> None:
     L.seed_everything(config.seed, workers=True)
+    torch.set_float32_matmul_precision("high")
     tokenizer = load_safe_tokenizer(config.data.tokenizer_file)
     decoder_config = MarlinDecoderConfig(
         **OmegaConf.to_container(config.model, resolve=True)
