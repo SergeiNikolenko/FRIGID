@@ -1,0 +1,48 @@
+# Clean-room MARLIN reproduction from arXiv:2607.04774.
+# max_steps and mass Fourier frequencies are explicitly inferred because the paper omits them.
+seed: 42
+resume_checkpoint: null
+
+data:
+  dataset: datamol-io/safe-gpt
+  hf_cache_dir: /home/nikolenko/work/Projects/MARLIN_reproduction_20260717/cache/huggingface
+  exclude_inchikeys: /home/nikolenko/work/Projects/MARLIN_reproduction_20260717/data/nplib1_test_inchikeys.csv
+  shuffle_buffer: 100000
+
+loader:
+  batch_size: 8
+  num_workers: 8
+
+model:
+  vocab_size: 1880
+  hidden_size: 896
+  num_layers: 12
+  num_heads: 14
+  intermediate_size: 3584
+  max_length: 256
+  block_width: 8
+  fingerprint_bits: 4096
+  dropout: 0.1
+  mask_token_id: 4
+  pad_token_id: 3
+
+optim:
+  learning_rate: 5.0e-5
+  weight_decay: 0.0
+
+training:
+  ema_decay: 0.9999
+  noise_probability: 0.5
+  noise_min_fraction: 0.1
+  noise_max_fraction: 0.3
+
+trainer:
+  devices: 4
+  precision: bf16-mixed
+  max_steps: 100000
+  accumulate_grad_batches: 8
+
+output:
+  root: /home/nikolenko/work/Projects/MARLIN_reproduction_20260717/runs/decoder
+  checkpoints: /home/nikolenko/work/Projects/MARLIN_reproduction_20260717/runs/decoder/checkpoints
+  checkpoint_interval: 5000
