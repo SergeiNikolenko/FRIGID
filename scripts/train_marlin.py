@@ -19,8 +19,8 @@ import lightning as L
 import torch
 from omegaconf import DictConfig, OmegaConf
 
-from dlm.utils.utils_data import get_tokenizer
 from marlin.model import MarlinDecoderConfig
+from marlin.tokenizer import load_safe_tokenizer
 from marlin.training import MarlinCollator, MarlinLightningModule
 from marlin.warm_start import load_frigid_decoder
 
@@ -28,7 +28,7 @@ from marlin.warm_start import load_frigid_decoder
 @hydra.main(version_base=None, config_path="../configs", config_name="marlin_nplib1")
 def main(config: DictConfig) -> None:
     L.seed_everything(config.seed, workers=True)
-    tokenizer = get_tokenizer(config.data.hf_cache_dir)
+    tokenizer = load_safe_tokenizer(config.data.tokenizer_file)
     decoder_config = MarlinDecoderConfig(
         **OmegaConf.to_container(config.model, resolve=True)
     )

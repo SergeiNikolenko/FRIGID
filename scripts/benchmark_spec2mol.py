@@ -205,9 +205,23 @@ def merge_config_with_args(config: dict, args) -> dict:
     if args.data_dir:
         config['data']['datadir'] = args.data_dir
         config['data']['labels_file'] = os.path.join(args.data_dir, 'labels.tsv')
-        config['data']['split_file'] = os.path.join(args.data_dir, 'split.tsv')
+        split_candidates = [
+            os.path.join(args.data_dir, 'split.tsv'),
+            os.path.join(args.data_dir, 'splits', 'canopus_hplus_100_0.tsv'),
+        ]
+        config['data']['split_file'] = next(
+            (path for path in split_candidates if os.path.exists(path)),
+            split_candidates[0],
+        )
         config['data']['spec_folder'] = os.path.join(args.data_dir, 'spec_files')
-        config['data']['subform_folder'] = os.path.join(args.data_dir, 'subformulae/default_subformulae')
+        subform_candidates = [
+            os.path.join(args.data_dir, 'subformulae', 'default_subformulae'),
+            os.path.join(args.data_dir, 'subformulae', 'subformulae_default'),
+        ]
+        config['data']['subform_folder'] = next(
+            (path for path in subform_candidates if os.path.exists(path)),
+            subform_candidates[0],
+        )
     if args.fp_threshold is not None:
         config['fingerprint']['threshold'] = args.fp_threshold
     if args.output_dir:

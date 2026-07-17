@@ -6,6 +6,7 @@ warm_start_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/DLM.ckpt
 
 data:
   dataset: datamol-io/safe-gpt
+  tokenizer_file: /home/nikolenko/work/Projects/MARLIN_reproduction_20260717/data/safe-gpt/tokenizer.json
   hf_cache_dir: /home/nikolenko/work/Projects/MARLIN_reproduction_20260717/cache/huggingface
   exclude_inchikeys: /home/nikolenko/work/Projects/MARLIN_reproduction_20260717/data/nplib1_test_inchikeys.csv
   shuffle_buffer: 100000
