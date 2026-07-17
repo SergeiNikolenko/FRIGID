@@ -24,6 +24,7 @@ if str(SRC_PATH) not in sys.path:
 
 from frigid.encoder_benchmark import sha256_file  # noqa: E402
 from frigid.frozen_probe import (  # noqa: E402
+    EmbeddingBundle,
     deterministic_group_holdout,
     global_positive_weight,
     load_embedding_bundle,
@@ -69,6 +70,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--learning-rate", type=float, default=1e-3)
     parser.add_argument("--weight-decay", type=float, default=1e-4)
     parser.add_argument("--device", choices=("auto", "cpu", "cuda"), default="auto")
+    parser.add_argument(
+        "--drop-validation-overlap",
+        action="store_true",
+        help="Remove validation connectivity blocks from training before fitting.",
+    )
     return parser.parse_args()
 
 
@@ -231,6 +237,25 @@ def main() -> int:
             f"{train.embeddings.shape[1]} versus {validation.embeddings.shape[1]}"
         )
     overlap = set(train.structure_ids.tolist()) & set(validation.structure_ids.tolist())
+    dropped_overlap_rows = 0
+    if overlap and args.drop_validation_overlap:
+        keep = np.asarray(
+            [structure_id not in overlap for structure_id in train.structure_ids],
+            dtype=bool,
+        )
+        dropped_overlap_rows = int((~keep).sum())
+        train = EmbeddingBundle(
+            embeddings=train.embeddings[keep],
+            targets=train.targets[keep],
+            spectrum_ids=train.spectrum_ids[keep],
+            structure_ids=train.structure_ids[keep],
+            inference_seconds=(
+                train.inference_seconds[keep]
+                if train.inference_seconds is not None
+                else None
+            ),
+        )
+        overlap = set(train.structure_ids.tolist()) & set(validation.structure_ids.tolist())
     if overlap:
         raise ValueError(
             "Train/validation structure overlap is forbidden; examples: "
@@ -432,6 +457,7 @@ def main() -> int:
         "train_structures": len(set(train.structure_ids.tolist())),
         "validation_structures": len(set(validation.structure_ids.tolist())),
         "train_validation_structure_overlap": 0,
+        "dropped_validation_overlap_rows": dropped_overlap_rows,
         "input_dim": train.embeddings.shape[1],
         "fingerprint_bits": args.fingerprint_bits,
         "positive_weight": final_positive_weight,

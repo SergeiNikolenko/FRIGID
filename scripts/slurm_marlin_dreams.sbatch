@@ -28,6 +28,7 @@ done
   --train-npz "$ROOT/runs/dreams/train.npz" \
   --validation-npz "$ROOT/runs/dreams/val.npz" \
   --output-dir "$ROOT/runs/dreams/probe" \
+  --drop-validation-overlap \
   --device cuda
 
 "$PYTHON" "$CODE/scripts/predict_frozen_encoder_probe.py" \
