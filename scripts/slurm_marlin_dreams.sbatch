@@ -29,3 +29,11 @@ done
   --validation-npz "$ROOT/runs/dreams/val.npz" \
   --output-dir "$ROOT/runs/dreams/probe" \
   --device cuda
+
+"$PYTHON" "$CODE/scripts/predict_frozen_encoder_probe.py" \
+  --bundle "$ROOT/runs/dreams/test.npz" \
+  --checkpoint "$ROOT/runs/dreams/probe/frozen_probe.pt" \
+  --output "$ROOT/runs/dreams/probe/test_predictions.npz"
+
+find "$ROOT/runs/dreams" -type f -print0 | sort -z | xargs -0 sha256sum \
+  > "$ROOT/manifests/dreams_outputs.sha256"
