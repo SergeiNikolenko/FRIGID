@@ -40,7 +40,9 @@ class MarlinCollator:
         fingerprints: list[torch.Tensor] = []
         masses: list[float] = []
         for example in examples:
-            safe = example["input"]
+            safe = example.get("safe", example.get("input"))
+            if not safe:
+                continue
             smiles = safe_to_smiles(safe, fix=True)
             molecule = Chem.MolFromSmiles(smiles) if smiles else None
             if molecule is None:
