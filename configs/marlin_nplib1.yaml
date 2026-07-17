@@ -37,10 +37,12 @@ training:
   noise_max_fraction: 0.3
 
 trainer:
-  devices: 4
+  # Spectrum currently exposes one A100 through Slurm.
+  devices: 1
   precision: bf16-mixed
   max_steps: 100000
-  accumulate_grad_batches: 8
+  # 8 examples x 32 accumulation steps = paper batch size 256.
+  accumulate_grad_batches: 32
 
 output:
   root: /home/nikolenko/work/Projects/MARLIN_reproduction_20260717/runs/decoder
