@@ -13,9 +13,15 @@ DATA="$ROOT/data"
 mkdir -p "$DATA/nplib1"
 cd "$DATA"
 
-curl -fL --retry 5 -C - \
-  https://zenodo.org/records/8316682/files/canopus_train_export_v2.tar \
-  -o canopus_train_export_v2.tar
+rm -f canopus_train_export_v2.tar
+/home/nikolenko/work/Projects/FRIGID/.venv/bin/python \
+  "$ROOT/code/scripts/download_zenodo_ranges.py" \
+  https://zenodo.org/api/records/8316682/files/canopus_train_export_v2.tar/content \
+  canopus_train_export_v2.tar \
+  --size 4100802560 \
+  --md5 161e3b92a266ee2a369ba1ae03990a24 \
+  --workers 32 \
+  --chunk-mib 32
 sha256sum canopus_train_export_v2.tar > canopus_train_export_v2.tar.sha256
 tar -xf canopus_train_export_v2.tar -C nplib1
 find nplib1 -type f -printf '%s %p\n' | sort -nr > nplib1_inventory.txt
