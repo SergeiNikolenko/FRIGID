@@ -27,6 +27,7 @@ def main() -> None:
     metadata = pd.read_csv(args.metadata)
     with np.load(args.fingerprints, allow_pickle=False) as arrays:
         targets = arrays["ground_truth"]
+    args.output.parent.mkdir(parents=True, exist_ok=True)
     started = time.perf_counter()
     embeddings = np.asarray(
         dreams_embeddings(
@@ -42,7 +43,6 @@ def main() -> None:
         raise ValueError(
             f"row mismatch: metadata={len(metadata)}, targets={len(targets)}, embeddings={len(embeddings)}"
         )
-    args.output.parent.mkdir(parents=True, exist_ok=True)
     np.savez_compressed(
         args.output,
         embeddings=embeddings,
