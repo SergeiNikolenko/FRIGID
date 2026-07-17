@@ -47,8 +47,8 @@ def main() -> None:
         args.output,
         embeddings=embeddings,
         ground_truth=targets.astype(np.uint8),
-        spectrum_ids=metadata["spec_name"].astype(str).to_numpy(),
-        inchikeys=metadata["inchikey"].astype(str).to_numpy(),
+        spectrum_ids=metadata["spec_name"].astype(str).to_numpy(dtype=str),
+        inchikeys=metadata["inchikey"].astype(str).to_numpy(dtype=str),
         inference_seconds=np.full(len(metadata), elapsed / len(metadata), dtype=np.float64),
     )
     summary = {
