@@ -1,4 +1,6 @@
 import torch
+from rdkit import Chem
+from rdkit.Chem import Descriptors
 
 from marlin.conditioning import MarlinConditioner
 from marlin.mass_shell import MassShellConstraint, MassShellState
@@ -9,6 +11,7 @@ from marlin.model import (
     two_stream_attention_mask,
 )
 from marlin.noise import symmetric_fingerprint_noise
+from marlin.sampler import MarlinSampler
 from marlin.token_properties import token_properties
 from marlin.warm_start import _copy_attention
 
@@ -107,3 +110,54 @@ def test_attention_warm_start_concatenates_qkv():
     _copy_attention(attention, state, "x", "test")
     assert torch.equal(attention.in_proj_weight[:4], state["x.query.weight"])
     assert torch.equal(attention.in_proj_weight[-4:], state["x.value.weight"])
+
+
+def test_batched_sampler_reports_attempt_validity_and_uniqueness():
+    class FixedModel(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.anchor = torch.nn.Parameter(torch.zeros(()))
+            self.config = MarlinDecoderConfig(
+                vocab_size=4,
+                hidden_size=4,
+                num_layers=1,
+                num_heads=1,
+                intermediate_size=4,
+                max_length=3,
+                block_width=2,
+                fingerprint_bits=8,
+                dropout=0.0,
+                mask_token_id=3,
+                pad_token_id=0,
+            )
+
+        def forward(self, input_ids, precursor_mass, fingerprint):
+            logits = torch.zeros((*input_ids.shape, 4), device=input_ids.device)
+            logits[..., 1] = 10.0
+            return logits
+
+    molecule = Chem.MolFromSmiles("C")
+    target_mass = Descriptors.ExactMolWt(molecule)
+    constraint = MassShellConstraint(
+        [0.0] * 4,
+        eos_token_id=2,
+        ppm_tolerance=10,
+    )
+    sampler = MarlinSampler(
+        FixedModel(),
+        constraint,
+        bos_token_id=0,
+        eos_token_id=2,
+        mask_token_id=3,
+        decode_tokens=lambda _: "C",
+        safe_to_smiles=lambda _: "C",
+        forbidden_token_ids=(0, 3),
+    )
+    ranked, stats = sampler.generate_ranked_with_stats(
+        torch.zeros(8), target_mass, candidates=3
+    )
+    assert stats.attempts == 3
+    assert stats.valid == 3
+    assert stats.mass_valid == 3
+    assert stats.unique_mass_valid == 1
+    assert len(ranked) == 1
