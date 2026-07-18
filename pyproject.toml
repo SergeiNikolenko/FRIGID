@@ -32,7 +32,6 @@ dependencies = [
     'omegaconf==2.3.0',
     'transformers==4.32.0',
     'safe-mol==0.1.13',
-    'pytdc==0.4.1',
     'easydict==1.13',
     'openbabel-wheel==3.1.1.22',
     'Cython<3',
