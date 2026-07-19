@@ -2,7 +2,9 @@ import torch
 
 from marlin.grammar import (
     SafeGrammarMask,
+    _has_mass_viable_atom_completion,
     _has_mass_viable_bracket_completion,
+    _has_mass_viable_percent_completion,
     _scan,
 )
 
@@ -70,4 +72,16 @@ def test_safe_grammar_rejects_bracket_when_no_element_fits_mass_shell():
     target_mass = 444.103807533379
     assert not _has_mass_viable_bracket_completion(
         "C" * 32 + "[", target_mass, 4.0, target_mass * 10e-6
+    )
+
+
+def test_safe_grammar_rejects_incomplete_syntax_when_no_atom_fits_mass_shell():
+    target_mass = 444.103807533379
+    tolerance = target_mass * 10e-6
+
+    assert not _has_mass_viable_atom_completion(
+        "C" * 32 + "(", target_mass, 4.0, tolerance
+    )
+    assert not _has_mass_viable_percent_completion(
+        "C" * 32 + "1(=%3", target_mass, 4.0, tolerance
     )

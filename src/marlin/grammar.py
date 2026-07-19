@@ -35,6 +35,23 @@ _ATOM_MASSES = {
     "Al": 26.98153853,
 }
 _BRACKET_COMPLETION_ELEMENTS = tuple(_ATOM_MASSES)
+_ATOM_COMPLETIONS = (
+    "B",
+    "C",
+    "N",
+    "O",
+    "P",
+    "S",
+    "F",
+    "I",
+    "Cl",
+    "Br",
+    "c",
+    "n",
+    "o",
+    "p",
+    "s",
+)
 _BRACKET_ATOM = re.compile(
     r"^(?P<isotope>\d{0,3})"
     r"(?P<element>Cl|Br|Si|Se|Na|Li|Mg|Ca|Al|[BCNOPSFIK]|[bcnops*])"
@@ -70,6 +87,38 @@ def _has_mass_viable_bracket_completion(
         (state := _scan(text + element + "]")) is not None
         and state.minimum_mass(valence_slack) <= target_mass + tolerance
         for element in _BRACKET_COMPLETION_ELEMENTS
+    )
+
+
+def _has_mass_viable_atom_completion(
+    text: str,
+    target_mass: float,
+    valence_slack: float,
+    tolerance: float,
+) -> bool:
+    return any(
+        (state := _scan(text + atom)) is not None
+        and state.minimum_mass(valence_slack) <= target_mass + tolerance
+        for atom in _ATOM_COMPLETIONS
+    )
+
+
+def _has_mass_viable_percent_completion(
+    text: str,
+    target_mass: float,
+    valence_slack: float,
+    tolerance: float,
+) -> bool:
+    percent = text.rfind("%")
+    suffix = text[percent + 1 :] if percent >= 0 else ""
+    if percent < 0 or len(suffix) >= 2 or (suffix and not suffix.isdigit()):
+        return True
+    completions = (str(value) for value in range(10, 100))
+    return any(
+        completion.startswith(suffix)
+        and (state := _scan(text[: percent + 1] + completion)) is not None
+        and state.minimum_mass(valence_slack) <= target_mass + tolerance
+        for completion in completions
     )
 
 
@@ -416,6 +465,20 @@ class SafeGrammarMask:
                     )
                     if valid and candidate_state.incomplete_token:
                         valid = _has_mass_viable_bracket_completion(
+                            prefix + self.token_strings[token_id],
+                            target_mass,
+                            self.valence_slack,
+                            tolerance,
+                        )
+                        if valid:
+                            valid = _has_mass_viable_percent_completion(
+                                prefix + self.token_strings[token_id],
+                                target_mass,
+                                self.valence_slack,
+                                tolerance,
+                            )
+                    if valid and candidate_state.expect_atom:
+                        valid = _has_mass_viable_atom_completion(
                             prefix + self.token_strings[token_id],
                             target_mass,
                             self.valence_slack,
