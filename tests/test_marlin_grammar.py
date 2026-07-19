@@ -136,3 +136,15 @@ def test_safe_grammar_prunes_syntactically_stranded_reachable_mass():
     assert _has_structurally_viable_continuation(
         target, target_state, target_mass, 4.0, tolerance
     )
+
+
+def test_safe_grammar_keeps_incomplete_bracket_and_bonded_ring_closure():
+    target_mass = 84.093900384
+    tolerance = target_mass * 10e-6
+
+    assert _has_structurally_viable_continuation(
+        "[N", _scan("[N"), target_mass, 4.0, tolerance
+    )
+    assert _has_structurally_viable_continuation(
+        "C1CCCCC-", _scan("C1CCCCC-"), target_mass, 4.0, tolerance
+    )

@@ -541,6 +541,8 @@ def _has_structurally_viable_continuation(
     valence_slack: float,
     tolerance: float,
 ) -> bool:
+    if state.incomplete_token:
+        return True
     if state.terminal and _has_hydrogen_only_exact_mass(
         state,
         target_mass,
@@ -548,6 +550,16 @@ def _has_structurally_viable_continuation(
         tolerance,
     ):
         return True
+    if state.expect_atom and state.allow_ring:
+        for label in state.open_rings:
+            closed = _scan(text + label)
+            if closed is not None and _has_reachable_exact_mass(
+                closed,
+                target_mass,
+                valence_slack,
+                tolerance,
+            ):
+                return True
     if state.expect_atom:
         return _has_mass_viable_atom_completion(
             text,
