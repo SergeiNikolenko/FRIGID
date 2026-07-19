@@ -35,6 +35,22 @@ class MarlinGenerationStats:
     sample_dead_ends: tuple[dict[str, float | int | str], ...]
 
 
+def _sample_token(
+    probabilities: torch.Tensor,
+    generator: torch.Generator | None,
+) -> int:
+    sampling_probabilities = probabilities
+    if generator is not None and probabilities.device != generator.device:
+        sampling_probabilities = probabilities.to(generator.device)
+    return int(
+        torch.multinomial(
+            sampling_probabilities,
+            num_samples=1,
+            generator=generator,
+        )
+    )
+
+
 class MarlinSampler:
     def __init__(
         self,
@@ -324,7 +340,7 @@ class MarlinSampler:
                     if self.grammar_mask is not None:
                         positions = positions[:1]
                     best_position = None
-                    best_token = None
+                    best_probabilities = None
                     best_confidence = -torch.inf
                     for relative_position in positions.tolist():
                         position = block_start + relative_position
@@ -348,11 +364,11 @@ class MarlinSampler:
                             target_mass,
                         )
                         probabilities = position_logits.softmax(dim=-1)
-                        confidence, token = probabilities.max(dim=-1)
+                        confidence = probabilities.max()
                         if confidence > best_confidence:
                             best_confidence = confidence
                             best_position = relative_position
-                            best_token = int(token)
+                            best_probabilities = probabilities
                     if best_position is None or not torch.isfinite(best_confidence):
                         diagnostics["constraint_dead_ends"] += 1
                         dead_ends = diagnostics["sample_dead_ends"]
@@ -371,6 +387,8 @@ class MarlinSampler:
                         active[row] = False
                         unresolved[row] = False
                         continue
+                    assert best_probabilities is not None
+                    best_token = _sample_token(best_probabilities, generator)
                     prefix[row, block_start + best_position] = best_token
                     states[row] = self.constraint.advance(states[row], best_token)
                     unresolved[row, best_position] = False

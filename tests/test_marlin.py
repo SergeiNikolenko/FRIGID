@@ -11,9 +11,21 @@ from marlin.model import (
     two_stream_attention_mask,
 )
 from marlin.noise import symmetric_fingerprint_noise
-from marlin.sampler import MarlinSampler
+from marlin.sampler import MarlinSampler, _sample_token
 from marlin.token_properties import token_properties
 from marlin.warm_start import _copy_attention
+
+
+def test_sample_token_is_seeded_and_categorical():
+    probabilities = torch.tensor([0.25, 0.75])
+    first = torch.Generator().manual_seed(17)
+    second = torch.Generator().manual_seed(17)
+
+    first_samples = [_sample_token(probabilities, first) for _ in range(64)]
+    second_samples = [_sample_token(probabilities, second) for _ in range(64)]
+
+    assert first_samples == second_samples
+    assert set(first_samples) == {0, 1}
 
 
 def test_block_causal_mask_allows_current_and_previous_blocks():
@@ -49,7 +61,9 @@ def test_symmetric_noise_preserves_number_of_on_bits():
 
 
 def test_conditioner_emits_mass_isotope_and_active_bit_tokens():
-    conditioner = MarlinConditioner(hidden_size=28, fingerprint_bits=8, num_mass_frequencies=4)
+    conditioner = MarlinConditioner(
+        hidden_size=28, fingerprint_bits=8, num_mass_frequencies=4
+    )
     fingerprint = torch.tensor([[1, 0, 1, 0, 0, 0, 0, 0]], dtype=torch.float32)
     tokens, mask = conditioner(torch.tensor([250.0]), fingerprint)
     assert tokens.shape == (1, 4, 28)
@@ -96,7 +110,9 @@ def test_small_decoder_forward_and_loss():
     fingerprint = torch.zeros((1, 16))
     fingerprint[0, [2, 7]] = 1
     logits = model(tokens, mass, fingerprint)
-    loss = model.diffusion_loss(tokens, mass, fingerprint, generator=torch.Generator().manual_seed(3))
+    loss = model.diffusion_loss(
+        tokens, mass, fingerprint, generator=torch.Generator().manual_seed(3)
+    )
     assert logits.shape == (1, 6, 32)
     assert torch.isfinite(loss)
 
@@ -240,7 +256,9 @@ def test_batched_sampler_keeps_mass_valid_candidate_at_max_length():
             )
 
         def forward(self, input_ids, precursor_mass, fingerprint):
-            logits = torch.full((*input_ids.shape, 4), -torch.inf, device=input_ids.device)
+            logits = torch.full(
+                (*input_ids.shape, 4), -torch.inf, device=input_ids.device
+            )
             logits[..., 1] = 0.0
             return logits
 
@@ -293,7 +311,9 @@ def test_batched_sampler_aligns_first_generated_block_after_bos():
 
         def forward(self, input_ids, precursor_mass, fingerprint):
             assert input_ids.shape[1] == 2
-            logits = torch.full((*input_ids.shape, 4), -torch.inf, device=input_ids.device)
+            logits = torch.full(
+                (*input_ids.shape, 4), -torch.inf, device=input_ids.device
+            )
             logits[..., 1] = 0.0
             return logits
 
