@@ -82,7 +82,8 @@ class MarlinSampler:
 
     def _next_block_width(self, prefix_length: int) -> int:
         remaining = self.model.config.max_length - prefix_length
-        offset = prefix_length % self.model.config.block_width
+        content_length = prefix_length - 1
+        offset = content_length % self.model.config.block_width
         aligned_width = (
             self.model.config.block_width - offset
             if offset

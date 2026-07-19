@@ -61,8 +61,8 @@ def main() -> None:
         start = 1
         while start < len(encoded):
             boundary = (
-                (start // model.config.block_width) + 1
-            ) * model.config.block_width
+                ((start - 1) // model.config.block_width) + 1
+            ) * model.config.block_width + 1
             end = min(boundary, len(encoded))
             input_ids = (
                 torch.cat(

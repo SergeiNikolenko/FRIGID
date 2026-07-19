@@ -18,20 +18,20 @@ from marlin.warm_start import _copy_attention
 
 def test_block_causal_mask_allows_current_and_previous_blocks():
     mask = block_causal_attention_mask(6, 2)
-    assert not mask[0, 1]
+    assert mask[0, 1]
     assert mask[0, 2]
     assert not mask[2, 0]
-    assert not mask[2, 3]
+    assert mask[2, 3]
     assert mask[2, 4]
 
 
 def test_two_stream_mask_exposes_only_clean_prefix_and_noisy_current_block():
-    mask = two_stream_attention_mask(4, 2)
-    noisy_query = 4 + 2
+    mask = two_stream_attention_mask(5, 2)
+    noisy_query = 5 + 3
     assert not mask[noisy_query, 0]
-    assert mask[noisy_query, 2]
-    assert not mask[noisy_query, 4 + 3]
-    assert mask[noisy_query, 4 + 0]
+    assert mask[noisy_query, 3]
+    assert not mask[noisy_query, 5 + 4]
+    assert mask[noisy_query, 5 + 1]
 
 
 def test_symmetric_noise_preserves_number_of_on_bits():
@@ -110,6 +110,40 @@ def test_small_decoder_forward_and_loss():
     assert torch.isfinite(loss)
 
 
+def test_diffusion_keeps_bos_clean():
+    config = MarlinDecoderConfig(
+        vocab_size=8,
+        hidden_size=8,
+        num_layers=1,
+        num_heads=1,
+        intermediate_size=16,
+        max_length=5,
+        block_width=2,
+        fingerprint_bits=4,
+        dropout=0.0,
+        mask_token_id=3,
+        pad_token_id=0,
+    )
+    model = MarlinDecoder(config)
+    tokens = torch.tensor([[1, 4, 5, 6, 2]])
+    captured = {}
+    original = model.two_stream_logits
+
+    def capture(clean_ids, noised_ids, precursor_mass, fingerprint):
+        captured["noised_ids"] = noised_ids.clone()
+        return original(clean_ids, noised_ids, precursor_mass, fingerprint)
+
+    model.two_stream_logits = capture
+    model.diffusion_loss(
+        tokens,
+        torch.tensor([50.0]),
+        torch.zeros((1, 4)),
+        generator=torch.Generator().manual_seed(1),
+    )
+
+    assert captured["noised_ids"][0, 0] == tokens[0, 0]
+
+
 def test_attention_warm_start_concatenates_qkv():
     attention = torch.nn.MultiheadAttention(4, 1, batch_first=True)
     state = {}
@@ -184,7 +218,7 @@ def test_batched_sampler_discards_tokens_after_eos_before_decoding():
                 num_heads=1,
                 intermediate_size=4,
                 max_length=4,
-                block_width=2,
+                block_width=3,
                 fingerprint_bits=8,
                 dropout=0.0,
                 mask_token_id=3,
@@ -303,11 +337,12 @@ def test_batched_sampler_aligns_first_generated_block_after_bos():
             )
 
         def forward(self, input_ids, precursor_mass, fingerprint):
-            assert input_ids.shape[1] == 2
+            assert input_ids.shape[1] == 3
             logits = torch.full(
                 (*input_ids.shape, 4), -torch.inf, device=input_ids.device
             )
-            logits[..., 1] = 0.0
+            logits[:, 1, 1] = 1.0
+            logits[:, 2, 2] = 0.0
             return logits
 
     target_mass = Descriptors.ExactMolWt(Chem.MolFromSmiles("C"))

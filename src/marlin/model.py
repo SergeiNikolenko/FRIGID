@@ -26,18 +26,29 @@ class MarlinDecoderConfig:
     pad_token_id: int = 0
 
 
+def _bos_aware_block_ids(
+    length: int,
+    block_width: int,
+    device: torch.device | None = None,
+) -> torch.Tensor:
+    positions = torch.arange(length, device=device)
+    content_blocks = (positions - 1).clamp_min(0).div(
+        block_width, rounding_mode="floor"
+    )
+    return content_blocks.masked_fill(positions.eq(0), -1)
+
+
 def block_causal_attention_mask(length: int, block_width: int, device: torch.device | None = None) -> torch.Tensor:
     """Return a mask where a token sees its block and all earlier blocks."""
-    positions = torch.arange(length, device=device)
-    query_blocks = positions.div(block_width, rounding_mode="floor").reshape(-1, 1)
-    key_blocks = positions.div(block_width, rounding_mode="floor").reshape(1, -1)
+    blocks = _bos_aware_block_ids(length, block_width, device)
+    query_blocks = blocks.reshape(-1, 1)
+    key_blocks = blocks.reshape(1, -1)
     return key_blocks > query_blocks
 
 
 def two_stream_attention_mask(length: int, block_width: int, device: torch.device | None = None) -> torch.Tensor:
     """Mask for clean-prefix/noisy-current training in one forward pass."""
-    positions = torch.arange(length, device=device)
-    blocks = positions.div(block_width, rounding_mode="floor")
+    blocks = _bos_aware_block_ids(length, block_width, device)
     clean_query_blocks = blocks.reshape(-1, 1)
     clean_key_blocks = blocks.reshape(1, -1)
     clean_to_clean = clean_key_blocks > clean_query_blocks
@@ -209,9 +220,11 @@ class MarlinDecoder(nn.Module):
     ) -> torch.Tensor:
         """Continuous-time absorbing NELBO, sampled independently per block."""
         valid = clean_ids.ne(self.config.pad_token_id)
+        valid[:, 0] = False
         batch, length = clean_ids.shape
-        block_ids = torch.arange(length, device=clean_ids.device).div(
-            self.config.block_width, rounding_mode="floor"
+        block_ids = (torch.arange(length, device=clean_ids.device) - 1).clamp_min(0).div(
+            self.config.block_width,
+            rounding_mode="floor",
         )
         block_count = int(block_ids.max().item()) + 1
         times = torch.rand((batch, block_count), device=clean_ids.device, generator=generator).clamp_min(1e-4)
