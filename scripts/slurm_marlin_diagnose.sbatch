@@ -18,4 +18,5 @@ cd "$CODE"
   --checkpoint "$ROOT/runs/decoder/checkpoints/step=100000.ckpt" \
   --tokenizer "$ROOT/data/safe-gpt/tokenizer.json" \
   --metadata "$ROOT/data/processed/test/metadata.csv" \
-  --output "$ROOT/runs/evaluation/diagnostics/teacher_forced_row0.json"
+  --output "$ROOT/runs/evaluation/diagnostics/teacher_forced_rows0_31.json" \
+  --rows 32
