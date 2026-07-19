@@ -168,10 +168,10 @@ def _scan(text: str) -> _GrammarState | None:
             "n": 3.0,
             "O": 2.0,
             "o": 2.0,
-            "P": 5.0,
+            "P": 3.0,
             "p": 3.0,
-            "S": 6.0,
-            "s": 4.0,
+            "S": 2.0,
+            "s": 2.0,
         }.get(symbol, 4.0)
         state.bond_counts[state.atom_index] = 0
         state.bond_order_sums[state.atom_index] = 0.0
