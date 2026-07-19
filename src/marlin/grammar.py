@@ -484,6 +484,15 @@ class SafeGrammarMask:
                             self.valence_slack,
                             tolerance,
                         )
+                    if valid and len(candidate_state.open_rings) > len(
+                        state.open_rings
+                    ):
+                        valid = _has_mass_viable_atom_completion(
+                            prefix + self.token_strings[token_id],
+                            target_mass,
+                            self.valence_slack,
+                            tolerance,
+                        )
             if valid:
                 return constrained
             constrained[token_id] = -torch.inf

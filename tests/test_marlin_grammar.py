@@ -85,3 +85,20 @@ def test_safe_grammar_rejects_incomplete_syntax_when_no_atom_fits_mass_shell():
     assert not _has_mass_viable_percent_completion(
         "C" * 32 + "1(=%3", target_mass, 4.0, tolerance
     )
+
+
+def test_safe_grammar_rejects_ring_opening_when_no_later_atom_fits_mass_shell():
+    tokens = ("[UNK]", "[CLS]", "[SEP]", "[PAD]", "[MASK]", "1")
+    prefix = "C" * 32
+    grammar = SafeGrammarMask(
+        tokens,
+        lambda _ids: prefix,
+        eos_token_id=2,
+        special_token_ids=(0, 1, 2, 3, 4),
+    )
+    logits = torch.full((len(tokens),), -torch.inf)
+    logits[5] = 1.0
+
+    constrained = grammar([], logits, 444.103807533379)
+
+    assert torch.isneginf(constrained).all()
