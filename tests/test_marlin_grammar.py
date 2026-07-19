@@ -14,6 +14,20 @@ def test_safe_grammar_requires_balanced_terminal_structure():
     assert _scan("C(C)O").terminal
 
 
+def test_safe_grammar_accepts_branch_bonds_and_partial_vocabulary_tokens():
+    assert _scan("C(=O)O").terminal
+    assert _scan("[NH") is not None
+    assert not _scan("[NH").terminal
+    assert _scan("[NH+]").terminal
+    assert _scan("C%1") is not None
+    assert not _scan("C%1").terminal
+
+
+def test_safe_grammar_accepts_real_nplib1_target():
+    target = "COc1cc(C2C3(O)C(O)C4CC2(O)C(O)(C(=O)O4)C3C(=O)c2ccccc2)oc(=O)c1"
+    assert _scan(target).terminal
+
+
 def test_safe_grammar_masks_invalid_highest_scoring_token():
     tokens = ("[UNK]", "[CLS]", "[SEP]", "[PAD]", "[MASK]", "C", "1")
     grammar = SafeGrammarMask(

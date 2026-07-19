@@ -16,9 +16,11 @@ _BONDS = frozenset("-=#:/\\~")
 @dataclass
 class _GrammarState:
     expect_atom: bool = True
+    allow_bond: bool = False
     branch_depth: int = 0
     atom_index: int = -1
     open_rings: dict[str, int] | None = None
+    incomplete_token: bool = False
 
     def __post_init__(self) -> None:
         if self.open_rings is None:
@@ -26,7 +28,12 @@ class _GrammarState:
 
     @property
     def terminal(self) -> bool:
-        return not self.expect_atom and self.branch_depth == 0 and not self.open_rings
+        return (
+            not self.expect_atom
+            and self.branch_depth == 0
+            and not self.open_rings
+            and not self.incomplete_token
+        )
 
 
 def _scan(text: str) -> _GrammarState | None:
@@ -36,10 +43,14 @@ def _scan(text: str) -> _GrammarState | None:
         char = text[index]
         if char == "[":
             close = text.find("]", index + 1)
-            if close < 0 or not state.expect_atom:
+            if not state.expect_atom:
                 return None
+            if close < 0:
+                state.incomplete_token = True
+                return state
             state.atom_index += 1
             state.expect_atom = False
+            state.allow_bond = False
             index = close + 1
             continue
         if text.startswith(_TWO_CHARACTER_ATOMS, index):
@@ -47,6 +58,7 @@ def _scan(text: str) -> _GrammarState | None:
                 state.expect_atom = True
             state.atom_index += 1
             state.expect_atom = False
+            state.allow_bond = False
             index += 2
             continue
         if char in _ONE_CHARACTER_ATOMS:
@@ -54,12 +66,14 @@ def _scan(text: str) -> _GrammarState | None:
                 state.expect_atom = True
             state.atom_index += 1
             state.expect_atom = False
+            state.allow_bond = False
             index += 1
             continue
         if char in _BONDS:
-            if state.expect_atom:
+            if state.expect_atom and not state.allow_bond:
                 return None
             state.expect_atom = True
+            state.allow_bond = False
             index += 1
             continue
         if char == "(":
@@ -67,6 +81,7 @@ def _scan(text: str) -> _GrammarState | None:
                 return None
             state.branch_depth += 1
             state.expect_atom = True
+            state.allow_bond = True
             index += 1
             continue
         if char == ")":
@@ -74,16 +89,24 @@ def _scan(text: str) -> _GrammarState | None:
                 return None
             state.branch_depth -= 1
             state.expect_atom = False
+            state.allow_bond = False
             index += 1
             continue
         if char == ".":
             if state.expect_atom:
                 return None
             state.expect_atom = True
+            state.allow_bond = False
             index += 1
             continue
         if char == "%":
-            if index + 2 >= len(text) or not text[index + 1 : index + 3].isdigit():
+            remaining = text[index + 1 :]
+            if len(remaining) < 2:
+                if remaining.isdigit() or not remaining:
+                    state.incomplete_token = True
+                    return state
+                return None
+            if not text[index + 1 : index + 3].isdigit():
                 return None
             label = text[index : index + 3]
             index += 3
