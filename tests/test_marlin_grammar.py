@@ -164,6 +164,6 @@ def test_safe_grammar_requires_partial_atom_completion_in_vocabulary():
     partial = "C" * 10 + "[123C-12"
 
     assert not _has_vocabulary_completion(
-        partial, ("C", "O", "1"), target_mass, 4.0, tolerance
+        partial, ("C", "O", "1", "[C]"), target_mass, 4.0, tolerance
     )
     assert _has_vocabulary_completion(partial, ("]",), target_mass, 4.0, tolerance)

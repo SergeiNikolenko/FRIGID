@@ -626,7 +626,16 @@ def _has_vocabulary_completion(
     valence_slack: float,
     tolerance: float,
 ) -> bool:
+    has_open_bracket = text.rfind("[") > text.rfind("]")
+    trailing_percent = text.rfind("%") > max(text.rfind("["), text.rfind("]"))
     for token in token_strings:
+        if has_open_bracket:
+            close = token.find("]")
+            nested_open = token.find("[")
+            if close < 0 or (nested_open >= 0 and nested_open < close):
+                continue
+        elif trailing_percent and (not token or not token[0].isdigit()):
+            continue
         completed = _scan(text + token)
         if completed is None or completed.incomplete_token:
             continue
