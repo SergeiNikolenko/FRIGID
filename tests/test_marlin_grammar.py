@@ -4,6 +4,7 @@ from marlin.grammar import (
     SafeGrammarMask,
     _has_reachable_exact_mass,
     _has_structurally_viable_continuation,
+    _has_vocabulary_completion,
     _has_mass_viable_atom_completion,
     _has_mass_viable_bracket_completion,
     _has_mass_viable_percent_completion,
@@ -155,3 +156,14 @@ def test_safe_grammar_treats_open_ring_atoms_as_active_hydrogen_sites():
     closed_ring = _scan("C1CCCCC1")
 
     assert open_ring.hydrogen_bounds(0)[0] < closed_ring.hydrogen_bounds(0)[0]
+
+
+def test_safe_grammar_requires_partial_atom_completion_in_vocabulary():
+    target_mass = 444.103807533379
+    tolerance = target_mass * 10e-6
+    partial = "C" * 10 + "[123C-12"
+
+    assert not _has_vocabulary_completion(
+        partial, ("C", "O", "1"), target_mass, 4.0, tolerance
+    )
+    assert _has_vocabulary_completion(partial, ("]",), target_mass, 4.0, tolerance)

@@ -619,6 +619,35 @@ def _has_structurally_viable_continuation(
     )
 
 
+def _has_vocabulary_completion(
+    text: str,
+    token_strings: Sequence[str],
+    target_mass: float,
+    valence_slack: float,
+    tolerance: float,
+) -> bool:
+    for token in token_strings:
+        completed = _scan(text + token)
+        if completed is None or completed.incomplete_token:
+            continue
+        if not _has_reachable_exact_mass(
+            completed,
+            target_mass,
+            valence_slack,
+            tolerance,
+        ):
+            continue
+        if _has_structurally_viable_continuation(
+            text + token,
+            completed,
+            target_mass,
+            valence_slack,
+            tolerance,
+        ):
+            return True
+    return False
+
+
 class SafeGrammarMask:
     """Mask higher-scoring tokens until the best lexically viable token remains."""
 
@@ -685,6 +714,14 @@ class SafeGrammarMask:
                         if valid:
                             valid = _has_mass_viable_percent_completion(
                                 prefix + self.token_strings[token_id],
+                                target_mass,
+                                self.valence_slack,
+                                tolerance,
+                            )
+                        if valid:
+                            valid = _has_vocabulary_completion(
+                                prefix + self.token_strings[token_id],
+                                self.token_strings,
                                 target_mass,
                                 self.valence_slack,
                                 tolerance,
