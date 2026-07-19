@@ -148,3 +148,10 @@ def test_safe_grammar_keeps_incomplete_bracket_and_bonded_ring_closure():
     assert _has_structurally_viable_continuation(
         "C1CCCCC-", _scan("C1CCCCC-"), target_mass, 4.0, tolerance
     )
+
+
+def test_safe_grammar_treats_open_ring_atoms_as_active_hydrogen_sites():
+    open_ring = _scan("C1CCCCC")
+    closed_ring = _scan("C1CCCCC1")
+
+    assert open_ring.hydrogen_bounds(0)[0] < closed_ring.hydrogen_bounds(0)[0]

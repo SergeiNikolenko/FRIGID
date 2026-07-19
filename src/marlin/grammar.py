@@ -228,6 +228,7 @@ class _GrammarState:
 
     def minimum_mass(self, valence_slack: float) -> float:
         active_atoms = set(self.branch_atoms)
+        active_atoms.update(self.open_rings.values())
         if self.current_atom is not None:
             active_atoms.add(self.current_atom)
         implicit_hydrogens = 0.0
@@ -248,6 +249,7 @@ class _GrammarState:
 
     def hydrogen_bounds(self, valence_slack: float) -> tuple[int, int]:
         active_atoms = set(self.branch_atoms)
+        active_atoms.update(self.open_rings.values())
         if self.current_atom is not None:
             active_atoms.add(self.current_atom)
         available = {
