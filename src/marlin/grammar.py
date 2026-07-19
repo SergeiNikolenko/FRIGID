@@ -4,8 +4,11 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from functools import lru_cache
+from math import ceil, floor
 from typing import Callable, Sequence
 
+import numpy as np
 import torch
 
 
@@ -34,6 +37,27 @@ _ATOM_MASSES = {
     "Ca": 39.962590863,
     "Al": 26.98153853,
 }
+_ATOM_VALENCES = {
+    "B": 3,
+    "C": 4,
+    "N": 3,
+    "O": 2,
+    "F": 1,
+    "P": 5,
+    "S": 6,
+    "Cl": 1,
+    "K": 1,
+    "Br": 1,
+    "I": 1,
+    "Si": 4,
+    "Se": 6,
+    "Na": 1,
+    "Li": 1,
+    "Mg": 2,
+    "Ca": 2,
+    "Al": 3,
+}
+_REACHABILITY_SCALE = 1_000
 _BRACKET_COMPLETION_ELEMENTS = tuple(_ATOM_MASSES)
 _ATOM_COMPLETIONS = (
     "B",
@@ -122,6 +146,28 @@ def _has_mass_viable_percent_completion(
     )
 
 
+@lru_cache(maxsize=4)
+def _reachable_valences(max_mass_bucket: int) -> np.ndarray:
+    max_index = max_mass_bucket * _REACHABILITY_SCALE
+    unreachable = np.iinfo(np.int16).min
+    valences = np.full(max_index + 1, unreachable, dtype=np.int16)
+    valences[0] = 0
+    for symbol, valence in _ATOM_VALENCES.items():
+        weight = round(_ATOM_MASSES[symbol] * _REACHABILITY_SCALE)
+        remaining = max_index // weight
+        power = 1
+        while remaining:
+            count = min(power, remaining)
+            shift = weight * count
+            source = valences[:-shift].copy()
+            reachable = source >= 0
+            source[reachable] += valence * count
+            np.maximum(valences[shift:], source, out=valences[shift:])
+            remaining -= count
+            power *= 2
+    return valences
+
+
 @dataclass
 class _GrammarState:
     expect_atom: bool = True
@@ -193,6 +239,60 @@ class _GrammarState:
             sum(self.atom_masses.values())
             + (implicit_hydrogens + explicit_hydrogens) * _HYDROGEN_MASS
         )
+
+    def hydrogen_bounds(self, valence_slack: float) -> tuple[int, int]:
+        active_atoms = set(self.branch_atoms)
+        if self.current_atom is not None:
+            active_atoms.add(self.current_atom)
+        available = {
+            atom: max(
+                valence - self.bond_order_sums[atom] - self.explicit_hydrogens[atom],
+                0.0,
+            )
+            for atom, valence in self.valence_limits.items()
+        }
+        explicit = sum(self.explicit_hydrogens.values())
+        sealed = sum(
+            hydrogens
+            for atom, hydrogens in available.items()
+            if atom not in active_atoms
+        )
+        minimum = explicit + max(sealed - valence_slack, 0.0)
+        maximum = explicit + sum(available.values())
+        return max(floor(minimum + 1e-6), 0), max(ceil(maximum - 1e-6), 0)
+
+
+def _has_reachable_exact_mass(
+    state: _GrammarState,
+    target_mass: float,
+    valence_slack: float,
+    tolerance: float,
+) -> bool:
+    heavy_mass = sum(state.atom_masses.values())
+    residual = target_mass - heavy_mass
+    if residual < -tolerance:
+        return False
+    minimum_hydrogens, maximum_existing_hydrogens = state.hydrogen_bounds(valence_slack)
+    maximum_total_hydrogens = max(floor((residual + tolerance) / _HYDROGEN_MASS), 0)
+    if minimum_hydrogens > maximum_total_hydrogens:
+        return False
+    bucket = max(ceil(target_mass / 100.0) * 100, 100)
+    reachable_valences = _reachable_valences(bucket)
+    tolerance_bins = ceil(tolerance * _REACHABILITY_SCALE) + 3
+    for hydrogens in range(minimum_hydrogens, maximum_total_hydrogens + 1):
+        future_mass = residual - hydrogens * _HYDROGEN_MASS
+        center = round(future_mass * _REACHABILITY_SCALE)
+        lower = max(center - tolerance_bins, 0)
+        upper = min(center + tolerance_bins + 1, len(reachable_valences))
+        required_future_valence = max(
+            hydrogens - maximum_existing_hydrogens,
+            0,
+        )
+        if lower < upper and np.any(
+            reachable_valences[lower:upper] >= required_future_valence
+        ):
+            return True
+    return False
 
 
 def _scan(text: str) -> _GrammarState | None:
@@ -463,6 +563,13 @@ class SafeGrammarMask:
                         candidate_state.minimum_mass(self.valence_slack)
                         <= target_mass + tolerance
                     )
+                    if valid:
+                        valid = _has_reachable_exact_mass(
+                            candidate_state,
+                            target_mass,
+                            self.valence_slack,
+                            tolerance,
+                        )
                     if valid and candidate_state.incomplete_token:
                         valid = _has_mass_viable_bracket_completion(
                             prefix + self.token_strings[token_id],

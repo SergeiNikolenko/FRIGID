@@ -2,6 +2,7 @@ import torch
 
 from marlin.grammar import (
     SafeGrammarMask,
+    _has_reachable_exact_mass,
     _has_mass_viable_atom_completion,
     _has_mass_viable_bracket_completion,
     _has_mass_viable_percent_completion,
@@ -102,3 +103,15 @@ def test_safe_grammar_rejects_ring_opening_when_no_later_atom_fits_mass_shell():
     constrained = grammar([], logits, 444.103807533379)
 
     assert torch.isneginf(constrained).all()
+
+
+def test_safe_grammar_prunes_unreachable_exact_mass_but_keeps_target():
+    target_mass = 444.103807533379
+    tolerance = target_mass * 10e-6
+    dead_end = (
+        "CC21=OO1.OOcc[C@@H]Cc[C@@H]O[C@@H][C@@H][C@H]C1CCOOO[C@H]OcO[C@@H]C[C@@H]c12"
+    )
+    target = "COc1cc(C2C3(O)C(O)C4CC2(O)C(O)(C(=O)O4)C3C(=O)c2ccccc2)oc(=O)c1"
+
+    assert not _has_reachable_exact_mass(_scan(dead_end), target_mass, 4.0, tolerance)
+    assert _has_reachable_exact_mass(_scan(target), target_mass, 4.0, tolerance)
