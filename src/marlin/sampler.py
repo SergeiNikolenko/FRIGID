@@ -54,6 +54,13 @@ class MarlinSampler:
         self.grammar_mask = grammar_mask
         self.forbidden_token_ids = tuple(forbidden_token_ids)
 
+    def _decode_prefix(self, token_ids: Sequence[int]) -> str:
+        try:
+            end = token_ids.index(self.eos_token_id) + 1
+        except ValueError:
+            end = len(token_ids)
+        return self.decode_tokens(token_ids[:end])
+
     @torch.no_grad()
     def generate_one(
         self,
@@ -98,7 +105,7 @@ class MarlinSampler:
                 state = self.constraint.advance(state, best_token)
                 unresolved.remove(best_position)
 
-            safe = self.decode_tokens(prefix)
+            safe = self._decode_prefix(prefix)
             smiles = self.safe_to_smiles(safe)
             if self.constraint.accepts_smiles(smiles, target_mass):
                 return safe, smiles
@@ -274,7 +281,7 @@ class MarlinSampler:
                     unresolved[row, best_position] = False
 
             for row in torch.nonzero(active, as_tuple=False).flatten().tolist():
-                safe = self.decode_tokens(prefix[row].tolist())
+                safe = self._decode_prefix(prefix[row].tolist())
                 smiles = self.safe_to_smiles(safe)
                 molecule = Chem.MolFromSmiles(smiles) if smiles else None
                 if self.constraint.accepts_smiles(smiles, target_mass):
@@ -286,7 +293,7 @@ class MarlinSampler:
                     active[row] = False
 
         for row in torch.nonzero(active, as_tuple=False).flatten().tolist():
-            safe = self.decode_tokens(prefix[row].tolist())
+            safe = self._decode_prefix(prefix[row].tolist())
             smiles = self.safe_to_smiles(safe)
             valid += int(bool(smiles) and Chem.MolFromSmiles(smiles) is not None)
         return results, valid

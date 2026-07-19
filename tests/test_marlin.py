@@ -161,3 +161,57 @@ def test_batched_sampler_reports_attempt_validity_and_uniqueness():
     assert stats.mass_valid == 3
     assert stats.unique_mass_valid == 1
     assert len(ranked) == 1
+
+
+def test_batched_sampler_discards_tokens_after_eos_before_decoding():
+    class EosThenJunkModel(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.anchor = torch.nn.Parameter(torch.zeros(()))
+            self.config = MarlinDecoderConfig(
+                vocab_size=5,
+                hidden_size=4,
+                num_layers=1,
+                num_heads=1,
+                intermediate_size=4,
+                max_length=4,
+                block_width=3,
+                fingerprint_bits=8,
+                dropout=0.0,
+                mask_token_id=3,
+                pad_token_id=0,
+            )
+
+        def forward(self, input_ids, precursor_mass, fingerprint):
+            logits = torch.zeros((*input_ids.shape, 5), device=input_ids.device)
+            logits[:, 1, 1] = 20.0
+            logits[:, 2, 2] = 15.0
+            logits[:, 3, 4] = 10.0
+            return logits
+
+    target_mass = Descriptors.ExactMolWt(Chem.MolFromSmiles("C"))
+    constraint = MassShellConstraint(
+        [0.0, 12.0, 0.0, 0.0, 0.0],
+        [0, 1, 0, 0, 0],
+        [0.0, 4.0, 0.0, 0.0, 0.0],
+        eos_token_id=2,
+        ppm_tolerance=10,
+    )
+    sampler = MarlinSampler(
+        EosThenJunkModel(),
+        constraint,
+        bos_token_id=0,
+        eos_token_id=2,
+        mask_token_id=3,
+        decode_tokens=lambda ids: "".join({1: "C", 4: "X"}.get(i, "") for i in ids),
+        safe_to_smiles=lambda safe: safe if safe == "C" else None,
+        forbidden_token_ids=(0, 3),
+    )
+
+    ranked, stats = sampler.generate_ranked_with_stats(
+        torch.zeros(8), target_mass, candidates=1
+    )
+
+    assert stats.valid == 1
+    assert stats.mass_valid == 1
+    assert [candidate.smiles for candidate in ranked] == ["C"]

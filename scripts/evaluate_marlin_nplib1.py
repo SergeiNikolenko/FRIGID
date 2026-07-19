@@ -17,6 +17,7 @@ from rdkit import Chem, DataStructs
 from rdkit.Chem import AllChem
 
 from dlm.utils.utils_chem import safe_to_smiles
+from marlin.evaluation import load_fingerprints
 from marlin.mass_shell import MassShellConstraint
 from marlin.model import MarlinDecoder, MarlinDecoderConfig
 from marlin.sampler import MarlinSampler
@@ -83,33 +84,6 @@ def load_ema_decoder(checkpoint_path: Path, device: torch.device) -> MarlinDecod
     return model.eval().to(device)
 
 
-def load_fingerprints(
-    path: Path,
-    key: str,
-    threshold: float | None,
-    metadata: pd.DataFrame,
-) -> np.ndarray:
-    with np.load(path, allow_pickle=False) as arrays:
-        if key not in arrays:
-            raise KeyError(f"{key!r} not found in {path}; keys={arrays.files}")
-        values = np.asarray(arrays[key])
-        if "spectrum_ids" in arrays:
-            positions = {str(value): index for index, value in enumerate(arrays["spectrum_ids"])}
-            try:
-                values = values[[positions[str(value)] for value in metadata["spec_name"]]]
-            except KeyError as error:
-                raise ValueError(f"fingerprint bundle is missing spectrum {error.args[0]}") from error
-    if values.shape != (len(metadata), 4096):
-        raise ValueError(
-            f"fingerprints must have shape ({len(metadata)}, 4096), got {values.shape}"
-        )
-    if threshold is not None:
-        values = values >= threshold
-    elif not np.array_equal(values, values.astype(bool)):
-        raise ValueError("non-binary fingerprints require --threshold")
-    return values.astype(np.float32, copy=False)
-
-
 def morgan(molecule: Chem.Mol):
     return AllChem.GetMorganGenerator(radius=2, fpSize=4096).GetFingerprint(molecule)
 
@@ -134,7 +108,11 @@ def main() -> None:
     if args.max_spectra is not None:
         metadata = metadata.iloc[: args.max_spectra].copy()
     fingerprints = load_fingerprints(
-        args.fingerprints, args.fingerprint_key, args.threshold, metadata
+        args.fingerprints,
+        args.fingerprint_key,
+        args.threshold,
+        metadata,
+        allow_leading_subset=args.max_spectra is not None,
     )
     device = torch.device(args.device)
     model = load_ema_decoder(args.checkpoint, device)
