@@ -1,6 +1,10 @@
 import torch
 
-from marlin.grammar import SafeGrammarMask, _scan
+from marlin.grammar import (
+    SafeGrammarMask,
+    _has_mass_viable_bracket_completion,
+    _scan,
+)
 
 
 def test_safe_grammar_accepts_balanced_ring_and_rejects_same_atom_closure():
@@ -60,3 +64,10 @@ def test_safe_grammar_masks_invalid_highest_scoring_token():
 
     assert torch.isneginf(constrained[6])
     assert int(constrained.argmax()) == 5
+
+
+def test_safe_grammar_rejects_bracket_when_no_element_fits_mass_shell():
+    target_mass = 444.103807533379
+    assert not _has_mass_viable_bracket_completion(
+        "C" * 32 + "[", target_mass, 4.0, target_mass * 10e-6
+    )

@@ -34,6 +34,7 @@ _ATOM_MASSES = {
     "Ca": 39.962590863,
     "Al": 26.98153853,
 }
+_BRACKET_COMPLETION_ELEMENTS = tuple(_ATOM_MASSES)
 _BRACKET_ATOM = re.compile(
     r"^(?P<isotope>\d{0,3})"
     r"(?P<element>Cl|Br|Si|Se|Na|Li|Mg|Ca|Al|[BCNOPSFIK]|[bcnops*])"
@@ -51,6 +52,25 @@ def _partial_bracket_symbol(content: str) -> str | None:
     if element == "N" and "+" in content[match.end("element") :]:
         return "N+"
     return element
+
+
+def _has_mass_viable_bracket_completion(
+    text: str,
+    target_mass: float,
+    valence_slack: float,
+    tolerance: float,
+) -> bool:
+    bracket = text.rfind("[")
+    if bracket <= text.rfind("]"):
+        return True
+    content = text[bracket + 1 :]
+    if content and not content.isdigit():
+        return True
+    return any(
+        (state := _scan(text + element + "]")) is not None
+        and state.minimum_mass(valence_slack) <= target_mass + tolerance
+        for element in _BRACKET_COMPLETION_ELEMENTS
+    )
 
 
 @dataclass
@@ -394,6 +414,13 @@ class SafeGrammarMask:
                         candidate_state.minimum_mass(self.valence_slack)
                         <= target_mass + tolerance
                     )
+                    if valid and candidate_state.incomplete_token:
+                        valid = _has_mass_viable_bracket_completion(
+                            prefix + self.token_strings[token_id],
+                            target_mass,
+                            self.valence_slack,
+                            tolerance,
+                        )
             if valid:
                 return constrained
             constrained[token_id] = -torch.inf
