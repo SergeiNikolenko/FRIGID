@@ -209,6 +209,11 @@ class MarlinSampler:
                 for _ in range(candidates)
             ]
         ).to(device=device, dtype=torch.float32)
+        token_generator = None
+        if generator is not None:
+            token_generator = torch.Generator(device=device).manual_seed(
+                (generator.initial_seed() + 1) % (2**63 - 1)
+            )
         masses = torch.full((candidates,), target_mass, device=device)
         prefix = torch.full(
             (candidates, 1), self.bos_token_id, device=device, dtype=torch.long
@@ -267,7 +272,14 @@ class MarlinSampler:
                                 prefix[row, :position].tolist(), position_logits
                             )
                         probabilities = position_logits.softmax(dim=-1)
-                        confidence, token = probabilities.max(dim=-1)
+                        if not torch.isfinite(probabilities).all():
+                            continue
+                        token = torch.multinomial(
+                            probabilities.float(),
+                            1,
+                            generator=token_generator,
+                        ).squeeze(0)
+                        confidence = probabilities[token]
                         if confidence > best_confidence:
                             best_confidence = confidence
                             best_position = relative_position

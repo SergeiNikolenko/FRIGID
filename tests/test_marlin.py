@@ -215,3 +215,109 @@ def test_batched_sampler_discards_tokens_after_eos_before_decoding():
     assert stats.valid == 1
     assert stats.mass_valid == 1
     assert [candidate.smiles for candidate in ranked] == ["C"]
+
+
+def test_batched_sampler_draws_candidate_tokens_from_the_distribution():
+    class ProbabilisticModel(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.anchor = torch.nn.Parameter(torch.zeros(()))
+            self.config = MarlinDecoderConfig(
+                vocab_size=5,
+                hidden_size=4,
+                num_layers=1,
+                num_heads=1,
+                intermediate_size=4,
+                max_length=3,
+                block_width=1,
+                fingerprint_bits=8,
+                dropout=0.0,
+                mask_token_id=4,
+                pad_token_id=0,
+            )
+
+        def forward(self, input_ids, precursor_mass, fingerprint):
+            logits = torch.full((*input_ids.shape, 5), -torch.inf, device=input_ids.device)
+            logits[..., 1] = 0.2
+            logits[..., 2] = 0.0
+            return logits
+
+    target_mass = Descriptors.ExactMolWt(Chem.MolFromSmiles("C"))
+    constraint = MassShellConstraint(
+        [0.0, 12.0, 12.0, 0.0, 0.0],
+        [0, 1, 1, 0, 0],
+        [0.0, 4.0, 4.0, 0.0, 0.0],
+        eos_token_id=3,
+        ppm_tolerance=10,
+    )
+    sampler = MarlinSampler(
+        ProbabilisticModel(),
+        constraint,
+        bos_token_id=0,
+        eos_token_id=3,
+        mask_token_id=4,
+        decode_tokens=lambda ids: "valid" if 2 in ids else "invalid",
+        safe_to_smiles=lambda safe: "C" if safe == "valid" else None,
+        forbidden_token_ids=(0, 4),
+    )
+
+    _, stats = sampler.generate_ranked_with_stats(
+        torch.zeros(8),
+        target_mass,
+        candidates=64,
+        generator=torch.Generator().manual_seed(17),
+    )
+
+    assert 0 < stats.mass_valid < stats.attempts
+
+
+def test_batched_sampler_keeps_mass_valid_candidate_at_max_length():
+    class CarbonModel(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.anchor = torch.nn.Parameter(torch.zeros(()))
+            self.config = MarlinDecoderConfig(
+                vocab_size=4,
+                hidden_size=4,
+                num_layers=1,
+                num_heads=1,
+                intermediate_size=4,
+                max_length=3,
+                block_width=1,
+                fingerprint_bits=8,
+                dropout=0.0,
+                mask_token_id=3,
+                pad_token_id=0,
+            )
+
+        def forward(self, input_ids, precursor_mass, fingerprint):
+            logits = torch.full((*input_ids.shape, 4), -torch.inf, device=input_ids.device)
+            logits[..., 1] = 0.0
+            return logits
+
+    target_mass = Descriptors.ExactMolWt(Chem.MolFromSmiles("CC"))
+    constraint = MassShellConstraint(
+        [0.0, 12.0, 0.0, 0.0],
+        [0, 1, 0, 0],
+        [0.0, 4.0, 0.0, 0.0],
+        eos_token_id=2,
+        ppm_tolerance=10,
+    )
+    sampler = MarlinSampler(
+        CarbonModel(),
+        constraint,
+        bos_token_id=0,
+        eos_token_id=2,
+        mask_token_id=3,
+        decode_tokens=lambda ids: "C" * ids.count(1),
+        safe_to_smiles=lambda safe: safe,
+        forbidden_token_ids=(0, 3),
+    )
+
+    ranked, stats = sampler.generate_ranked_with_stats(
+        torch.zeros(8), target_mass, candidates=1
+    )
+
+    assert stats.valid == 1
+    assert stats.mass_valid == 1
+    assert [candidate.smiles for candidate in ranked] == ["CC"]
