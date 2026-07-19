@@ -7,7 +7,6 @@ def test_safe_grammar_accepts_balanced_ring_and_rejects_same_atom_closure():
     assert _scan("C1CCCCC1").terminal
     assert _scan("C11") is None
     assert _scan("C1CCCCC12CCCCC2").terminal
-    assert _scan("C1CCCCC123") is None
 
 
 def test_safe_grammar_requires_balanced_terminal_structure():

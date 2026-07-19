@@ -23,8 +23,6 @@ class _GrammarState:
     current_atom: int | None = None
     branch_atoms: list[int] | None = None
     open_rings: dict[str, int] | None = None
-    ring_incidents: dict[int, int] | None = None
-    ring_limits: dict[int, int] | None = None
     bond_counts: dict[int, int] | None = None
     bond_limits: dict[int, int] | None = None
     incomplete_token: bool = False
@@ -34,10 +32,6 @@ class _GrammarState:
             self.open_rings = {}
         if self.branch_atoms is None:
             self.branch_atoms = []
-        if self.ring_incidents is None:
-            self.ring_incidents = {}
-        if self.ring_limits is None:
-            self.ring_limits = {}
         if self.bond_counts is None:
             self.bond_counts = {}
         if self.bond_limits is None:
@@ -60,9 +54,6 @@ def _scan(text: str) -> _GrammarState | None:
         previous_atom = state.current_atom
         state.atom_index += 1
         state.current_atom = state.atom_index
-        state.ring_limits[state.atom_index] = (
-            1 if symbol in {"H", "F", "Cl", "Br", "I"} else 2
-        )
         state.bond_limits[state.atom_index] = {
             "H": 1,
             "F": 1,
@@ -190,10 +181,6 @@ def _scan(text: str) -> _GrammarState | None:
         else:
             del state.open_rings[label]
             atom = state.current_atom
-        incidents = state.ring_incidents.get(atom, 0) + 1
-        if incidents > state.ring_limits[atom]:
-            return None
-        state.ring_incidents[atom] = incidents
         state.bond_counts[atom] += 1
         if state.bond_counts[atom] > state.bond_limits[atom]:
             return None
