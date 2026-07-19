@@ -35,37 +35,6 @@ class MarlinGenerationStats:
     sample_dead_ends: tuple[dict[str, float | int | str], ...]
 
 
-def _sample_token(
-    probabilities: torch.Tensor,
-    generator: torch.Generator | None,
-) -> int:
-    sampling_probabilities = probabilities
-    if generator is not None and probabilities.device != generator.device:
-        sampling_probabilities = probabilities.to(generator.device)
-    return int(
-        torch.multinomial(
-            sampling_probabilities,
-            num_samples=1,
-            generator=generator,
-        )
-    )
-
-
-def _add_gumbel_noise(
-    logits: torch.Tensor,
-    generator: torch.Generator | None,
-) -> torch.Tensor:
-    random_device = generator.device if generator is not None else logits.device
-    uniform = torch.rand(
-        logits.shape,
-        device=random_device,
-        generator=generator,
-        dtype=torch.float32,
-    ).clamp_(torch.finfo(torch.float32).tiny, 1.0 - torch.finfo(torch.float32).eps)
-    gumbel = -torch.log(-torch.log(uniform))
-    return logits + gumbel.to(device=logits.device, dtype=logits.dtype)
-
-
 class MarlinSampler:
     def __init__(
         self,
@@ -110,22 +79,6 @@ class MarlinSampler:
         )
         return min(aligned_width, remaining)
 
-    def _require_exact_eos(
-        self,
-        logits: torch.Tensor,
-        prefix: Sequence[int],
-        position: int,
-        target_mass: float,
-    ) -> torch.Tensor:
-        if not torch.isfinite(logits[self.eos_token_id]):
-            return logits
-        proposed = list(prefix)
-        proposed[position] = self.eos_token_id
-        safe = self._decode_prefix(proposed)
-        if not self.constraint.accepts_smiles(self.safe_to_smiles(safe), target_mass):
-            logits[self.eos_token_id] = -torch.inf
-        return logits
-
     @torch.no_grad()
     def generate_one(
         self,
@@ -165,9 +118,6 @@ class MarlinSampler:
                     )
                     if self.forbidden_token_ids:
                         position_logits[list(self.forbidden_token_ids)] = -torch.inf
-                    position_logits = self._require_exact_eos(
-                        position_logits, prefix, position, target_mass
-                    )
                     if self.grammar_mask is not None:
                         position_logits = self.grammar_mask(
                             prefix[:position], position_logits, target_mass
@@ -355,7 +305,7 @@ class MarlinSampler:
                     if self.grammar_mask is not None:
                         positions = positions[:1]
                     best_position = None
-                    best_probabilities = None
+                    best_token = None
                     best_confidence = -torch.inf
                     for relative_position in positions.tolist():
                         position = block_start + relative_position
@@ -366,27 +316,18 @@ class MarlinSampler:
                         )
                         if self.forbidden_token_ids:
                             position_logits[list(self.forbidden_token_ids)] = -torch.inf
-                        position_logits = self._require_exact_eos(
-                            position_logits,
-                            prefix[row].tolist(),
-                            position,
-                            target_mass,
-                        )
                         if self.grammar_mask is not None:
-                            position_logits = _add_gumbel_noise(
-                                position_logits, generator
-                            )
                             position_logits = self.grammar_mask(
                                 prefix[row, :position].tolist(),
                                 position_logits,
                                 target_mass,
                             )
                         probabilities = position_logits.softmax(dim=-1)
-                        confidence = probabilities.max()
+                        confidence, token = probabilities.max(dim=-1)
                         if confidence > best_confidence:
                             best_confidence = confidence
                             best_position = relative_position
-                            best_probabilities = probabilities
+                            best_token = int(token)
                     if best_position is None or not torch.isfinite(best_confidence):
                         diagnostics["constraint_dead_ends"] += 1
                         dead_ends = diagnostics["sample_dead_ends"]
@@ -405,8 +346,7 @@ class MarlinSampler:
                         active[row] = False
                         unresolved[row] = False
                         continue
-                    assert best_probabilities is not None
-                    best_token = _sample_token(best_probabilities, generator)
+                    assert best_token is not None
                     prefix[row, block_start + best_position] = best_token
                     states[row] = self.constraint.advance(states[row], best_token)
                     unresolved[row, best_position] = False

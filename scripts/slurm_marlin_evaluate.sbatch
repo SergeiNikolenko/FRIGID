@@ -17,6 +17,7 @@ CHECKPOINT="${MARLIN_CHECKPOINT:-$ROOT/runs/decoder/checkpoints/step=100000.ckpt
 OUTPUT_TAG="${MARLIN_OUTPUT_TAG:-full}"
 MAX_SPECTRA="${MARLIN_MAX_SPECTRA:-}"
 CANDIDATES="${MARLIN_CANDIDATES:-384}"
+DISABLE_GRAMMAR="${MARLIN_DISABLE_GRAMMAR:-0}"
 export PYTHONPATH="$CODE/src"
 export TOKENIZERS_PARALLELISM=false
 
@@ -33,6 +34,9 @@ COMMON_ARGS=(
 )
 if [[ -n "$MAX_SPECTRA" ]]; then
   COMMON_ARGS+=(--max-spectra "$MAX_SPECTRA")
+fi
+if [[ "$DISABLE_GRAMMAR" == "1" ]]; then
+  COMMON_ARGS+=(--disable-grammar-mask)
 fi
 
 if [[ "$SLURM_ARRAY_TASK_ID" == 0 ]]; then

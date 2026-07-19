@@ -11,30 +11,9 @@ from marlin.model import (
     two_stream_attention_mask,
 )
 from marlin.noise import symmetric_fingerprint_noise
-from marlin.sampler import MarlinSampler, _add_gumbel_noise, _sample_token
+from marlin.sampler import MarlinSampler
 from marlin.token_properties import token_properties
 from marlin.warm_start import _copy_attention
-
-
-def test_sample_token_is_seeded_and_categorical():
-    probabilities = torch.tensor([0.25, 0.75])
-    first = torch.Generator().manual_seed(17)
-    second = torch.Generator().manual_seed(17)
-
-    first_samples = [_sample_token(probabilities, first) for _ in range(64)]
-    second_samples = [_sample_token(probabilities, second) for _ in range(64)]
-
-    assert first_samples == second_samples
-    assert set(first_samples) == {0, 1}
-
-
-def test_gumbel_noise_is_seeded_and_changes_token_ranking():
-    logits = torch.zeros(32)
-    first = _add_gumbel_noise(logits, torch.Generator().manual_seed(19))
-    second = _add_gumbel_noise(logits, torch.Generator().manual_seed(19))
-
-    assert torch.equal(first, second)
-    assert torch.unique(first).numel() > 1
 
 
 def test_block_causal_mask_allows_current_and_previous_blocks():

@@ -44,6 +44,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--max-spectra", type=int)
     parser.add_argument("--device", default="cuda")
+    parser.add_argument("--disable-grammar-mask", action="store_true")
     return parser.parse_args()
 
 
@@ -145,7 +146,9 @@ def main() -> None:
         mask_token_id=tokenizer.mask_token_id,
         decode_tokens=lambda ids: tokenizer.decode(ids, skip_special_tokens=True),
         safe_to_smiles=lambda safe: safe_to_smiles(safe, fix=True),
-        grammar_mask=SafeGrammarMask(
+        grammar_mask=None
+        if args.disable_grammar_mask
+        else SafeGrammarMask(
             [tokenizer.convert_ids_to_tokens(index) for index in range(len(tokenizer))],
             lambda ids: tokenizer.decode(ids, skip_special_tokens=True),
             eos_token_id=tokenizer.eos_token_id,
@@ -269,8 +272,12 @@ def main() -> None:
             "valence_slack": args.valence_slack,
             "block_width": model.config.block_width,
             "ema": True,
-            "grammar_mask": "inferred conservative lexical SAFE grammar",
-            "grammar_decode_order": "inferred left-to-right within each block",
+            "grammar_mask": "disabled diagnostic validity-gate lane"
+            if args.disable_grammar_mask
+            else "inferred conservative lexical SAFE grammar",
+            "grammar_decode_order": "paper-specified confidence order"
+            if args.disable_grammar_mask
+            else "inferred left-to-right within each block",
             "seed": args.seed,
         },
     }
