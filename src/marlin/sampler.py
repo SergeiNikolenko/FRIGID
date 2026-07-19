@@ -28,6 +28,10 @@ class MarlinGenerationStats:
     valid: int
     mass_valid: int
     unique_mass_valid: int
+    constraint_dead_ends: int
+    eos_terminated: int
+    max_length_terminated: int
+    sample_terminal_safes: tuple[str, ...]
 
 
 class MarlinSampler:
@@ -156,7 +160,7 @@ class MarlinSampler:
         if candidates <= 0:
             raise ValueError("candidates must be positive")
         original = (fingerprint > 0.5).to(torch.float32)
-        generated, valid = self._generate_many(
+        generated, valid, diagnostics = self._generate_many(
             original,
             target_mass,
             candidates=candidates,
@@ -195,6 +199,10 @@ class MarlinSampler:
             valid=valid,
             mass_valid=mass_valid,
             unique_mass_valid=len(ranked),
+            constraint_dead_ends=diagnostics["constraint_dead_ends"],
+            eos_terminated=diagnostics["eos_terminated"],
+            max_length_terminated=diagnostics["max_length_terminated"],
+            sample_terminal_safes=tuple(diagnostics["sample_terminal_safes"]),
         )
 
     def _generate_many(
@@ -206,7 +214,7 @@ class MarlinSampler:
         diversity_dropout: float,
         temperature: float,
         generator: torch.Generator | None,
-    ) -> tuple[list[tuple[str, str] | None], int]:
+    ) -> tuple[list[tuple[str, str] | None], int, dict[str, int | list[str]]]:
         """Generate candidates in one GPU batch and retain per-row constraints."""
         device = next(self.model.parameters()).device
         conditioned = torch.stack(
@@ -230,6 +238,19 @@ class MarlinSampler:
         active = torch.ones(candidates, dtype=torch.bool, device=device)
         results: list[tuple[str, str] | None] = [None] * candidates
         valid = 0
+        diagnostics: dict[str, int | list[str]] = {
+            "constraint_dead_ends": 0,
+            "eos_terminated": 0,
+            "max_length_terminated": 0,
+            "sample_terminal_safes": [],
+        }
+
+        def record_terminal_safe(safe: str) -> None:
+            examples = diagnostics["sample_terminal_safes"]
+            assert isinstance(examples, list)
+            if len(examples) < 5:
+                examples.append(safe[:512])
+
         while prefix.shape[1] < self.model.config.max_length:
             if not active.any():
                 break
@@ -292,6 +313,7 @@ class MarlinSampler:
                             best_position = relative_position
                             best_token = int(token)
                     if best_position is None or not torch.isfinite(best_confidence):
+                        diagnostics["constraint_dead_ends"] += 1
                         active[row] = False
                         unresolved[row] = False
                         continue
@@ -308,14 +330,18 @@ class MarlinSampler:
                     results[row] = (safe, smiles)
                     active[row] = False
                 elif self.eos_token_id in prefix[row, block_start:].tolist():
+                    diagnostics["eos_terminated"] += 1
+                    record_terminal_safe(safe)
                     valid += int(molecule is not None)
                     active[row] = False
 
         for row in torch.nonzero(active, as_tuple=False).flatten().tolist():
             safe = self._decode_prefix(prefix[row].tolist())
             smiles = self.safe_to_smiles(safe)
+            diagnostics["max_length_terminated"] += 1
+            record_terminal_safe(safe)
             valid += int(bool(smiles) and Chem.MolFromSmiles(smiles) is not None)
-        return results, valid
+        return results, valid, diagnostics
 
 
 def _morgan(molecule: Chem.Mol):

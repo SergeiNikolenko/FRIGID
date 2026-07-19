@@ -16,6 +16,7 @@ PYTHON=/home/nikolenko/work/Projects/FRIGID/.venv/bin/python
 CHECKPOINT="${MARLIN_CHECKPOINT:-$ROOT/runs/decoder/checkpoints/step=100000.ckpt}"
 OUTPUT_TAG="${MARLIN_OUTPUT_TAG:-full}"
 MAX_SPECTRA="${MARLIN_MAX_SPECTRA:-}"
+CANDIDATES="${MARLIN_CANDIDATES:-384}"
 export PYTHONPATH="$CODE/src"
 export TOKENIZERS_PARALLELISM=false
 
@@ -25,7 +26,7 @@ COMMON_ARGS=(
   --checkpoint "$CHECKPOINT"
   --tokenizer "$ROOT/data/safe-gpt/tokenizer.json"
   --metadata "$ROOT/data/processed/test/metadata.csv"
-  --candidates 384
+  --candidates "$CANDIDATES"
   --diversity-dropout 0.3
   --ppm-tolerance 10
   --valence-slack 4
