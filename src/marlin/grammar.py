@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import Callable, Sequence
 
@@ -11,6 +12,17 @@ import torch
 _TWO_CHARACTER_ATOMS = ("Br", "Cl")
 _ONE_CHARACTER_ATOMS = frozenset("BCNOPSFIbcnosp*")
 _BONDS = frozenset("-=#:/\\~")
+_BRACKET_ATOM = re.compile(
+    r"^(?P<isotope>\d{0,3})(?P<element>[A-Z][a-z]?|[bcnops*])"
+    r"@{0,2}(?:H\d*)?(?:[+-]{1,3}\d*)?(?::\d*)?$"
+)
+
+
+def _partial_bracket_symbol(content: str) -> str | None:
+    if not content or (content.isdigit() and len(content) <= 3):
+        return ""
+    match = _BRACKET_ATOM.fullmatch(content)
+    return match.group("element") if match else None
 
 
 @dataclass
@@ -90,10 +102,13 @@ def _scan(text: str) -> _GrammarState | None:
         if char == "[":
             close = text.find("]", index + 1)
             if close < 0:
+                if _partial_bracket_symbol(text[index + 1 :]) is None:
+                    return None
                 state.incomplete_token = True
                 return state
-            bracket = text[index + 1 : close]
-            symbol = "H" if bracket.lstrip("0123456789").startswith("H") else "atom"
+            symbol = _partial_bracket_symbol(text[index + 1 : close])
+            if not symbol:
+                return None
             if not add_atom(symbol):
                 return None
             index = close + 1
