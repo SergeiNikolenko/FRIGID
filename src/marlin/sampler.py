@@ -61,6 +61,12 @@ class MarlinSampler:
             end = len(token_ids)
         return self.decode_tokens(token_ids[:end])
 
+    def _next_block_width(self, prefix_length: int) -> int:
+        remaining = self.model.config.max_length - prefix_length
+        offset = prefix_length % self.model.config.block_width
+        aligned_width = self.model.config.block_width - offset if offset else self.model.config.block_width
+        return min(aligned_width, remaining)
+
     @torch.no_grad()
     def generate_one(
         self,
@@ -75,13 +81,15 @@ class MarlinSampler:
         mass = torch.tensor([target_mass], device=device)
         prefix = [self.bos_token_id]
         state = MassShellState()
-        max_blocks = max_blocks or (self.model.config.max_length - 1) // self.model.config.block_width
-
-        for _ in range(max_blocks):
+        blocks_remaining = max_blocks
+        while len(prefix) < self.model.config.max_length:
+            if blocks_remaining is not None:
+                if blocks_remaining <= 0:
+                    break
+                blocks_remaining -= 1
             block_start = len(prefix)
-            prefix.extend([self.mask_token_id] * self.model.config.block_width)
-            if len(prefix) > self.model.config.max_length:
-                return None
+            block_width = self._next_block_width(block_start)
+            prefix.extend([self.mask_token_id] * block_width)
             unresolved = set(range(block_start, len(prefix)))
             while unresolved:
                 input_ids = torch.tensor([prefix], device=device)
@@ -222,27 +230,26 @@ class MarlinSampler:
         active = torch.ones(candidates, dtype=torch.bool, device=device)
         results: list[tuple[str, str] | None] = [None] * candidates
         valid = 0
-        max_blocks = (self.model.config.max_length - 1) // self.model.config.block_width
-
-        for _ in range(max_blocks):
+        while prefix.shape[1] < self.model.config.max_length:
             if not active.any():
                 break
             block_start = prefix.shape[1]
+            block_width = self._next_block_width(block_start)
             masks = torch.full(
-                (candidates, self.model.config.block_width),
+                (candidates, block_width),
                 self.mask_token_id,
                 device=device,
                 dtype=torch.long,
             )
             prefix = torch.cat((prefix, masks), dim=1)
             unresolved = torch.ones(
-                (candidates, self.model.config.block_width),
+                (candidates, block_width),
                 dtype=torch.bool,
                 device=device,
             )
             unresolved[~active] = False
 
-            for _ in range(self.model.config.block_width):
+            for _ in range(block_width):
                 if not unresolved.any():
                     break
                 with torch.autocast(
