@@ -45,7 +45,8 @@ class MarlinSampler:
         mask_token_id: int,
         decode_tokens: Callable[[Sequence[int]], str],
         safe_to_smiles: Callable[[str], str | None],
-        grammar_mask: Callable[[Sequence[int], torch.Tensor], torch.Tensor] | None = None,
+        grammar_mask: Callable[[Sequence[int], torch.Tensor], torch.Tensor]
+        | None = None,
         forbidden_token_ids: Sequence[int] = (),
     ) -> None:
         self.model = model
@@ -68,7 +69,11 @@ class MarlinSampler:
     def _next_block_width(self, prefix_length: int) -> int:
         remaining = self.model.config.max_length - prefix_length
         offset = prefix_length % self.model.config.block_width
-        aligned_width = self.model.config.block_width - offset if offset else self.model.config.block_width
+        aligned_width = (
+            self.model.config.block_width - offset
+            if offset
+            else self.model.config.block_width
+        )
         return min(aligned_width, remaining)
 
     @torch.no_grad()
@@ -101,10 +106,19 @@ class MarlinSampler:
                 best_position = None
                 best_token = None
                 best_confidence = -torch.inf
-                for position in unresolved:
-                    position_logits = self.constraint.apply(logits[position] / temperature, state, target_mass)
+                positions = sorted(unresolved)
+                if self.grammar_mask is not None:
+                    positions = positions[:1]
+                for position in positions:
+                    position_logits = self.constraint.apply(
+                        logits[position] / temperature, state, target_mass
+                    )
+                    if self.forbidden_token_ids:
+                        position_logits[list(self.forbidden_token_ids)] = -torch.inf
                     if self.grammar_mask is not None:
-                        position_logits = self.grammar_mask(prefix[:position], position_logits)
+                        position_logits = self.grammar_mask(
+                            prefix[:position], position_logits
+                        )
                     probabilities = position_logits.softmax(dim=-1)
                     confidence, token = probabilities.max(dim=-1)
                     if confidence > best_confidence:
@@ -189,11 +203,16 @@ class MarlinSampler:
                 MarlinCandidate(
                     smiles=smiles,
                     safe=safe,
-                    tanimoto=DataStructs.TanimotoSimilarity(reference, _morgan(molecule)),
+                    tanimoto=DataStructs.TanimotoSimilarity(
+                        reference, _morgan(molecule)
+                    ),
                     mass_error_ppm=1e6 * (exact_mass - target_mass) / target_mass,
                 )
             )
-        ranked = sorted(ranked, key=lambda candidate: (-candidate.tanimoto, abs(candidate.mass_error_ppm)))
+        ranked = sorted(
+            ranked,
+            key=lambda candidate: (-candidate.tanimoto, abs(candidate.mass_error_ppm)),
+        )
         return ranked, MarlinGenerationStats(
             attempts=candidates,
             valid=valid,
@@ -278,6 +297,8 @@ class MarlinSampler:
                     positions = torch.nonzero(unresolved[row], as_tuple=False).flatten()
                     if positions.numel() == 0:
                         continue
+                    if self.grammar_mask is not None:
+                        positions = positions[:1]
                     best_position = None
                     best_token = None
                     best_confidence = -torch.inf

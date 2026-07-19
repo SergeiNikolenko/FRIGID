@@ -18,6 +18,7 @@ from rdkit.Chem import AllChem
 
 from dlm.utils.utils_chem import safe_to_smiles
 from marlin.evaluation import load_fingerprints
+from marlin.grammar import SafeGrammarMask
 from marlin.mass_shell import MassShellConstraint
 from marlin.model import MarlinDecoder, MarlinDecoderConfig
 from marlin.sampler import MarlinSampler
@@ -67,7 +68,9 @@ def load_ema_decoder(checkpoint_path: Path, device: torch.device) -> MarlinDecod
     ema = checkpoint.get("ema")
     if not ema:
         raise ValueError(f"checkpoint has no EMA state: {checkpoint_path}")
-    parameters = [parameter for parameter in model.parameters() if parameter.requires_grad]
+    parameters = [
+        parameter for parameter in model.parameters() if parameter.requires_grad
+    ]
     shadows = ema["shadow_params"]
     if len(parameters) != len(shadows):
         raise ValueError(
@@ -142,7 +145,14 @@ def main() -> None:
         mask_token_id=tokenizer.mask_token_id,
         decode_tokens=lambda ids: tokenizer.decode(ids, skip_special_tokens=True),
         safe_to_smiles=lambda safe: safe_to_smiles(safe, fix=True),
+        grammar_mask=SafeGrammarMask(
+            [tokenizer.convert_ids_to_tokens(index) for index in range(len(tokenizer))],
+            lambda ids: tokenizer.decode(ids, skip_special_tokens=True),
+            eos_token_id=tokenizer.eos_token_id,
+            special_token_ids=tuple(special_ids) + (tokenizer.unk_token_id,),
+        ),
         forbidden_token_ids=(
+            tokenizer.unk_token_id,
             tokenizer.bos_token_id,
             tokenizer.mask_token_id,
             tokenizer.pad_token_id,
@@ -215,7 +225,9 @@ def main() -> None:
                 "mass_validity": stats.mass_valid / max(stats.valid, 1),
                 "uniqueness": stats.unique_mass_valid / max(stats.mass_valid, 1),
                 "exact_top1": bool(candidates and candidates[0]["exact_connectivity"]),
-                "exact_top10": any(candidate["exact_connectivity"] for candidate in top_ten),
+                "exact_top10": any(
+                    candidate["exact_connectivity"] for candidate in top_ten
+                ),
                 "tanimoto_top1": candidates[0]["target_fingerprint_tanimoto"]
                 if candidates
                 else 0.0,
@@ -254,6 +266,8 @@ def main() -> None:
             "valence_slack": args.valence_slack,
             "block_width": model.config.block_width,
             "ema": True,
+            "grammar_mask": "inferred conservative lexical SAFE grammar",
+            "grammar_decode_order": "inferred left-to-right within each block",
             "seed": args.seed,
         },
     }
@@ -264,7 +278,12 @@ def main() -> None:
         "schema_version": 1,
         "clean_room_reproduction": True,
         "author_code_available_at_start": False,
-        "inferred_parameters": ["max_steps=100000", "mass Fourier frequency count"],
+        "inferred_parameters": [
+            "max_steps=100000",
+            "mass Fourier frequency count",
+            "conservative lexical SAFE grammar mask",
+            "left-to-right token commitment within grammar-masked blocks",
+        ],
         "git_commit": subprocess.check_output(
             ["git", "rev-parse", "HEAD"], text=True
         ).strip(),

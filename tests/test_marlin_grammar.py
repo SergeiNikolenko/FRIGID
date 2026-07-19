@@ -1,0 +1,32 @@
+import torch
+
+from marlin.grammar import SafeGrammarMask, _scan
+
+
+def test_safe_grammar_accepts_balanced_ring_and_rejects_same_atom_closure():
+    assert _scan("C1CCCCC1").terminal
+    assert _scan("C11") is None
+
+
+def test_safe_grammar_requires_balanced_terminal_structure():
+    assert not _scan("C1CC").terminal
+    assert not _scan("C(C").terminal
+    assert _scan("C(C)O").terminal
+
+
+def test_safe_grammar_masks_invalid_highest_scoring_token():
+    tokens = ("[UNK]", "[CLS]", "[SEP]", "[PAD]", "[MASK]", "C", "1")
+    grammar = SafeGrammarMask(
+        tokens,
+        lambda ids: "".join(tokens[index] for index in ids if index >= 5),
+        eos_token_id=2,
+        special_token_ids=(0, 1, 2, 3, 4),
+    )
+    logits = torch.full((len(tokens),), -10.0)
+    logits[6] = 10.0
+    logits[5] = 9.0
+
+    constrained = grammar([], logits)
+
+    assert torch.isneginf(constrained[6])
+    assert int(constrained.argmax()) == 5
