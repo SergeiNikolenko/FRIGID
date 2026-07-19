@@ -22,7 +22,12 @@ def _partial_bracket_symbol(content: str) -> str | None:
     if not content or (content.isdigit() and len(content) <= 3):
         return ""
     match = _BRACKET_ATOM.fullmatch(content)
-    return match.group("element") if match else None
+    if not match:
+        return None
+    element = match.group("element")
+    if element == "N" and "+" in content[match.end("element") :]:
+        return "N+"
+    return element
 
 
 @dataclass
@@ -77,6 +82,7 @@ def _scan(text: str) -> _GrammarState | None:
             "C": 4,
             "c": 3,
             "N": 3,
+            "N+": 4,
             "n": 3,
             "O": 2,
             "o": 2,

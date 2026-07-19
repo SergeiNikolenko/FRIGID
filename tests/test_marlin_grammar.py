@@ -20,6 +20,7 @@ def test_safe_grammar_accepts_branch_bonds_and_partial_vocabulary_tokens():
     assert _scan("[NH") is not None
     assert not _scan("[NH").terminal
     assert _scan("[NH+]").terminal
+    assert _scan("C[N+](C)(C)C").terminal
     assert _scan("[13C@@H]").terminal
     assert _scan("[671") is not None
     assert _scan("[6711") is None
