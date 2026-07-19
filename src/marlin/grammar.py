@@ -108,7 +108,10 @@ def _scan(text: str) -> _GrammarState | None:
         if char == "[":
             close = text.find("]", index + 1)
             if close < 0:
-                if _partial_bracket_symbol(text[index + 1 :]) is None:
+                symbol = _partial_bracket_symbol(text[index + 1 :])
+                if symbol is None:
+                    return None
+                if symbol and not add_atom(symbol):
                     return None
                 state.incomplete_token = True
                 return state
@@ -136,6 +139,13 @@ def _scan(text: str) -> _GrammarState | None:
         if char in _BONDS:
             if state.expect_atom and not state.allow_bond:
                 return None
+            if (
+                not state.expect_atom
+                and state.current_atom is not None
+                and state.bond_counts[state.current_atom]
+                >= state.bond_limits[state.current_atom]
+            ):
+                return None
             state.allow_ring = not state.expect_atom
             state.expect_atom = True
             state.allow_bond = False
@@ -143,6 +153,11 @@ def _scan(text: str) -> _GrammarState | None:
             continue
         if char == "(":
             if state.expect_atom or state.current_atom is None:
+                return None
+            if (
+                state.bond_counts[state.current_atom]
+                >= state.bond_limits[state.current_atom]
+            ):
                 return None
             state.branch_atoms.append(state.current_atom)
             state.branch_depth += 1
