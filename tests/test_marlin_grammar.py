@@ -3,6 +3,7 @@ import torch
 from marlin.grammar import (
     SafeGrammarMask,
     _has_reachable_exact_mass,
+    _has_structurally_viable_continuation,
     _has_mass_viable_atom_completion,
     _has_mass_viable_bracket_completion,
     _has_mass_viable_percent_completion,
@@ -115,3 +116,23 @@ def test_safe_grammar_prunes_unreachable_exact_mass_but_keeps_target():
 
     assert not _has_reachable_exact_mass(_scan(dead_end), target_mass, 4.0, tolerance)
     assert _has_reachable_exact_mass(_scan(target), target_mass, 4.0, tolerance)
+
+
+def test_safe_grammar_prunes_syntactically_stranded_reachable_mass():
+    target_mass = 444.103807533379
+    tolerance = target_mass * 10e-6
+    stranded = (
+        "O[C@H][C@@H]Occ([C@@H]Cc[C@][C@@H]7O[C@@H][C@@H]cccC[C@@H]"
+        "1%13OCOC[C@@H]C%116(O1))7"
+    )
+    target = "COc1cc(C2C3(O)C(O)C4CC2(O)C(O)(C(=O)O4)C3C(=O)c2ccccc2)oc(=O)c1"
+    stranded_state = _scan(stranded)
+    target_state = _scan(target)
+
+    assert _has_reachable_exact_mass(stranded_state, target_mass, 4.0, tolerance)
+    assert not _has_structurally_viable_continuation(
+        stranded, stranded_state, target_mass, 4.0, tolerance
+    )
+    assert _has_structurally_viable_continuation(
+        target, target_state, target_mass, 4.0, tolerance
+    )

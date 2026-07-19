@@ -123,6 +123,12 @@ def _has_mass_viable_atom_completion(
     return any(
         (state := _scan(text + atom)) is not None
         and state.minimum_mass(valence_slack) <= target_mass + tolerance
+        and _has_reachable_exact_mass(
+            state,
+            target_mass,
+            valence_slack,
+            tolerance,
+        )
         for atom in _ATOM_COMPLETIONS
     )
 
@@ -514,6 +520,91 @@ def _scan(text: str) -> _GrammarState | None:
     return state
 
 
+def _has_hydrogen_only_exact_mass(
+    state: _GrammarState,
+    target_mass: float,
+    valence_slack: float,
+    tolerance: float,
+) -> bool:
+    heavy_mass = sum(state.atom_masses.values())
+    minimum_hydrogens, maximum_hydrogens = state.hydrogen_bounds(valence_slack)
+    return any(
+        abs(heavy_mass + hydrogens * _HYDROGEN_MASS - target_mass) <= tolerance
+        for hydrogens in range(minimum_hydrogens, maximum_hydrogens + 1)
+    )
+
+
+def _has_structurally_viable_continuation(
+    text: str,
+    state: _GrammarState,
+    target_mass: float,
+    valence_slack: float,
+    tolerance: float,
+) -> bool:
+    if state.terminal and _has_hydrogen_only_exact_mass(
+        state,
+        target_mass,
+        valence_slack,
+        tolerance,
+    ):
+        return True
+    if state.expect_atom:
+        return _has_mass_viable_atom_completion(
+            text,
+            target_mass,
+            valence_slack,
+            tolerance,
+        )
+    if state.current_atom is not None and (
+        state.bond_counts[state.current_atom] < state.bond_limits[state.current_atom]
+    ):
+        if _has_mass_viable_atom_completion(
+            text,
+            target_mass,
+            valence_slack,
+            tolerance,
+        ):
+            return True
+    for label in state.open_rings:
+        closed = _scan(text + label)
+        if closed is not None and _has_reachable_exact_mass(
+            closed,
+            target_mass,
+            valence_slack,
+            tolerance,
+        ):
+            if _has_structurally_viable_continuation(
+                text + label,
+                closed,
+                target_mass,
+                valence_slack,
+                tolerance,
+            ):
+                return True
+    if state.branch_depth:
+        closed = _scan(text + ")")
+        if closed is not None and _has_reachable_exact_mass(
+            closed,
+            target_mass,
+            valence_slack,
+            tolerance,
+        ):
+            return _has_structurally_viable_continuation(
+                text + ")",
+                closed,
+                target_mass,
+                valence_slack,
+                tolerance,
+            )
+    disconnected = _scan(text + ".")
+    return disconnected is not None and _has_mass_viable_atom_completion(
+        text + ".",
+        target_mass,
+        valence_slack,
+        tolerance,
+    )
+
+
 class SafeGrammarMask:
     """Mask higher-scoring tokens until the best lexically viable token remains."""
 
@@ -596,6 +687,14 @@ class SafeGrammarMask:
                     ):
                         valid = _has_mass_viable_atom_completion(
                             prefix + self.token_strings[token_id],
+                            target_mass,
+                            self.valence_slack,
+                            tolerance,
+                        )
+                    if valid:
+                        valid = _has_structurally_viable_continuation(
+                            prefix + self.token_strings[token_id],
+                            candidate_state,
                             target_mass,
                             self.valence_slack,
                             tolerance,
