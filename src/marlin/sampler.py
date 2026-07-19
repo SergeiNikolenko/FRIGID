@@ -77,6 +77,22 @@ class MarlinSampler:
         )
         return min(aligned_width, remaining)
 
+    def _require_exact_eos(
+        self,
+        logits: torch.Tensor,
+        prefix: Sequence[int],
+        position: int,
+        target_mass: float,
+    ) -> torch.Tensor:
+        if not torch.isfinite(logits[self.eos_token_id]):
+            return logits
+        proposed = list(prefix)
+        proposed[position] = self.eos_token_id
+        safe = self._decode_prefix(proposed)
+        if not self.constraint.accepts_smiles(self.safe_to_smiles(safe), target_mass):
+            logits[self.eos_token_id] = -torch.inf
+        return logits
+
     @torch.no_grad()
     def generate_one(
         self,
@@ -120,6 +136,9 @@ class MarlinSampler:
                         position_logits = self.grammar_mask(
                             prefix[:position], position_logits
                         )
+                    position_logits = self._require_exact_eos(
+                        position_logits, prefix, position, target_mass
+                    )
                     probabilities = position_logits.softmax(dim=-1)
                     confidence, token = probabilities.max(dim=-1)
                     if confidence > best_confidence:
@@ -318,6 +337,12 @@ class MarlinSampler:
                             position_logits = self.grammar_mask(
                                 prefix[row, :position].tolist(), position_logits
                             )
+                        position_logits = self._require_exact_eos(
+                            position_logits,
+                            prefix[row].tolist(),
+                            position,
+                            target_mass,
+                        )
                         probabilities = position_logits.softmax(dim=-1)
                         confidence, token = probabilities.max(dim=-1)
                         if confidence > best_confidence:

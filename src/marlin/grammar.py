@@ -13,7 +13,8 @@ _TWO_CHARACTER_ATOMS = ("Br", "Cl")
 _ONE_CHARACTER_ATOMS = frozenset("BCNOPSFIbcnosp*")
 _BONDS = frozenset("-=#:/\\~")
 _BRACKET_ATOM = re.compile(
-    r"^(?P<isotope>\d{0,3})(?P<element>[A-Z][a-z]?|[bcnops*])"
+    r"^(?P<isotope>\d{0,3})"
+    r"(?P<element>Cl|Br|Si|Se|Na|Li|Mg|Ca|Al|[BCNOPSFIK]|[bcnops*])"
     r"@{0,2}(?:H\d{0,2})?(?:[+-]{1,3}\d{0,2})?(?::\d*)?$"
 )
 
