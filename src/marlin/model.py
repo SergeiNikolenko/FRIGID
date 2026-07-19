@@ -234,5 +234,9 @@ class MarlinDecoder(nn.Module):
         logits = self.two_stream_logits(clean_ids, noised, precursor_mass, fingerprint)
         losses = F.cross_entropy(logits.transpose(1, 2), clean_ids, reduction="none")
         weights = probabilities.reciprocal()
-        denominator = masked.sum().clamp_min(1)
-        return (losses * weights * masked).sum() / denominator
+        valid_block_counts = valid.sum(dim=1).add(self.config.block_width - 1).div(
+            self.config.block_width,
+            rounding_mode="floor",
+        ).clamp_min(1)
+        per_example = (losses * weights * masked).sum(dim=1) / valid_block_counts
+        return per_example.mean()

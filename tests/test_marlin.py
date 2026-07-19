@@ -144,6 +144,46 @@ def test_diffusion_keeps_bos_clean():
     assert captured["noised_ids"][0, 0] == tokens[0, 0]
 
 
+def test_diffusion_loss_averages_the_weighted_token_sum_over_blocks():
+    config = MarlinDecoderConfig(
+        vocab_size=8,
+        hidden_size=8,
+        num_layers=1,
+        num_heads=1,
+        intermediate_size=16,
+        max_length=5,
+        block_width=2,
+        fingerprint_bits=4,
+        dropout=0.0,
+        mask_token_id=3,
+        pad_token_id=0,
+    )
+    model = MarlinDecoder(config)
+    for parameter in model.parameters():
+        parameter.data.zero_()
+    tokens = torch.tensor([[1, 4, 5, 6, 2]])
+    seed = 5
+    expected_generator = torch.Generator().manual_seed(seed)
+    times = torch.rand((1, 2), generator=expected_generator).clamp_min(1e-4)
+    probabilities = times[:, torch.tensor([0, 0, 0, 1, 1])]
+    valid = torch.tensor([[False, True, True, True, True]])
+    masked = (torch.rand(tokens.shape, generator=expected_generator) < probabilities) & valid
+    expected = (
+        masked.float().mul(probabilities.reciprocal()).sum()
+        * torch.log(torch.tensor(float(config.vocab_size)))
+        / 2
+    )
+
+    loss = model.diffusion_loss(
+        tokens,
+        torch.tensor([50.0]),
+        torch.zeros((1, 4)),
+        generator=torch.Generator().manual_seed(seed),
+    )
+
+    assert torch.allclose(loss, expected)
+
+
 def test_attention_warm_start_concatenates_qkv():
     attention = torch.nn.MultiheadAttention(4, 1, batch_first=True)
     state = {}
