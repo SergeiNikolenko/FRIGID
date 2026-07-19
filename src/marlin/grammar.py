@@ -14,7 +14,7 @@ _ONE_CHARACTER_ATOMS = frozenset("BCNOPSFIbcnosp*")
 _BONDS = frozenset("-=#:/\\~")
 _BRACKET_ATOM = re.compile(
     r"^(?P<isotope>\d{0,3})(?P<element>[A-Z][a-z]?|[bcnops*])"
-    r"@{0,2}(?:H\d*)?(?:[+-]{1,3}\d*)?(?::\d*)?$"
+    r"@{0,2}(?:H\d{0,2})?(?:[+-]{1,3}\d{0,2})?(?::\d*)?$"
 )
 
 

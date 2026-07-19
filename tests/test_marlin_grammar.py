@@ -24,6 +24,8 @@ def test_safe_grammar_accepts_branch_bonds_and_partial_vocabulary_tokens():
     assert _scan("[13C@@H]").terminal
     assert _scan("[671") is not None
     assert _scan("[6711") is None
+    assert _scan("[671Y-11") is not None
+    assert _scan("[671Y-111") is None
     assert _scan("[NHHE") is None
     assert _scan("c[nH]c").terminal
     assert _scan("C1[2H]1") is None
