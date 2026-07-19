@@ -51,6 +51,21 @@ def _sample_token(
     )
 
 
+def _add_gumbel_noise(
+    logits: torch.Tensor,
+    generator: torch.Generator | None,
+) -> torch.Tensor:
+    random_device = generator.device if generator is not None else logits.device
+    uniform = torch.rand(
+        logits.shape,
+        device=random_device,
+        generator=generator,
+        dtype=torch.float32,
+    ).clamp_(torch.finfo(torch.float32).tiny, 1.0 - torch.finfo(torch.float32).eps)
+    gumbel = -torch.log(-torch.log(uniform))
+    return logits + gumbel.to(device=logits.device, dtype=logits.dtype)
+
+
 class MarlinSampler:
     def __init__(
         self,
@@ -150,13 +165,13 @@ class MarlinSampler:
                     )
                     if self.forbidden_token_ids:
                         position_logits[list(self.forbidden_token_ids)] = -torch.inf
+                    position_logits = self._require_exact_eos(
+                        position_logits, prefix, position, target_mass
+                    )
                     if self.grammar_mask is not None:
                         position_logits = self.grammar_mask(
                             prefix[:position], position_logits, target_mass
                         )
-                    position_logits = self._require_exact_eos(
-                        position_logits, prefix, position, target_mass
-                    )
                     probabilities = position_logits.softmax(dim=-1)
                     confidence, token = probabilities.max(dim=-1)
                     if confidence > best_confidence:
@@ -351,18 +366,21 @@ class MarlinSampler:
                         )
                         if self.forbidden_token_ids:
                             position_logits[list(self.forbidden_token_ids)] = -torch.inf
-                        if self.grammar_mask is not None:
-                            position_logits = self.grammar_mask(
-                                prefix[row, :position].tolist(),
-                                position_logits,
-                                target_mass,
-                            )
                         position_logits = self._require_exact_eos(
                             position_logits,
                             prefix[row].tolist(),
                             position,
                             target_mass,
                         )
+                        if self.grammar_mask is not None:
+                            position_logits = _add_gumbel_noise(
+                                position_logits, generator
+                            )
+                            position_logits = self.grammar_mask(
+                                prefix[row, :position].tolist(),
+                                position_logits,
+                                target_mass,
+                            )
                         probabilities = position_logits.softmax(dim=-1)
                         confidence = probabilities.max()
                         if confidence > best_confidence:

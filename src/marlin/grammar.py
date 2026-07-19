@@ -494,5 +494,7 @@ class SafeGrammarMask:
                             tolerance,
                         )
             if valid:
-                return constrained
+                selected = torch.full_like(constrained, -torch.inf)
+                selected[token_id] = constrained[token_id]
+                return selected
             constrained[token_id] = -torch.inf
