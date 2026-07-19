@@ -150,6 +150,8 @@ def main() -> None:
             lambda ids: tokenizer.decode(ids, skip_special_tokens=True),
             eos_token_id=tokenizer.eos_token_id,
             special_token_ids=tuple(special_ids) + (tokenizer.unk_token_id,),
+            ppm_tolerance=args.ppm_tolerance,
+            valence_slack=args.valence_slack,
         ),
         forbidden_token_ids=(
             tokenizer.unk_token_id,

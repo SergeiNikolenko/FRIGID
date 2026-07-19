@@ -12,6 +12,28 @@ import torch
 _TWO_CHARACTER_ATOMS = ("Br", "Cl")
 _ONE_CHARACTER_ATOMS = frozenset("BCNOPSFIbcnosp*")
 _BONDS = frozenset("-=#:/\\~")
+_BOND_ORDERS = {"-": 1.0, "=": 2.0, "#": 3.0, ":": 1.5, "/": 1.0, "\\": 1.0, "~": 1.0}
+_HYDROGEN_MASS = 1.00782503223
+_ATOM_MASSES = {
+    "B": 11.00930536,
+    "C": 12.0,
+    "N": 14.003074004,
+    "O": 15.99491462,
+    "F": 18.998403163,
+    "P": 30.973761998,
+    "S": 31.972071174,
+    "Cl": 34.96885268,
+    "K": 38.963706486,
+    "Br": 78.9183376,
+    "I": 126.904468,
+    "Si": 27.976926535,
+    "Se": 79.9165218,
+    "Na": 22.989769282,
+    "Li": 7.016003437,
+    "Mg": 23.985041697,
+    "Ca": 39.962590863,
+    "Al": 26.98153853,
+}
 _BRACKET_ATOM = re.compile(
     r"^(?P<isotope>\d{0,3})"
     r"(?P<element>Cl|Br|Si|Se|Na|Li|Mg|Ca|Al|[BCNOPSFIK]|[bcnops*])"
@@ -41,8 +63,15 @@ class _GrammarState:
     current_atom: int | None = None
     branch_atoms: list[int] | None = None
     open_rings: dict[str, int] | None = None
+    open_ring_orders: dict[str, float] | None = None
     bond_counts: dict[int, int] | None = None
     bond_limits: dict[int, int] | None = None
+    bond_order_sums: dict[int, float] | None = None
+    valence_limits: dict[int, float] | None = None
+    atom_masses: dict[int, float] | None = None
+    atom_symbols: dict[int, str] | None = None
+    explicit_hydrogens: dict[int, int] | None = None
+    pending_bond_order: float | None = None
     incomplete_token: bool = False
 
     def __post_init__(self) -> None:
@@ -50,10 +79,22 @@ class _GrammarState:
             self.open_rings = {}
         if self.branch_atoms is None:
             self.branch_atoms = []
+        if self.open_ring_orders is None:
+            self.open_ring_orders = {}
         if self.bond_counts is None:
             self.bond_counts = {}
         if self.bond_limits is None:
             self.bond_limits = {}
+        if self.bond_order_sums is None:
+            self.bond_order_sums = {}
+        if self.valence_limits is None:
+            self.valence_limits = {}
+        if self.atom_masses is None:
+            self.atom_masses = {}
+        if self.atom_symbols is None:
+            self.atom_symbols = {}
+        if self.explicit_hydrogens is None:
+            self.explicit_hydrogens = {}
 
     @property
     def terminal(self) -> bool:
@@ -64,11 +105,31 @@ class _GrammarState:
             and not self.incomplete_token
         )
 
+    def minimum_mass(self, valence_slack: float) -> float:
+        active_atoms = set(self.branch_atoms)
+        if self.current_atom is not None:
+            active_atoms.add(self.current_atom)
+        implicit_hydrogens = 0.0
+        for atom, valence in self.valence_limits.items():
+            if atom not in active_atoms:
+                implicit_hydrogens += max(
+                    valence
+                    - self.bond_order_sums[atom]
+                    - self.explicit_hydrogens[atom],
+                    0.0,
+                )
+        implicit_hydrogens = max(implicit_hydrogens - valence_slack, 0.0)
+        explicit_hydrogens = sum(self.explicit_hydrogens.values())
+        return (
+            sum(self.atom_masses.values())
+            + (implicit_hydrogens + explicit_hydrogens) * _HYDROGEN_MASS
+        )
+
 
 def _scan(text: str) -> _GrammarState | None:
     state = _GrammarState()
 
-    def add_atom(symbol: str) -> bool:
+    def add_atom(symbol: str, explicit_hydrogens: int = 0) -> bool:
         previous_atom = state.current_atom
         state.atom_index += 1
         state.current_atom = state.atom_index
@@ -92,12 +153,46 @@ def _scan(text: str) -> _GrammarState | None:
             "S": 6,
             "s": 4,
         }.get(symbol, 4)
+        state.valence_limits[state.atom_index] = {
+            "H": 1.0,
+            "F": 1.0,
+            "Cl": 1.0,
+            "Br": 1.0,
+            "I": 1.0,
+            "B": 3.0,
+            "b": 3.0,
+            "C": 4.0,
+            "c": 4.0,
+            "N": 3.0,
+            "N+": 4.0,
+            "n": 3.0,
+            "O": 2.0,
+            "o": 2.0,
+            "P": 5.0,
+            "p": 3.0,
+            "S": 6.0,
+            "s": 4.0,
+        }.get(symbol, 4.0)
         state.bond_counts[state.atom_index] = 0
+        state.bond_order_sums[state.atom_index] = 0.0
+        mass_symbol = symbol.rstrip("+")
+        state.atom_masses[state.atom_index] = _ATOM_MASSES.get(
+            mass_symbol.capitalize() if len(mass_symbol) == 1 else mass_symbol,
+            0.0,
+        )
+        state.atom_symbols[state.atom_index] = symbol
+        state.explicit_hydrogens[state.atom_index] = explicit_hydrogens
         if previous_atom is not None:
+            previous_symbol = state.atom_symbols[previous_atom]
+            aromatic_bond = previous_symbol in "bcnops" and symbol in "bcnops"
+            bond_order = state.pending_bond_order or (1.5 if aromatic_bond else 1.0)
             state.bond_counts[previous_atom] += 1
             state.bond_counts[state.atom_index] += 1
+            state.bond_order_sums[previous_atom] += bond_order
+            state.bond_order_sums[state.atom_index] += bond_order
             if state.bond_counts[previous_atom] > state.bond_limits[previous_atom]:
                 return False
+        state.pending_bond_order = None
         state.expect_atom = False
         state.allow_bond = False
         state.allow_ring = False
@@ -119,7 +214,12 @@ def _scan(text: str) -> _GrammarState | None:
             symbol = _partial_bracket_symbol(text[index + 1 : close])
             if not symbol:
                 return None
-            if not add_atom(symbol):
+            content = text[index + 1 : close]
+            hydrogen_match = re.search(r"H(\d*)", content)
+            explicit_hydrogens = (
+                int(hydrogen_match.group(1) or "1") if hydrogen_match else 0
+            )
+            if not add_atom(symbol, explicit_hydrogens):
                 return None
             index = close + 1
             continue
@@ -150,6 +250,7 @@ def _scan(text: str) -> _GrammarState | None:
             state.allow_ring = not state.expect_atom
             state.expect_atom = True
             state.allow_bond = False
+            state.pending_bond_order = _BOND_ORDERS[char]
             index += 1
             continue
         if char == "(":
@@ -165,6 +266,7 @@ def _scan(text: str) -> _GrammarState | None:
             state.expect_atom = True
             state.allow_bond = True
             state.allow_ring = False
+            state.pending_bond_order = None
             index += 1
             continue
         if char == ")":
@@ -175,6 +277,7 @@ def _scan(text: str) -> _GrammarState | None:
             state.expect_atom = False
             state.allow_bond = False
             state.allow_ring = False
+            state.pending_bond_order = None
             index += 1
             continue
         if char == ".":
@@ -184,6 +287,7 @@ def _scan(text: str) -> _GrammarState | None:
             state.expect_atom = True
             state.allow_bond = False
             state.allow_ring = False
+            state.pending_bond_order = None
             index += 1
             continue
         if char == "%":
@@ -212,15 +316,32 @@ def _scan(text: str) -> _GrammarState | None:
         opening_atom = state.open_rings.get(label)
         if opening_atom is None:
             state.open_rings[label] = state.current_atom
+            explicit_order = state.pending_bond_order or 0.0
+            state.open_ring_orders[label] = explicit_order
             atom = state.current_atom
+            bond_order = explicit_order or 1.0
         elif opening_atom == state.current_atom:
             return None
         else:
             del state.open_rings[label]
+            explicit_order = state.open_ring_orders.pop(label)
             atom = state.current_atom
+            aromatic_bond = (
+                state.atom_symbols[opening_atom] in "bcnops"
+                and state.atom_symbols[atom] in "bcnops"
+            )
+            bond_order = (
+                state.pending_bond_order
+                or explicit_order
+                or (1.5 if aromatic_bond else 1.0)
+            )
+            reserved_order = explicit_order or 1.0
+            state.bond_order_sums[opening_atom] += bond_order - reserved_order
         state.bond_counts[atom] += 1
+        state.bond_order_sums[atom] += bond_order
         if state.bond_counts[atom] > state.bond_limits[atom]:
             return None
+        state.pending_bond_order = None
     return state
 
 
@@ -234,13 +355,22 @@ class SafeGrammarMask:
         *,
         eos_token_id: int,
         special_token_ids: Sequence[int],
+        ppm_tolerance: float = 10.0,
+        valence_slack: float = 4.0,
     ) -> None:
         self.token_strings = tuple(token_strings)
         self.decode_prefix = decode_prefix
         self.eos_token_id = eos_token_id
         self.special_token_ids = frozenset(special_token_ids)
+        self.ppm_tolerance = ppm_tolerance
+        self.valence_slack = valence_slack
 
-    def __call__(self, prefix_ids: Sequence[int], logits: torch.Tensor) -> torch.Tensor:
+    def __call__(
+        self,
+        prefix_ids: Sequence[int],
+        logits: torch.Tensor,
+        target_mass: float | None = None,
+    ) -> torch.Tensor:
         prefix = self.decode_prefix(prefix_ids)
         state = _scan(prefix)
         if state is None:
@@ -256,7 +386,14 @@ class SafeGrammarMask:
             elif token_id in self.special_token_ids:
                 valid = False
             else:
-                valid = _scan(prefix + self.token_strings[token_id]) is not None
+                candidate_state = _scan(prefix + self.token_strings[token_id])
+                valid = candidate_state is not None
+                if valid and target_mass is not None:
+                    tolerance = self.ppm_tolerance * 1e-6 * target_mass
+                    valid = (
+                        candidate_state.minimum_mass(self.valence_slack)
+                        <= target_mass + tolerance
+                    )
             if valid:
                 return constrained
             constrained[token_id] = -torch.inf

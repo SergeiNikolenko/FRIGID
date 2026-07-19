@@ -46,7 +46,9 @@ class MarlinSampler:
         mask_token_id: int,
         decode_tokens: Callable[[Sequence[int]], str],
         safe_to_smiles: Callable[[str], str | None],
-        grammar_mask: Callable[[Sequence[int], torch.Tensor], torch.Tensor]
+        grammar_mask: Callable[
+            [Sequence[int], torch.Tensor, float | None], torch.Tensor
+        ]
         | None = None,
         forbidden_token_ids: Sequence[int] = (),
     ) -> None:
@@ -134,7 +136,7 @@ class MarlinSampler:
                         position_logits[list(self.forbidden_token_ids)] = -torch.inf
                     if self.grammar_mask is not None:
                         position_logits = self.grammar_mask(
-                            prefix[:position], position_logits
+                            prefix[:position], position_logits, target_mass
                         )
                     position_logits = self._require_exact_eos(
                         position_logits, prefix, position, target_mass
@@ -335,7 +337,9 @@ class MarlinSampler:
                             position_logits[list(self.forbidden_token_ids)] = -torch.inf
                         if self.grammar_mask is not None:
                             position_logits = self.grammar_mask(
-                                prefix[row, :position].tolist(), position_logits
+                                prefix[row, :position].tolist(),
+                                position_logits,
+                                target_mass,
                             )
                         position_logits = self._require_exact_eos(
                             position_logits,

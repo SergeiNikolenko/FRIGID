@@ -15,6 +15,7 @@ def test_safe_grammar_requires_balanced_terminal_structure():
     assert not _scan("C1CC").terminal
     assert not _scan("C(C").terminal
     assert _scan("C(C)O").terminal
+    assert _scan("CCC").minimum_mass(0) > 36.0
 
 
 def test_safe_grammar_accepts_branch_bonds_and_partial_vocabulary_tokens():
