@@ -6,6 +6,8 @@ from marlin.grammar import SafeGrammarMask, _scan
 def test_safe_grammar_accepts_balanced_ring_and_rejects_same_atom_closure():
     assert _scan("C1CCCCC1").terminal
     assert _scan("C11") is None
+    assert _scan("C1CCCCC12CCCCC2").terminal
+    assert _scan("C1CCCCC123") is None
 
 
 def test_safe_grammar_requires_balanced_terminal_structure():
@@ -20,6 +22,7 @@ def test_safe_grammar_accepts_branch_bonds_and_partial_vocabulary_tokens():
     assert not _scan("[NH").terminal
     assert _scan("[NH+]").terminal
     assert _scan("c[nH]c").terminal
+    assert _scan("C1[2H]1") is None
     assert _scan("C%1") is not None
     assert not _scan("C%1").terminal
     assert _scan("C1CCCCC-1").terminal

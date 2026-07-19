@@ -20,12 +20,28 @@ class _GrammarState:
     allow_ring: bool = False
     branch_depth: int = 0
     atom_index: int = -1
+    current_atom: int | None = None
+    branch_atoms: list[int] | None = None
     open_rings: dict[str, int] | None = None
+    ring_incidents: dict[int, int] | None = None
+    ring_limits: dict[int, int] | None = None
+    bond_counts: dict[int, int] | None = None
+    bond_limits: dict[int, int] | None = None
     incomplete_token: bool = False
 
     def __post_init__(self) -> None:
         if self.open_rings is None:
             self.open_rings = {}
+        if self.branch_atoms is None:
+            self.branch_atoms = []
+        if self.ring_incidents is None:
+            self.ring_incidents = {}
+        if self.ring_limits is None:
+            self.ring_limits = {}
+        if self.bond_counts is None:
+            self.bond_counts = {}
+        if self.bond_limits is None:
+            self.bond_limits = {}
 
     @property
     def terminal(self) -> bool:
@@ -39,6 +55,44 @@ class _GrammarState:
 
 def _scan(text: str) -> _GrammarState | None:
     state = _GrammarState()
+
+    def add_atom(symbol: str) -> bool:
+        previous_atom = state.current_atom
+        state.atom_index += 1
+        state.current_atom = state.atom_index
+        state.ring_limits[state.atom_index] = (
+            1 if symbol in {"H", "F", "Cl", "Br", "I"} else 2
+        )
+        state.bond_limits[state.atom_index] = {
+            "H": 1,
+            "F": 1,
+            "Cl": 1,
+            "Br": 1,
+            "I": 1,
+            "B": 3,
+            "b": 3,
+            "C": 4,
+            "c": 3,
+            "N": 3,
+            "n": 3,
+            "O": 2,
+            "o": 2,
+            "P": 5,
+            "p": 3,
+            "S": 6,
+            "s": 4,
+        }.get(symbol, 4)
+        state.bond_counts[state.atom_index] = 0
+        if previous_atom is not None:
+            state.bond_counts[previous_atom] += 1
+            state.bond_counts[state.atom_index] += 1
+            if state.bond_counts[previous_atom] > state.bond_limits[previous_atom]:
+                return False
+        state.expect_atom = False
+        state.allow_bond = False
+        state.allow_ring = False
+        return True
+
     index = 0
     while index < len(text):
         char = text[index]
@@ -47,28 +101,24 @@ def _scan(text: str) -> _GrammarState | None:
             if close < 0:
                 state.incomplete_token = True
                 return state
-            state.atom_index += 1
-            state.expect_atom = False
-            state.allow_bond = False
-            state.allow_ring = False
+            bracket = text[index + 1 : close]
+            symbol = "H" if bracket.lstrip("0123456789").startswith("H") else "atom"
+            if not add_atom(symbol):
+                return None
             index = close + 1
             continue
         if text.startswith(_TWO_CHARACTER_ATOMS, index):
             if not state.expect_atom:
                 state.expect_atom = True
-            state.atom_index += 1
-            state.expect_atom = False
-            state.allow_bond = False
-            state.allow_ring = False
+            if not add_atom(text[index : index + 2]):
+                return None
             index += 2
             continue
         if char in _ONE_CHARACTER_ATOMS:
             if not state.expect_atom:
                 state.expect_atom = True
-            state.atom_index += 1
-            state.expect_atom = False
-            state.allow_bond = False
-            state.allow_ring = False
+            if not add_atom(char):
+                return None
             index += 1
             continue
         if char in _BONDS:
@@ -80,8 +130,9 @@ def _scan(text: str) -> _GrammarState | None:
             index += 1
             continue
         if char == "(":
-            if state.expect_atom:
+            if state.expect_atom or state.current_atom is None:
                 return None
+            state.branch_atoms.append(state.current_atom)
             state.branch_depth += 1
             state.expect_atom = True
             state.allow_bond = True
@@ -91,6 +142,7 @@ def _scan(text: str) -> _GrammarState | None:
         if char == ")":
             if state.expect_atom or state.branch_depth == 0:
                 return None
+            state.current_atom = state.branch_atoms.pop()
             state.branch_depth -= 1
             state.expect_atom = False
             state.allow_bond = False
@@ -100,6 +152,7 @@ def _scan(text: str) -> _GrammarState | None:
         if char == ".":
             if state.expect_atom:
                 return None
+            state.current_atom = None
             state.expect_atom = True
             state.allow_bond = False
             state.allow_ring = False
@@ -123,16 +176,27 @@ def _scan(text: str) -> _GrammarState | None:
             return None
         if state.expect_atom and not state.allow_ring:
             return None
+        if state.current_atom is None:
+            return None
         state.expect_atom = False
         state.allow_ring = False
         assert state.open_rings is not None
         opening_atom = state.open_rings.get(label)
         if opening_atom is None:
-            state.open_rings[label] = state.atom_index
-        elif opening_atom == state.atom_index:
+            state.open_rings[label] = state.current_atom
+            atom = state.current_atom
+        elif opening_atom == state.current_atom:
             return None
         else:
             del state.open_rings[label]
+            atom = state.current_atom
+        incidents = state.ring_incidents.get(atom, 0) + 1
+        if incidents > state.ring_limits[atom]:
+            return None
+        state.ring_incidents[atom] = incidents
+        state.bond_counts[atom] += 1
+        if state.bond_counts[atom] > state.bond_limits[atom]:
+            return None
     return state
 
 
