@@ -98,10 +98,15 @@ def test_small_decoder_forward_and_loss():
     fingerprint = torch.zeros((1, 16))
     fingerprint[0, [2, 7]] = 1
     logits = model(tokens, mass, fingerprint)
+    sampling_logits = model.sampling_logits(tokens, mass, fingerprint)
+    expected_sampling_logits = model.two_stream_logits(
+        tokens, tokens, mass, fingerprint
+    )
     loss = model.diffusion_loss(
         tokens, mass, fingerprint, generator=torch.Generator().manual_seed(3)
     )
     assert logits.shape == (1, 6, 32)
+    assert torch.equal(sampling_logits, expected_sampling_logits)
     assert torch.isfinite(loss)
 
 

@@ -185,6 +185,20 @@ class MarlinDecoder(nn.Module):
         )
         return logits[:, length:]
 
+    def sampling_logits(
+        self,
+        input_ids: torch.Tensor,
+        precursor_mass: torch.Tensor,
+        fingerprint: torch.Tensor,
+    ) -> torch.Tensor:
+        """Predict the noisy stream using committed earlier blocks as clean context."""
+        return self.two_stream_logits(
+            input_ids,
+            input_ids,
+            precursor_mass,
+            fingerprint,
+        )
+
     def diffusion_loss(
         self,
         clean_ids: torch.Tensor,

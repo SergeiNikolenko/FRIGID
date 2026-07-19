@@ -84,7 +84,7 @@ def main() -> None:
                     enabled=device.type == "cuda",
                 ),
             ):
-                logits = model(input_ids, mass, fingerprint_tensor)[
+                logits = model.sampling_logits(input_ids, mass, fingerprint_tensor)[
                     0, start:end
                 ].float()
             targets = encoded[start:end].to(device)

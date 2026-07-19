@@ -62,6 +62,17 @@ class MarlinSampler:
         self.grammar_mask = grammar_mask
         self.forbidden_token_ids = tuple(forbidden_token_ids)
 
+    def _sampling_logits(
+        self,
+        input_ids: torch.Tensor,
+        precursor_mass: torch.Tensor,
+        fingerprint: torch.Tensor,
+    ) -> torch.Tensor:
+        sampling_logits = getattr(self.model, "sampling_logits", None)
+        if sampling_logits is not None:
+            return sampling_logits(input_ids, precursor_mass, fingerprint)
+        return self.model(input_ids, precursor_mass, fingerprint)
+
     def _decode_prefix(self, token_ids: Sequence[int]) -> str:
         try:
             end = token_ids.index(self.eos_token_id) + 1
@@ -105,7 +116,7 @@ class MarlinSampler:
             unresolved = set(range(block_start, len(prefix)))
             while unresolved:
                 input_ids = torch.tensor([prefix], device=device)
-                logits = self.model(input_ids, mass, fingerprint)[0]
+                logits = self._sampling_logits(input_ids, mass, fingerprint)[0]
                 best_position = None
                 best_token = None
                 best_confidence = -torch.inf
@@ -297,7 +308,7 @@ class MarlinSampler:
                     dtype=torch.bfloat16,
                     enabled=device.type == "cuda",
                 ):
-                    logits = self.model(prefix, masses, conditioned)
+                    logits = self._sampling_logits(prefix, masses, conditioned)
                 for row in torch.nonzero(active, as_tuple=False).flatten().tolist():
                     positions = torch.nonzero(unresolved[row], as_tuple=False).flatten()
                     if positions.numel() == 0:
