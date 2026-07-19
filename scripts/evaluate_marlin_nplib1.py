@@ -221,6 +221,7 @@ def main() -> None:
                 "eos_terminated": stats.eos_terminated,
                 "max_length_terminated": stats.max_length_terminated,
                 "sample_terminal_safes": stats.sample_terminal_safes,
+                "sample_dead_ends": stats.sample_dead_ends,
                 "validity": stats.valid / stats.attempts,
                 "mass_validity": stats.mass_valid / max(stats.valid, 1),
                 "uniqueness": stats.unique_mass_valid / max(stats.mass_valid, 1),

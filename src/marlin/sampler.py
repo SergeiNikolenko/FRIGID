@@ -32,6 +32,7 @@ class MarlinGenerationStats:
     eos_terminated: int
     max_length_terminated: int
     sample_terminal_safes: tuple[str, ...]
+    sample_dead_ends: tuple[dict[str, float | int | str], ...]
 
 
 class MarlinSampler:
@@ -222,6 +223,7 @@ class MarlinSampler:
             eos_terminated=diagnostics["eos_terminated"],
             max_length_terminated=diagnostics["max_length_terminated"],
             sample_terminal_safes=tuple(diagnostics["sample_terminal_safes"]),
+            sample_dead_ends=tuple(diagnostics["sample_dead_ends"]),
         )
 
     def _generate_many(
@@ -252,11 +254,12 @@ class MarlinSampler:
         active = torch.ones(candidates, dtype=torch.bool, device=device)
         results: list[tuple[str, str] | None] = [None] * candidates
         valid = 0
-        diagnostics: dict[str, int | list[str]] = {
+        diagnostics: dict[str, object] = {
             "constraint_dead_ends": 0,
             "eos_terminated": 0,
             "max_length_terminated": 0,
             "sample_terminal_safes": [],
+            "sample_dead_ends": [],
         }
 
         def record_terminal_safe(safe: str) -> None:
@@ -323,6 +326,19 @@ class MarlinSampler:
                             best_token = int(token)
                     if best_position is None or not torch.isfinite(best_confidence):
                         diagnostics["constraint_dead_ends"] += 1
+                        dead_ends = diagnostics["sample_dead_ends"]
+                        assert isinstance(dead_ends, list)
+                        if len(dead_ends) < 5:
+                            dead_ends.append(
+                                {
+                                    "safe": self._decode_prefix(prefix[row].tolist())[
+                                        :512
+                                    ],
+                                    "heavy_mass": states[row].heavy_mass,
+                                    "heavy_atoms": states[row].heavy_atoms,
+                                    "valence_sum": states[row].valence_sum,
+                                }
+                            )
                         active[row] = False
                         unresolved[row] = False
                         continue
