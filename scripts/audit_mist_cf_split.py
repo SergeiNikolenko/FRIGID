@@ -8,6 +8,7 @@ import csv
 import hashlib
 import json
 import subprocess
+import zipfile
 from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
@@ -76,6 +77,81 @@ def audit_split(
     }
 
 
+def _read_ms_inchikey(handle) -> str | None:
+    for raw_line in handle:
+        line = raw_line.decode("utf-8", errors="replace").strip()
+        if line == ">ms2peaks":
+            break
+        for prefix in (">InChIKey ", "#InChIKey "):
+            if line.startswith(prefix):
+                value = line[len(prefix) :].strip()
+                if value and value.lower() != "none":
+                    return value.split("-", 1)[0]
+    return None
+
+
+def audit_archive_connectivity(
+    archive_path: Path,
+    split_path: Path,
+    metadata_path: Path,
+    *,
+    split_id_column: str = "spec",
+    fold_column: str = "Fold_0",
+    metadata_connectivity_column: str = "inchikey_first_block",
+) -> dict:
+    split_rows = read_rows(split_path, "\t")
+    split_by_id = {row[split_id_column]: row[fold_column] for row in split_rows}
+    evaluation_connectivities = {
+        row[metadata_connectivity_column]
+        for row in read_rows(metadata_path, ",")
+        if row[metadata_connectivity_column]
+    }
+
+    memberships = []
+    spectrum_files = 0
+    spectra_with_inchikey = 0
+    spectra_in_split = 0
+    with zipfile.ZipFile(archive_path) as archive:
+        for name in archive.namelist():
+            if "/spec_files/" not in name or not name.endswith(".ms"):
+                continue
+            spectrum_files += 1
+            spectrum_id = Path(name).stem
+            if spectrum_id not in split_by_id:
+                continue
+            spectra_in_split += 1
+            with archive.open(name) as handle:
+                connectivity = _read_ms_inchikey(handle)
+            if connectivity is None:
+                continue
+            spectra_with_inchikey += 1
+            if connectivity in evaluation_connectivities:
+                memberships.append(
+                    {
+                        "spec_name": spectrum_id,
+                        "fold": split_by_id[spectrum_id],
+                        "inchikey_first_block": connectivity,
+                    }
+                )
+
+    overlap_counts = Counter(row["fold"] for row in memberships)
+    contaminated = sum(overlap_counts[fold] for fold in ("train", "val"))
+    return {
+        "archive_spectrum_files": spectrum_files,
+        "archive_spectra_in_split": spectra_in_split,
+        "archive_spectra_with_inchikey": spectra_with_inchikey,
+        "evaluation_connectivities": len(evaluation_connectivities),
+        "overlap_spectra": len(memberships),
+        "overlap_unique_connectivities": len(
+            {row["inchikey_first_block"] for row in memberships}
+        ),
+        "overlap_split_counts": dict(overlap_counts),
+        "train_or_validation_connectivity_overlap": contaminated,
+        "released_checkpoint_is_connectivity_disjoint": contaminated == 0,
+        "memberships": memberships,
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--split", type=Path, required=True)
@@ -106,6 +182,9 @@ def main() -> None:
             "archive": str(args.archive),
         },
         "audit": audit_split(args.split, args.metadata),
+        "connectivity_audit": audit_archive_connectivity(
+            args.archive, args.split, args.metadata
+        ),
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
