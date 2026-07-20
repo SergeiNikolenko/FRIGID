@@ -144,6 +144,10 @@ def initialize_clearml(config: DictConfig):
         reuse_last_task_id=False,
         output_uri=False,
         auto_connect_frameworks={"pytorch": True, "tensorboard": True},
+        auto_resource_monitoring={
+            "report_frequency_sec": 5.0,
+            "first_report_sec": 5.0,
+        },
     )
     resolved_config = OmegaConf.to_container(config, resolve=True)
     task.connect(resolved_config, name="resolved_config")
