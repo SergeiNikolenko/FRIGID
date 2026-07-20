@@ -707,6 +707,23 @@ class SafeGrammarMask:
         self.ppm_tolerance = ppm_tolerance
         self.valence_slack = valence_slack
 
+    @lru_cache(maxsize=32_768)
+    def _valid_token_ids(self, prefix: str) -> tuple[int, ...]:
+        state = _scan(prefix)
+        if state is None:
+            return ()
+        valid_ids = []
+        for token_id, token in enumerate(self.token_strings):
+            if token_id == self.eos_token_id:
+                valid = state.terminal
+            elif token_id in self.special_token_ids:
+                valid = False
+            else:
+                valid = _scan(prefix + token) is not None
+            if valid:
+                valid_ids.append(token_id)
+        return tuple(valid_ids)
+
     def __call__(
         self,
         prefix_ids: Sequence[int],
@@ -719,20 +736,9 @@ class SafeGrammarMask:
         if self.mask_token_id is not None and self.mask_token_id in prefix_ids:
             return logits.clone()
         prefix = self.decode_prefix(prefix_ids)
-        state = _scan(prefix)
-        if state is None:
-            return torch.full_like(logits, -torch.inf)
         constrained = torch.full_like(logits, -torch.inf)
-        for token_id in (
-            torch.nonzero(torch.isfinite(logits), as_tuple=False).flatten().tolist()
-        ):
-            if token_id == self.eos_token_id:
-                valid = state.terminal
-            elif token_id in self.special_token_ids:
-                valid = False
-            else:
-                candidate_state = _scan(prefix + self.token_strings[token_id])
-                valid = candidate_state is not None
-            if valid:
-                constrained[token_id] = logits[token_id]
+        valid_ids = self._valid_token_ids(prefix)
+        if valid_ids:
+            indices = list(valid_ids)
+            constrained[indices] = logits[indices]
         return constrained
