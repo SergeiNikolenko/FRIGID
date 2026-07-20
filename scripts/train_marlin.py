@@ -217,7 +217,6 @@ def main(config: DictConfig) -> None:
         report_path = Path(config.output.root) / "warm_start.json"
         report_path.parent.mkdir(parents=True, exist_ok=True)
         report_path.write_text(json.dumps(report, indent=2) + "\n")
-    clearml_task = initialize_clearml(config)
     length_audit = json.loads(Path(config.data.length_audit_manifest).read_text())
     if sha256_file(config.data.length_audit_manifest) != config.data.length_audit_sha256:
         raise ValueError("training length audit manifest hash mismatch")
@@ -249,6 +248,7 @@ def main(config: DictConfig) -> None:
         pin_memory=True,
         collate_fn=collator,
     )
+    clearml_task = initialize_clearml(config)
     checkpoint = L.pytorch.callbacks.ModelCheckpoint(
         dirpath=config.output.checkpoints,
         filename="{step}",
