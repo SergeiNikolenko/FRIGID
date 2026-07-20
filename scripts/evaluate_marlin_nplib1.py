@@ -120,10 +120,16 @@ def main() -> None:
         )
     args.output_dir.mkdir(parents=True, exist_ok=True)
     metadata = pd.read_csv(args.metadata)
+    metadata_rows = len(metadata)
+    if args.lane == "mist":
+        validate_mist_lane_provenance(
+            args.lane_provenance,
+            metadata_rows,
+            args.fingerprints,
+            args.metadata,
+        )
     if args.max_spectra is not None:
         metadata = metadata.iloc[: args.max_spectra].copy()
-    if args.lane == "mist":
-        validate_mist_lane_provenance(args.lane_provenance, len(metadata))
     fingerprints = load_fingerprints(
         args.fingerprints,
         args.fingerprint_key,

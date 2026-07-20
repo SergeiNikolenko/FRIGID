@@ -26,6 +26,9 @@ def package_predictions(
     metadata: Path,
     formula_manifest: Path,
     output: Path,
+    official_mist_git_commit: str,
+    sirius_version: str,
+    mist_checkpoint_sha256: str,
 ) -> dict:
     with predictions.open("rb") as handle:
         payload = pickle.load(handle)
@@ -65,6 +68,9 @@ def package_predictions(
         "predictions_pickle_sha256": sha256_file(predictions),
         "reference_metadata_sha256": sha256_file(metadata),
         "formula_manifest_sha256": sha256_file(formula_manifest),
+        "official_mist_git_commit": official_mist_git_commit,
+        "sirius_version": sirius_version,
+        "mist_checkpoint_sha256": mist_checkpoint_sha256,
         "output_sha256": sha256_file(output),
     }
     manifest_path = output.with_suffix(".manifest.json")
@@ -78,12 +84,27 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--metadata", type=Path, required=True)
     parser.add_argument("--formula-manifest", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--official-mist-git-commit", required=True)
+    parser.add_argument("--sirius-version", required=True)
+    parser.add_argument("--mist-checkpoint-sha256", required=True)
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
-    print(json.dumps(package_predictions(args.predictions, args.metadata, args.formula_manifest, args.output)))
+    print(
+        json.dumps(
+            package_predictions(
+                args.predictions,
+                args.metadata,
+                args.formula_manifest,
+                args.output,
+                args.official_mist_git_commit,
+                args.sirius_version,
+                args.mist_checkpoint_sha256,
+            )
+        )
+    )
 
 
 if __name__ == "__main__":

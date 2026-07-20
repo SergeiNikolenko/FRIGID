@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 from pathlib import Path
 
 import numpy as np
@@ -15,13 +16,28 @@ MIST_LANE_KIND = (
 MIST_FORMULA_SOURCE = "MIST-CF top-1 prediction; no ground-truth formula"
 
 
-def validate_mist_lane_provenance(path: Path, expected_rows: int) -> dict:
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(8 * 1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def validate_mist_lane_provenance(
+    path: Path,
+    expected_rows: int,
+    fingerprint_path: Path,
+    metadata_path: Path,
+) -> dict:
     payload = json.loads(path.read_text())
     required = {
         "kind": MIST_LANE_KIND,
         "formula_source": MIST_FORMULA_SOURCE,
         "rows": expected_rows,
         "fingerprint_bits": 4096,
+        "output_sha256": sha256_file(fingerprint_path),
+        "reference_metadata_sha256": sha256_file(metadata_path),
     }
     mismatches = {
         key: {"expected": expected, "observed": payload.get(key)}
@@ -33,6 +49,14 @@ def validate_mist_lane_provenance(path: Path, expected_rows: int) -> dict:
             "MIST lane provenance does not prove the formula-blind official lane: "
             f"{mismatches}"
         )
+    for key in (
+        "formula_manifest_sha256",
+        "official_mist_git_commit",
+        "sirius_version",
+        "mist_checkpoint_sha256",
+    ):
+        if not payload.get(key):
+            raise ValueError(f"MIST lane provenance is missing {key}")
     return payload
 
 

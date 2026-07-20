@@ -166,6 +166,9 @@ filtering eligibility before batching; the collator now fails closed. No job
   official MIST Morgan-4096 checkpoint. The bridge manifest explicitly rejects
   any formula source other than MIST-CF top-1 predictions before packaging the
   fingerprint bundle in the immutable 803-row benchmark order.
+  The unpacker also requires every SIRIUS tree formula and adduct to equal the
+  corresponding MIST-CF top-1 pair. Evaluation binds the supplied NPZ and
+  metadata hashes to the official-MIST/SIRIUS/checkpoint provenance manifest.
   The official MIST code runs in a separate, frozen Python 3.8 environment;
   it is not allowed to mutate the completed MIST-CF scorer environment.
 

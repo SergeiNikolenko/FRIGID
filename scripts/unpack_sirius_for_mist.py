@@ -12,7 +12,13 @@ from pathlib import Path
 
 def unpack_project(project_dir: Path, labels_path: Path) -> list[dict[str, str]]:
     with labels_path.open(newline="") as handle:
-        expected = {row["spec"] for row in csv.DictReader(handle, delimiter="\t")}
+        expected = {
+            row["spec"]: {
+                "formula": row["formula"],
+                "ionization": row["ionization"].replace(" ", ""),
+            }
+            for row in csv.DictReader(handle, delimiter="\t")
+        }
     rows: list[dict[str, str]] = []
     for compound_dir in sorted(path for path in project_dir.iterdir() if path.is_dir()):
         if "_" not in compound_dir.name:
@@ -35,6 +41,22 @@ def unpack_project(project_dir: Path, labels_path: Path) -> list[dict[str, str]]
             raise ValueError(f"Expected one forced-formula tree for {spectrum_id}")
         tree = json.loads(trees[0].read_text())
         annotations = tree["annotations"]
+        observed_formula = tree["molecularFormula"]
+        observed_adduct = annotations["precursorIonType"].replace(" ", "")
+        if spectrum_id not in expected:
+            raise ValueError(f"Unexpected SIRIUS spectrum ID {spectrum_id}")
+        if observed_formula != expected[spectrum_id]["formula"]:
+            raise ValueError(
+                f"SIRIUS formula mismatch for {spectrum_id}: "
+                f"expected={expected[spectrum_id]['formula']} "
+                f"observed={observed_formula}"
+            )
+        if observed_adduct != expected[spectrum_id]["ionization"]:
+            raise ValueError(
+                f"SIRIUS adduct mismatch for {spectrum_id}: "
+                f"expected={expected[spectrum_id]['ionization']} "
+                f"observed={observed_adduct}"
+            )
         info = {}
         for line in (compound_dir / "compound.info").read_text().splitlines():
             if "\t" in line:
@@ -45,16 +67,16 @@ def unpack_project(project_dir: Path, labels_path: Path) -> list[dict[str, str]]
                 "spec_name": spectrum_id,
                 "spec_file": str(spectra[0].resolve()),
                 "tree_file": str(trees[0].resolve()),
-                "adduct": annotations["precursorIonType"].replace(" ", ""),
-                "pred_formula": tree["molecularFormula"],
+                "adduct": observed_adduct,
+                "pred_formula": observed_formula,
                 "parentmass": info["ionMass"],
             }
         )
     observed = {row["spec_name"] for row in rows}
-    if observed != expected:
+    if observed != set(expected):
         raise ValueError(
-            f"SIRIUS/labels ID mismatch: missing={sorted(expected-observed)[:5]}, "
-            f"extra={sorted(observed-expected)[:5]}"
+            f"SIRIUS/labels ID mismatch: missing={sorted(set(expected)-observed)[:5]}, "
+            f"extra={sorted(observed-set(expected))[:5]}"
         )
     return rows
 

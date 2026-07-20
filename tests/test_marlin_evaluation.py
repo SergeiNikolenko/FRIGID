@@ -48,31 +48,58 @@ def test_mass_bin_metrics_use_paper_boundaries():
     assert metrics["gte_500"] == {"rows": 1, "exact_top1": 0.0}
 
 
-def test_mist_lane_provenance_rejects_oracle_formula_source(tmp_path):
-    path = tmp_path / "manifest.json"
-    path.write_text(
-        json.dumps(
-            {
-                "kind": MIST_LANE_KIND,
-                "formula_source": "ground-truth formula",
-                "rows": 803,
-                "fingerprint_bits": 4096,
-            }
-        )
-    )
+def _mist_payload(fingerprint_path, metadata_path):
+    from marlin.evaluation import sha256_file
 
-    with pytest.raises(ValueError, match="formula-blind official lane"):
-        validate_mist_lane_provenance(path, 803)
-
-
-def test_mist_lane_provenance_accepts_clean_official_lane(tmp_path):
-    path = tmp_path / "manifest.json"
-    payload = {
+    return {
         "kind": MIST_LANE_KIND,
         "formula_source": MIST_FORMULA_SOURCE,
         "rows": 803,
         "fingerprint_bits": 4096,
+        "output_sha256": sha256_file(fingerprint_path),
+        "reference_metadata_sha256": sha256_file(metadata_path),
+        "formula_manifest_sha256": "formula-manifest-sha256",
+        "official_mist_git_commit": "mist-commit",
+        "sirius_version": "5.5.7",
+        "mist_checkpoint_sha256": "checkpoint-sha256",
     }
+
+
+def test_mist_lane_provenance_rejects_oracle_formula_source(tmp_path):
+    fingerprints = tmp_path / "fingerprints.npz"
+    metadata = tmp_path / "metadata.csv"
+    fingerprints.write_bytes(b"fingerprints")
+    metadata.write_text("spec_name\n")
+    path = tmp_path / "manifest.json"
+    payload = _mist_payload(fingerprints, metadata)
+    payload["formula_source"] = "ground-truth formula"
     path.write_text(json.dumps(payload))
 
-    assert validate_mist_lane_provenance(path, 803) == payload
+    with pytest.raises(ValueError, match="formula-blind official lane"):
+        validate_mist_lane_provenance(path, 803, fingerprints, metadata)
+
+
+def test_mist_lane_provenance_accepts_clean_official_lane(tmp_path):
+    fingerprints = tmp_path / "fingerprints.npz"
+    metadata = tmp_path / "metadata.csv"
+    fingerprints.write_bytes(b"fingerprints")
+    metadata.write_text("spec_name\n")
+    path = tmp_path / "manifest.json"
+    payload = _mist_payload(fingerprints, metadata)
+    path.write_text(json.dumps(payload))
+
+    assert validate_mist_lane_provenance(path, 803, fingerprints, metadata) == payload
+
+
+def test_mist_lane_provenance_rejects_fingerprint_hash_mismatch(tmp_path):
+    fingerprints = tmp_path / "fingerprints.npz"
+    metadata = tmp_path / "metadata.csv"
+    fingerprints.write_bytes(b"fingerprints")
+    metadata.write_text("spec_name\n")
+    path = tmp_path / "manifest.json"
+    payload = _mist_payload(fingerprints, metadata)
+    payload["output_sha256"] = "wrong"
+    path.write_text(json.dumps(payload))
+
+    with pytest.raises(ValueError, match="formula-blind official lane"):
+        validate_mist_lane_provenance(path, 803, fingerprints, metadata)

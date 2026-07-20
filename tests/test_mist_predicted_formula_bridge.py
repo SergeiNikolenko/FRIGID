@@ -93,9 +93,43 @@ def test_sirius_unpack_and_mist_packaging_are_id_locked(tmp_path: Path) -> None:
     )
     output = tmp_path / "fingerprints.npz"
 
-    manifest = package_predictions(predictions, metadata, formula_manifest, output)
+    manifest = package_predictions(
+        predictions,
+        metadata,
+        formula_manifest,
+        output,
+        "mist-commit",
+        "5.5.7",
+        "checkpoint-sha256",
+    )
 
     with np.load(output) as bundle:
         assert bundle["spectrum_ids"].tolist() == ["a", "b"]
         assert bundle["probs"][:, 0].tolist() == [1.0, 2.0]
     assert manifest["rows"] == 2
+    assert manifest["official_mist_git_commit"] == "mist-commit"
+
+
+def test_sirius_unpack_rejects_tree_not_matching_mist_cf_formula(tmp_path: Path) -> None:
+    labels = tmp_path / "labels.tsv"
+    labels.write_text(
+        "dataset\tspec\tformula\tionization\tparentmass\n"
+        "set\ta\tC2H4\t[M+H]+\t29\n"
+    )
+    compound = tmp_path / "project/0_a"
+    compound.mkdir(parents=True)
+    tree = {
+        "molecularFormula": "C3H6",
+        "annotations": {"precursorIonType": "[M + H]+"},
+    }
+    _write_zip(compound / "trees", "tree.json", json.dumps(tree))
+    _write_zip(compound / "spectra", "spectrum.tsv", "mz\tintensity\n")
+    _write_zip(compound / "scores", "score.info", "score\n")
+    (compound / "compound.info").write_text("ionMass\t29.0\n")
+
+    try:
+        unpack_project(tmp_path / "project", labels)
+    except ValueError as error:
+        assert "SIRIUS formula mismatch" in str(error)
+    else:
+        raise AssertionError("mismatched SIRIUS formula was accepted")

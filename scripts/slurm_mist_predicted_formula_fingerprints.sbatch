@@ -21,6 +21,9 @@ MIST_CHECKPOINT="$ROOT/checkpoints/mist/mist_fp_canopus_pretrain.ckpt"
 MIST_OUTPUT="$ROOT/runs/mist_connectivity_clean_fingerprints"
 
 export PYTHONPATH="$CODE/src:$CODE/scripts:$MIST/src"
+MIST_COMMIT=$(git -C "$MIST" rev-parse HEAD)
+MIST_CHECKPOINT_SHA256=$(sha256sum "$MIST_CHECKPOINT" | cut -d' ' -f1)
+SIRIUS_VERSION=5.5.7
 
 printf 'PROVENANCE\n'
 git -C "$CODE" rev-parse HEAD
@@ -61,7 +64,10 @@ cd "$ROOT"
   --predictions "$MIST_OUTPUT/fp_preds_marlin_mist_cf_clean.p" \
   --metadata "$ROOT/data/processed/test/metadata.csv" \
   --formula-manifest "$DATASET/formula_bridge_manifest.json" \
-  --output "$MIST_OUTPUT/fingerprints.npz"
+  --output "$MIST_OUTPUT/fingerprints.npz" \
+  --official-mist-git-commit "$MIST_COMMIT" \
+  --sirius-version "$SIRIUS_VERSION" \
+  --mist-checkpoint-sha256 "$MIST_CHECKPOINT_SHA256"
 
 find "$DATASET" "$MIST_OUTPUT" -type f -print0 | sort -z | xargs -0 sha256sum \
   > "$ROOT/manifests/mist_connectivity_clean_fingerprint_lane.sha256"
