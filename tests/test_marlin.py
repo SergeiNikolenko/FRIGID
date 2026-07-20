@@ -541,7 +541,7 @@ def test_batched_sampler_discards_tokens_after_eos_before_mass_and_decoding():
     assert [candidate.smiles for candidate in ranked] == ["C"]
 
 
-def test_batched_sampler_does_not_charge_suffix_revealed_before_eos():
+def test_batched_sampler_charges_suffix_revealed_before_eos():
     class SuffixFirstModel(torch.nn.Module):
         def __init__(self):
             super().__init__()
@@ -592,7 +592,7 @@ def test_batched_sampler_does_not_charge_suffix_revealed_before_eos():
         forbidden_token_ids=(0, 3),
     )
 
-    assert sampler.generate_one(torch.zeros(8), target_mass) == ("C", "C")
+    assert sampler.generate_one(torch.zeros(8), target_mass) is None
     assert model.seen[1].tolist() == [[0, 3, 3, 4]]
     model.seen.clear()
     ranked, stats = sampler.generate_ranked_with_stats(
@@ -600,8 +600,40 @@ def test_batched_sampler_does_not_charge_suffix_revealed_before_eos():
     )
 
     assert model.seen[1].tolist() == [[0, 3, 3, 4]]
-    assert stats.mass_valid == 1
-    assert [candidate.smiles for candidate in ranked] == ["C"]
+    assert stats.mass_valid == 0
+    assert ranked == []
+
+
+def test_mass_state_counts_committed_tokens_across_holes_and_stops_at_eos():
+    class MinimalModel(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.anchor = torch.nn.Parameter(torch.zeros(()))
+            self.config = MarlinDecoderConfig(vocab_size=6, mask_token_id=3)
+
+    constraint = MassShellConstraint(
+        [0.0, 12.0, 0.0, 0.0, 16.0, 14.0],
+        [0, 1, 0, 0, 1, 1],
+        [0.0, 4.0, 0.0, 0.0, 2.0, 3.0],
+        eos_token_id=2,
+    )
+    sampler = MarlinSampler(
+        MinimalModel(),
+        constraint,
+        bos_token_id=0,
+        eos_token_id=2,
+        mask_token_id=3,
+        decode_tokens=lambda _: "",
+        safe_to_smiles=lambda _: None,
+    )
+
+    state = sampler._mass_state([0, 3, 1, 3, 4, 2, 5])
+
+    assert state == MassShellState(
+        heavy_mass=28.0,
+        heavy_atoms=2,
+        valence_sum=6.0,
+    )
 
 
 def test_batched_sampler_keeps_mass_valid_candidate_at_max_length():

@@ -81,11 +81,13 @@ class MarlinSampler:
         return self.decode_tokens(token_ids[:end])
 
     def _mass_state(self, token_ids: Sequence[int]) -> MassShellState:
-        """Recompute mass from the contiguous semantic prefix before MASK or EOS."""
+        """Recompute mass from every committed token before EOS."""
         state = MassShellState()
         for token_id in token_ids[1:]:
-            if token_id in (self.mask_token_id, self.eos_token_id):
+            if token_id == self.eos_token_id:
                 break
+            if token_id == self.mask_token_id:
+                continue
             state = self.constraint.advance(state, token_id)
         return state
 
