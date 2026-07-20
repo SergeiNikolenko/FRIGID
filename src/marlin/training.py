@@ -186,6 +186,12 @@ class MarlinLightningModule(L.LightningModule):
             on_step=True,
             sync_dist=True,
         )
+        self.log(
+            "micro_batch_size",
+            float(batch["input_ids"].shape[0]),
+            on_step=True,
+            sync_dist=True,
+        )
         return loss
 
     def on_before_optimizer_step(self, optimizer) -> None:
