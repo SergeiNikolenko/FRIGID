@@ -9,7 +9,18 @@ from typing import Callable, Iterable
 from rdkit import Chem
 
 
-ATOM_PATTERN = re.compile(r"Cl|Br|Si|Se|Na|Li|Mg|Ca|Al|[BCNOPSFIK]|[cnopsb]")
+_PERIODIC_TABLE = Chem.GetPeriodicTable()
+_HEAVY_ELEMENTS = tuple(
+    _PERIODIC_TABLE.GetElementSymbol(atomic_number) for atomic_number in range(2, 119)
+)
+ATOM_PATTERN = re.compile(
+    "|".join(
+        re.escape(symbol)
+        for symbol in sorted(
+            (*_HEAVY_ELEMENTS, "b", "c", "n", "o", "p", "s"), key=len, reverse=True
+        )
+    )
+)
 
 
 @dataclass(frozen=True)
@@ -21,14 +32,16 @@ class TokenProperties:
 
 def token_properties(token: str) -> TokenProperties:
     """Return a lower-bound mass and a conservative valence budget."""
-    table = Chem.GetPeriodicTable()
-    symbols = [match.capitalize() if len(match) == 1 else match for match in ATOM_PATTERN.findall(token)]
+    symbols = [
+        match.capitalize() if len(match) == 1 else match
+        for match in ATOM_PATTERN.findall(token)
+    ]
     mass = 0.0
     valence = 0.0
     for symbol in symbols:
-        atomic_number = table.GetAtomicNumber(symbol)
-        mass += table.GetMostCommonIsotopeMass(atomic_number)
-        valences = list(table.GetValenceList(atomic_number))
+        atomic_number = _PERIODIC_TABLE.GetAtomicNumber(symbol)
+        mass += _PERIODIC_TABLE.GetMostCommonIsotopeMass(atomic_number)
+        valences = list(_PERIODIC_TABLE.GetValenceList(atomic_number))
         valence += max(valences) if valences else 0.0
     return TokenProperties(mass, len(symbols), valence)
 
@@ -43,7 +56,11 @@ def build_token_property_table(
     atom_counts: list[int] = []
     valences: list[float] = []
     for token_id in range(vocabulary_size):
-        properties = TokenProperties(0.0, 0, 0.0) if token_id in special else token_properties(decode_token(token_id))
+        properties = (
+            TokenProperties(0.0, 0, 0.0)
+            if token_id in special
+            else token_properties(decode_token(token_id))
+        )
         masses.append(properties.heavy_mass)
         atom_counts.append(properties.heavy_atoms)
         valences.append(properties.valence_sum)

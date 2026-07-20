@@ -21,7 +21,7 @@ import torch
 from omegaconf import DictConfig, OmegaConf
 
 from marlin.model import MarlinDecoderConfig
-from marlin.tokenizer import load_safe_tokenizer
+from marlin.tokenizer import load_safe_tokenizer, validate_safe_tokenizer
 from marlin.training import MarlinCollator, MarlinLightningModule
 from marlin.warm_start import load_frigid_decoder, sha256_file
 
@@ -76,11 +76,27 @@ def initialize_clearml(config: DictConfig):
 def main(config: DictConfig) -> None:
     L.seed_everything(config.seed, workers=True)
     torch.set_float32_matmul_precision("high")
-    clearml_task = initialize_clearml(config)
+    tokenizer_sha256 = sha256_file(config.data.tokenizer_file)
+    if tokenizer_sha256 != config.data.tokenizer_sha256:
+        raise ValueError(
+            f"SAFE tokenizer SHA-256 is {tokenizer_sha256}; "
+            f"expected {config.data.tokenizer_sha256}"
+        )
     tokenizer = load_safe_tokenizer(config.data.tokenizer_file)
     decoder_config = MarlinDecoderConfig(
         **OmegaConf.to_container(config.model, resolve=True)
     )
+    special_token_ids = validate_safe_tokenizer(
+        tokenizer,
+        expected_vocab_size=decoder_config.vocab_size,
+        expected_special_token_ids=OmegaConf.to_container(
+            config.data.special_token_ids, resolve=True
+        ),
+    )
+    if special_token_ids["mask"] != decoder_config.mask_token_id:
+        raise ValueError("model MASK token ID does not match the SAFE tokenizer")
+    if special_token_ids["pad"] != decoder_config.pad_token_id:
+        raise ValueError("model PAD token ID does not match the SAFE tokenizer")
     module = MarlinLightningModule(
         decoder_config,
         learning_rate=config.optim.learning_rate,
@@ -97,13 +113,15 @@ def main(config: DictConfig) -> None:
             expected_sha256=config.get("warm_start_sha256"),
         )
         report["tokenizer"] = str(config.data.tokenizer_file)
-        report["tokenizer_sha256"] = sha256_file(config.data.tokenizer_file)
+        report["tokenizer_sha256"] = tokenizer_sha256
+        report["special_token_ids"] = special_token_ids
         report["dataset"] = str(config.data.dataset)
         report["dataset_revision"] = str(config.data.revision)
         module.reset_ema()
         report_path = Path(config.output.root) / "warm_start.json"
         report_path.parent.mkdir(parents=True, exist_ok=True)
         report_path.write_text(json.dumps(report, indent=2) + "\n")
+    clearml_task = initialize_clearml(config)
     dataset = datasets.load_dataset(
         config.data.dataset,
         revision=config.data.revision,

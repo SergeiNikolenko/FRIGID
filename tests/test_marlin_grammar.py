@@ -59,22 +59,44 @@ def test_safe_grammar_accepts_real_nplib1_target():
     assert _scan(target).terminal
 
 
-def test_safe_grammar_masks_invalid_highest_scoring_token():
-    tokens = ("[UNK]", "[CLS]", "[SEP]", "[PAD]", "[MASK]", "C", "1")
+def test_safe_grammar_accepts_hypervalent_phosphorus_and_sulfur():
+    assert _scan("OP(=O)(O)O").terminal
+    assert _scan("CS(=O)(=O)C").terminal
+
+
+def test_safe_grammar_retains_all_valid_tokens_and_masks_invalid_token():
+    tokens = ("[UNK]", "[CLS]", "[SEP]", "[PAD]", "[MASK]", "C", "O", "1")
     grammar = SafeGrammarMask(
         tokens,
         lambda ids: "".join(tokens[index] for index in ids if index >= 5),
         eos_token_id=2,
+        mask_token_id=4,
         special_token_ids=(0, 1, 2, 3, 4),
     )
     logits = torch.full((len(tokens),), -10.0)
-    logits[6] = 10.0
+    logits[7] = 10.0
     logits[5] = 9.0
+    logits[6] = 8.0
 
     constrained = grammar([], logits)
 
-    assert torch.isneginf(constrained[6])
+    assert torch.isneginf(constrained[7])
+    assert torch.isfinite(constrained[5:7]).all()
     assert int(constrained.argmax()) == 5
+
+
+def test_safe_grammar_does_not_false_prune_across_partial_block_hole():
+    tokens = ("[UNK]", "[CLS]", "[SEP]", "[PAD]", "[MASK]", "C", "O")
+    grammar = SafeGrammarMask(
+        tokens,
+        lambda ids: "".join(tokens[index] for index in ids if index >= 5),
+        eos_token_id=2,
+        mask_token_id=4,
+        special_token_ids=(0, 1, 2, 3, 4),
+    )
+    logits = torch.arange(len(tokens), dtype=torch.float32)
+
+    assert torch.equal(grammar([1, 4], logits), logits)
 
 
 def test_safe_grammar_rejects_bracket_when_no_element_fits_mass_shell():
@@ -96,7 +118,7 @@ def test_safe_grammar_rejects_incomplete_syntax_when_no_atom_fits_mass_shell():
     )
 
 
-def test_safe_grammar_rejects_ring_opening_when_no_later_atom_fits_mass_shell():
+def test_safe_grammar_does_not_apply_an_unproven_mass_reachability_prune():
     tokens = ("[UNK]", "[CLS]", "[SEP]", "[PAD]", "[MASK]", "1")
     prefix = "C" * 32
     grammar = SafeGrammarMask(
@@ -110,7 +132,7 @@ def test_safe_grammar_rejects_ring_opening_when_no_later_atom_fits_mass_shell():
 
     constrained = grammar([], logits, 444.103807533379)
 
-    assert torch.isneginf(constrained).all()
+    assert constrained[5] == 1.0
 
 
 def test_safe_grammar_prunes_invalid_dead_end_but_keeps_target():

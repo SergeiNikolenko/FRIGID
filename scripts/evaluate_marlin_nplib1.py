@@ -149,6 +149,7 @@ def main() -> None:
             [tokenizer.convert_ids_to_tokens(index) for index in range(len(tokenizer))],
             lambda ids: tokenizer.decode(ids, skip_special_tokens=True),
             eos_token_id=tokenizer.eos_token_id,
+            mask_token_id=tokenizer.mask_token_id,
             special_token_ids=tuple(special_ids) + (tokenizer.unk_token_id,),
             ppm_tolerance=args.ppm_tolerance,
             valence_slack=args.valence_slack,

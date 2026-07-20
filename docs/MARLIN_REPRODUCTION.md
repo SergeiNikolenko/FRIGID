@@ -21,7 +21,7 @@ below and in generated manifests.
 | Block width 8 | `MarlinDecoderConfig.block_width` | Implemented |
 | Block-causal clean/noisy two-stream attention | `marlin.model.two_stream_attention_mask` and `two_stream_logits` | Implemented and tested |
 | Per-block continuous time, absorbing masking, and `1/t` NELBO | `MarlinDecoder.diffusion_loss` | Implemented; all valid blocks are averaged in one forward pass, an unbiased realization of uniform block sampling |
-| Score every unresolved position and reveal the globally highest-confidence position | `MarlinSampler` | Required; position-aware partial-block grammar support is the remaining implementation gate |
+| Score every unresolved position and reveal the globally highest-confidence position | `MarlinSampler` | Implemented and tested; exact position-aware partial-block grammar support remains underdetermined by the paper |
 | Precursor mass Fourier token | `FourierMassEncoder` | Implemented |
 | Optional M+1/M and M+2/M isotope token, enabled in training and disabled by default in inference | `marlin.isotopes`, `MarlinCollator`, `MarlinConditioner` | Implemented; isotope-envelope calculation is inferred |
 | One conditioning token per active Morgan bit, 4,096 bits, radius 2 | `SparseFingerprintEncoder`, `MarlinCollator` | Implemented |
@@ -32,15 +32,15 @@ below and in generated manifests.
 | Prune when `h + mu_v > M + delta` | `MassShellConstraint.apply` | Implemented |
 | Hydrogen-aware reachable interval with valence slack 4 | grammar state and `MassShellConstraint` | Implemented conservatively |
 | Forbid early EOS and boost EOS when no positive-mass token fits | `MassShellConstraint.apply` | Implemented; boost magnitude is inferred |
-| Grammar and forbidden-token masks at every reveal | `SafeGrammarMask` and sampler | Implemented for sequential prefixes; partial-block hole semantics remain the parity gate |
+| Grammar and forbidden-token masks at every reveal | `SafeGrammarMask` and sampler | Full syntactic support is retained for contiguous prefixes. A conservative no-prune rule is used across unresolved holes; this is inferred because the paper does not define hole semantics. Chemical mass reachability is not folded into the syntax mask. |
 | Decode after each committed block and accept only valid structures within 10 ppm | `MarlinSampler` | Implemented |
 | 384 candidates with independent 0.3 on-bit conditioning dropout | `MarlinSampler.generate_ranked_with_stats` | Implemented |
 | Rank by Tanimoto to the unperturbed predicted fingerprint | `MarlinSampler` | Implemented |
 | DreaMS raw-spectrum and MIST predicted-formula feature lanes | evaluation inputs and lane-specific fingerprints | Implemented |
-| Exact Top-1/Top-10, Morgan Tanimoto Top-1/Top-10, and MCES Top-1/Top-10 | evaluation scripts | Exact and Tanimoto implemented; MCES is required before final evaluation |
-| Formula recovery and mass bins `<300`, `300-500`, `>=500` Da | evaluation post-processing | Required before final evaluation |
+| Exact Top-1/Top-10, Morgan Tanimoto Top-1/Top-10, and MCES Top-1/Top-10 | evaluation scripts | Implemented; MCES runtime is isolated and smoke-tested with `myopic-mces==1.2.0` and PuLP 3.3.2 |
+| Formula recovery and mass bins `<300`, `300-500`, `>=500` Da | evaluation post-processing | Implemented |
 | Saved per-spectrum predictions and runtime | `evaluate_marlin_nplib1.py` | Implemented |
-| ClearML curves and local TensorBoard events | `train_marlin.py`, `MarlinLightningModule` | Implemented for new runs; older jobs have TensorBoard only |
+| ClearML curves and local TensorBoard events | `train_marlin.py`, `MarlinLightningModule` | Instrumented. Task creation is verified, but scalar curves remain a smoke-test gate because job 283 failed before its first training step when the external warm-start file disappeared. |
 
 ## Explicitly inferred choices
 

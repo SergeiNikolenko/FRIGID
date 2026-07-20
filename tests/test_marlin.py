@@ -104,6 +104,12 @@ def test_token_properties_ignore_safe_grammar_characters():
     assert properties.heavy_mass > 100
 
 
+def test_token_properties_cover_rare_official_safe_elements():
+    properties = token_properties("[208Tl+]")
+    assert properties.heavy_atoms == 1
+    assert properties.heavy_mass > 200
+
+
 def test_small_decoder_forward_and_loss():
     config = MarlinDecoderConfig(
         vocab_size=32,
@@ -240,7 +246,9 @@ def test_diffusion_loss_averages_the_weighted_token_sum_over_blocks():
     times = torch.rand((1, 2), generator=expected_generator).clamp_min(1e-4)
     probabilities = times[:, torch.tensor([0, 0, 0, 1, 1])]
     valid = torch.tensor([[False, True, True, True, True]])
-    masked = (torch.rand(tokens.shape, generator=expected_generator) < probabilities) & valid
+    masked = (
+        torch.rand(tokens.shape, generator=expected_generator) < probabilities
+    ) & valid
     expected = (
         masked.float().mul(probabilities.reciprocal()).sum()
         * torch.log(torch.tensor(float(config.vocab_size)))
@@ -327,6 +335,61 @@ def test_batched_sampler_reports_attempt_validity_and_uniqueness():
     assert stats.mass_valid == 3
     assert stats.unique_mass_valid == 1
     assert len(ranked) == 1
+
+
+def test_sampler_with_grammar_reveals_globally_most_confident_position():
+    class PositionConfidenceModel(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.anchor = torch.nn.Parameter(torch.zeros(()))
+            self.seen = []
+            self.config = MarlinDecoderConfig(
+                vocab_size=5,
+                hidden_size=4,
+                num_layers=1,
+                num_heads=1,
+                intermediate_size=4,
+                max_length=3,
+                block_width=2,
+                fingerprint_bits=8,
+                dropout=0.0,
+                mask_token_id=3,
+                pad_token_id=0,
+            )
+
+        def forward(self, input_ids, precursor_mass, fingerprint):
+            self.seen.append(input_ids.detach().clone())
+            logits = torch.full((*input_ids.shape, 5), -torch.inf)
+            logits[:, 1, 1] = 2.0
+            logits[:, 1, 4] = 1.0
+            logits[:, 2, 1] = 5.0
+            logits[:, 2, 4] = 0.0
+            return logits
+
+    model = PositionConfidenceModel()
+    target_mass = Descriptors.ExactMolWt(Chem.MolFromSmiles("CC"))
+    sampler = MarlinSampler(
+        model,
+        MassShellConstraint(
+            [0.0, 12.0, 0.0, 0.0, 16.0],
+            [0, 1, 0, 0, 1],
+            [0.0, 4.0, 0.0, 0.0, 2.0],
+            eos_token_id=2,
+            ppm_tolerance=10,
+        ),
+        bos_token_id=0,
+        eos_token_id=2,
+        mask_token_id=3,
+        decode_tokens=lambda ids: "".join({1: "C", 4: "O"}.get(i, "") for i in ids),
+        safe_to_smiles=lambda safe: safe,
+        grammar_mask=lambda _prefix, logits, _mass: logits,
+        forbidden_token_ids=(0, 3),
+    )
+
+    result = sampler.generate_one(torch.zeros(8), target_mass)
+
+    assert result == ("CC", "CC")
+    assert model.seen[1].tolist() == [[0, 3, 1]]
 
 
 def test_batched_sampler_discards_tokens_after_eos_before_decoding():

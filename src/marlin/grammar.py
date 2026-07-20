@@ -354,9 +354,9 @@ def _scan(text: str) -> _GrammarState | None:
             "n": 3.0,
             "O": 2.0,
             "o": 2.0,
-            "P": 3.0,
+            "P": 5.0,
             "p": 3.0,
-            "S": 2.0,
+            "S": 6.0,
             "s": 2.0,
         }.get(symbol, 4.0)
         state.bond_counts[state.atom_index] = 0
@@ -536,9 +536,7 @@ def _scan(text: str) -> _GrammarState | None:
             state.bond_order_sums[opening_atom] += bond_order - reserved_order
             reserved_usage = explicit_order or 1.0
             valence_usage = 1.0 if aromatic_bond else bond_order
-            state.valence_usage_sums[opening_atom] += (
-                valence_usage - reserved_usage
-            )
+            state.valence_usage_sums[opening_atom] += valence_usage - reserved_usage
         state.bond_counts[atom] += 1
         state.bond_order_sums[atom] += bond_order
         state.valence_usage_sums[atom] += valence_usage
@@ -688,7 +686,7 @@ def _has_vocabulary_completion(
 
 
 class SafeGrammarMask:
-    """Mask higher-scoring tokens until the best lexically viable token remains."""
+    """Retain the full lexical SAFE support for a contiguous committed prefix."""
 
     def __init__(
         self,
@@ -696,6 +694,7 @@ class SafeGrammarMask:
         decode_prefix: Callable[[Sequence[int]], str],
         *,
         eos_token_id: int,
+        mask_token_id: int | None = None,
         special_token_ids: Sequence[int],
         ppm_tolerance: float = 10.0,
         valence_slack: float = 4.0,
@@ -703,6 +702,7 @@ class SafeGrammarMask:
         self.token_strings = tuple(token_strings)
         self.decode_prefix = decode_prefix
         self.eos_token_id = eos_token_id
+        self.mask_token_id = mask_token_id
         self.special_token_ids = frozenset(special_token_ids)
         self.ppm_tolerance = ppm_tolerance
         self.valence_slack = valence_slack
@@ -713,16 +713,19 @@ class SafeGrammarMask:
         logits: torch.Tensor,
         target_mass: float | None = None,
     ) -> torch.Tensor:
+        # The paper does not specify grammar state for holes inside a partially
+        # revealed block. Conservatively avoid false pruning until every earlier
+        # position is known; the completed block still passes strict SAFE decode.
+        if self.mask_token_id is not None and self.mask_token_id in prefix_ids:
+            return logits.clone()
         prefix = self.decode_prefix(prefix_ids)
         state = _scan(prefix)
         if state is None:
             return torch.full_like(logits, -torch.inf)
-        constrained = logits.clone()
-        while True:
-            score, token = constrained.max(dim=-1)
-            if not torch.isfinite(score):
-                return constrained
-            token_id = int(token)
+        constrained = torch.full_like(logits, -torch.inf)
+        for token_id in (
+            torch.nonzero(torch.isfinite(logits), as_tuple=False).flatten().tolist()
+        ):
             if token_id == self.eos_token_id:
                 valid = state.terminal
             elif token_id in self.special_token_ids:
@@ -730,67 +733,6 @@ class SafeGrammarMask:
             else:
                 candidate_state = _scan(prefix + self.token_strings[token_id])
                 valid = candidate_state is not None
-                if valid and target_mass is not None:
-                    tolerance = self.ppm_tolerance * 1e-6 * target_mass
-                    valid = (
-                        candidate_state.minimum_mass(self.valence_slack)
-                        <= target_mass + tolerance
-                    )
-                    if valid:
-                        valid = _has_reachable_exact_mass(
-                            candidate_state,
-                            target_mass,
-                            self.valence_slack,
-                            tolerance,
-                        )
-                    if valid and candidate_state.incomplete_token:
-                        valid = _has_mass_viable_bracket_completion(
-                            prefix + self.token_strings[token_id],
-                            target_mass,
-                            self.valence_slack,
-                            tolerance,
-                        )
-                        if valid:
-                            valid = _has_mass_viable_percent_completion(
-                                prefix + self.token_strings[token_id],
-                                target_mass,
-                                self.valence_slack,
-                                tolerance,
-                            )
-                        if valid:
-                            valid = _has_vocabulary_completion(
-                                prefix + self.token_strings[token_id],
-                                self.token_strings,
-                                target_mass,
-                                self.valence_slack,
-                                tolerance,
-                            )
-                    if valid and candidate_state.expect_atom:
-                        valid = _has_mass_viable_atom_completion(
-                            prefix + self.token_strings[token_id],
-                            target_mass,
-                            self.valence_slack,
-                            tolerance,
-                        )
-                    if valid and len(candidate_state.open_rings) > len(
-                        state.open_rings
-                    ):
-                        valid = _has_mass_viable_atom_completion(
-                            prefix + self.token_strings[token_id],
-                            target_mass,
-                            self.valence_slack,
-                            tolerance,
-                        )
-                    if valid:
-                        valid = _has_structurally_viable_continuation(
-                            prefix + self.token_strings[token_id],
-                            candidate_state,
-                            target_mass,
-                            self.valence_slack,
-                            tolerance,
-                        )
             if valid:
-                selected = torch.full_like(constrained, -torch.inf)
-                selected[token_id] = constrained[token_id]
-                return selected
-            constrained[token_id] = -torch.inf
+                constrained[token_id] = logits[token_id]
+        return constrained
