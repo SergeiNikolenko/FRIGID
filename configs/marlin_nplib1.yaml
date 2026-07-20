@@ -50,3 +50,13 @@ output:
   root: /home/nikolenko/work/Projects/MARLIN_reproduction_20260717/runs/decoder
   checkpoints: /home/nikolenko/work/Projects/MARLIN_reproduction_20260717/runs/decoder/checkpoints
   checkpoint_interval: 5000
+
+tracking:
+  clearml:
+    enabled: true
+    project_name: MARLIN clean-room reproduction
+    task_name: marlin-decoder
+    tags:
+      - clean-room
+      - arxiv-2607.04774
+      - SAFE

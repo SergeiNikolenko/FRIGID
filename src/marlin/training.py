@@ -16,6 +16,7 @@ from dlm.utils.utils_chem import safe_to_smiles
 from dlm.utils.ema import ExponentialMovingAverage
 from marlin.model import MarlinDecoder, MarlinDecoderConfig
 from marlin.noise import symmetric_fingerprint_noise
+from marlin.isotopes import theoretical_isotope_ratios
 
 
 class MarlinCollator:
@@ -40,11 +41,12 @@ class MarlinCollator:
         safes: list[str] = []
         fingerprints: list[torch.Tensor] = []
         masses: list[float] = []
+        isotope_ratios: list[torch.Tensor] = []
         for example in examples:
             safe = example.get("safe", example.get("input"))
             if not safe:
                 continue
-            smiles = safe_to_smiles(safe, fix=True)
+            smiles = safe_to_smiles(safe, fix=False)
             molecule = Chem.MolFromSmiles(smiles) if smiles else None
             if molecule is None:
                 continue
@@ -59,6 +61,7 @@ class MarlinCollator:
             safes.append(safe)
             fingerprints.append(torch.from_numpy(array))
             masses.append(Descriptors.ExactMolWt(molecule))
+            isotope_ratios.append(theoretical_isotope_ratios(molecule))
         if not safes:
             raise ValueError("batch has no valid non-excluded molecules")
         tokens = self.tokenizer(
@@ -72,6 +75,7 @@ class MarlinCollator:
             "input_ids": tokens["input_ids"],
             "fingerprint": torch.stack(fingerprints),
             "precursor_mass": torch.tensor(masses, dtype=torch.float32),
+            "isotope_ratios": torch.stack(isotope_ratios),
         }
 
 
@@ -120,10 +124,38 @@ class MarlinLightningModule(L.LightningModule):
             max_fraction=self.noise_max_fraction,
         )
         loss = self.decoder.diffusion_loss(
-            batch["input_ids"], batch["precursor_mass"], fingerprint
+            batch["input_ids"],
+            batch["precursor_mass"],
+            fingerprint,
+            isotope_ratios=batch["isotope_ratios"],
         )
         self.log("train_loss", loss, prog_bar=True, on_step=True, sync_dist=True)
+        self.log(
+            "fingerprint_noise_fraction",
+            (fingerprint != batch["fingerprint"]).float().mean(),
+            on_step=True,
+            sync_dist=True,
+        )
+        optimizer = self.optimizers()
+        self.log(
+            "learning_rate",
+            optimizer.param_groups[0]["lr"],
+            on_step=True,
+            sync_dist=True,
+        )
         return loss
+
+    def on_before_optimizer_step(self, optimizer) -> None:
+        if self.global_step % 50 != 0:
+            return
+        parameter_norms = [
+            parameter.grad.detach().norm(2)
+            for parameter in self.parameters()
+            if parameter.grad is not None
+        ]
+        if parameter_norms:
+            grad_norm = torch.stack(parameter_norms).norm(2)
+            self.log("grad_norm", grad_norm, on_step=True, sync_dist=True)
 
     def configure_optimizers(self):
         return torch.optim.AdamW(

@@ -29,6 +29,7 @@ class MassShellConstraint:
         *,
         ppm_tolerance: float = 10.0,
         valence_slack: float = 4.0,
+        eos_boost: float = 1.0,
         eos_token_id: int,
     ) -> None:
         if ppm_tolerance <= 0:
@@ -47,7 +48,12 @@ class MassShellConstraint:
             raise ValueError("token property arrays must have equal lengths")
         self.ppm_tolerance = ppm_tolerance
         self.valence_slack = valence_slack
+        self.eos_boost = eos_boost
         self.eos_token_id = eos_token_id
+        positive_masses = self.token_masses[self.token_masses > 0]
+        self.minimum_token_mass = (
+            float(positive_masses.min()) if positive_masses.numel() else float("inf")
+        )
 
     def tolerance(self, target_mass: float) -> float:
         return self.ppm_tolerance * 1e-6 * target_mass
@@ -74,6 +80,8 @@ class MassShellConstraint:
         reachable = state.heavy_mass + self.hydrogen_capacity(state) * HYDROGEN_MASS
         if reachable < target_mass - delta:
             constrained[..., self.eos_token_id] = -torch.inf
+        elif state.heavy_mass + self.minimum_token_mass > target_mass + delta:
+            constrained[..., self.eos_token_id] += self.eos_boost
         return constrained
 
     def accepts_smiles(self, smiles: str | None, target_mass: float) -> bool:

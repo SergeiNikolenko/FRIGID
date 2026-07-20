@@ -7,6 +7,7 @@ from __future__ import annotations
 import os
 import sys
 import json
+import subprocess
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -25,10 +26,57 @@ from marlin.training import MarlinCollator, MarlinLightningModule
 from marlin.warm_start import load_frigid_decoder
 
 
+def initialize_clearml(config: DictConfig):
+    """Create the experiment record before Lightning initializes its logger."""
+    if not config.tracking.clearml.enabled:
+        return None
+    from clearml import Task
+
+    job_id = os.environ.get("SLURM_JOB_ID", "local")
+    task = Task.init(
+        project_name=config.tracking.clearml.project_name,
+        task_name=f"{config.tracking.clearml.task_name}-{job_id}",
+        tags=list(config.tracking.clearml.tags),
+        reuse_last_task_id=False,
+        output_uri=False,
+        auto_connect_frameworks={"pytorch": True, "tensorboard": True},
+    )
+    resolved_config = OmegaConf.to_container(config, resolve=True)
+    task.connect(resolved_config, name="resolved_config")
+    try:
+        commit = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=PROJECT_ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+    except (OSError, subprocess.CalledProcessError):
+        commit = None
+    tracking_path = Path(config.output.root) / "clearml_task.json"
+    tracking_path.parent.mkdir(parents=True, exist_ok=True)
+    tracking_path.write_text(
+        json.dumps(
+            {
+                "task_id": task.id,
+                "task_name": task.name,
+                "project_name": task.get_project_name(),
+                "web_url": task.get_output_log_web_page(),
+                "slurm_job_id": os.environ.get("SLURM_JOB_ID"),
+                "git_commit": commit,
+            },
+            indent=2,
+        )
+        + "\n"
+    )
+    return task
+
+
 @hydra.main(version_base=None, config_path="../configs", config_name="marlin_nplib1")
 def main(config: DictConfig) -> None:
     L.seed_everything(config.seed, workers=True)
     torch.set_float32_matmul_precision("high")
+    clearml_task = initialize_clearml(config)
     tokenizer = load_safe_tokenizer(config.data.tokenizer_file)
     decoder_config = MarlinDecoderConfig(
         **OmegaConf.to_container(config.model, resolve=True)
@@ -85,7 +133,11 @@ def main(config: DictConfig) -> None:
         callbacks=[checkpoint],
         default_root_dir=config.output.root,
     )
-    trainer.fit(module, loader, ckpt_path=config.get("resume_checkpoint"))
+    try:
+        trainer.fit(module, loader, ckpt_path=config.get("resume_checkpoint"))
+    finally:
+        if clearml_task is not None:
+            clearml_task.close()
 
 
 if __name__ == "__main__":

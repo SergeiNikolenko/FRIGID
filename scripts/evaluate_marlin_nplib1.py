@@ -10,14 +10,13 @@ import subprocess
 import time
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 import torch
 from rdkit import Chem, DataStructs
-from rdkit.Chem import AllChem
+from rdkit.Chem import AllChem, rdMolDescriptors
 
 from dlm.utils.utils_chem import safe_to_smiles
-from marlin.evaluation import load_fingerprints
+from marlin.evaluation import load_fingerprints, mass_bin_metrics, mean_metric
 from marlin.grammar import SafeGrammarMask
 from marlin.mass_shell import MassShellConstraint
 from marlin.model import MarlinDecoder, MarlinDecoderConfig
@@ -41,6 +40,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--temperature", type=float, default=1.0)
     parser.add_argument("--ppm-tolerance", type=float, default=10.0)
     parser.add_argument("--valence-slack", type=float, default=4.0)
+    parser.add_argument("--eos-boost", type=float, default=1.0)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--max-spectra", type=int)
     parser.add_argument("--device", default="cuda")
@@ -99,10 +99,6 @@ def connectivity(smiles: str) -> str | None:
     return Chem.MolToInchiKey(molecule).split("-")[0]
 
 
-def mean(rows: list[dict], key: str) -> float:
-    return float(np.mean([row[key] for row in rows])) if rows else float("nan")
-
-
 def main() -> None:
     args = parse_args()
     if args.candidates <= 0:
@@ -136,6 +132,7 @@ def main() -> None:
         token_valences,
         ppm_tolerance=args.ppm_tolerance,
         valence_slack=args.valence_slack,
+        eos_boost=args.eos_boost,
         eos_token_id=tokenizer.eos_token_id,
     )
     sampler = MarlinSampler(
@@ -145,7 +142,7 @@ def main() -> None:
         eos_token_id=tokenizer.eos_token_id,
         mask_token_id=tokenizer.mask_token_id,
         decode_tokens=lambda ids: tokenizer.decode(ids, skip_special_tokens=True),
-        safe_to_smiles=lambda safe: safe_to_smiles(safe, fix=True),
+        safe_to_smiles=lambda safe: safe_to_smiles(safe, fix=False),
         grammar_mask=None
         if args.disable_grammar_mask
         else SafeGrammarMask(
@@ -164,6 +161,50 @@ def main() -> None:
         ),
     )
 
+    settings = {
+        "lane": args.lane,
+        "candidates": args.candidates,
+        "diversity_dropout": args.diversity_dropout,
+        "temperature": args.temperature,
+        "ppm_tolerance": args.ppm_tolerance,
+        "valence_slack": args.valence_slack,
+        "eos_boost": args.eos_boost,
+        "block_width": model.config.block_width,
+        "ema": True,
+        "grammar_mask": not args.disable_grammar_mask,
+        "seed": args.seed,
+        "max_spectra": args.max_spectra,
+    }
+    signature = {
+        "schema_version": 1,
+        "settings": settings,
+        "inputs": {
+            str(path.resolve()): {"sha256": sha256(path), "bytes": path.stat().st_size}
+            for path in (
+                args.checkpoint,
+                args.tokenizer,
+                args.metadata,
+                args.fingerprints,
+            )
+        },
+    }
+    signature_path = args.output_dir / "run_signature.json"
+    if signature_path.exists():
+        existing_signature = json.loads(signature_path.read_text())
+        if existing_signature != signature:
+            raise ValueError(
+                f"output directory contains an incompatible run: {signature_path}"
+            )
+    else:
+        predictions_path = args.output_dir / "predictions.jsonl"
+        if predictions_path.exists() and predictions_path.stat().st_size:
+            raise ValueError(
+                "refusing to resume predictions without a matching run_signature.json"
+            )
+        signature_path.write_text(
+            json.dumps(signature, indent=2, sort_keys=True) + "\n"
+        )
+
     predictions_path = args.output_dir / "predictions.jsonl"
     completed: set[str] = set()
     rows: list[dict] = []
@@ -171,6 +212,10 @@ def main() -> None:
         with predictions_path.open() as handle:
             for line in handle:
                 row = json.loads(line)
+                if row["spec_name"] in completed:
+                    raise ValueError(
+                        f"duplicate spectrum in predictions: {row['spec_name']}"
+                    )
                 completed.add(row["spec_name"])
                 rows.append(row)
 
@@ -193,6 +238,7 @@ def main() -> None:
             if target_molecule is None:
                 raise ValueError(f"invalid target SMILES for {spec_name}")
             target_fingerprint = morgan(target_molecule)
+            target_formula = rdMolDescriptors.CalcMolFormula(target_molecule)
             target_connectivity = str(record["inchikey_first_block"])
             candidates = []
             for candidate in ranked:
@@ -208,6 +254,7 @@ def main() -> None:
                         "mass_error_ppm": candidate.mass_error_ppm,
                         "exact_connectivity": connectivity(candidate.smiles)
                         == target_connectivity,
+                        "formula": rdMolDescriptors.CalcMolFormula(molecule),
                     }
                 )
             top_ten = candidates[:10]
@@ -230,6 +277,7 @@ def main() -> None:
                 "validity": stats.valid / stats.attempts,
                 "mass_validity": stats.mass_valid / max(stats.valid, 1),
                 "uniqueness": stats.unique_mass_valid / max(stats.mass_valid, 1),
+                "candidate_returned": bool(candidates),
                 "exact_top1": bool(candidates and candidates[0]["exact_connectivity"]),
                 "exact_top10": any(
                     candidate["exact_connectivity"] for candidate in top_ten
@@ -240,6 +288,9 @@ def main() -> None:
                 "tanimoto_top10": max(
                     (candidate["target_fingerprint_tanimoto"] for candidate in top_ten),
                     default=0.0,
+                ),
+                "formula_top1": bool(
+                    candidates and candidates[0]["formula"] == target_formula
                 ),
                 "candidates": candidates,
             }
@@ -252,33 +303,31 @@ def main() -> None:
                 flush=True,
             )
 
+    rows_with_candidate = [row for row in rows if row["candidate_returned"]]
     metrics = {
         "lane": args.lane,
         "rows": len(rows),
-        "exact_top1": mean(rows, "exact_top1"),
-        "exact_top10": mean(rows, "exact_top10"),
-        "tanimoto_top1": mean(rows, "tanimoto_top1"),
-        "tanimoto_top10": mean(rows, "tanimoto_top10"),
-        "validity": mean(rows, "validity"),
-        "mass_validity": mean(rows, "mass_validity"),
-        "uniqueness": mean(rows, "uniqueness"),
+        "exact_top1": mean_metric(rows, "exact_top1"),
+        "exact_top10": mean_metric(rows, "exact_top10"),
+        "candidate_return_rate": len(rows_with_candidate) / max(len(rows), 1),
+        "tanimoto_top1": mean_metric(rows_with_candidate, "tanimoto_top1"),
+        "tanimoto_top10": mean_metric(rows_with_candidate, "tanimoto_top10"),
+        "formula_top1_all": mean_metric(rows, "formula_top1"),
+        "formula_top1_returned": mean_metric(rows_with_candidate, "formula_top1"),
+        "mass_bins": mass_bin_metrics(rows),
+        "validity": mean_metric(rows, "validity"),
+        "mass_validity": mean_metric(rows, "mass_validity"),
+        "uniqueness": mean_metric(rows, "uniqueness"),
         "runtime_seconds_total": float(sum(row["runtime_seconds"] for row in rows)),
-        "runtime_seconds_mean": mean(rows, "runtime_seconds"),
+        "runtime_seconds_mean": mean_metric(rows, "runtime_seconds"),
         "settings": {
-            "candidates": args.candidates,
-            "diversity_dropout": args.diversity_dropout,
-            "temperature": args.temperature,
-            "ppm_tolerance": args.ppm_tolerance,
-            "valence_slack": args.valence_slack,
-            "block_width": model.config.block_width,
-            "ema": True,
+            **settings,
             "grammar_mask": "disabled diagnostic validity-gate lane"
             if args.disable_grammar_mask
             else "inferred conservative lexical SAFE grammar",
             "grammar_decode_order": "paper-specified confidence order"
             if args.disable_grammar_mask
             else "inferred left-to-right within each block",
-            "seed": args.seed,
         },
     }
     (args.output_dir / "metrics.json").write_text(
@@ -297,15 +346,7 @@ def main() -> None:
         "git_commit": subprocess.check_output(
             ["git", "rev-parse", "HEAD"], text=True
         ).strip(),
-        "inputs": {
-            str(path): {"sha256": sha256(path), "bytes": path.stat().st_size}
-            for path in (
-                args.checkpoint,
-                args.tokenizer,
-                args.metadata,
-                args.fingerprints,
-            )
-        },
+        "inputs": signature["inputs"],
         "metrics": metrics,
     }
     (args.output_dir / "manifest.json").write_text(

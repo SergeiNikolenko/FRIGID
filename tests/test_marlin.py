@@ -11,6 +11,7 @@ from marlin.model import (
     two_stream_attention_mask,
 )
 from marlin.noise import symmetric_fingerprint_noise
+from marlin.isotopes import theoretical_isotope_ratios
 from marlin.sampler import MarlinSampler
 from marlin.token_properties import token_properties
 from marlin.warm_start import _copy_attention
@@ -58,6 +59,13 @@ def test_conditioner_emits_mass_isotope_and_active_bit_tokens():
     assert mask.tolist() == [[True, True, True, True]]
 
 
+def test_theoretical_isotope_ratios_include_m_plus_one_and_two():
+    ratios = theoretical_isotope_ratios(Chem.MolFromSmiles("CCl"))
+    assert ratios.shape == (2,)
+    assert ratios[0] > 0
+    assert ratios[1] > 0.3
+
+
 def test_mass_shell_prunes_overshoot_and_forbids_early_eos():
     constraint = MassShellConstraint(
         [0.0, 12.0, 16.0],
@@ -70,6 +78,24 @@ def test_mass_shell_prunes_overshoot_and_forbids_early_eos():
     assert torch.isneginf(logits[0])
     assert torch.isneginf(logits[1])
     assert torch.isneginf(logits[2])
+
+
+def test_mass_shell_boosts_eos_when_no_nonzero_token_fits():
+    constraint = MassShellConstraint(
+        [0.0, 12.0, 16.0],
+        [0, 1, 1],
+        [0.0, 4.0, 2.0],
+        eos_token_id=0,
+        ppm_tolerance=10,
+        eos_boost=1.5,
+    )
+    logits = constraint.apply(
+        torch.zeros(3),
+        MassShellState(heavy_mass=95.0, heavy_atoms=1, valence_sum=4.0),
+        100.0,
+    )
+    assert logits[0] == 1.5
+    assert torch.isneginf(logits[1:]).all()
 
 
 def test_token_properties_ignore_safe_grammar_characters():
@@ -129,9 +155,22 @@ def test_diffusion_keeps_bos_clean():
     captured = {}
     original = model.two_stream_logits
 
-    def capture(clean_ids, noised_ids, precursor_mass, fingerprint):
+    def capture(
+        clean_ids,
+        noised_ids,
+        precursor_mass,
+        fingerprint,
+        isotope_ratios=None,
+    ):
         captured["noised_ids"] = noised_ids.clone()
-        return original(clean_ids, noised_ids, precursor_mass, fingerprint)
+        captured["isotope_ratios"] = isotope_ratios
+        return original(
+            clean_ids,
+            noised_ids,
+            precursor_mass,
+            fingerprint,
+            isotope_ratios,
+        )
 
     model.two_stream_logits = capture
     model.diffusion_loss(
@@ -142,6 +181,40 @@ def test_diffusion_keeps_bos_clean():
     )
 
     assert captured["noised_ids"][0, 0] == tokens[0, 0]
+
+
+def test_diffusion_passes_isotope_ratios_to_conditioner():
+    config = MarlinDecoderConfig(
+        vocab_size=8,
+        hidden_size=8,
+        num_layers=1,
+        num_heads=1,
+        intermediate_size=16,
+        max_length=5,
+        block_width=2,
+        fingerprint_bits=4,
+        dropout=0.0,
+        mask_token_id=3,
+        pad_token_id=0,
+    )
+    model = MarlinDecoder(config)
+    captured = {}
+    original = model.conditioner.forward
+
+    def capture(precursor_mass, fingerprint, isotope_ratios=None):
+        captured["isotope_ratios"] = isotope_ratios
+        return original(precursor_mass, fingerprint, isotope_ratios)
+
+    model.conditioner.forward = capture
+    isotope_ratios = torch.tensor([[0.12, 0.03]])
+    model.diffusion_loss(
+        torch.tensor([[1, 4, 5, 6, 2]]),
+        torch.tensor([50.0]),
+        torch.zeros((1, 4)),
+        isotope_ratios=isotope_ratios,
+        generator=torch.Generator().manual_seed(1),
+    )
+    assert torch.equal(captured["isotope_ratios"], isotope_ratios)
 
 
 def test_diffusion_loss_averages_the_weighted_token_sum_over_blocks():

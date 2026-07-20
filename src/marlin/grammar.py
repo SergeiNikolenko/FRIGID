@@ -188,6 +188,7 @@ class _GrammarState:
     bond_counts: dict[int, int] | None = None
     bond_limits: dict[int, int] | None = None
     bond_order_sums: dict[int, float] | None = None
+    valence_usage_sums: dict[int, float] | None = None
     valence_limits: dict[int, float] | None = None
     atom_masses: dict[int, float] | None = None
     atom_symbols: dict[int, str] | None = None
@@ -208,6 +209,8 @@ class _GrammarState:
             self.bond_limits = {}
         if self.bond_order_sums is None:
             self.bond_order_sums = {}
+        if self.valence_usage_sums is None:
+            self.valence_usage_sums = {}
         if self.valence_limits is None:
             self.valence_limits = {}
         if self.atom_masses is None:
@@ -306,6 +309,12 @@ def _has_reachable_exact_mass(
 def _scan(text: str) -> _GrammarState | None:
     state = _GrammarState()
 
+    def within_valence(atom: int) -> bool:
+        return (
+            state.valence_usage_sums[atom] + state.explicit_hydrogens[atom]
+            <= state.valence_limits[atom] + 1e-6
+        )
+
     def add_atom(symbol: str, explicit_hydrogens: int = 0) -> bool:
         previous_atom = state.current_atom
         state.atom_index += 1
@@ -352,6 +361,7 @@ def _scan(text: str) -> _GrammarState | None:
         }.get(symbol, 4.0)
         state.bond_counts[state.atom_index] = 0
         state.bond_order_sums[state.atom_index] = 0.0
+        state.valence_usage_sums[state.atom_index] = 0.0
         mass_symbol = symbol.rstrip("+")
         state.atom_masses[state.atom_index] = _ATOM_MASSES.get(
             mass_symbol.capitalize() if len(mass_symbol) == 1 else mass_symbol,
@@ -367,8 +377,17 @@ def _scan(text: str) -> _GrammarState | None:
             state.bond_counts[state.atom_index] += 1
             state.bond_order_sums[previous_atom] += bond_order
             state.bond_order_sums[state.atom_index] += bond_order
-            if state.bond_counts[previous_atom] > state.bond_limits[previous_atom]:
+            valence_usage = 1.0 if aromatic_bond else bond_order
+            state.valence_usage_sums[previous_atom] += valence_usage
+            state.valence_usage_sums[state.atom_index] += valence_usage
+            if (
+                state.bond_counts[previous_atom] > state.bond_limits[previous_atom]
+                or not within_valence(previous_atom)
+                or not within_valence(state.atom_index)
+            ):
                 return False
+        elif not within_valence(state.atom_index):
+            return False
         state.pending_bond_order = None
         state.expect_atom = False
         state.allow_bond = False
@@ -497,6 +516,7 @@ def _scan(text: str) -> _GrammarState | None:
             state.open_ring_orders[label] = explicit_order
             atom = state.current_atom
             bond_order = explicit_order or 1.0
+            valence_usage = bond_order
         elif opening_atom == state.current_atom:
             return None
         else:
@@ -514,9 +534,19 @@ def _scan(text: str) -> _GrammarState | None:
             )
             reserved_order = explicit_order or 1.0
             state.bond_order_sums[opening_atom] += bond_order - reserved_order
+            reserved_usage = explicit_order or 1.0
+            valence_usage = 1.0 if aromatic_bond else bond_order
+            state.valence_usage_sums[opening_atom] += (
+                valence_usage - reserved_usage
+            )
         state.bond_counts[atom] += 1
         state.bond_order_sums[atom] += bond_order
-        if state.bond_counts[atom] > state.bond_limits[atom]:
+        state.valence_usage_sums[atom] += valence_usage
+        if (
+            state.bond_counts[atom] > state.bond_limits[atom]
+            or not within_valence(atom)
+            or (opening_atom is not None and not within_valence(opening_atom))
+        ):
             return None
         state.pending_bond_order = None
     return state

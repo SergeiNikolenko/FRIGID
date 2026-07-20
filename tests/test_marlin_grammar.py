@@ -20,6 +20,12 @@ def test_safe_grammar_accepts_balanced_ring_and_rejects_same_atom_closure():
     assert _scan("C(C)(C)(C)(C)(") is None
 
 
+def test_safe_grammar_rejects_bond_order_valence_overflow():
+    assert _scan("C#C#C") is None
+    assert _scan("C=C=C") is not None
+    assert _scan("[NH3]#C") is None
+
+
 def test_safe_grammar_requires_balanced_terminal_structure():
     assert not _scan("C1CC").terminal
     assert not _scan("C(C").terminal
@@ -107,7 +113,7 @@ def test_safe_grammar_rejects_ring_opening_when_no_later_atom_fits_mass_shell():
     assert torch.isneginf(constrained).all()
 
 
-def test_safe_grammar_prunes_unreachable_exact_mass_but_keeps_target():
+def test_safe_grammar_prunes_invalid_dead_end_but_keeps_target():
     target_mass = 444.103807533379
     tolerance = target_mass * 10e-6
     dead_end = (
@@ -115,11 +121,11 @@ def test_safe_grammar_prunes_unreachable_exact_mass_but_keeps_target():
     )
     target = "COc1cc(C2C3(O)C(O)C4CC2(O)C(O)(C(=O)O4)C3C(=O)c2ccccc2)oc(=O)c1"
 
-    assert not _has_reachable_exact_mass(_scan(dead_end), target_mass, 4.0, tolerance)
+    assert _scan(dead_end) is None
     assert _has_reachable_exact_mass(_scan(target), target_mass, 4.0, tolerance)
 
 
-def test_safe_grammar_prunes_syntactically_stranded_reachable_mass():
+def test_safe_grammar_prunes_unclosed_stranded_structure():
     target_mass = 444.103807533379
     tolerance = target_mass * 10e-6
     stranded = (
@@ -130,10 +136,7 @@ def test_safe_grammar_prunes_syntactically_stranded_reachable_mass():
     stranded_state = _scan(stranded)
     target_state = _scan(target)
 
-    assert _has_reachable_exact_mass(stranded_state, target_mass, 4.0, tolerance)
-    assert not _has_structurally_viable_continuation(
-        stranded, stranded_state, target_mass, 4.0, tolerance
-    )
+    assert stranded_state is None
     assert _has_structurally_viable_continuation(
         target, target_state, target_mass, 4.0, tolerance
     )

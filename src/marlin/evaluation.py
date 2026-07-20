@@ -8,6 +8,27 @@ import numpy as np
 import pandas as pd
 
 
+def mean_metric(rows: list[dict], key: str) -> float:
+    return float(np.mean([row[key] for row in rows])) if rows else float("nan")
+
+
+def mass_bin_metrics(rows: list[dict]) -> dict[str, dict[str, float | int]]:
+    bins = {
+        "lt_300": [row for row in rows if row["neutral_mass"] < 300.0],
+        "300_to_500": [
+            row for row in rows if 300.0 <= row["neutral_mass"] < 500.0
+        ],
+        "gte_500": [row for row in rows if row["neutral_mass"] >= 500.0],
+    }
+    return {
+        name: {
+            "rows": len(bin_rows),
+            "exact_top1": mean_metric(bin_rows, "exact_top1"),
+        }
+        for name, bin_rows in bins.items()
+    }
+
+
 def load_fingerprints(
     path: Path,
     key: str,

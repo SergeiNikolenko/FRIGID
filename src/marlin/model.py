@@ -178,6 +178,7 @@ class MarlinDecoder(nn.Module):
         noised_ids: torch.Tensor,
         precursor_mass: torch.Tensor,
         fingerprint: torch.Tensor,
+        isotope_ratios: torch.Tensor | None = None,
     ) -> torch.Tensor:
         """Predict every noisy block against clean earlier blocks in one pass."""
         if clean_ids.shape != noised_ids.shape:
@@ -190,7 +191,7 @@ class MarlinDecoder(nn.Module):
             streams,
             precursor_mass,
             fingerprint,
-            None,
+            isotope_ratios,
             positions=positions,
             attention_mask=mask,
         )
@@ -201,6 +202,7 @@ class MarlinDecoder(nn.Module):
         input_ids: torch.Tensor,
         precursor_mass: torch.Tensor,
         fingerprint: torch.Tensor,
+        isotope_ratios: torch.Tensor | None = None,
     ) -> torch.Tensor:
         """Predict the noisy stream using committed earlier blocks as clean context."""
         return self.two_stream_logits(
@@ -208,6 +210,7 @@ class MarlinDecoder(nn.Module):
             input_ids,
             precursor_mass,
             fingerprint,
+            isotope_ratios,
         )
 
     def diffusion_loss(
@@ -216,6 +219,7 @@ class MarlinDecoder(nn.Module):
         precursor_mass: torch.Tensor,
         fingerprint: torch.Tensor,
         *,
+        isotope_ratios: torch.Tensor | None = None,
         generator: torch.Generator | None = None,
     ) -> torch.Tensor:
         """Continuous-time absorbing NELBO, sampled independently per block."""
@@ -231,7 +235,13 @@ class MarlinDecoder(nn.Module):
         probabilities = times[:, block_ids]
         masked = (torch.rand(clean_ids.shape, device=clean_ids.device, generator=generator) < probabilities) & valid
         noised = clean_ids.masked_fill(masked, self.config.mask_token_id)
-        logits = self.two_stream_logits(clean_ids, noised, precursor_mass, fingerprint)
+        logits = self.two_stream_logits(
+            clean_ids,
+            noised,
+            precursor_mass,
+            fingerprint,
+            isotope_ratios,
+        )
         losses = F.cross_entropy(logits.transpose(1, 2), clean_ids, reduction="none")
         weights = probabilities.reciprocal()
         valid_block_counts = valid.sum(dim=1).add(self.config.block_width - 1).div(
