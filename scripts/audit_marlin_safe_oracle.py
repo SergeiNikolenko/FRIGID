@@ -51,6 +51,7 @@ def _record(examples: dict[str, list], key: str, payload: dict) -> None:
 
 def main() -> None:
     args = parse_args()
+    git_commit = _git_commit()
     if args.block_width <= 0 or args.trials <= 0:
         raise ValueError("block width and trials must be positive")
     tokenizer = load_safe_tokenizer(args.tokenizer)
@@ -187,7 +188,7 @@ def main() -> None:
 
     manifest = {
         "kind": "MARLIN SAFE supported-reveal oracle",
-        "git_commit": _git_commit(),
+        "git_commit": git_commit,
         "tokenizer_path": str(args.tokenizer),
         "tokenizer_sha256": hashlib.sha256(args.tokenizer.read_bytes()).hexdigest(),
         "metadata_path": str(args.metadata),
