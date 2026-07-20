@@ -239,6 +239,8 @@ def main() -> None:
             spec_name = str(record["spec_name"])
             if spec_name in completed:
                 continue
+            if torch.cuda.is_available():
+                torch.cuda.synchronize()
             started = time.perf_counter()
             ranked, stats = sampler.generate_ranked_with_stats(
                 torch.from_numpy(fingerprints[position]),
@@ -248,6 +250,8 @@ def main() -> None:
                 temperature=args.temperature,
                 generator=torch.Generator().manual_seed(args.seed + position),
             )
+            if torch.cuda.is_available():
+                torch.cuda.synchronize()
             elapsed = time.perf_counter() - started
             target_molecule = Chem.MolFromSmiles(record["smiles"])
             if target_molecule is None:
@@ -335,6 +339,19 @@ def main() -> None:
         "uniqueness": mean_metric(rows, "uniqueness"),
         "runtime_seconds_total": float(sum(row["runtime_seconds"] for row in rows)),
         "runtime_seconds_mean": mean_metric(rows, "runtime_seconds"),
+        "metric_denominators": {
+            "exact_top1": "all rows",
+            "exact_top10": "all rows",
+            "candidate_return_rate": "all rows",
+            "tanimoto_top1": "rows with a returned candidate",
+            "tanimoto_top10": "rows with a returned candidate",
+            "formula_top1_all": "all rows",
+            "formula_top1_returned": "rows with a returned candidate",
+            "validity": "all rows",
+            "mass_validity": "all rows",
+            "uniqueness": "all rows",
+            "runtime_seconds_mean": "all rows",
+        },
         "settings": {
             **settings,
             "grammar_mask": "disabled diagnostic validity-gate lane"
