@@ -147,6 +147,8 @@ def initialize_clearml(config: DictConfig):
         auto_resource_monitoring={
             "report_frequency_sec": 5.0,
             "first_report_sec": 5.0,
+            "wait_for_first_iteration_to_start_sec": 5.0,
+            "max_wait_for_first_iteration_to_start_sec": 5.0,
         },
     )
     resolved_config = OmegaConf.to_container(config, resolve=True)
