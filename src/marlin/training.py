@@ -27,6 +27,17 @@ def safe_within_max_length(example: dict, tokenizer, max_length: int) -> bool:
     return len(tokenizer.encode(safe, add_special_tokens=True)) <= max_length
 
 
+class SafeLengthFilter:
+    """Pickleable unary filter for streaming SAFE examples."""
+
+    def __init__(self, tokenizer, max_length: int) -> None:
+        self.tokenizer = tokenizer
+        self.max_length = max_length
+
+    def __call__(self, example: dict) -> bool:
+        return safe_within_max_length(example, self.tokenizer, self.max_length)
+
+
 class MarlinCollator:
     def __init__(
         self,

@@ -28,7 +28,7 @@ from marlin.tokenizer import load_safe_tokenizer, validate_safe_tokenizer
 from marlin.training import (
     MarlinCollator,
     MarlinLightningModule,
-    safe_within_max_length,
+    SafeLengthFilter,
 )
 from marlin.warm_start import load_frigid_decoder, sha256_file
 
@@ -231,8 +231,7 @@ def main(config: DictConfig) -> None:
         streaming=True,
         cache_dir=config.data.hf_cache_dir,
     ).filter(
-        safe_within_max_length,
-        fn_kwargs={"tokenizer": tokenizer, "max_length": decoder_config.max_length},
+        SafeLengthFilter(tokenizer, decoder_config.max_length),
     )
     dataset = dataset.shuffle(seed=config.seed, buffer_size=config.data.shuffle_buffer)
     collator = MarlinCollator(

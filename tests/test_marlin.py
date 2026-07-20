@@ -18,6 +18,7 @@ from marlin.token_properties import token_properties
 from marlin.training import (
     MarlinCollator,
     MarlinLightningModule,
+    SafeLengthFilter,
     safe_within_max_length,
 )
 from marlin.warm_start import _copy_attention, sha256_file
@@ -189,6 +190,9 @@ def test_stream_filter_excludes_overlength_safe_before_batching():
     assert safe_within_max_length({"safe": "CC"}, tokenizer, 4)
     assert not safe_within_max_length({"safe": "CCC"}, tokenizer, 4)
     assert not safe_within_max_length({}, tokenizer, 4)
+    length_filter = SafeLengthFilter(tokenizer, 4)
+    assert length_filter({"safe": "CC"})
+    assert not length_filter({"safe": "CCC"})
 
 
 def test_small_decoder_forward_and_loss():
