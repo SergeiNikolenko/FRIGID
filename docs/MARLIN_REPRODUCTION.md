@@ -41,7 +41,7 @@ below and in generated manifests.
 | Exact Top-1/Top-10, Morgan Tanimoto Top-1/Top-10, and MCES Top-1/Top-10 | evaluation scripts | Implemented; MCES runtime is isolated and smoke-tested with `myopic-mces==1.2.0` and PuLP 3.3.2 |
 | Formula recovery and mass bins `<300`, `300-500`, `>=500` Da | evaluation post-processing | Implemented |
 | Saved per-spectrum predictions and runtime | `evaluate_marlin_nplib1.py` | Implemented. The sampler does not yet use the paper's committed-prefix KV cache, so its runtime is not comparable to the paper. |
-| ClearML curves and local TensorBoard events | `train_marlin.py`, `MarlinLightningModule` | Instrumentation was verified by Slurm job 293: ClearML task `3854ab071bdd4602a5678f720fe2d629` contains finite `train_loss`, `learning_rate`, `fingerprint_noise_fraction`, and `grad_norm` series; the run also saved a TensorBoard event and EMA checkpoint. Evidence: `manifests/clearml_smoke_293.json`. A fresh smoke under the strict SAFE eligibility contract is still required before canonical training. |
+| ClearML curves and local TensorBoard events | `train_marlin.py`, `MarlinLightningModule` | The final strict-SAFE gate, Slurm job 317 at commit `60d42e8`, completed three optimizer steps and produced a ClearML task with loss, learning-rate, fingerprint-noise, gradient-norm, actual micro-batch-size, GPU, and machine-monitor series. It also saved a TensorBoard event and a checkpoint with 232 EMA shadow tensors. Evidence: `manifests/clearml_smoke_317.json`. |
 | Immutable training provenance | `train_marlin.py` | A canonical run refuses a dirty Git checkout and writes `run_manifest.json` with the commit, resolved config, input hashes, package versions, CUDA/GPU identity, inferred settings, and Slurm job ID before loading the training stream. |
 
 ## Explicitly inferred choices
@@ -93,9 +93,14 @@ following hold:
    context-length change is recorded as an inferred policy and audited before
    the canonical submission.
 
-The ClearML/TensorBoard/checkpoint instrumentation was satisfied by Slurm job
-293, but that run predates the strict SAFE eligibility fix and is not the final
-training gate. The supported random-reveal oracle is produced by
+The final ClearML/TensorBoard/checkpoint gate was satisfied by Slurm job 317 at
+commit `60d42e81d512e16d64dce6bed36424109923460a`. Its three reported losses were
+`56.201488`, `39.083832`, and `33.567577`; ClearML also retained 15 samples for
+each configured GPU and machine-monitor series. The checkpoint SHA-256 is
+`8c1f7b06ec722be2d0c629c5367af55eb198fe02fc2165fe18dbbee09d27e4a1`,
+and the TensorBoard event SHA-256 is
+`3a6e06297d9bb9c5af4a046439a4704fcc78b9d97ad45ac0230b45ab2244c1be`.
+The supported random-reveal oracle is produced by
 `scripts/audit_marlin_safe_oracle.py` and must be retained with the run
 manifests before the full training submission. The pinned stream length audit
 is produced by `scripts/audit_marlin_training_lengths.py`; it records the
@@ -147,7 +152,10 @@ filtering eligibility before batching; the collator now fails closed. No job
   paper-like released-checkpoint lane with that disclosure, not as an unbiased
   canonical MIST lane. The clean retraining split moves all 706 train/validation
   connectivity overlaps to test before fitting either the fast filter or the
-  MIST-CF scorer.
+  MIST-CF scorer. Slurm job 315 trains the scorer on this connectivity-clean
+  split with the official public MIST-CF architecture and optimization
+  parameters. The released scorer remains available only as the explicitly
+  contamination-positive paper-like lane.
 
 ## Paper reference values
 
