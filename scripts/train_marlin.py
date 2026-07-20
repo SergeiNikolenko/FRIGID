@@ -7,7 +7,10 @@ from __future__ import annotations
 import os
 import sys
 import json
+import platform
 import subprocess
+from datetime import datetime, timezone
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -24,6 +27,99 @@ from marlin.model import MarlinDecoderConfig
 from marlin.tokenizer import load_safe_tokenizer, validate_safe_tokenizer
 from marlin.training import MarlinCollator, MarlinLightningModule
 from marlin.warm_start import load_frigid_decoder, sha256_file
+
+
+def git_state() -> tuple[str | None, list[str]]:
+    """Return the checked-out commit and any uncommitted paths."""
+    try:
+        commit = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=PROJECT_ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        dirty = subprocess.run(
+            ["git", "status", "--porcelain"],
+            cwd=PROJECT_ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.splitlines()
+        return commit, dirty
+    except (OSError, subprocess.CalledProcessError):
+        return None, []
+
+
+def package_versions(names: list[str]) -> dict[str, str | None]:
+    """Resolve a compact environment inventory without invoking pip."""
+    resolved = {}
+    for name in names:
+        try:
+            resolved[name] = version(name)
+        except PackageNotFoundError:
+            resolved[name] = None
+    return resolved
+
+
+def write_run_manifest(config: DictConfig, tokenizer_sha256: str) -> dict:
+    """Persist the immutable training inputs and execution environment."""
+    commit, dirty = git_state()
+    if dirty:
+        raise RuntimeError(f"refusing canonical training from dirty git state: {dirty}")
+    manifest = {
+        "schema_version": 1,
+        "kind": "MARLIN clean-room decoder training",
+        "created_at_utc": datetime.now(timezone.utc).isoformat(),
+        "clean_room_reproduction": True,
+        "author_code_available_at_start": False,
+        "git_commit": commit,
+        "slurm_job_id": os.environ.get("SLURM_JOB_ID"),
+        "config": OmegaConf.to_container(config, resolve=True),
+        "inputs": {
+            "tokenizer_sha256": tokenizer_sha256,
+            "warm_start_sha256": str(config.warm_start_sha256),
+            "nplib1_test_exclusions_sha256": sha256_file(
+                config.data.exclude_inchikeys
+            ),
+            "dataset": str(config.data.dataset),
+            "dataset_revision": str(config.data.revision),
+        },
+        "environment": {
+            "hostname": platform.node(),
+            "python": platform.python_version(),
+            "platform": platform.platform(),
+            "packages": package_versions(
+                [
+                    "torch",
+                    "lightning",
+                    "datasets",
+                    "transformers",
+                    "rdkit",
+                    "safe-mol",
+                    "clearml",
+                ]
+            ),
+            "torch_cuda": torch.version.cuda,
+            "cuda_available": torch.cuda.is_available(),
+            "gpu": torch.cuda.get_device_name(0) if torch.cuda.is_available() else None,
+        },
+        "inferred_parameters": [
+            "training corpus and split",
+            "dataset revision and shuffle buffer",
+            "max_steps=100000",
+            "maximum sequence length=256",
+            "FFN width, dropout, gradient clipping, and weight decay",
+            "absence of a learning-rate schedule and warmup",
+            "64 mass Fourier frequencies from 1e-3 to 1.0",
+            "theoretical isotope-envelope calculation",
+            "data-loader and GPU execution settings",
+        ],
+    }
+    output = Path(config.output.root) / "run_manifest.json"
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
+    return manifest
 
 
 def initialize_clearml(config: DictConfig):
@@ -43,16 +139,7 @@ def initialize_clearml(config: DictConfig):
     )
     resolved_config = OmegaConf.to_container(config, resolve=True)
     task.connect(resolved_config, name="resolved_config")
-    try:
-        commit = subprocess.run(
-            ["git", "rev-parse", "HEAD"],
-            cwd=PROJECT_ROOT,
-            check=True,
-            capture_output=True,
-            text=True,
-        ).stdout.strip()
-    except (OSError, subprocess.CalledProcessError):
-        commit = None
+    commit, _ = git_state()
     tracking_path = Path(config.output.root) / "clearml_task.json"
     tracking_path.parent.mkdir(parents=True, exist_ok=True)
     tracking_path.write_text(
@@ -97,6 +184,7 @@ def main(config: DictConfig) -> None:
         raise ValueError("model MASK token ID does not match the SAFE tokenizer")
     if special_token_ids["pad"] != decoder_config.pad_token_id:
         raise ValueError("model PAD token ID does not match the SAFE tokenizer")
+    write_run_manifest(config, tokenizer_sha256)
     module = MarlinLightningModule(
         decoder_config,
         learning_rate=config.optim.learning_rate,
