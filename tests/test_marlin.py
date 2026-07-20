@@ -15,7 +15,7 @@ from marlin.noise import symmetric_fingerprint_noise
 from marlin.isotopes import theoretical_isotope_ratios
 from marlin.sampler import MarlinSampler
 from marlin.token_properties import token_properties
-from marlin.training import MarlinCollator
+from marlin.training import MarlinCollator, MarlinLightningModule
 from marlin.warm_start import _copy_attention, sha256_file
 
 
@@ -56,9 +56,43 @@ def test_conditioner_emits_mass_isotope_and_active_bit_tokens():
         hidden_size=28, fingerprint_bits=8, num_mass_frequencies=4
     )
     fingerprint = torch.tensor([[1, 0, 1, 0, 0, 0, 0, 0]], dtype=torch.float32)
-    tokens, mask = conditioner(torch.tensor([250.0]), fingerprint)
+    tokens, mask = conditioner(
+        torch.tensor([250.0]), fingerprint, torch.tensor([[0.1, 0.02]])
+    )
     assert tokens.shape == (1, 4, 28)
     assert mask.tolist() == [[True, True, True, True]]
+
+
+def test_conditioner_omits_disabled_isotope_token():
+    conditioner = MarlinConditioner(
+        hidden_size=28, fingerprint_bits=8, num_mass_frequencies=4
+    )
+    fingerprint = torch.tensor([[1, 0, 1, 0, 0, 0, 0, 0]], dtype=torch.float32)
+
+    tokens, mask = conditioner(torch.tensor([250.0]), fingerprint)
+
+    assert tokens.shape == (1, 3, 28)
+    assert mask.tolist() == [[True, True, True]]
+
+
+def test_marlin_uses_fixed_decay_ema():
+    config = MarlinDecoderConfig(
+        vocab_size=8,
+        hidden_size=8,
+        num_layers=1,
+        num_heads=1,
+        intermediate_size=16,
+        max_length=5,
+        block_width=2,
+        fingerprint_bits=4,
+        dropout=0.0,
+        mask_token_id=3,
+        pad_token_id=0,
+    )
+    module = MarlinLightningModule(config, ema_decay=0.9999)
+
+    assert module.ema.decay == 0.9999
+    assert module.ema.num_updates is None
 
 
 def test_theoretical_isotope_ratios_include_m_plus_one_and_two():

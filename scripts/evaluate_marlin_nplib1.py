@@ -33,6 +33,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--fingerprints", type=Path, required=True)
     parser.add_argument("--fingerprint-key", required=True)
     parser.add_argument("--threshold", type=float)
+    parser.add_argument("--lane-provenance", type=Path)
     parser.add_argument("--lane", choices=("dreams", "mist"), required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--candidates", type=int, default=384)
@@ -54,6 +55,10 @@ def sha256(path: Path) -> str:
         for chunk in iter(lambda: handle.read(8 * 1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def git_commit() -> str:
+    return subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
 
 
 def load_ema_decoder(checkpoint_path: Path, device: torch.device) -> MarlinDecoder:
@@ -103,6 +108,11 @@ def main() -> None:
     args = parse_args()
     if args.candidates <= 0:
         raise ValueError("--candidates must be positive")
+    if args.lane == "mist" and args.lane_provenance is None:
+        raise ValueError(
+            "canonical MIST evaluation requires --lane-provenance for the "
+            "MIST-CF predicted-formula export"
+        )
     args.output_dir.mkdir(parents=True, exist_ok=True)
     metadata = pd.read_csv(args.metadata)
     if args.max_spectra is not None:
@@ -164,6 +174,8 @@ def main() -> None:
 
     settings = {
         "lane": args.lane,
+        "fingerprint_key": args.fingerprint_key,
+        "fingerprint_threshold": args.threshold,
         "candidates": args.candidates,
         "diversity_dropout": args.diversity_dropout,
         "temperature": args.temperature,
@@ -177,7 +189,8 @@ def main() -> None:
         "max_spectra": args.max_spectra,
     }
     signature = {
-        "schema_version": 1,
+        "schema_version": 2,
+        "git_commit": git_commit(),
         "settings": settings,
         "inputs": {
             str(path.resolve()): {"sha256": sha256(path), "bytes": path.stat().st_size}
@@ -186,6 +199,7 @@ def main() -> None:
                 args.tokenizer,
                 args.metadata,
                 args.fingerprints,
+                *([args.lane_provenance] if args.lane_provenance else []),
             )
         },
     }
@@ -344,9 +358,7 @@ def main() -> None:
             "conservative lexical SAFE grammar mask",
             "partial-block grammar handling for confidence-order commitment",
         ],
-        "git_commit": subprocess.check_output(
-            ["git", "rev-parse", "HEAD"], text=True
-        ).strip(),
+        "git_commit": signature["git_commit"],
         "inputs": signature["inputs"],
         "metrics": metrics,
     }

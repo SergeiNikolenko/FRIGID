@@ -69,7 +69,6 @@ class MarlinConditioner(nn.Module):
         self.mass = FourierMassEncoder(hidden_size, num_mass_frequencies)
         self.isotope = nn.Sequential(nn.Linear(2, hidden_size), nn.SiLU(), nn.Linear(hidden_size, hidden_size))
         self.fingerprint = SparseFingerprintEncoder(fingerprint_bits, hidden_size)
-        self.missing_isotope = nn.Parameter(torch.zeros(hidden_size))
 
     def forward(
         self,
@@ -78,13 +77,16 @@ class MarlinConditioner(nn.Module):
         isotope_ratios: torch.Tensor | None = None,
     ) -> tuple[torch.Tensor, torch.Tensor]:
         mass_token = self.mass(precursor_mass).unsqueeze(1)
-        if isotope_ratios is None:
-            isotope_token = self.missing_isotope.expand(fingerprint.shape[0], -1).unsqueeze(1)
-        else:
+        prefix_tokens = [mass_token]
+        if isotope_ratios is not None:
             if isotope_ratios.shape != (fingerprint.shape[0], 2):
                 raise ValueError("isotope_ratios must have shape [batch, 2]")
-            isotope_token = self.isotope(isotope_ratios.float()).unsqueeze(1)
+            prefix_tokens.append(self.isotope(isotope_ratios.float()).unsqueeze(1))
         fingerprint_tokens, fingerprint_mask = self.fingerprint(fingerprint)
-        tokens = torch.cat((mass_token, isotope_token, fingerprint_tokens), dim=1)
-        prefix_mask = torch.ones((fingerprint.shape[0], 2), dtype=torch.bool, device=fingerprint.device)
+        tokens = torch.cat((*prefix_tokens, fingerprint_tokens), dim=1)
+        prefix_mask = torch.ones(
+            (fingerprint.shape[0], len(prefix_tokens)),
+            dtype=torch.bool,
+            device=fingerprint.device,
+        )
         return tokens, torch.cat((prefix_mask, fingerprint_mask), dim=1)

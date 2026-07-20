@@ -48,10 +48,17 @@ if [[ "$SLURM_ARRAY_TASK_ID" == 0 ]]; then
     --threshold 0.95 \
     --output-dir "$ROOT/runs/evaluation/$OUTPUT_TAG/dreams"
 else
+  : "${MARLIN_MIST_FINGERPRINTS:?Set to a predicted-formula MIST export; the legacy ground-truth-formula oracle is forbidden}"
+  : "${MARLIN_MIST_PROVENANCE:?Set to the MIST-CF predicted-formula provenance manifest}"
+  if [[ "$MARLIN_MIST_FINGERPRINTS" == "$ROOT/runs/mist/test/fingerprints.npz" ]]; then
+    echo "Refusing the legacy ground-truth-formula MIST oracle" >&2
+    exit 2
+  fi
   "$PYTHON" scripts/evaluate_marlin_nplib1.py \
     "${COMMON_ARGS[@]}" \
     --lane mist \
-    --fingerprints "$ROOT/runs/mist/test/fingerprints.npz" \
-    --fingerprint-key mist_binary \
+    --fingerprints "$MARLIN_MIST_FINGERPRINTS" \
+    --fingerprint-key "${MARLIN_MIST_FINGERPRINT_KEY:-mist_binary}" \
+    --lane-provenance "$MARLIN_MIST_PROVENANCE" \
     --output-dir "$ROOT/runs/evaluation/$OUTPUT_TAG/mist"
 fi

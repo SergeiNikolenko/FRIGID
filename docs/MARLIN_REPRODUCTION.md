@@ -23,11 +23,11 @@ below and in generated manifests.
 | Per-block continuous time, absorbing masking, and `1/t` NELBO | `MarlinDecoder.diffusion_loss` | Implemented; all valid blocks are averaged in one forward pass, an unbiased realization of uniform block sampling |
 | Score every unresolved position and reveal the globally highest-confidence position | `MarlinSampler` | Global reveal is implemented and tested. Exact position-aware grammar support through partial-block holes remains underdetermined by the paper. |
 | Precursor mass Fourier token | `FourierMassEncoder` | Implemented |
-| Optional M+1/M and M+2/M isotope token, enabled in training and disabled by default in inference | `marlin.isotopes`, `MarlinCollator`, `MarlinConditioner` | Implemented; isotope-envelope calculation is inferred |
+| Optional M+1/M and M+2/M isotope token, enabled in training and disabled by default in inference | `marlin.isotopes`, `MarlinCollator`, `MarlinConditioner` | Implemented; inference omits the isotope token rather than inserting an untrained placeholder. Isotope-envelope calculation is inferred. |
 | One conditioning token per active Morgan bit, 4,096 bits, radius 2 | `SparseFingerprintEncoder`, `MarlinCollator` | Implemented |
 | Symmetric fingerprint corruption with `p=0.5`, `rho ~ U(0.1, 0.3)`, equal drop/add counts | `marlin.noise.symmetric_fingerprint_noise` | Implemented |
 | Warm start from FRIGID | `marlin.warm_start.load_frigid_decoder` | Implemented; the official checkpoint SHA-256, tensor shapes, tokenizer hash, and pinned dataset revision are checked or recorded. Exact vocabulary-order identity cannot be proven from the weight-only checkpoint. |
-| AdamW, learning rate `5e-5`, batch 256, EMA 0.9999 | config and `MarlinLightningModule` | Implemented |
+| AdamW, learning rate `5e-5`, batch 256, fixed EMA decay 0.9999 | config and `MarlinLightningModule` | Implemented. The inherited DLM EMA update-count warm-up is explicitly disabled. |
 | Preserve complete SAFE targets within the decoder context | `MarlinCollator` | Silent truncation is forbidden. Any target longer than the inferred 256-token context stops the run with an explicit error until a documented data policy is selected. |
 | Heavy-atom token masses excluding hydrogen; zero mass for special tokens | `marlin.token_properties`, `MassShellConstraint` | Implemented |
 | Prune when `h + mu_v > M + delta` | `MassShellConstraint.apply` | Implemented |
@@ -37,7 +37,7 @@ below and in generated manifests.
 | Decode after each committed block and accept only valid structures within 10 ppm | `MarlinSampler` | Implemented |
 | 384 candidates with independent 0.3 on-bit conditioning dropout | `MarlinSampler.generate_ranked_with_stats` | Implemented |
 | Rank by Tanimoto to the unperturbed predicted fingerprint | `MarlinSampler` | Implemented |
-| DreaMS raw-spectrum and MIST predicted-formula feature lanes | evaluation inputs and lane-specific fingerprints | DreaMS is implemented. The original MIST export used ground-truth-formula subformula annotations and is retained only as a leaked oracle; the paper-compatible MIST-CF top-1 predicted-formula lane must be regenerated before final evaluation. |
+| DreaMS raw-spectrum and MIST predicted-formula feature lanes | evaluation inputs and lane-specific fingerprints | DreaMS is implemented. The original MIST export used ground-truth-formula subformula annotations and is retained only as a leaked oracle; canonical evaluation rejects that path and requires a hashed MIST-CF predicted-formula provenance manifest. |
 | Exact Top-1/Top-10, Morgan Tanimoto Top-1/Top-10, and MCES Top-1/Top-10 | evaluation scripts | Implemented; MCES runtime is isolated and smoke-tested with `myopic-mces==1.2.0` and PuLP 3.3.2 |
 | Formula recovery and mass bins `<300`, `300-500`, `>=500` Da | evaluation post-processing | Implemented |
 | Saved per-spectrum predictions and runtime | `evaluate_marlin_nplib1.py` | Implemented. The sampler does not yet use the paper's committed-prefix KV cache, so its runtime is not comparable to the paper. |
@@ -58,6 +58,8 @@ author settings:
   weight decay, and the absence of a learning-rate schedule/warmup;
 - 64 geometric Fourier frequencies spanning `1e-3` to `1.0`;
 - theoretical training isotope ratios computed from RDKit natural abundances;
+- exact molecular mass as the clean training proxy for measured neutral
+  precursor mass, without instrument/adduct noise augmentation;
 - the exact SAFE partial-prefix grammar, partial-block hole semantics, and
   treatment of tokens to the right of EOS;
 - the additive EOS logit boost magnitude;
