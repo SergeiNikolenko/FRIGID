@@ -68,9 +68,15 @@ class MarlinCollator:
             safes,
             return_tensors="pt",
             padding=True,
-            truncation=True,
-            max_length=self.max_length,
+            truncation=False,
         )
+        sequence_length = int(tokens["input_ids"].shape[1])
+        if sequence_length > self.max_length:
+            raise ValueError(
+                "SAFE token length exceeds the decoder maximum: "
+                f"batch_max={sequence_length}, model_max={self.max_length}; "
+                "refusing silent truncation"
+            )
         return {
             "input_ids": tokens["input_ids"],
             "fingerprint": torch.stack(fingerprints),

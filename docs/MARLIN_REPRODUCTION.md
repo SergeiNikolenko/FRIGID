@@ -28,6 +28,7 @@ below and in generated manifests.
 | Symmetric fingerprint corruption with `p=0.5`, `rho ~ U(0.1, 0.3)`, equal drop/add counts | `marlin.noise.symmetric_fingerprint_noise` | Implemented |
 | Warm start from FRIGID | `marlin.warm_start.load_frigid_decoder` | Implemented; the official checkpoint SHA-256, tensor shapes, tokenizer hash, and pinned dataset revision are checked or recorded. Exact vocabulary-order identity cannot be proven from the weight-only checkpoint. |
 | AdamW, learning rate `5e-5`, batch 256, EMA 0.9999 | config and `MarlinLightningModule` | Implemented |
+| Preserve complete SAFE targets within the decoder context | `MarlinCollator` | Silent truncation is forbidden. Any target longer than the inferred 256-token context stops the run with an explicit error until a documented data policy is selected. |
 | Heavy-atom token masses excluding hydrogen; zero mass for special tokens | `marlin.token_properties`, `MassShellConstraint` | Implemented |
 | Prune when `h + mu_v > M + delta` | `MassShellConstraint.apply` | Implemented |
 | Hydrogen-aware reachable interval with valence slack 4 | grammar state and `MassShellConstraint` | Implemented conservatively |
@@ -84,6 +85,9 @@ following hold:
 6. evaluation resume refuses incompatible settings or duplicate spectrum IDs;
 7. the final two 803-spectrum lanes report every paper metric plus validity,
    uniqueness, mass-validity, formula recovery, mass bins, and runtime.
+8. training data are never silently truncated; any overlength exclusion or
+   context-length change is recorded as an inferred policy and audited before
+   the canonical submission.
 
 The ClearML/TensorBoard/checkpoint gate was satisfied by Slurm job 293. The
 supported random-reveal oracle is produced by
@@ -111,6 +115,9 @@ a diagnostic hybrid/ablation artifact. Its SHA-256 is
   NPLIB1 ground-truth formula. It is therefore a leakage-positive oracle, not a
   MARLIN(MIST) result. Final MIST evaluation requires MIST-CF top-1 predicted
   formulas, regenerated subformula annotations, and a new fingerprint export.
+  The required official MIST-CF and CANOPUS checkpoints and SIRIUS 5.5.7 were
+  not present in the inspected Spectrum paths. Their training splits must also
+  be checked for overlap with the 803 evaluation spectra before use.
 
 ## Paper reference values
 

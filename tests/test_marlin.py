@@ -1,3 +1,4 @@
+import pytest
 import torch
 from rdkit import Chem
 from rdkit.Chem import Descriptors
@@ -14,6 +15,7 @@ from marlin.noise import symmetric_fingerprint_noise
 from marlin.isotopes import theoretical_isotope_ratios
 from marlin.sampler import MarlinSampler
 from marlin.token_properties import token_properties
+from marlin.training import MarlinCollator
 from marlin.warm_start import _copy_attention, sha256_file
 
 
@@ -120,6 +122,22 @@ def test_token_properties_use_explicit_isotope_mass():
     assert boron_10.heavy_mass < boron_default.heavy_mass
     assert carbon_13.heavy_atoms == 1
     assert carbon_13.heavy_mass > carbon_default.heavy_mass
+
+
+def test_training_collator_refuses_to_truncate_safe(monkeypatch):
+    class OverlengthTokenizer:
+        def __call__(self, values, **kwargs):
+            assert values == ["C"]
+            assert kwargs["truncation"] is False
+            return {"input_ids": torch.tensor([[1, 4, 5, 2]])}
+
+    monkeypatch.setattr("marlin.training.safe_to_smiles", lambda safe, fix: safe)
+    collator = MarlinCollator(
+        OverlengthTokenizer(), max_length=3, fingerprint_bits=16
+    )
+
+    with pytest.raises(ValueError, match="refusing silent truncation"):
+        collator([{"safe": "C"}])
 
 
 def test_small_decoder_forward_and_loss():
