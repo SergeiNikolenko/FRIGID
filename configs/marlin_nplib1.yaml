@@ -20,8 +20,8 @@ data:
   hf_cache_dir: /home/nikolenko/work/Projects/MARLIN_reproduction_20260717/cache/huggingface
   exclude_inchikeys: /home/nikolenko/work/Projects/MARLIN_reproduction_20260717/data/nplib1_test_inchikeys.csv
   # Inferred: preserve the fixed 256-position DLM warm start without truncation.
-  length_audit_manifest: /home/nikolenko/work/Projects/MARLIN_reproduction_20260717/manifests/safe_gpt_length_audit_401e9b7_first1000000.json
-  length_audit_sha256: e60dd3559d38f25372de9118b1e0159d1ad50060f064fcb91e8f4bcd0b96ea82
+  length_audit_manifest: /home/nikolenko/work/Projects/MARLIN_reproduction_20260717/manifests/safe_gpt_eligibility_a7a49f6_first1000000.json
+  length_audit_sha256: c6267bfcffe51b42fa82d3514cb148ba15fa9e7c0141119682aa12c64413b0fd
   shuffle_buffer: 100000
 
 loader:

@@ -41,7 +41,7 @@ below and in generated manifests.
 | Exact Top-1/Top-10, Morgan Tanimoto Top-1/Top-10, and MCES Top-1/Top-10 | evaluation scripts | Implemented; MCES runtime is isolated and smoke-tested with `myopic-mces==1.2.0` and PuLP 3.3.2 |
 | Formula recovery and mass bins `<300`, `300-500`, `>=500` Da | evaluation post-processing | Implemented |
 | Saved per-spectrum predictions and runtime | `evaluate_marlin_nplib1.py` | Implemented. The sampler does not yet use the paper's committed-prefix KV cache, so its runtime is not comparable to the paper. |
-| ClearML curves and local TensorBoard events | `train_marlin.py`, `MarlinLightningModule` | Verified by Slurm job 293: ClearML task `3854ab071bdd4602a5678f720fe2d629` contains finite `train_loss`, `learning_rate`, `fingerprint_noise_fraction`, and `grad_norm` series; the run also saved a TensorBoard event and EMA checkpoint. Evidence: `manifests/clearml_smoke_293.json`. |
+| ClearML curves and local TensorBoard events | `train_marlin.py`, `MarlinLightningModule` | Instrumentation was verified by Slurm job 293: ClearML task `3854ab071bdd4602a5678f720fe2d629` contains finite `train_loss`, `learning_rate`, `fingerprint_noise_fraction`, and `grad_norm` series; the run also saved a TensorBoard event and EMA checkpoint. Evidence: `manifests/clearml_smoke_293.json`. A fresh smoke under the strict SAFE eligibility contract is still required before canonical training. |
 | Immutable training provenance | `train_marlin.py` | A canonical run refuses a dirty Git checkout and writes `run_manifest.json` with the commit, resolved config, input hashes, package versions, CUDA/GPU identity, inferred settings, and Slurm job ID before loading the training stream. |
 
 ## Explicitly inferred choices
@@ -93,13 +93,18 @@ following hold:
    context-length change is recorded as an inferred policy and audited before
    the canonical submission.
 
-The ClearML/TensorBoard/checkpoint gate was satisfied by Slurm job 293. The
-supported random-reveal oracle is produced by
+The ClearML/TensorBoard/checkpoint instrumentation was satisfied by Slurm job
+293, but that run predates the strict SAFE eligibility fix and is not the final
+training gate. The supported random-reveal oracle is produced by
 `scripts/audit_marlin_safe_oracle.py` and must be retained with the run
 manifests before the full training submission. The pinned stream length audit
 is produced by `scripts/audit_marlin_training_lengths.py`; it records the
-sample size, length distribution, overlength count, input revision, tokenizer
-hash, and code commit.
+sample size, overlength count, strict decode failures, NPLIB1 exclusions,
+eligible count, input revision, tokenizer hash, and code commit. The pinned
+million-row audit at commit `a7a49f6` examined 1,000,000 records and retained
+998,678: 1,305 were overlength, seven failed strict SAFE decoding without
+repair, and ten matched excluded NPLIB1 test connectivity keys. Its SHA-256 is
+`c6267bfcffe51b42fa82d3514cb148ba15fa9e7c0141119682aa12c64413b0fd`.
 
 ## Rejected non-canonical checkpoints
 
@@ -113,6 +118,15 @@ it would change the training task after 40,000 steps, so it is retained only as
 a diagnostic hybrid/ablation artifact. Its SHA-256 is
 `9ccdc21b1690594f193c0c1f222f330bd3cb6757866b235a61c23d66233ff454`.
 
+Slurm job 298 is also rejected and was cancelled after approximately 370
+optimizer steps. Its `safe_to_smiles(..., fix=False)` call reached a wrapper
+that did not forward `fix=False` to the official SAFE decoder, so malformed
+sequences could be repaired. Its collator also skipped invalid, overlength, or
+excluded examples after batching and could silently produce fewer than eight
+examples. Commit `a7a49f6` fixed both defects by forwarding strict decoding and
+filtering eligibility before batching; the collator now fails closed. No job
+298 checkpoint may be resumed for canonical training.
+
 ## Encoder evidence status
 
 - DreaMS job 214 produced a formula-free test fingerprint Tanimoto of
@@ -122,9 +136,15 @@ a diagnostic hybrid/ablation artifact. Its SHA-256 is
   NPLIB1 ground-truth formula. It is therefore a leakage-positive oracle, not a
   MARLIN(MIST) result. Final MIST evaluation requires MIST-CF top-1 predicted
   formulas, regenerated subformula annotations, and a new fingerprint export.
-  The required official MIST-CF and CANOPUS checkpoints and SIRIUS 5.5.7 were
-  not present in the inspected Spectrum paths. Their training splits must also
-  be checked for overlap with the 803 evaluation spectra before use.
+  The official MIST-CF checkpoints, CANOPUS archive, and SIRIUS 5.5.7 are now
+  pinned in the isolated reproduction root. The released `split_1.tsv` has
+  10,709 rows (7,727 train, 777 validation, 2,205 test). All 803 NPLIB1 IDs are
+  present, but 586 are in its training fold, 60 in validation, and only 157 in
+  test. Therefore the released MIST-CF checkpoint is contamination-positive
+  for this benchmark. Its formula-blind predictions may be reported only as a
+  paper-like released-checkpoint lane with that disclosure, not as an unbiased
+  canonical MIST lane. A clean lane requires retraining the formula model with
+  all 803 structures excluded.
 
 ## Paper reference values
 
