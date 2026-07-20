@@ -19,6 +19,14 @@ from marlin.noise import symmetric_fingerprint_noise
 from marlin.isotopes import theoretical_isotope_ratios
 
 
+def safe_within_max_length(example: dict, tokenizer, max_length: int) -> bool:
+    """Return whether a streaming SAFE example fits without truncation."""
+    safe = example.get("safe", example.get("input"))
+    if not safe:
+        return False
+    return len(tokenizer.encode(safe, add_special_tokens=True)) <= max_length
+
+
 class MarlinCollator:
     def __init__(
         self,

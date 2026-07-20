@@ -28,7 +28,7 @@ below and in generated manifests.
 | Symmetric fingerprint corruption with `p=0.5`, `rho ~ U(0.1, 0.3)`, equal drop/add counts | `marlin.noise.symmetric_fingerprint_noise` | Implemented |
 | Warm start from FRIGID | `marlin.warm_start.load_frigid_decoder` | Implemented; the official checkpoint SHA-256, tensor shapes, tokenizer hash, and pinned dataset revision are checked or recorded. Exact vocabulary-order identity cannot be proven from the weight-only checkpoint. |
 | AdamW, learning rate `5e-5`, batch 256, fixed EMA decay 0.9999 | config and `MarlinLightningModule` | Implemented. The inherited DLM EMA update-count warm-up is explicitly disabled. |
-| Preserve complete SAFE targets within the decoder context | `MarlinCollator` | Silent truncation is forbidden. Any target longer than the inferred 256-token context stops the run with an explicit error until a documented data policy is selected. |
+| Preserve complete SAFE targets within the decoder context | streaming length filter and `MarlinCollator` | Silent truncation is forbidden. Targets longer than the inferred 256-token context are excluded before batching; the collator still fails closed if one reaches it. This inferred policy and its pinned million-row audit are hashed in the run manifest. |
 | Heavy-atom token masses excluding hydrogen; zero mass for special tokens | `marlin.token_properties`, `MassShellConstraint` | Implemented |
 | Prune when `h + mu_v > M + delta` | `MassShellConstraint.apply` | Implemented |
 | Hydrogen-aware reachable interval with valence slack 4 | grammar state and `MassShellConstraint` | Implemented conservatively |
@@ -56,6 +56,8 @@ author settings:
 - 100,000 adaptation steps, checkpoint cadence, and random seed;
 - maximum sequence length 256, FFN width 3,584, dropout 0.1, gradient clipping,
   weight decay, and the absence of a learning-rate schedule/warmup;
+- exclusion, before batching, of complete SAFE targets longer than the fixed
+  256-position DLM context;
 - 64 geometric Fourier frequencies spanning `1e-3` to `1.0`;
 - theoretical training isotope ratios computed from RDKit natural abundances;
 - exact molecular mass as the clean training proxy for measured neutral

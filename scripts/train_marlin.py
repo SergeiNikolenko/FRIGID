@@ -25,7 +25,11 @@ from omegaconf import DictConfig, OmegaConf
 
 from marlin.model import MarlinDecoderConfig
 from marlin.tokenizer import load_safe_tokenizer, validate_safe_tokenizer
-from marlin.training import MarlinCollator, MarlinLightningModule
+from marlin.training import (
+    MarlinCollator,
+    MarlinLightningModule,
+    safe_within_max_length,
+)
 from marlin.warm_start import load_frigid_decoder, sha256_file
 
 
@@ -82,6 +86,9 @@ def write_run_manifest(config: DictConfig, tokenizer_sha256: str) -> dict:
             "nplib1_test_exclusions_sha256": sha256_file(
                 config.data.exclude_inchikeys
             ),
+            "training_length_audit_sha256": sha256_file(
+                config.data.length_audit_manifest
+            ),
             "dataset": str(config.data.dataset),
             "dataset_revision": str(config.data.revision),
         },
@@ -109,6 +116,7 @@ def write_run_manifest(config: DictConfig, tokenizer_sha256: str) -> dict:
             "dataset revision and shuffle buffer",
             "max_steps=100000",
             "maximum sequence length=256",
+            "exclude complete SAFE targets longer than 256 tokens",
             "FFN width, dropout, gradient clipping, and weight decay",
             "absence of a learning-rate schedule and warmup",
             "64 mass Fourier frequencies from 1e-3 to 1.0",
@@ -210,13 +218,24 @@ def main(config: DictConfig) -> None:
         report_path.parent.mkdir(parents=True, exist_ok=True)
         report_path.write_text(json.dumps(report, indent=2) + "\n")
     clearml_task = initialize_clearml(config)
+    length_audit = json.loads(Path(config.data.length_audit_manifest).read_text())
+    if sha256_file(config.data.length_audit_manifest) != config.data.length_audit_sha256:
+        raise ValueError("training length audit manifest hash mismatch")
+    if length_audit["dataset_revision"] != str(config.data.revision):
+        raise ValueError("training length audit dataset revision mismatch")
+    if length_audit["maximum_allowed_length"] != decoder_config.max_length:
+        raise ValueError("training length audit decoder context mismatch")
     dataset = datasets.load_dataset(
         config.data.dataset,
         revision=config.data.revision,
         split="train",
         streaming=True,
         cache_dir=config.data.hf_cache_dir,
-    ).shuffle(seed=config.seed, buffer_size=config.data.shuffle_buffer)
+    ).filter(
+        safe_within_max_length,
+        fn_kwargs={"tokenizer": tokenizer, "max_length": decoder_config.max_length},
+    )
+    dataset = dataset.shuffle(seed=config.seed, buffer_size=config.data.shuffle_buffer)
     collator = MarlinCollator(
         tokenizer,
         max_length=decoder_config.max_length,

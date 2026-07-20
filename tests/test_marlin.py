@@ -15,7 +15,11 @@ from marlin.noise import symmetric_fingerprint_noise
 from marlin.isotopes import theoretical_isotope_ratios
 from marlin.sampler import MarlinSampler
 from marlin.token_properties import token_properties
-from marlin.training import MarlinCollator, MarlinLightningModule
+from marlin.training import (
+    MarlinCollator,
+    MarlinLightningModule,
+    safe_within_max_length,
+)
 from marlin.warm_start import _copy_attention, sha256_file
 
 
@@ -172,6 +176,19 @@ def test_training_collator_refuses_to_truncate_safe(monkeypatch):
 
     with pytest.raises(ValueError, match="refusing silent truncation"):
         collator([{"safe": "C"}])
+
+
+def test_stream_filter_excludes_overlength_safe_before_batching():
+    class LengthTokenizer:
+        def encode(self, safe, add_special_tokens):
+            assert add_special_tokens is True
+            return list(range(len(safe) + 2))
+
+    tokenizer = LengthTokenizer()
+
+    assert safe_within_max_length({"safe": "CC"}, tokenizer, 4)
+    assert not safe_within_max_length({"safe": "CCC"}, tokenizer, 4)
+    assert not safe_within_max_length({}, tokenizer, 4)
 
 
 def test_small_decoder_forward_and_loss():
