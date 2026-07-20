@@ -2,10 +2,13 @@
 # max_steps and mass Fourier frequencies are explicitly inferred because the paper omits them.
 seed: 42
 resume_checkpoint: null
-warm_start_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/DLM.ckpt
+warm_start_checkpoint: /home/nikolenko/work/Projects/MARLIN_reproduction_20260717/checkpoints/DLM.ckpt
+warm_start_sha256: b6177c2d43448380aba80ff41c01461ea34ca2ca93b213986954c5afb7f0f457
 
 data:
   dataset: datamol-io/safe-gpt
+  # Inferred: the paper does not identify its molecular training corpus.
+  revision: 16d0be9ad6177ae683a32a86204530e8ee624a0f
   tokenizer_file: /home/nikolenko/work/Projects/MARLIN_reproduction_20260717/data/safe-gpt/tokenizer.json
   hf_cache_dir: /home/nikolenko/work/Projects/MARLIN_reproduction_20260717/cache/huggingface
   exclude_inchikeys: /home/nikolenko/work/Projects/MARLIN_reproduction_20260717/data/nplib1_test_inchikeys.csv

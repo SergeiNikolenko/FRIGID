@@ -16,7 +16,7 @@ below and in generated manifests.
 | Paper requirement | Reproduction location | Status |
 | --- | --- | --- |
 | SAFE sequences and deterministic SAFE-to-molecule decoding | `marlin.tokenizer`, official `safe-mol==0.1.13`, strict `safe_to_smiles(..., fix=False)` | Implemented |
-| SAFE vocabulary size 1,880 | `configs/marlin_nplib1.yaml` and the published `datamol-io/safe-gpt` tokenizer artifact | Implemented; artifact hash recorded at run time |
+| SAFE vocabulary size 1,880 | `configs/marlin_nplib1.yaml` and the published `datamol-io/safe-gpt` tokenizer artifact | Implemented; artifact hash recorded at run time. The corpus and its pinned revision are inferred because the paper does not identify its training corpus. |
 | Decoder width/layers/heads 896/12/14 | `MarlinDecoderConfig` | Implemented |
 | Block width 8 | `MarlinDecoderConfig.block_width` | Implemented |
 | Block-causal clean/noisy two-stream attention | `marlin.model.two_stream_attention_mask` and `two_stream_logits` | Implemented and tested |
@@ -26,7 +26,7 @@ below and in generated manifests.
 | Optional M+1/M and M+2/M isotope token, enabled in training and disabled by default in inference | `marlin.isotopes`, `MarlinCollator`, `MarlinConditioner` | Implemented; isotope-envelope calculation is inferred |
 | One conditioning token per active Morgan bit, 4,096 bits, radius 2 | `SparseFingerprintEncoder`, `MarlinCollator` | Implemented |
 | Symmetric fingerprint corruption with `p=0.5`, `rho ~ U(0.1, 0.3)`, equal drop/add counts | `marlin.noise.symmetric_fingerprint_noise` | Implemented |
-| Warm start from FRIGID | `marlin.warm_start.load_frigid_decoder` | Implemented; tensor shapes and tokenizer contract are checked and recorded |
+| Warm start from FRIGID | `marlin.warm_start.load_frigid_decoder` | Implemented; the official checkpoint SHA-256, tensor shapes, tokenizer hash, and pinned dataset revision are checked or recorded. Exact vocabulary-order identity cannot be proven from the weight-only checkpoint. |
 | AdamW, learning rate `5e-5`, batch 256, EMA 0.9999 | config and `MarlinLightningModule` | Implemented |
 | Heavy-atom token masses excluding hydrogen; zero mass for special tokens | `marlin.token_properties`, `MassShellConstraint` | Implemented |
 | Prune when `h + mu_v > M + delta` | `MassShellConstraint.apply` | Implemented |

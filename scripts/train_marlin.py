@@ -23,7 +23,7 @@ from omegaconf import DictConfig, OmegaConf
 from marlin.model import MarlinDecoderConfig
 from marlin.tokenizer import load_safe_tokenizer
 from marlin.training import MarlinCollator, MarlinLightningModule
-from marlin.warm_start import load_frigid_decoder
+from marlin.warm_start import load_frigid_decoder, sha256_file
 
 
 def initialize_clearml(config: DictConfig):
@@ -91,13 +91,22 @@ def main(config: DictConfig) -> None:
         ema_decay=config.training.ema_decay,
     )
     if config.get("warm_start_checkpoint"):
-        report = load_frigid_decoder(module.decoder, config.warm_start_checkpoint)
+        report = load_frigid_decoder(
+            module.decoder,
+            config.warm_start_checkpoint,
+            expected_sha256=config.get("warm_start_sha256"),
+        )
+        report["tokenizer"] = str(config.data.tokenizer_file)
+        report["tokenizer_sha256"] = sha256_file(config.data.tokenizer_file)
+        report["dataset"] = str(config.data.dataset)
+        report["dataset_revision"] = str(config.data.revision)
         module.reset_ema()
         report_path = Path(config.output.root) / "warm_start.json"
         report_path.parent.mkdir(parents=True, exist_ok=True)
         report_path.write_text(json.dumps(report, indent=2) + "\n")
     dataset = datasets.load_dataset(
         config.data.dataset,
+        revision=config.data.revision,
         split="train",
         streaming=True,
         cache_dir=config.data.hf_cache_dir,

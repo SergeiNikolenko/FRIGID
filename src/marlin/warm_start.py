@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
 
 import torch
@@ -28,8 +29,27 @@ def _copy_attention(layer, state: dict[str, torch.Tensor], prefix: str, name: st
     )
 
 
-def load_frigid_decoder(model: MarlinDecoder, checkpoint_path: str | Path) -> dict[str, int | str]:
+def sha256_file(path: str | Path) -> str:
+    digest = hashlib.sha256()
+    with Path(path).open("rb") as handle:
+        for chunk in iter(lambda: handle.read(8 * 1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def load_frigid_decoder(
+    model: MarlinDecoder,
+    checkpoint_path: str | Path,
+    *,
+    expected_sha256: str | None = None,
+) -> dict[str, int | str]:
     """Load all architecture-compatible FRIGID weights and leave mass tokens new."""
+    checkpoint_sha256 = sha256_file(checkpoint_path)
+    if expected_sha256 is not None and checkpoint_sha256 != expected_sha256:
+        raise ValueError(
+            f"FRIGID checkpoint SHA-256 is {checkpoint_sha256}; "
+            f"expected {expected_sha256}"
+        )
     checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
     state = checkpoint.get("state_dict", checkpoint)
     _copy(model.token_embedding.weight, state["backbone.bert.embeddings.word_embeddings.weight"], "tokens")
@@ -86,6 +106,7 @@ def load_frigid_decoder(model: MarlinDecoder, checkpoint_path: str | Path) -> di
     _copy(model.output_bias, state["backbone.cls.predictions.bias"], "prediction bias")
     return {
         "checkpoint": str(checkpoint_path),
+        "checkpoint_sha256": checkpoint_sha256,
         "layers_loaded": len(model.layers),
         "hidden_size": model.config.hidden_size,
         "vocab_size": model.config.vocab_size,

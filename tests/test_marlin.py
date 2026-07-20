@@ -14,7 +14,7 @@ from marlin.noise import symmetric_fingerprint_noise
 from marlin.isotopes import theoretical_isotope_ratios
 from marlin.sampler import MarlinSampler
 from marlin.token_properties import token_properties
-from marlin.warm_start import _copy_attention
+from marlin.warm_start import _copy_attention, sha256_file
 
 
 def test_block_causal_mask_allows_current_and_previous_blocks():
@@ -266,6 +266,16 @@ def test_attention_warm_start_concatenates_qkv():
     _copy_attention(attention, state, "x", "test")
     assert torch.equal(attention.in_proj_weight[:4], state["x.query.weight"])
     assert torch.equal(attention.in_proj_weight[-4:], state["x.value.weight"])
+
+
+def test_warm_start_sha256_file(tmp_path):
+    checkpoint = tmp_path / "DLM.ckpt"
+    checkpoint.write_bytes(b"official checkpoint bytes")
+
+    assert (
+        sha256_file(checkpoint)
+        == "39508f80120dcafa9564e61482326a83ebe2b06d09d2bee7b3ee0e1fbc932d97"
+    )
 
 
 def test_batched_sampler_reports_attempt_validity_and_uniqueness():
