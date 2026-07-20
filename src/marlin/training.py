@@ -19,23 +19,41 @@ from marlin.noise import symmetric_fingerprint_noise
 from marlin.isotopes import theoretical_isotope_ratios
 
 
-def safe_within_max_length(example: dict, tokenizer, max_length: int) -> bool:
-    """Return whether a streaming SAFE example fits without truncation."""
-    safe = example.get("safe", example.get("input"))
-    if not safe:
-        return False
-    return len(tokenizer.encode(safe, add_special_tokens=True)) <= max_length
+def load_excluded_connectivity_keys(path: str | Path | None) -> set[str]:
+    """Load first-block InChIKeys used to keep evaluation structures out."""
+
+    if path is None:
+        return set()
+    table = pd.read_csv(path)
+    column = "inchi" if "inchi" in table else "inchikey"
+    return {str(value).split("-")[0] for value in table[column].dropna()}
 
 
-class SafeLengthFilter:
-    """Pickleable unary filter for streaming SAFE examples."""
+class MarlinTrainingFilter:
+    """Pickleable pre-batch filter for the canonical MARLIN stream."""
 
-    def __init__(self, tokenizer, max_length: int) -> None:
+    def __init__(
+        self,
+        tokenizer,
+        max_length: int,
+        exclude_inchikeys: str | Path | None = None,
+    ) -> None:
         self.tokenizer = tokenizer
         self.max_length = max_length
+        self.exclude = load_excluded_connectivity_keys(exclude_inchikeys)
 
     def __call__(self, example: dict) -> bool:
-        return safe_within_max_length(example, self.tokenizer, self.max_length)
+        safe = example.get("safe", example.get("input"))
+        if not safe:
+            return False
+        if len(self.tokenizer.encode(safe, add_special_tokens=True)) > self.max_length:
+            return False
+        smiles = safe_to_smiles(safe, fix=False)
+        molecule = Chem.MolFromSmiles(smiles) if smiles else None
+        if molecule is None:
+            return False
+        key = Chem.MolToInchiKey(molecule).split("-")[0]
+        return key not in self.exclude
 
 
 class MarlinCollator:
@@ -50,11 +68,7 @@ class MarlinCollator:
         self.tokenizer = tokenizer
         self.max_length = max_length
         self.fingerprint_bits = fingerprint_bits
-        self.exclude = set()
-        if exclude_inchikeys:
-            table = pd.read_csv(exclude_inchikeys)
-            column = "inchi" if "inchi" in table else "inchikey"
-            self.exclude = {str(value).split("-")[0] for value in table[column].dropna()}
+        self.exclude = load_excluded_connectivity_keys(exclude_inchikeys)
 
     def __call__(self, examples: list[dict]) -> dict[str, torch.Tensor]:
         safes: list[str] = []
@@ -64,14 +78,14 @@ class MarlinCollator:
         for example in examples:
             safe = example.get("safe", example.get("input"))
             if not safe:
-                continue
+                raise ValueError("pre-batch filter admitted an empty SAFE sequence")
             smiles = safe_to_smiles(safe, fix=False)
             molecule = Chem.MolFromSmiles(smiles) if smiles else None
             if molecule is None:
-                continue
+                raise ValueError("pre-batch filter admitted an invalid SAFE sequence")
             key = Chem.MolToInchiKey(molecule).split("-")[0]
             if key in self.exclude:
-                continue
+                raise ValueError("pre-batch filter admitted an excluded test structure")
             fingerprint = AllChem.GetMorganGenerator(
                 radius=2, fpSize=self.fingerprint_bits
             ).GetFingerprint(molecule)
@@ -81,8 +95,8 @@ class MarlinCollator:
             fingerprints.append(torch.from_numpy(array))
             masses.append(Descriptors.ExactMolWt(molecule))
             isotope_ratios.append(theoretical_isotope_ratios(molecule))
-        if not safes:
-            raise ValueError("batch has no valid non-excluded molecules")
+        if len(safes) != len(examples):
+            raise AssertionError("MARLIN collator changed the pre-filtered batch size")
         tokens = self.tokenizer(
             safes,
             return_tensors="pt",

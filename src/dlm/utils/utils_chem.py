@@ -26,8 +26,10 @@ RDLogger.DisableLog('rdApp.*')
 def safe_to_smiles(safe_str, fix=True):
     if fix:
         safe_str = '.'.join([frag for frag in safe_str.split('.')
-                             if sf.decode(frag, ignore_errors=True) is not None])
-    return sf.decode(safe_str, canonical=True, ignore_errors=True)
+                             if sf.decode(
+                                 frag, fix=True, ignore_errors=True
+                             ) is not None])
+    return sf.decode(safe_str, canonical=True, fix=fix, ignore_errors=True)
 
 _SAFE_CONVERTER = sf.SAFEConverter(slicer=None, ignore_stereo=True)
 def smiles_to_safe(smiles: str) -> str:

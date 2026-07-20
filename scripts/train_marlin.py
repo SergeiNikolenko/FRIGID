@@ -28,7 +28,7 @@ from marlin.tokenizer import load_safe_tokenizer, validate_safe_tokenizer
 from marlin.training import (
     MarlinCollator,
     MarlinLightningModule,
-    SafeLengthFilter,
+    MarlinTrainingFilter,
 )
 from marlin.warm_start import load_frigid_decoder, sha256_file
 
@@ -224,6 +224,12 @@ def main(config: DictConfig) -> None:
         raise ValueError("training length audit dataset revision mismatch")
     if length_audit["maximum_allowed_length"] != decoder_config.max_length:
         raise ValueError("training length audit decoder context mismatch")
+    if not length_audit.get("strict_safe_decode", False):
+        raise ValueError("training audit did not use strict SAFE decoding")
+    if length_audit.get("exclusion_sha256") != sha256_file(
+        config.data.exclude_inchikeys
+    ):
+        raise ValueError("training audit exclusion hash mismatch")
     dataset = datasets.load_dataset(
         config.data.dataset,
         revision=config.data.revision,
@@ -231,7 +237,11 @@ def main(config: DictConfig) -> None:
         streaming=True,
         cache_dir=config.data.hf_cache_dir,
     ).filter(
-        SafeLengthFilter(tokenizer, decoder_config.max_length),
+        MarlinTrainingFilter(
+            tokenizer,
+            decoder_config.max_length,
+            config.data.exclude_inchikeys,
+        ),
     )
     dataset = dataset.shuffle(seed=config.seed, buffer_size=config.data.shuffle_buffer)
     collator = MarlinCollator(

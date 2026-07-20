@@ -18,8 +18,7 @@ from marlin.token_properties import token_properties
 from marlin.training import (
     MarlinCollator,
     MarlinLightningModule,
-    SafeLengthFilter,
-    safe_within_max_length,
+    MarlinTrainingFilter,
 )
 from marlin.warm_start import _copy_attention, sha256_file
 
@@ -179,20 +178,27 @@ def test_training_collator_refuses_to_truncate_safe(monkeypatch):
         collator([{"safe": "C"}])
 
 
-def test_stream_filter_excludes_overlength_safe_before_batching():
+def test_stream_filter_excludes_invalid_overlength_and_test_safe(
+    monkeypatch, tmp_path
+):
     class LengthTokenizer:
         def encode(self, safe, add_special_tokens):
             assert add_special_tokens is True
             return list(range(len(safe) + 2))
 
-    tokenizer = LengthTokenizer()
+    exclusions = tmp_path / "exclude.csv"
+    exclusions.write_text("inchikey\nOKKJLVBELUTLKV-UHFFFAOYSA-N\n")
+    monkeypatch.setattr(
+        "marlin.training.safe_to_smiles",
+        lambda safe, fix: {"CC": "CC", "CO": "CO"}.get(safe),
+    )
+    stream_filter = MarlinTrainingFilter(LengthTokenizer(), 4, exclusions)
 
-    assert safe_within_max_length({"safe": "CC"}, tokenizer, 4)
-    assert not safe_within_max_length({"safe": "CCC"}, tokenizer, 4)
-    assert not safe_within_max_length({}, tokenizer, 4)
-    length_filter = SafeLengthFilter(tokenizer, 4)
-    assert length_filter({"safe": "CC"})
-    assert not length_filter({"safe": "CCC"})
+    assert stream_filter({"safe": "CC"})
+    assert not stream_filter({"safe": "CO"})
+    assert not stream_filter({"safe": "CCC"})
+    assert not stream_filter({"safe": "invalid"})
+    assert not stream_filter({})
 
 
 def test_small_decoder_forward_and_loss():
