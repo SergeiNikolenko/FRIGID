@@ -40,7 +40,7 @@ below and in generated manifests.
 | Exact Top-1/Top-10, Morgan Tanimoto Top-1/Top-10, and MCES Top-1/Top-10 | evaluation scripts | Implemented; MCES runtime is isolated and smoke-tested with `myopic-mces==1.2.0` and PuLP 3.3.2 |
 | Formula recovery and mass bins `<300`, `300-500`, `>=500` Da | evaluation post-processing | Implemented |
 | Saved per-spectrum predictions and runtime | `evaluate_marlin_nplib1.py` | Implemented |
-| ClearML curves and local TensorBoard events | `train_marlin.py`, `MarlinLightningModule` | Instrumented. Task creation is verified, but scalar curves remain a smoke-test gate because job 283 failed before its first training step when the external warm-start file disappeared. |
+| ClearML curves and local TensorBoard events | `train_marlin.py`, `MarlinLightningModule` | Verified by Slurm job 293: ClearML task `3854ab071bdd4602a5678f720fe2d629` contains finite `train_loss`, `learning_rate`, `fingerprint_noise_fraction`, and `grad_norm` series; the run also saved a TensorBoard event and EMA checkpoint. Evidence: `manifests/clearml_smoke_293.json`. |
 
 ## Explicitly inferred choices
 
@@ -83,6 +83,11 @@ following hold:
 6. evaluation resume refuses incompatible settings or duplicate spectrum IDs;
 7. the final two 803-spectrum lanes report every paper metric plus validity,
    uniqueness, mass-validity, formula recovery, mass bins, and runtime.
+
+The ClearML/TensorBoard/checkpoint gate was satisfied by Slurm job 293. The
+supported random-reveal oracle is produced by
+`scripts/audit_marlin_safe_oracle.py` and must be retained with the run
+manifests before the full training submission.
 
 ## Paper reference values
 
