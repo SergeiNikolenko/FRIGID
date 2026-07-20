@@ -80,6 +80,15 @@ class MarlinSampler:
             end = len(token_ids)
         return self.decode_tokens(token_ids[:end])
 
+    def _mass_state(self, token_ids: Sequence[int]) -> MassShellState:
+        """Recompute mass from the contiguous semantic prefix before MASK or EOS."""
+        state = MassShellState()
+        for token_id in token_ids[1:]:
+            if token_id in (self.mask_token_id, self.eos_token_id):
+                break
+            state = self.constraint.advance(state, token_id)
+        return state
+
     def _next_block_width(self, prefix_length: int) -> int:
         remaining = self.model.config.max_length - prefix_length
         content_length = prefix_length - 1
@@ -141,8 +150,13 @@ class MarlinSampler:
                 if best_position is None or not torch.isfinite(best_confidence):
                     return None
                 prefix[best_position] = best_token
-                state = self.constraint.advance(state, best_token)
                 unresolved.remove(best_position)
+                if best_token == self.eos_token_id:
+                    for position in tuple(unresolved):
+                        if position > best_position:
+                            prefix[position] = self.mask_token_id
+                            unresolved.remove(position)
+                state = self._mass_state(prefix)
 
             safe = self._decode_prefix(prefix)
             smiles = self.safe_to_smiles(safe)
@@ -356,8 +370,13 @@ class MarlinSampler:
                         continue
                     assert best_token is not None
                     prefix[row, block_start + best_position] = best_token
-                    states[row] = self.constraint.advance(states[row], best_token)
                     unresolved[row, best_position] = False
+                    if best_token == self.eos_token_id:
+                        prefix[row, block_start + best_position + 1 :] = (
+                            self.mask_token_id
+                        )
+                        unresolved[row, best_position + 1 :] = False
+                    states[row] = self._mass_state(prefix[row].tolist())
 
             for row in torch.nonzero(active, as_tuple=False).flatten().tolist():
                 safe = self._decode_prefix(prefix[row].tolist())

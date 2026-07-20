@@ -747,9 +747,11 @@ class SafeGrammarMask:
     ) -> torch.Tensor:
         # The paper does not specify grammar state for holes inside a partially
         # revealed block. Conservatively avoid false pruning until every earlier
-        # position is known; the completed block still passes strict SAFE decode.
+        # position is known, but EOS cannot precede an unresolved position.
         if self.mask_token_id is not None and self.mask_token_id in prefix_ids:
-            return logits.clone()
+            constrained = logits.clone()
+            constrained[self.eos_token_id] = -torch.inf
+            return constrained
         prefix = self.decode_prefix(prefix_ids)
         constrained = torch.full_like(logits, -torch.inf)
         valid_ids = self._valid_token_ids(prefix)

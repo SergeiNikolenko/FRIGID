@@ -392,7 +392,7 @@ def test_sampler_with_grammar_reveals_globally_most_confident_position():
     assert model.seen[1].tolist() == [[0, 3, 1]]
 
 
-def test_batched_sampler_discards_tokens_after_eos_before_decoding():
+def test_batched_sampler_discards_tokens_after_eos_before_mass_and_decoding():
     class EosThenJunkModel(torch.nn.Module):
         def __init__(self):
             super().__init__()
@@ -421,9 +421,9 @@ def test_batched_sampler_discards_tokens_after_eos_before_decoding():
 
     target_mass = Descriptors.ExactMolWt(Chem.MolFromSmiles("C"))
     constraint = MassShellConstraint(
-        [0.0, 12.0, 0.0, 0.0, 0.0],
-        [0, 1, 0, 0, 0],
-        [0.0, 4.0, 0.0, 0.0, 0.0],
+        [0.0, 12.0, 0.0, 0.0, 16.0],
+        [0, 1, 0, 0, 1],
+        [0.0, 4.0, 0.0, 0.0, 2.0],
         eos_token_id=2,
         ppm_tolerance=10,
     )
@@ -440,11 +440,75 @@ def test_batched_sampler_discards_tokens_after_eos_before_decoding():
         forbidden_token_ids=(0, 3),
     )
 
+    assert sampler.generate_one(torch.zeros(8), target_mass) == ("C", "C")
     ranked, stats = sampler.generate_ranked_with_stats(
         torch.zeros(8), target_mass, candidates=1
     )
 
     assert stats.valid == 1
+    assert stats.mass_valid == 1
+    assert [candidate.smiles for candidate in ranked] == ["C"]
+
+
+def test_batched_sampler_does_not_charge_suffix_revealed_before_eos():
+    class SuffixFirstModel(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.anchor = torch.nn.Parameter(torch.zeros(()))
+            self.seen = []
+            self.config = MarlinDecoderConfig(
+                vocab_size=7,
+                hidden_size=4,
+                num_layers=1,
+                num_heads=1,
+                intermediate_size=4,
+                max_length=4,
+                block_width=3,
+                fingerprint_bits=8,
+                dropout=0.0,
+                mask_token_id=3,
+                pad_token_id=0,
+            )
+
+        def forward(self, input_ids, precursor_mass, fingerprint):
+            self.seen.append(input_ids.detach().clone())
+            logits = torch.full((*input_ids.shape, 7), -torch.inf)
+            logits[:, 1, 1] = 10.0
+            logits[:, 1, 5] = 0.0
+            logits[:, 2, 2] = 5.0
+            logits[:, 2, 5] = 0.0
+            logits[:, 2, 6] = 0.0
+            logits[:, 3, 4] = 20.0
+            logits[:, 3, 5] = 0.0
+            return logits
+
+    model = SuffixFirstModel()
+    target_mass = Descriptors.ExactMolWt(Chem.MolFromSmiles("C"))
+    sampler = MarlinSampler(
+        model,
+        MassShellConstraint(
+            [0.0, 12.0, 0.0, 0.0, 16.0, 0.0, 0.0],
+            [0, 1, 0, 0, 1, 0, 0],
+            [0.0, 4.0, 0.0, 0.0, 2.0, 0.0, 0.0],
+            eos_token_id=2,
+            ppm_tolerance=10,
+        ),
+        bos_token_id=0,
+        eos_token_id=2,
+        mask_token_id=3,
+        decode_tokens=lambda ids: "C" if 1 in ids and 2 in ids else "",
+        safe_to_smiles=lambda safe: safe or None,
+        forbidden_token_ids=(0, 3),
+    )
+
+    assert sampler.generate_one(torch.zeros(8), target_mass) == ("C", "C")
+    assert model.seen[1].tolist() == [[0, 3, 3, 4]]
+    model.seen.clear()
+    ranked, stats = sampler.generate_ranked_with_stats(
+        torch.zeros(8), target_mass, candidates=1
+    )
+
+    assert model.seen[1].tolist() == [[0, 3, 3, 4]]
     assert stats.mass_valid == 1
     assert [candidate.smiles for candidate in ranked] == ["C"]
 

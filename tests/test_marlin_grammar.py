@@ -96,7 +96,11 @@ def test_safe_grammar_does_not_false_prune_across_partial_block_hole():
     )
     logits = torch.arange(len(tokens), dtype=torch.float32)
 
-    assert torch.equal(grammar([1, 4], logits), logits)
+    constrained = grammar([1, 4], logits)
+
+    assert torch.isneginf(constrained[2])
+    assert torch.equal(constrained[:2], logits[:2])
+    assert torch.equal(constrained[3:], logits[3:])
 
 
 def test_safe_grammar_rejects_bracket_when_no_element_fits_mass_shell():

@@ -21,7 +21,7 @@ below and in generated manifests.
 | Block width 8 | `MarlinDecoderConfig.block_width` | Implemented |
 | Block-causal clean/noisy two-stream attention | `marlin.model.two_stream_attention_mask` and `two_stream_logits` | Implemented and tested |
 | Per-block continuous time, absorbing masking, and `1/t` NELBO | `MarlinDecoder.diffusion_loss` | Implemented; all valid blocks are averaged in one forward pass, an unbiased realization of uniform block sampling |
-| Score every unresolved position and reveal the globally highest-confidence position | `MarlinSampler` | Implemented and tested; exact position-aware partial-block grammar support remains underdetermined by the paper |
+| Score every unresolved position and reveal the globally highest-confidence position | `MarlinSampler` | Global reveal is implemented and tested. Exact position-aware grammar support through partial-block holes remains underdetermined by the paper. |
 | Precursor mass Fourier token | `FourierMassEncoder` | Implemented |
 | Optional M+1/M and M+2/M isotope token, enabled in training and disabled by default in inference | `marlin.isotopes`, `MarlinCollator`, `MarlinConditioner` | Implemented; isotope-envelope calculation is inferred |
 | One conditioning token per active Morgan bit, 4,096 bits, radius 2 | `SparseFingerprintEncoder`, `MarlinCollator` | Implemented |
@@ -31,8 +31,8 @@ below and in generated manifests.
 | Heavy-atom token masses excluding hydrogen; zero mass for special tokens | `marlin.token_properties`, `MassShellConstraint` | Implemented |
 | Prune when `h + mu_v > M + delta` | `MassShellConstraint.apply` | Implemented |
 | Hydrogen-aware reachable interval with valence slack 4 | grammar state and `MassShellConstraint` | Implemented conservatively |
-| Forbid early EOS and boost EOS when no positive-mass token fits | `MassShellConstraint.apply` | Implemented; boost magnitude is inferred |
-| Grammar and forbidden-token masks at every reveal | `SafeGrammarMask` and sampler | Full syntactic support is retained for contiguous prefixes. A conservative no-prune rule is used across unresolved holes; this is inferred because the paper does not define hole semantics. Chemical mass reachability is not folded into the syntax mask. |
+| Forbid early EOS and boost EOS when no positive-mass token fits | `MassShellConstraint.apply`, `MarlinSampler._mass_state` | Implemented. Tokens to the right of a committed EOS are excluded from the semantic prefix and mass state; this suffix handling and the boost magnitude are inferred because the paper does not specify within-block EOS padding. |
+| Grammar and forbidden-token masks at every reveal | `SafeGrammarMask` and sampler | Partial/inferred: full syntactic support is retained for contiguous prefixes and EOS is forbidden across an unresolved hole. Other tokens are conservatively not grammar-pruned across holes because the paper does not define the required existential grammar state. Completed blocks still pass strict SAFE decoding. Chemical mass reachability is not folded into the syntax mask. |
 | Decode after each committed block and accept only valid structures within 10 ppm | `MarlinSampler` | Implemented |
 | 384 candidates with independent 0.3 on-bit conditioning dropout | `MarlinSampler.generate_ranked_with_stats` | Implemented |
 | Rank by Tanimoto to the unperturbed predicted fingerprint | `MarlinSampler` | Implemented |
