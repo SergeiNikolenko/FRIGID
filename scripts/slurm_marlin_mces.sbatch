@@ -15,7 +15,7 @@ PYTHON=/home/nikolenko/work/Projects/FRIGID/.venv/bin/python
 : "${MARLIN_MCES_OUTPUT:?set MARLIN_MCES_OUTPUT to the output directory}"
 
 cd "$CODE"
-PYTHONPATH="$CODE/src" "$PYTHON" scripts/evaluate_marlin_mces.py \
+PYTHONPATH="$CODE/src:$ROOT/vendor" "$PYTHON" scripts/evaluate_marlin_mces.py \
     --predictions "$MARLIN_PREDICTIONS" \
     --output-dir "$MARLIN_MCES_OUTPUT" \
     --workers "${SLURM_CPUS_PER_TASK:-12}"

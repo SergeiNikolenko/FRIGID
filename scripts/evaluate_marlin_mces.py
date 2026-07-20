@@ -33,17 +33,16 @@ def sha256(path: Path) -> str:
 
 def compute_row(payload: tuple[dict, int, str, int]) -> dict:
     row, threshold, solver_name, time_limit = payload
-    import pulp
     from myopic_mces import MCES
 
-    solver = pulp.getSolver(solver_name, msg=0, timeLimit=time_limit)
     candidates = row["candidates"][:10]
     distances = [
         float(
             MCES(
                 row["target_smiles"],
                 candidate["smiles"],
-                solver=solver,
+                solver=solver_name,
+                solver_options={"msg": 0, "timeLimit": time_limit},
                 threshold=threshold,
                 always_stronger_bound=True,
             )[1]
@@ -81,7 +80,7 @@ def main() -> None:
         "solver": args.solver,
         "time_limit": args.time_limit,
         "myopic_mces_version": "1.2.0",
-        "pulp_version": "2.7.0",
+        "pulp_version": "3.3.2",
     }
     signature_path = args.output_dir / "mces_signature.json"
     if signature_path.exists() and json.loads(signature_path.read_text()) != signature:

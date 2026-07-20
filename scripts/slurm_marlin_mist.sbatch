@@ -14,7 +14,7 @@ CODE="$ROOT/code"
 DATA="$ROOT/data/nplib1/canopus_train_export"
 PYTHON=/home/nikolenko/work/Projects/FRIGID/.venv/bin/python
 CHECKPOINT=/home/nikolenko/work/Projects/FRIGID/repro_cache/mist_canopus.pt
-export PYTHONPATH="$CODE/src:$CODE/scripts"
+export PYTHONPATH="$CODE/src:$CODE/scripts:$ROOT/vendor"
 
 for split in train val test; do
   "$PYTHON" "$CODE/scripts/export_mist_fingerprints.py" \

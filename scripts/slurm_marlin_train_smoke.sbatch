@@ -14,7 +14,7 @@ CODE="$ROOT/code"
 PYTHON=/home/nikolenko/work/Projects/FRIGID/.venv/bin/python
 SMOKE_ROOT="$ROOT/runs/train-smoke-$SLURM_JOB_ID"
 SMOKE_BATCH_SIZE="${MARLIN_SMOKE_BATCH_SIZE:-1}"
-export PYTHONPATH="$CODE/src"
+export PYTHONPATH="$CODE/src:$ROOT/vendor"
 export HF_HOME="$ROOT/cache/huggingface"
 export TOKENIZERS_PARALLELISM=false
 

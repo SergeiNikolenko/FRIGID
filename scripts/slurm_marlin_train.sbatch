@@ -15,7 +15,7 @@ PYTHON=/home/nikolenko/work/Projects/FRIGID/.venv/bin/python
 OUTPUT_ROOT="${MARLIN_OUTPUT_ROOT:-$ROOT/runs/decoder}"
 MAX_STEPS="${MARLIN_MAX_STEPS:-100000}"
 CHECKPOINT_INTERVAL="${MARLIN_CHECKPOINT_INTERVAL:-5000}"
-export PYTHONPATH="$CODE/src"
+export PYTHONPATH="$CODE/src:$ROOT/vendor"
 export HF_HOME="$ROOT/cache/huggingface"
 export TOKENIZERS_PARALLELISM=false
 
