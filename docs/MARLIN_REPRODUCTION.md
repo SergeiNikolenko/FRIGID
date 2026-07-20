@@ -92,7 +92,10 @@ following hold:
 The ClearML/TensorBoard/checkpoint gate was satisfied by Slurm job 293. The
 supported random-reveal oracle is produced by
 `scripts/audit_marlin_safe_oracle.py` and must be retained with the run
-manifests before the full training submission.
+manifests before the full training submission. The pinned stream length audit
+is produced by `scripts/audit_marlin_training_lengths.py`; it records the
+sample size, length distribution, overlength count, input revision, tokenizer
+hash, and code commit.
 
 ## Rejected non-canonical checkpoints
 
