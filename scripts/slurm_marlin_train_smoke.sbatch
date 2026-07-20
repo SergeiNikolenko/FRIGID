@@ -20,7 +20,6 @@ export TOKENIZERS_PARALLELISM=false
 
 cd "$CODE"
 "$PYTHON" scripts/train_marlin.py \
-  data.exclude_inchikeys=null \
   loader.batch_size="$SMOKE_BATCH_SIZE" \
   loader.num_workers=0 \
   trainer.max_steps=1 \
