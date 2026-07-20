@@ -328,7 +328,7 @@ def main() -> None:
             else "inferred conservative lexical SAFE grammar",
             "grammar_decode_order": "paper-specified confidence order"
             if args.disable_grammar_mask
-            else "inferred left-to-right within each block",
+            else "paper-specified confidence order with inferred hole handling",
         },
     }
     (args.output_dir / "metrics.json").write_text(
@@ -342,7 +342,7 @@ def main() -> None:
             "max_steps=100000",
             "mass Fourier frequency count",
             "conservative lexical SAFE grammar mask",
-            "left-to-right token commitment within grammar-masked blocks",
+            "partial-block grammar handling for confidence-order commitment",
         ],
         "git_commit": subprocess.check_output(
             ["git", "rev-parse", "HEAD"], text=True

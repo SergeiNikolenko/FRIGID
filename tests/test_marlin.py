@@ -110,6 +110,18 @@ def test_token_properties_cover_rare_official_safe_elements():
     assert properties.heavy_mass > 200
 
 
+def test_token_properties_use_explicit_isotope_mass():
+    boron_10 = token_properties("[10B]")
+    boron_default = token_properties("[B]")
+    carbon_13 = token_properties("[13C]")
+    carbon_default = token_properties("[C]")
+
+    assert boron_10.heavy_atoms == 1
+    assert boron_10.heavy_mass < boron_default.heavy_mass
+    assert carbon_13.heavy_atoms == 1
+    assert carbon_13.heavy_mass > carbon_default.heavy_mass
+
+
 def test_small_decoder_forward_and_loss():
     config = MarlinDecoderConfig(
         vocab_size=32,

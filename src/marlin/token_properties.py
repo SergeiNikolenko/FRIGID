@@ -21,6 +21,7 @@ ATOM_PATTERN = re.compile(
         )
     )
 )
+BRACKET_ATOM_PATTERN = re.compile(r"\[(?P<isotope>\d+)?(?P<symbol>[A-Z][a-z]?|[bcnops])")
 
 
 @dataclass(frozen=True)
@@ -32,18 +33,37 @@ class TokenProperties:
 
 def token_properties(token: str) -> TokenProperties:
     """Return a lower-bound mass and a conservative valence budget."""
-    symbols = [
-        match.capitalize() if len(match) == 1 else match
-        for match in ATOM_PATTERN.findall(token)
-    ]
+    bracket_atoms = list(BRACKET_ATOM_PATTERN.finditer(token))
+    bracket_ranges = [match.span() for match in bracket_atoms]
+    atoms: list[tuple[str, int | None]] = []
+    for match in bracket_atoms:
+        symbol = match.group("symbol")
+        atoms.append(
+            (
+                symbol.capitalize() if len(symbol) == 1 else symbol,
+                int(match.group("isotope")) if match.group("isotope") else None,
+            )
+        )
+    for match in ATOM_PATTERN.finditer(token):
+        if any(start <= match.start() < end for start, end in bracket_ranges):
+            continue
+        symbol = match.group()
+        atoms.append((symbol.capitalize() if len(symbol) == 1 else symbol, None))
     mass = 0.0
     valence = 0.0
-    for symbol in symbols:
+    for symbol, isotope in atoms:
         atomic_number = _PERIODIC_TABLE.GetAtomicNumber(symbol)
-        mass += _PERIODIC_TABLE.GetMostCommonIsotopeMass(atomic_number)
+        if isotope is None:
+            mass += _PERIODIC_TABLE.GetMostCommonIsotopeMass(atomic_number)
+        else:
+            # Unknown isotope labels must stay conservative instead of silently
+            # taking the element's most-common isotope mass.
+            mass += max(
+                _PERIODIC_TABLE.GetMassForIsotope(atomic_number, isotope), 0.0
+            )
         valences = list(_PERIODIC_TABLE.GetValenceList(atomic_number))
         valence += max(valences) if valences else 0.0
-    return TokenProperties(mass, len(symbols), valence)
+    return TokenProperties(mass, len(atoms), valence)
 
 
 def build_token_property_table(
