@@ -155,7 +155,11 @@ filtering eligibility before batching; the collator now fails closed. No job
   MIST-CF scorer. Slurm job 315 trains the scorer on this connectivity-clean
   split with the official public MIST-CF architecture and optimization
   parameters. The released scorer remains available only as the explicitly
-  contamination-positive paper-like lane.
+  contamination-positive paper-like lane. After that fit completes,
+  `slurm_mist_cf_clean_predict.sbatch` runs the same official formula-blind
+  prospective inference path used for the released-checkpoint lane, changing
+  only the scorer checkpoint. Its fast formula filter is the released generic
+  biomolecular-formula model rather than an NPLIB1 spectrum-fit model.
 
 ## Paper reference values
 
