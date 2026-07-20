@@ -160,6 +160,14 @@ filtering eligibility before batching; the collator now fails closed. No job
   prospective inference path used for the released-checkpoint lane, changing
   only the scorer checkpoint. Its fast formula filter is the released generic
   biomolecular-formula model rather than an NPLIB1 spectrum-fit model.
+  `slurm_mist_predicted_formula_fingerprints.sbatch` then injects only those
+  top-1 predicted formulas into a forced-formula SIRIUS 5.5.7 run, validates
+  one fragmentation tree per benchmark ID, and feeds the trees into the
+  official MIST Morgan-4096 checkpoint. The bridge manifest explicitly rejects
+  any formula source other than MIST-CF top-1 predictions before packaging the
+  fingerprint bundle in the immutable 803-row benchmark order.
+  The official MIST code runs in a separate, frozen Python 3.8 environment;
+  it is not allowed to mutate the completed MIST-CF scorer environment.
 
 ## Paper reference values
 

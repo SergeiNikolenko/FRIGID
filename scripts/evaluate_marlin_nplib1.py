@@ -16,7 +16,12 @@ from rdkit import Chem, DataStructs
 from rdkit.Chem import AllChem, rdMolDescriptors
 
 from dlm.utils.utils_chem import safe_to_smiles
-from marlin.evaluation import load_fingerprints, mass_bin_metrics, mean_metric
+from marlin.evaluation import (
+    load_fingerprints,
+    mass_bin_metrics,
+    mean_metric,
+    validate_mist_lane_provenance,
+)
 from marlin.grammar import SafeGrammarMask
 from marlin.mass_shell import MassShellConstraint
 from marlin.model import MarlinDecoder, MarlinDecoderConfig
@@ -117,6 +122,8 @@ def main() -> None:
     metadata = pd.read_csv(args.metadata)
     if args.max_spectra is not None:
         metadata = metadata.iloc[: args.max_spectra].copy()
+    if args.lane == "mist":
+        validate_mist_lane_provenance(args.lane_provenance, len(metadata))
     fingerprints = load_fingerprints(
         args.fingerprints,
         args.fingerprint_key,

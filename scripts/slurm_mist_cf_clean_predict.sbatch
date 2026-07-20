@@ -17,6 +17,7 @@ MGF="$ROOT/data/processed/test/spectra.mgf"
 CHECKPOINT="$ROOT/runs/mist_cf_connectivity_clean/version_0/best.ckpt"
 FAST_MODEL="$ROOT/checkpoints/mist_cf/fast_filter_best.ckpt"
 OUTPUT="$ROOT/runs/mist_cf_connectivity_clean_prediction/test"
+SIRIUS="$ROOT/vendor/sirius/bin/sirius"
 
 if test -e "$OUTPUT/formatted_output.tsv"; then
   echo "Refusing to overwrite an existing clean MIST-CF prediction." >&2
@@ -25,10 +26,12 @@ fi
 
 mkdir -p "$OUTPUT"
 export PYTHONPATH="$VENDOR/src"
+export SIRIUS_PATH="$SIRIUS"
 
 printf 'PROVENANCE\n'
 git -C "$CODE" rev-parse HEAD
 git -C "$VENDOR" rev-parse HEAD
+"$SIRIUS" --version
 sha256sum \
   "$ROOT/envs/mist_cf_py38/requirements.lock.txt" \
   "$ROOT/data/mist_cf_official/canopus_train/splits/split_1_nplib1_connectivity_clean.tsv" \

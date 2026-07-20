@@ -2,10 +2,38 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
+
+
+MIST_LANE_KIND = (
+    "official MIST fingerprint probabilities from MIST-CF predicted formulas"
+)
+MIST_FORMULA_SOURCE = "MIST-CF top-1 prediction; no ground-truth formula"
+
+
+def validate_mist_lane_provenance(path: Path, expected_rows: int) -> dict:
+    payload = json.loads(path.read_text())
+    required = {
+        "kind": MIST_LANE_KIND,
+        "formula_source": MIST_FORMULA_SOURCE,
+        "rows": expected_rows,
+        "fingerprint_bits": 4096,
+    }
+    mismatches = {
+        key: {"expected": expected, "observed": payload.get(key)}
+        for key, expected in required.items()
+        if payload.get(key) != expected
+    }
+    if mismatches:
+        raise ValueError(
+            "MIST lane provenance does not prove the formula-blind official lane: "
+            f"{mismatches}"
+        )
+    return payload
 
 
 def mean_metric(rows: list[dict], key: str) -> float:
