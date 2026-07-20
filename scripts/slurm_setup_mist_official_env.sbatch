@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=mist-env
-#SBATCH --partition=cpu
+#SBATCH --partition=gpu
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=16G
 #SBATCH --time=01:00:00
