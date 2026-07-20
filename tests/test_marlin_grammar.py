@@ -40,7 +40,7 @@ def test_safe_grammar_accepts_branch_bonds_and_partial_vocabulary_tokens():
     assert _scan("[NH+]").terminal
     assert _scan("C[N+](C)(C)C").terminal
     assert _scan("[13C@@H]").terminal
-    assert _scan("[2H]") is None
+    assert _scan("[2H]").terminal
     assert _scan("[671") is not None
     assert _scan("[6711") is None
     assert _scan("[671Y") is None
@@ -186,7 +186,7 @@ def test_safe_grammar_treats_open_ring_atoms_as_active_hydrogen_sites():
 def test_safe_grammar_requires_partial_atom_completion_in_vocabulary():
     target_mass = 444.103807533379
     tolerance = target_mass * 10e-6
-    partial = "C" * 10 + "[123C-12"
+    partial = "C" * 10 + "[13C-12"
 
     assert not _has_vocabulary_completion(
         partial, ("C", "O", "1", "[C]"), target_mass, 4.0, tolerance

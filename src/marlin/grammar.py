@@ -10,10 +10,20 @@ from typing import Callable, Sequence
 
 import numpy as np
 import torch
+from rdkit import Chem
 
 
 _TWO_CHARACTER_ATOMS = ("Br", "Cl")
 _ONE_CHARACTER_ATOMS = frozenset("BCNOPSFIbcnosp*")
+_PERIODIC_TABLE = Chem.GetPeriodicTable()
+_ELEMENT_PATTERN = "|".join(
+    re.escape(_PERIODIC_TABLE.GetElementSymbol(atomic_number))
+    for atomic_number in sorted(
+        range(1, 119),
+        key=lambda value: len(_PERIODIC_TABLE.GetElementSymbol(value)),
+        reverse=True,
+    )
+)
 _BONDS = frozenset("-=#:/\\~")
 _BOND_ORDERS = {"-": 1.0, "=": 2.0, "#": 3.0, ":": 1.5, "/": 1.0, "\\": 1.0, "~": 1.0}
 _HYDROGEN_MASS = 1.00782503223
@@ -78,7 +88,7 @@ _ATOM_COMPLETIONS = (
 )
 _BRACKET_ATOM = re.compile(
     r"^(?P<isotope>\d{0,3})"
-    r"(?P<element>Cl|Br|Si|Se|Na|Li|Mg|Ca|Al|[BCNOPSFIK]|[bcnops*])"
+    rf"(?P<element>{_ELEMENT_PATTERN}|[bcnops*])"
     r"@{0,2}(?:H\d{0,2})?(?:[+-]{1,3}\d{0,2})?(?::\d*)?$"
 )
 
@@ -90,6 +100,11 @@ def _partial_bracket_symbol(content: str) -> str | None:
     if not match:
         return None
     element = match.group("element")
+    isotope = match.group("isotope")
+    if isotope and element != "*":
+        atomic_number = _PERIODIC_TABLE.GetAtomicNumber(element.capitalize())
+        if _PERIODIC_TABLE.GetMassForIsotope(atomic_number, int(isotope)) <= 0:
+            return None
     if element == "N" and "+" in content[match.end("element") :]:
         return "N+"
     return element
