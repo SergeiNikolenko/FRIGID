@@ -26,6 +26,10 @@ uv pip install \
   --find-links https://download.pytorch.org/whl/torch_stable.html \
   --requirement "$SOURCE_LOCK" \
   h5py==3.11.0
+uv pip install \
+  --no-config \
+  --python "$TARGET_ENV/bin/python" \
+  pytorch-lightning==1.6.5
 uv pip freeze --python "$TARGET_ENV/bin/python" > "$TARGET_LOCK"
 
 PYTHONPATH="$ROOT/vendor/mist-official/src" \
