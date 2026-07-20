@@ -19,8 +19,9 @@ if test -e "$TARGET_ENV"; then
   exit 2
 fi
 
-uv venv --python "$SOURCE_ENV/bin/python" "$TARGET_ENV"
+uv venv --no-config --python "$SOURCE_ENV/bin/python" "$TARGET_ENV"
 uv pip install \
+  --no-config \
   --python "$TARGET_ENV/bin/python" \
   --find-links https://download.pytorch.org/whl/torch_stable.html \
   --requirement "$SOURCE_LOCK" \
