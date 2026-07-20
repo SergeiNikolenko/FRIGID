@@ -140,11 +140,14 @@ filtering eligibility before batching; the collator now fails closed. No job
   pinned in the isolated reproduction root. The released `split_1.tsv` has
   10,709 rows (7,727 train, 777 validation, 2,205 test). All 803 NPLIB1 IDs are
   present, but 586 are in its training fold, 60 in validation, and only 157 in
-  test. Therefore the released MIST-CF checkpoint is contamination-positive
+  test. A stricter archive scan found 889 spectra sharing the 701 unique NPLIB1
+  connectivity blocks: 633 train, 73 validation, and 183 test, for 706 fitting
+  overlaps. Therefore the released MIST-CF checkpoint is contamination-positive
   for this benchmark. Its formula-blind predictions may be reported only as a
   paper-like released-checkpoint lane with that disclosure, not as an unbiased
-  canonical MIST lane. A clean lane requires retraining the formula model with
-  all 803 structures excluded.
+  canonical MIST lane. The clean retraining split moves all 706 train/validation
+  connectivity overlaps to test before fitting either the fast filter or the
+  MIST-CF scorer.
 
 ## Paper reference values
 
