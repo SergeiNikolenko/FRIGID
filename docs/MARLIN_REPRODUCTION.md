@@ -36,11 +36,12 @@ below and in generated manifests.
 | Decode after each committed block and accept only valid structures within 10 ppm | `MarlinSampler` | Implemented |
 | 384 candidates with independent 0.3 on-bit conditioning dropout | `MarlinSampler.generate_ranked_with_stats` | Implemented |
 | Rank by Tanimoto to the unperturbed predicted fingerprint | `MarlinSampler` | Implemented |
-| DreaMS raw-spectrum and MIST predicted-formula feature lanes | evaluation inputs and lane-specific fingerprints | Implemented |
+| DreaMS raw-spectrum and MIST predicted-formula feature lanes | evaluation inputs and lane-specific fingerprints | DreaMS is implemented. The original MIST export used ground-truth-formula subformula annotations and is retained only as a leaked oracle; the paper-compatible MIST-CF top-1 predicted-formula lane must be regenerated before final evaluation. |
 | Exact Top-1/Top-10, Morgan Tanimoto Top-1/Top-10, and MCES Top-1/Top-10 | evaluation scripts | Implemented; MCES runtime is isolated and smoke-tested with `myopic-mces==1.2.0` and PuLP 3.3.2 |
 | Formula recovery and mass bins `<300`, `300-500`, `>=500` Da | evaluation post-processing | Implemented |
-| Saved per-spectrum predictions and runtime | `evaluate_marlin_nplib1.py` | Implemented |
+| Saved per-spectrum predictions and runtime | `evaluate_marlin_nplib1.py` | Implemented. The sampler does not yet use the paper's committed-prefix KV cache, so its runtime is not comparable to the paper. |
 | ClearML curves and local TensorBoard events | `train_marlin.py`, `MarlinLightningModule` | Verified by Slurm job 293: ClearML task `3854ab071bdd4602a5678f720fe2d629` contains finite `train_loss`, `learning_rate`, `fingerprint_noise_fraction`, and `grad_norm` series; the run also saved a TensorBoard event and EMA checkpoint. Evidence: `manifests/clearml_smoke_293.json`. |
+| Immutable training provenance | `train_marlin.py` | A canonical run refuses a dirty Git checkout and writes `run_manifest.json` with the commit, resolved config, input hashes, package versions, CUDA/GPU identity, inferred settings, and Slurm job ID before loading the training stream. |
 
 ## Explicitly inferred choices
 
@@ -88,6 +89,28 @@ The ClearML/TensorBoard/checkpoint gate was satisfied by Slurm job 293. The
 supported random-reveal oracle is produced by
 `scripts/audit_marlin_safe_oracle.py` and must be retained with the run
 manifests before the full training submission.
+
+## Rejected non-canonical checkpoints
+
+`runs/decoder-bos-nelbo-v2/checkpoints/step=40000.ckpt` is mechanically
+load-compatible with the current model, but it is not eligible for the canonical
+run. Slurm job 282 trained it at commit `dd98fbe` before real isotope-ratio
+conditioning and strict `safe_to_smiles(..., fix=False)` were introduced. The
+four isotope-MLP parameters have no AdamW moments, while the missing-isotope
+embedding does. The job also predates pinned input hashes and ClearML. Resuming
+it would change the training task after 40,000 steps, so it is retained only as
+a diagnostic hybrid/ablation artifact. Its SHA-256 is
+`9ccdc21b1690594f193c0c1f222f330bd3cb6757866b235a61c23d66233ff454`.
+
+## Encoder evidence status
+
+- DreaMS job 214 produced a formula-free test fingerprint Tanimoto of
+  `0.337694`. The frozen-head fitting protocol remains a clean-room choice
+  because the paper does not publish its encoder-training details.
+- MIST job 215 produced `0.533575`, but its peak-to-subformula features used the
+  NPLIB1 ground-truth formula. It is therefore a leakage-positive oracle, not a
+  MARLIN(MIST) result. Final MIST evaluation requires MIST-CF top-1 predicted
+  formulas, regenerated subformula annotations, and a new fingerprint export.
 
 ## Paper reference values
 
