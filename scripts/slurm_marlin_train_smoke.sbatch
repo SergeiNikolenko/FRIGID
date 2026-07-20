@@ -25,6 +25,7 @@ cd "$CODE"
   loader.num_workers=0 \
   trainer.max_steps=1 \
   trainer.accumulate_grad_batches=1 \
+  trainer.log_every_n_steps=1 \
   output.root="$SMOKE_ROOT" \
   output.checkpoints="$SMOKE_ROOT/checkpoints" \
   output.checkpoint_interval=1

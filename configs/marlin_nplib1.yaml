@@ -55,6 +55,7 @@ trainer:
   max_steps: 100000
   # 8 examples x 32 accumulation steps = paper batch size 256.
   accumulate_grad_batches: 32
+  log_every_n_steps: 50
 
 output:
   root: /home/nikolenko/work/Projects/MARLIN_reproduction_20260717/runs/decoder

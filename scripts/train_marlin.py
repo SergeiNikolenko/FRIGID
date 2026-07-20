@@ -156,7 +156,7 @@ def main(config: DictConfig) -> None:
         max_steps=config.trainer.max_steps,
         accumulate_grad_batches=config.trainer.accumulate_grad_batches,
         gradient_clip_val=1.0,
-        log_every_n_steps=50,
+        log_every_n_steps=config.trainer.log_every_n_steps,
         callbacks=[checkpoint],
         default_root_dir=config.output.root,
     )
