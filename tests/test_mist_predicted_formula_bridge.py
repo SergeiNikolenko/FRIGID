@@ -66,7 +66,12 @@ def test_sirius_unpack_and_mist_packaging_are_id_locked(tmp_path: Path) -> None:
     _write_zip(compound / "trees", "C2H4_[M+H]+.json", json.dumps(tree))
     _write_zip(compound / "spectra", "C2H4_[M+H]+.tsv", "mz\tintensity\n")
     _write_zip(compound / "scores", "C2H4_[M+H]+.info", "score\n")
-    (compound / "compound.info").write_text("ionMass\t29.0\n")
+    (compound / "compound.info").write_text(
+        "name\ta\nionMass\t29.0\nionType\t[M + H]+\n"
+    )
+    (compound / "spectrum.ms").write_text(
+        ">compound a\n>formula C2H4\n>ionization [M + H]+\n"
+    )
 
     rows = unpack_project(tmp_path / "project", labels)
     summary = tmp_path / "project/summary_statistics/summary_df.tsv"
@@ -74,6 +79,8 @@ def test_sirius_unpack_and_mist_packaging_are_id_locked(tmp_path: Path) -> None:
 
     assert rows[0]["spec_name"] == "a"
     assert rows[0]["pred_formula"] == "C2H4"
+    assert rows[0]["tree_formula"] == "C2H4"
+    assert rows[0]["formula_normalization"] == "identity"
     assert Path(rows[0]["tree_file"]).is_file()
     summary_frame = pd.read_csv(summary, sep="\t", index_col=0)
     assert summary_frame["spec_name"].tolist() == ["a"]
@@ -137,7 +144,12 @@ def test_sirius_unpack_rejects_tree_not_matching_mist_cf_formula(tmp_path: Path)
     _write_zip(compound / "trees", "tree.json", json.dumps(tree))
     _write_zip(compound / "spectra", "spectrum.tsv", "mz\tintensity\n")
     _write_zip(compound / "scores", "score.info", "score\n")
-    (compound / "compound.info").write_text("ionMass\t29.0\n")
+    (compound / "compound.info").write_text(
+        "name\ta\nionMass\t29.0\nionType\t[M + H]+\n"
+    )
+    (compound / "spectrum.ms").write_text(
+        ">compound a\n>formula C2H4\n>ionization [M + H]+\n"
+    )
 
     try:
         unpack_project(tmp_path / "project", labels)
@@ -145,3 +157,34 @@ def test_sirius_unpack_rejects_tree_not_matching_mist_cf_formula(tmp_path: Path)
         assert "SIRIUS formula mismatch" in str(error)
     else:
         raise AssertionError("mismatched SIRIUS formula was accepted")
+
+
+def test_sirius_unpack_accepts_documented_radical_cation_normalization(
+    tmp_path: Path,
+) -> None:
+    labels = tmp_path / "labels.tsv"
+    labels.write_text(
+        "dataset\tspec\tformula\tionization\tparentmass\n"
+        "set\ta\tC10H12N4O2\t[M]+\t220.095\n"
+    )
+    compound = tmp_path / "project/190_a"
+    compound.mkdir(parents=True)
+    tree = {
+        "molecularFormula": "C10H11N4O2",
+        "annotations": {"precursorIonType": "[M]+"},
+    }
+    _write_zip(compound / "trees", "tree.json", json.dumps(tree))
+    _write_zip(compound / "spectra", "spectrum.tsv", "mz\tintensity\n")
+    _write_zip(compound / "scores", "score.info", "score\n")
+    (compound / "compound.info").write_text(
+        "name\ta\nionMass\t220.095\nionType\t[M]+\n"
+    )
+    (compound / "spectrum.ms").write_text(
+        ">compound a\n>formula C10H12N4O2\n>ionization [M]+\n"
+    )
+
+    rows = unpack_project(tmp_path / "project", labels)
+
+    assert rows[0]["pred_formula"] == "C10H12N4O2"
+    assert rows[0]["tree_formula"] == "C10H11N4O2"
+    assert rows[0]["formula_normalization"] == "sirius_[M]+_minus_H"

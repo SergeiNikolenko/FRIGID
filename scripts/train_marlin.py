@@ -23,6 +23,7 @@ import lightning as L
 import torch
 from omegaconf import DictConfig, OmegaConf
 
+from marlin.dataset import verify_snapshot_manifest
 from marlin.model import MarlinDecoderConfig
 from marlin.tokenizer import load_safe_tokenizer, validate_safe_tokenizer
 from marlin.training import (
@@ -91,6 +92,10 @@ def write_run_manifest(config: DictConfig, tokenizer_sha256: str) -> dict:
             ),
             "dataset": str(config.data.dataset),
             "dataset_revision": str(config.data.revision),
+            "training_snapshot_manifest": str(config.data.snapshot_manifest),
+            "training_snapshot_manifest_sha256": sha256_file(
+                config.data.snapshot_manifest
+            ),
         },
         "environment": {
             "hostname": platform.node(),
@@ -236,9 +241,16 @@ def main(config: DictConfig) -> None:
         config.data.exclude_inchikeys
     ):
         raise ValueError("training audit exclusion hash mismatch")
+    local_shards, snapshot_manifest_sha256 = verify_snapshot_manifest(
+        config.data.snapshot_manifest,
+        expected_dataset=str(config.data.dataset),
+        expected_revision=str(config.data.revision),
+    )
+    if snapshot_manifest_sha256 != sha256_file(config.data.snapshot_manifest):
+        raise ValueError("training snapshot manifest changed during verification")
     dataset = datasets.load_dataset(
-        config.data.dataset,
-        revision=config.data.revision,
+        "parquet",
+        data_files={"train": local_shards},
         split="train",
         streaming=True,
         cache_dir=config.data.hf_cache_dir,
