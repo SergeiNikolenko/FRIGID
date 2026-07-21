@@ -40,7 +40,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--threshold", type=float)
     parser.add_argument("--lane-provenance", type=Path)
     parser.add_argument("--formula-manifest", type=Path)
-    parser.add_argument("--sirius-bridge-manifest", type=Path)
+    parser.add_argument("--feature-bridge-manifest", type=Path)
     parser.add_argument("--mist-labels", type=Path)
     parser.add_argument("--lane", choices=("dreams", "mist"), required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
@@ -121,13 +121,13 @@ def main() -> None:
         for value in (
             args.lane_provenance,
             args.formula_manifest,
-            args.sirius_bridge_manifest,
+            args.feature_bridge_manifest,
             args.mist_labels,
         )
     ):
         raise ValueError(
             "canonical MIST evaluation requires --lane-provenance, "
-            "--formula-manifest, --sirius-bridge-manifest, and --mist-labels"
+            "--formula-manifest, --feature-bridge-manifest, and --mist-labels"
         )
     args.output_dir.mkdir(parents=True, exist_ok=True)
     metadata = pd.read_csv(args.metadata)
@@ -139,7 +139,7 @@ def main() -> None:
             args.fingerprints,
             args.metadata,
             args.formula_manifest,
-            args.sirius_bridge_manifest,
+            args.feature_bridge_manifest,
             args.mist_labels,
         )
     if args.max_spectra is not None:

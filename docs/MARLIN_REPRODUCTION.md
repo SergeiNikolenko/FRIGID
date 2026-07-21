@@ -141,8 +141,8 @@ filtering eligibility before batching; the collator now fails closed. No job
   NPLIB1 ground-truth formula. It is therefore a leakage-positive oracle, not a
   MARLIN(MIST) result. Final MIST evaluation requires formula-blind MIST-CF
   predictions, regenerated subformula annotations, and a new fingerprint export.
-  The official MIST-CF checkpoints, CANOPUS archive, and SIRIUS 5.5.7 are now
-  pinned in the isolated reproduction root. The released `split_1.tsv` has
+  The official MIST-CF and MIST checkpoints are pinned in the isolated
+  reproduction root. The released `split_1.tsv` has
   10,709 rows (7,727 train, 777 validation, 2,205 test). All 803 NPLIB1 IDs are
   present, but 586 are in its training fold, 60 in validation, and only 157 in
   test. A stricter archive scan found 889 spectra sharing the 701 unique NPLIB1
@@ -160,23 +160,28 @@ filtering eligibility before batching; the collator now fails closed. No job
   prospective inference path used for the released-checkpoint lane, changing
   only the scorer checkpoint. Its fast formula filter is the released generic
   biomolecular-formula model rather than an NPLIB1 spectrum-fit model.
-  `slurm_mist_predicted_formula_fingerprints.sbatch` then tries MIST-CF
-  candidates in descending score order, retaining the first candidate within
-  10 ppm that SIRIUS 5.5.7 preserves exactly. Any SIRIUS formula/adduct rewrite
-  or failure to produce a tree advances only that spectrum to its next ranked
-  candidate and reruns the full fail-closed audit. Every SIRIUS root, fragment,
-  and loss formula must also
-  satisfy the released MIST parser's unsigned formula grammar, supported-element
-  set, and fragment-subformula constraint. A signed SIRIUS neutralized-tree node
-  such as `C8H10N5-O` therefore advances to another MIST-CF candidate instead of
-  being silently misparsed or removed. The final tree formula is also required
-  to form a mass-consistent official-MIST label; SIRIUS radical-cation
-  normalization is recorded explicitly. The initial formula manifest,
-  post-SIRIUS/MIST-compatibility audit,
-  per-ID mapping, MIST labels, final fingerprint NPZ, metadata, official MIST
-  commit, SIRIUS version, and checkpoint are cryptographically bound before
-  evaluation. This fallback policy is a clean-room implementation choice:
-  MARLIN does not publish the underdescribed formula-to-SIRIUS bridge.
+  Section III-A of MARLIN states a narrower contract than the first clean-room
+  attempt assumed: the top-1 MIST-CF formula is used to compute
+  peak-to-subformula features, and the ground-truth formula is never used. The
+  canonical all-803 implementation therefore applies the same official MIST-CF
+  subformula assignment to every spectrum and passes those positive fragment
+  formulae to the released MIST PeakFormula encoder. It does not select a lower
+  ranked candidate based on SIRIUS compatibility and does not invent signed or
+  neutral-loss formulae. Four spectra have no peak assignment within the
+  official MIST-CF threshold; their trees contain only the predicted root/CLS
+  formula, exactly as the released MIST featurizer handles an empty fragment
+  list. This is disclosed as an out-of-distribution limitation and will receive
+  a separate sensitivity analysis rather than being hidden or imputed.
+  `slurm_mist_cf_peakformula_fingerprints.sbatch` binds the top-1 formula
+  manifest, all selected MIST-CF subformula JSONs, generated PeakFormula trees,
+  MIST labels, final fingerprint NPZ, reference metadata, both source commits,
+  both checkpoints, and the four root-only IDs. This is reported as “MIST with
+  MIST-CF subformula adapter”, not as an official MIST-SIRIUS reproduction. The
+  earlier SIRIUS jobs are retained only as rejected diagnostic evidence: one
+  spectrum produced the signed node `C8H10N5-O`, which the official MIST formula
+  parser cannot represent, and all seven available ranked candidates failed the
+  SIRIUS bridge. Silently removing the sign or converting it to oxygen would
+  change the chemistry.
   The official MIST code runs in a separate, frozen Python 3.8 environment;
   it is not allowed to mutate the completed MIST-CF scorer environment.
 

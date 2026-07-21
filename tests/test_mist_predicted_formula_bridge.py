@@ -7,7 +7,12 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from scripts.package_mist_predictions import package_predictions
+from scripts.package_mist_predictions import (
+    FEATURE_BRIDGE_KIND,
+    FORMULA_MANIFEST_KIND,
+    FORMULA_SOURCE as DIRECT_FORMULA_SOURCE,
+    package_predictions,
+)
 from scripts.prepare_mist_predicted_formula_dataset import (
     FORMULA_SOURCE,
     build_dataset,
@@ -33,10 +38,12 @@ def test_sirius_job_uses_import_safe_naming_convention() -> None:
     assert "#SBATCH --gres=" not in job_script
     assert "  --gpu \\" not in job_script
     assert 'export PYTHONPATH="$MIST/src"' in job_script
-    assert 'from mist import pred_fp' in job_script
+    assert "from mist import pred_fp" in job_script
 
 
-def test_formula_bridge_selects_top_prediction_and_preserves_order(tmp_path: Path) -> None:
+def test_formula_bridge_selects_top_prediction_and_preserves_order(
+    tmp_path: Path,
+) -> None:
     mgf = tmp_path / "test.mgf"
     mgf.write_text(
         "BEGIN IONS\nSCANS=a\nPEPMASS=43.05422664\n10 1\nEND IONS\n"
@@ -91,7 +98,9 @@ def _write_zip(path: Path, member: str, content: str) -> None:
 
 def test_sirius_unpack_and_mist_packaging_are_id_locked(tmp_path: Path) -> None:
     labels = tmp_path / "labels.tsv"
-    labels.write_text("dataset\tspec\tformula\tionization\tparentmass\nset\ta\tC2H4\t[M+H]+\t29\n")
+    labels.write_text(
+        "dataset\tspec\tformula\tionization\tparentmass\nset\ta\tC2H4\t[M+H]+\t29\n"
+    )
     compound = tmp_path / "project/0_a"
     compound.mkdir(parents=True)
     tree = {
@@ -125,11 +134,13 @@ def test_sirius_unpack_and_mist_packaging_are_id_locked(tmp_path: Path) -> None:
     summary_frame = pd.read_csv(summary, sep="\t", index_col=0)
     assert summary_frame["spec_name"].tolist() == ["a"]
     assert pd.read_csv(mist_labels, sep="\t")["formula"].tolist() == ["C2H4"]
+    with mist_labels.open("a") as handle:
+        handle.write("set\tb\tC4H8\t[M+H]+\t57\n")
 
     metadata = tmp_path / "metadata.csv"
-    pd.DataFrame(
-        {"fingerprint_index": [0, 1], "spec_name": ["a", "b"]}
-    ).to_csv(metadata, index=False)
+    pd.DataFrame({"fingerprint_index": [0, 1], "spec_name": ["a", "b"]}).to_csv(
+        metadata, index=False
+    )
     predictions = tmp_path / "mist.p"
     with predictions.open("wb") as handle:
         pickle.dump(
@@ -137,9 +148,7 @@ def test_sirius_unpack_and_mist_packaging_are_id_locked(tmp_path: Path) -> None:
                 "dataset_name": mist_labels.parent.name,
                 "args": {"labels_name": mist_labels.name},
                 "names": ["b", "a"],
-                "preds": np.stack(
-                    [np.full(4096, 2.0), np.full(4096, 1.0)]
-                ),
+                "preds": np.stack([np.full(4096, 2.0), np.full(4096, 1.0)]),
             },
             handle,
         )
@@ -147,32 +156,95 @@ def test_sirius_unpack_and_mist_packaging_are_id_locked(tmp_path: Path) -> None:
     formula_manifest.write_text(
         json.dumps(
             {
-                    "kind": "Mass-consistent MIST-CF predicted-formula bridge into official MIST",
-                    "formula_source": FORMULA_SOURCE,
-                    "precursor_ppm_tolerance": 10.0,
-                    "fallback_rows": 1,
-                    "maximum_candidate_rank": 2,
-                    "rows": 2,
-                    "sirius_consistency_validated": True,
+                "kind": FORMULA_MANIFEST_KIND,
+                "formula_source": DIRECT_FORMULA_SOURCE,
+                "precursor_ppm_tolerance": 10.0,
+                "fallback_rows": 0,
+                "maximum_candidate_rank": 1,
+                "rows": 2,
             }
         )
     )
-    from scripts.package_mist_predictions import sha256_file
+    from scripts.package_mist_predictions import json_digest, sha256_file
 
-    sirius_bridge_manifest = tmp_path / "sirius_bridge_manifest.json"
-    sirius_bridge_manifest.write_text(
+    subforms = tmp_path / "subforms"
+    trees = tmp_path / "peakformula_trees"
+    summary_dir = tmp_path / "sirius_outputs/summary_statistics"
+    subforms.mkdir()
+    trees.mkdir()
+    summary_dir.mkdir(parents=True)
+    evidence_rows = []
+    for spectrum_id, formula in (("a", "C2H4"), ("b", "C4H8")):
+        selected = {"cand_ion": "[M+H]+", "cand_tbl": None}
+        subformula_path = subforms / f"{spectrum_id}.json"
+        subformula_path.write_text(json.dumps({formula: selected}))
+        tree_path = trees / f"{spectrum_id}.json"
+        tree_path.write_text(
+            json.dumps(
+                {
+                    "molecularFormula": formula,
+                    "fragments": [],
+                    "losses": [],
+                }
+            )
+        )
+        evidence_rows.append(
+            {
+                "spec": spectrum_id,
+                "formula": formula,
+                "subformula_file_sha256": sha256_file(subformula_path),
+                "selected_subformula_sha256": json_digest(selected),
+                "peakformula_tree_sha256": sha256_file(tree_path),
+            }
+        )
+    evidence_path = tmp_path / "feature_bridge_rows.jsonl"
+    evidence_path.write_text(
+        "".join(json.dumps(row, sort_keys=True) + "\n" for row in evidence_rows)
+    )
+    direct_summary = summary_dir / "summary_df.tsv"
+    direct_summary.write_text("\tspec_name\ttree_file\n0\ta\ta.json\n1\tb\tb.json\n")
+
+    feature_bridge_manifest = tmp_path / "feature_bridge_manifest.json"
+    feature_bridge_manifest.write_text(
         json.dumps(
             {
-                "kind": "SIRIUS-validated formula-blind bridge into official MIST",
-                "formula_source": FORMULA_SOURCE,
+                "kind": FEATURE_BRIDGE_KIND,
+                "formula_source": DIRECT_FORMULA_SOURCE,
                 "rows": 2,
+                "top1_candidate_rows": 2,
+                "root_only_rows": 2,
+                "root_only_ids": ["a", "b"],
                 "formula_manifest_sha256": sha256_file(formula_manifest),
+                "mist_cf_subformula_dir": str(subforms.resolve()),
                 "mist_labels_sha256": sha256_file(mist_labels),
-                "maximum_mist_precursor_ppm_error": 2.0,
-                "sirius_audit_sha256": "audit-sha256",
-                "summary_sha256": "summary-sha256",
-                "sirius_tree_evidence_sha256": "tree-evidence-sha256",
-                "per_id_mapping_sha256": "mapping-sha256",
+                "maximum_precursor_ppm_error": 2.0,
+                "maximum_subformula_assignment_ppm": 5.0,
+                "subformula_assignment_ppm_tolerance": 15.0,
+                "summary_sha256": sha256_file(direct_summary),
+                "mist_cf_subformula_evidence_sha256": json_digest(
+                    [
+                        {
+                            "spec": row["spec"],
+                            "subformula_file_sha256": row["subformula_file_sha256"],
+                            "selected_subformula_sha256": row[
+                                "selected_subformula_sha256"
+                            ],
+                        }
+                        for row in evidence_rows
+                    ]
+                ),
+                "peakformula_tree_evidence_sha256": json_digest(
+                    [
+                        {
+                            "spec": row["spec"],
+                            "peakformula_tree_sha256": row["peakformula_tree_sha256"],
+                        }
+                        for row in evidence_rows
+                    ]
+                ),
+                "per_id_mapping_sha256": sha256_file(evidence_path),
+                "mist_cf_git_commit": "mist-cf-commit",
+                "mist_cf_checkpoint_sha256": "mist-cf-checkpoint-sha256",
             }
         )
     )
@@ -182,11 +254,10 @@ def test_sirius_unpack_and_mist_packaging_are_id_locked(tmp_path: Path) -> None:
         predictions,
         metadata,
         formula_manifest,
-        sirius_bridge_manifest,
+        feature_bridge_manifest,
         mist_labels,
         output,
         "mist-commit",
-        "5.5.7",
         "checkpoint-sha256",
     )
 
@@ -195,14 +266,30 @@ def test_sirius_unpack_and_mist_packaging_are_id_locked(tmp_path: Path) -> None:
         assert bundle["probs"][:, 0].tolist() == [1.0, 2.0]
     assert manifest["rows"] == 2
     assert manifest["official_mist_git_commit"] == "mist-commit"
-    assert manifest["fallback_rows"] == 1
+    assert manifest["fallback_rows"] == 0
+    assert manifest["mist_cf_git_commit"] == "mist-cf-commit"
+    assert manifest["root_only_ids"] == ["a", "b"]
+
+    (trees / "a.json").write_text("{}")
+    with pytest.raises(ValueError, match="PeakFormula tree changed"):
+        package_predictions(
+            predictions,
+            metadata,
+            formula_manifest,
+            feature_bridge_manifest,
+            mist_labels,
+            tmp_path / "tampered.npz",
+            "mist-commit",
+            "checkpoint-sha256",
+        )
 
 
-def test_sirius_unpack_rejects_tree_not_matching_mist_cf_formula(tmp_path: Path) -> None:
+def test_sirius_unpack_rejects_tree_not_matching_mist_cf_formula(
+    tmp_path: Path,
+) -> None:
     labels = tmp_path / "labels.tsv"
     labels.write_text(
-        "dataset\tspec\tformula\tionization\tparentmass\n"
-        "set\ta\tC2H4\t[M+H]+\t29\n"
+        "dataset\tspec\tformula\tionization\tparentmass\nset\ta\tC2H4\t[M+H]+\t29\n"
     )
     compound = tmp_path / "project/0_a"
     compound.mkdir(parents=True)
@@ -282,9 +369,7 @@ def test_sirius_audit_requests_next_rank_for_changed_adduct(tmp_path: Path) -> N
         ">compound a\n>formula C2H4\n>ionization [M+H]+\n"
     )
 
-    report = audit_project(
-        tmp_path / "project", labels, tmp_path / "audit.json"
-    )
+    report = audit_project(tmp_path / "project", labels, tmp_path / "audit.json")
 
     assert report["mismatch_count"] == 1
     assert report["minimum_candidate_ranks"] == {"a": 2}
@@ -308,9 +393,7 @@ def test_sirius_audit_rejects_signed_formula_unsupported_by_official_mist(
             {"id": 0, "molecularFormula": "C8H12N5"},
             {"id": 1, "molecularFormula": "C8H10N5-O"},
         ],
-        "losses": [
-            {"source": 0, "target": 1, "molecularFormula": "H2O"}
-        ],
+        "losses": [{"source": 0, "target": 1, "molecularFormula": "H2O"}],
     }
     _write_zip(compound / "trees", "tree.json", json.dumps(tree))
     (compound / "compound.info").write_text(

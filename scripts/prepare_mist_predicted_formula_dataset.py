@@ -142,6 +142,9 @@ def build_dataset(
     predictions: Path,
     output_dir: Path,
     minimum_candidate_ranks: dict[str, int] | None = None,
+    *,
+    formula_source: str = FORMULA_SOURCE,
+    manifest_kind: str = "Mass-consistent MIST-CF predicted-formula bridge into official MIST",
 ) -> dict:
     if output_dir.exists() and any(output_dir.iterdir()):
         raise FileExistsError(f"Refusing to overwrite non-empty {output_dir}")
@@ -219,8 +222,8 @@ def build_dataset(
         writer.writerows(labels)
     manifest = {
         "schema_version": 1,
-        "kind": "Mass-consistent MIST-CF predicted-formula bridge into official MIST",
-        "formula_source": FORMULA_SOURCE,
+        "kind": manifest_kind,
+        "formula_source": formula_source,
         "precursor_ppm_tolerance": PRECURSOR_PPM_TOLERANCE,
         "fallback_rows": sum(int(row["candidate_rank"]) > 1 for row in labels),
         "maximum_candidate_rank": max(int(row["candidate_rank"]) for row in labels),
