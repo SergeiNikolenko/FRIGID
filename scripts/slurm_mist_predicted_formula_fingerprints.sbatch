@@ -48,7 +48,8 @@ sha256sum "$ROOT/envs/mist_official_py38/requirements.lock.txt"
 "$PYTHON" "$CODE/scripts/unpack_sirius_for_mist.py" \
   --project-dir "$DATASET/sirius_outputs" \
   --labels "$DATASET/labels.tsv" \
-  --output "$DATASET/sirius_outputs/summary_statistics/summary_df.tsv"
+  --output "$DATASET/sirius_outputs/summary_statistics/summary_df.tsv" \
+  --mist-labels-output "$DATASET/mist_labels.tsv"
 
 mkdir -p "$MIST_OUTPUT"
 cd "$ROOT"
@@ -57,7 +58,7 @@ cd "$ROOT"
   --save-dir "$MIST_OUTPUT" \
   --dataset-name marlin_mist_cf_clean \
   --num-workers 12 \
-  --labels-name labels.tsv
+  --labels-name mist_labels.tsv
 
 "$PYTHON" "$CODE/scripts/package_mist_predictions.py" \
   --predictions "$MIST_OUTPUT/fp_preds_marlin_mist_cf_clean.p" \

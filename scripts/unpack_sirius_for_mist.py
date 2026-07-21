@@ -123,7 +123,8 @@ def unpack_project(project_dir: Path, labels_path: Path) -> list[dict[str, str]]
                 "spec_file": str(spectra[0].resolve()),
                 "tree_file": str(trees[0].resolve()),
                 "adduct": observed_adduct,
-                "pred_formula": expected_formula,
+                "pred_formula": observed_formula,
+                "mist_cf_formula": expected_formula,
                 "tree_formula": observed_formula,
                 "formula_normalization": formula_normalization,
                 "parentmass": info["ionMass"],
@@ -143,6 +144,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--project-dir", type=Path, required=True)
     parser.add_argument("--labels", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--mist-labels-output", type=Path, required=True)
     return parser.parse_args()
 
 
@@ -158,6 +160,7 @@ def write_summary(rows: list[dict[str, str]], output: Path) -> None:
                 "tree_file",
                 "adduct",
                 "pred_formula",
+                "mist_cf_formula",
                 "tree_formula",
                 "formula_normalization",
                 "parentmass",
@@ -168,10 +171,41 @@ def write_summary(rows: list[dict[str, str]], output: Path) -> None:
         writer.writerows({"": index, **row} for index, row in enumerate(rows))
 
 
+def write_mist_labels(rows: list[dict[str, str]], output: Path) -> None:
+    with output.open("w", newline="") as handle:
+        writer = csv.DictWriter(
+            handle,
+            fieldnames=[
+                "dataset",
+                "spec",
+                "formula",
+                "ionization",
+                "parentmass",
+                "mist_cf_formula",
+                "formula_normalization",
+            ],
+            delimiter="\t",
+        )
+        writer.writeheader()
+        writer.writerows(
+            {
+                "dataset": output.parent.name,
+                "spec": row["spec_name"],
+                "formula": row["tree_formula"],
+                "ionization": row["adduct"],
+                "parentmass": row["parentmass"],
+                "mist_cf_formula": row["mist_cf_formula"],
+                "formula_normalization": row["formula_normalization"],
+            }
+            for row in rows
+        )
+
+
 def main() -> None:
     args = parse_args()
     rows = unpack_project(args.project_dir, args.labels)
     write_summary(rows, args.output)
+    write_mist_labels(rows, args.mist_labels_output)
     print(f"Prepared {len(rows)} SIRIUS trees for MIST")
 
 

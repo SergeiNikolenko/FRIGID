@@ -53,9 +53,10 @@ def package_predictions(
     formula_evidence = json.loads(formula_manifest.read_text())
     if (
         formula_evidence.get("kind")
-        != "MIST-CF top-1 predicted-formula bridge into official MIST"
+        != "Mass-consistent MIST-CF predicted-formula bridge into official MIST"
         or formula_evidence.get("formula_source")
-        != "MIST-CF top-1 prediction; no ground-truth formula"
+        != "Highest-scoring MIST-CF candidate within 10 ppm; no ground-truth formula"
+        or formula_evidence.get("precursor_ppm_tolerance") != 10.0
         or formula_evidence.get("rows") != len(expected)
     ):
         raise ValueError("Formula manifest does not prove the formula-blind MIST-CF lane")
@@ -65,6 +66,9 @@ def package_predictions(
         "rows": len(expected),
         "fingerprint_bits": 4096,
         "formula_source": formula_evidence["formula_source"],
+        "precursor_ppm_tolerance": formula_evidence["precursor_ppm_tolerance"],
+        "fallback_rows": formula_evidence["fallback_rows"],
+        "maximum_candidate_rank": formula_evidence["maximum_candidate_rank"],
         "predictions_pickle_sha256": sha256_file(predictions),
         "reference_metadata_sha256": sha256_file(metadata),
         "formula_manifest_sha256": sha256_file(formula_manifest),

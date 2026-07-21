@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build formula-blind MIST inputs from MIST-CF top-1 predictions."""
+"""Build formula-blind MIST inputs from mass-consistent MIST-CF predictions."""
 
 from __future__ import annotations
 
@@ -7,7 +7,41 @@ import argparse
 import csv
 import hashlib
 import json
+import re
 from pathlib import Path
+
+from rdkit import Chem
+
+
+PRECURSOR_PPM_TOLERANCE = 10.0
+ELECTRON_MASS = 0.00054858
+PERIODIC_TABLE = Chem.GetPeriodicTable()
+ION_REMAP = {
+    "[M+NH4]+": "[M+H3N+H]+",
+    "[M-2H2O+H]+": "[M-H4O2+H]+",
+}
+
+
+def element_mass(symbol: str) -> float:
+    return float(PERIODIC_TABLE.GetMostCommonIsotopeMass(symbol))
+
+
+ION_TO_MASS = {
+    "[M+H]+": element_mass("H") - ELECTRON_MASS,
+    "[M+Na]+": element_mass("Na") - ELECTRON_MASS,
+    "[M+K]+": element_mass("K") - ELECTRON_MASS,
+    "[M-H2O+H]+": -element_mass("O") - element_mass("H") - ELECTRON_MASS,
+    "[M+H3N+H]+": element_mass("N") + 4 * element_mass("H") - ELECTRON_MASS,
+    "[M]+": -ELECTRON_MASS,
+    "[M-H4O2+H]+": -2 * element_mass("O") - 3 * element_mass("H") - ELECTRON_MASS,
+}
+
+
+def formula_mass(formula: str) -> float:
+    parts = re.findall(r"([A-Z][a-z]?)(\d*)", formula)
+    if not parts or "".join(f"{element}{count}" for element, count in parts) != formula:
+        raise ValueError(f"Unsupported molecular formula {formula!r}")
+    return sum(element_mass(element) * int(count or "1") for element, count in parts)
 
 
 def sha256_file(path: Path) -> str:
@@ -18,21 +52,41 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
-def read_top_predictions(path: Path) -> dict[str, dict[str, str]]:
+def read_ranked_predictions(path: Path) -> dict[str, list[dict[str, str]]]:
     with path.open(newline="") as handle:
         rows = list(csv.DictReader(handle, delimiter="\t"))
     required = {"spec", "cand_form", "cand_ion", "scores", "parentmasses"}
     if not rows or not required.issubset(rows[0]):
         raise ValueError(f"MIST-CF output is missing columns {sorted(required)}")
-    top: dict[str, dict[str, str]] = {}
+    ranked: dict[str, list[dict[str, str]]] = {}
     for row in rows:
         spectrum_id = row["spec"].strip()
         if not spectrum_id:
             raise ValueError("MIST-CF output contains an empty spectrum ID")
-        score = float(row["scores"])
-        if spectrum_id not in top or score > float(top[spectrum_id]["scores"]):
-            top[spectrum_id] = row
-    return top
+        float(row["scores"])
+        ranked.setdefault(spectrum_id, []).append(row)
+    for candidates in ranked.values():
+        candidates.sort(key=lambda row: float(row["scores"]), reverse=True)
+    return ranked
+
+
+def select_mass_consistent_candidate(
+    candidates: list[dict[str, str]], observed_precursor_mz: float
+) -> tuple[dict[str, str], int, float, float]:
+    for rank, row in enumerate(candidates, start=1):
+        ion = ION_REMAP.get(row["cand_ion"].strip(), row["cand_ion"].strip())
+        if ion not in ION_TO_MASS:
+            continue
+        theoretical_mz = formula_mass(row["cand_form"].strip()) + ION_TO_MASS[ion]
+        ppm_error = abs(theoretical_mz - observed_precursor_mz) / observed_precursor_mz * 1e6
+        if ppm_error <= PRECURSOR_PPM_TOLERANCE:
+            selected = dict(row)
+            selected["cand_ion"] = ion
+            return selected, rank, theoretical_mz, ppm_error
+    raise ValueError(
+        f"No MIST-CF candidate is mass-consistent within "
+        f"{PRECURSOR_PPM_TOLERANCE} ppm of {observed_precursor_mz}"
+    )
 
 
 def read_mgf(path: Path) -> list[tuple[str, dict[str, str], list[str]]]:
@@ -83,10 +137,10 @@ def build_dataset(mgf: Path, predictions: Path, output_dir: Path) -> dict:
     spec_dir.mkdir()
 
     blocks = read_mgf(mgf)
-    top = read_top_predictions(predictions)
+    ranked = read_ranked_predictions(predictions)
     mgf_ids = [spectrum_id for spectrum_id, _, _ in blocks]
-    missing = sorted(set(mgf_ids) - set(top))
-    extra = sorted(set(top) - set(mgf_ids))
+    missing = sorted(set(mgf_ids) - set(ranked))
+    extra = sorted(set(ranked) - set(mgf_ids))
     if missing or extra:
         raise ValueError(
             f"MIST-CF/MGF ID mismatch: missing={missing[:5]}, extra={extra[:5]}"
@@ -95,10 +149,13 @@ def build_dataset(mgf: Path, predictions: Path, output_dir: Path) -> dict:
     forced_blocks: list[str] = []
     labels: list[dict[str, str]] = []
     for spectrum_id, headers, lines in blocks:
-        row = top[spectrum_id]
+        observed_precursor_mz = float(headers["PEPMASS"].split()[0])
+        row, candidate_rank, theoretical_mz, ppm_error = select_mass_consistent_candidate(
+            ranked[spectrum_id], observed_precursor_mz
+        )
         formula = row["cand_form"].strip()
         ion = row["cand_ion"].strip()
-        parentmass = headers.get("PEPMASS", row["parentmasses"]).split()[0]
+        parentmass = headers["PEPMASS"].split()[0]
         peaks = peak_lines(lines)
         if not formula or not ion or not peaks:
             raise ValueError(f"Incomplete predicted-formula input for {spectrum_id}")
@@ -133,6 +190,9 @@ def build_dataset(mgf: Path, predictions: Path, output_dir: Path) -> dict:
                 "formula": formula,
                 "ionization": ion,
                 "parentmass": parentmass,
+                "predicted_parentmass": f"{theoretical_mz:.12g}",
+                "candidate_rank": str(candidate_rank),
+                "precursor_ppm_error": f"{ppm_error:.12g}",
             }
         )
 
@@ -145,8 +205,11 @@ def build_dataset(mgf: Path, predictions: Path, output_dir: Path) -> dict:
         writer.writerows(labels)
     manifest = {
         "schema_version": 1,
-        "kind": "MIST-CF top-1 predicted-formula bridge into official MIST",
-        "formula_source": "MIST-CF top-1 prediction; no ground-truth formula",
+        "kind": "Mass-consistent MIST-CF predicted-formula bridge into official MIST",
+        "formula_source": "Highest-scoring MIST-CF candidate within 10 ppm; no ground-truth formula",
+        "precursor_ppm_tolerance": PRECURSOR_PPM_TOLERANCE,
+        "fallback_rows": sum(int(row["candidate_rank"]) > 1 for row in labels),
+        "maximum_candidate_rank": max(int(row["candidate_rank"]) for row in labels),
         "rows": len(labels),
         "mgf": str(mgf.resolve()),
         "mgf_sha256": sha256_file(mgf),

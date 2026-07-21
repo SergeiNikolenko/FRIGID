@@ -8,7 +8,7 @@ import pandas as pd
 
 from scripts.package_mist_predictions import package_predictions
 from scripts.prepare_mist_predicted_formula_dataset import build_dataset
-from scripts.unpack_sirius_for_mist import unpack_project, write_summary
+from scripts.unpack_sirius_for_mist import unpack_project, write_mist_labels, write_summary
 
 
 def test_sirius_job_uses_import_safe_naming_convention() -> None:
@@ -26,15 +26,15 @@ def test_sirius_job_uses_import_safe_naming_convention() -> None:
 def test_formula_bridge_selects_top_prediction_and_preserves_order(tmp_path: Path) -> None:
     mgf = tmp_path / "test.mgf"
     mgf.write_text(
-        "BEGIN IONS\nSCANS=a\nPEPMASS=101.0\n10 1\nEND IONS\n"
-        "BEGIN IONS\nFEATURE_ID=b\nPEPMASS=202.0\n20 2\nEND IONS\n"
+        "BEGIN IONS\nSCANS=a\nPEPMASS=43.05422664\n10 1\nEND IONS\n"
+        "BEGIN IONS\nFEATURE_ID=b\nPEPMASS=57.06987670\n20 2\nEND IONS\n"
     )
     predictions = tmp_path / "predictions.tsv"
     predictions.write_text(
         "spec\tcand_form\tscores\tcand_ion\tparentmasses\n"
-        "a\tC2H4\t0.1\t[M+H]+\t101.0\n"
-        "a\tC3H6\t0.9\t[M+H]+\t101.0\n"
-        "b\tC4H8\t0.5\t[M+H]+\t202.0\n"
+        "a\tC2H4\t0.1\t[M+H]+\t29.03857658\n"
+        "a\tC3H6\t0.9\t[M+H]+\t43.05422664\n"
+        "b\tC4H8\t0.5\t[M+H]+\t57.06987670\n"
     )
 
     manifest = build_dataset(mgf, predictions, tmp_path / "dataset")
@@ -42,7 +42,10 @@ def test_formula_bridge_selects_top_prediction_and_preserves_order(tmp_path: Pat
     labels = pd.read_csv(tmp_path / "dataset/labels.tsv", sep="\t")
     assert labels["spec"].tolist() == ["a", "b"]
     assert labels["formula"].tolist() == ["C3H6", "C4H8"]
-    assert manifest["formula_source"] == "MIST-CF top-1 prediction; no ground-truth formula"
+    assert manifest["formula_source"] == (
+        "Highest-scoring MIST-CF candidate within 10 ppm; no ground-truth formula"
+    )
+    assert labels["candidate_rank"].tolist() == [1, 1]
     assert "FORMULA=C3H6" in (tmp_path / "dataset/forced_formula.mgf").read_text()
     assert ">formula C4H8" in (tmp_path / "dataset/spec_files/b.ms").read_text()
 
@@ -76,14 +79,18 @@ def test_sirius_unpack_and_mist_packaging_are_id_locked(tmp_path: Path) -> None:
     rows = unpack_project(tmp_path / "project", labels)
     summary = tmp_path / "project/summary_statistics/summary_df.tsv"
     write_summary(rows, summary)
+    mist_labels = tmp_path / "mist_labels.tsv"
+    write_mist_labels(rows, mist_labels)
 
     assert rows[0]["spec_name"] == "a"
     assert rows[0]["pred_formula"] == "C2H4"
+    assert rows[0]["mist_cf_formula"] == "C2H4"
     assert rows[0]["tree_formula"] == "C2H4"
     assert rows[0]["formula_normalization"] == "identity"
     assert Path(rows[0]["tree_file"]).is_file()
     summary_frame = pd.read_csv(summary, sep="\t", index_col=0)
     assert summary_frame["spec_name"].tolist() == ["a"]
+    assert pd.read_csv(mist_labels, sep="\t")["formula"].tolist() == ["C2H4"]
 
     metadata = tmp_path / "metadata.csv"
     pd.DataFrame(
@@ -104,9 +111,12 @@ def test_sirius_unpack_and_mist_packaging_are_id_locked(tmp_path: Path) -> None:
     formula_manifest.write_text(
         json.dumps(
             {
-                "kind": "MIST-CF top-1 predicted-formula bridge into official MIST",
-                "formula_source": "MIST-CF top-1 prediction; no ground-truth formula",
-                "rows": 2,
+                    "kind": "Mass-consistent MIST-CF predicted-formula bridge into official MIST",
+                    "formula_source": "Highest-scoring MIST-CF candidate within 10 ppm; no ground-truth formula",
+                    "precursor_ppm_tolerance": 10.0,
+                    "fallback_rows": 1,
+                    "maximum_candidate_rank": 2,
+                    "rows": 2,
             }
         )
     )
@@ -127,6 +137,7 @@ def test_sirius_unpack_and_mist_packaging_are_id_locked(tmp_path: Path) -> None:
         assert bundle["probs"][:, 0].tolist() == [1.0, 2.0]
     assert manifest["rows"] == 2
     assert manifest["official_mist_git_commit"] == "mist-commit"
+    assert manifest["fallback_rows"] == 1
 
 
 def test_sirius_unpack_rejects_tree_not_matching_mist_cf_formula(tmp_path: Path) -> None:
@@ -185,6 +196,7 @@ def test_sirius_unpack_accepts_documented_radical_cation_normalization(
 
     rows = unpack_project(tmp_path / "project", labels)
 
-    assert rows[0]["pred_formula"] == "C10H12N4O2"
+    assert rows[0]["pred_formula"] == "C10H11N4O2"
+    assert rows[0]["mist_cf_formula"] == "C10H12N4O2"
     assert rows[0]["tree_formula"] == "C10H11N4O2"
     assert rows[0]["formula_normalization"] == "sirius_[M]+_minus_H"

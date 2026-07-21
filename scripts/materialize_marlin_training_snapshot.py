@@ -12,7 +12,7 @@ from pathlib import Path
 
 from huggingface_hub import HfApi, hf_hub_download
 
-from marlin.dataset import sha256_file
+from marlin.dataset import file_list_sha256, sha256_file
 
 
 def parse_args() -> argparse.Namespace:
@@ -97,6 +97,7 @@ def main() -> None:
         "files": records,
         "file_count": len(records),
         "total_size_bytes": sum(record["size_bytes"] for record in records),
+        "file_list_sha256": file_list_sha256(records),
         "source": "Hugging Face pinned dataset revision and LFS SHA-256 metadata",
         "hostname": os.uname().nodename,
     }

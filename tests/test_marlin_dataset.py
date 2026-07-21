@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from marlin.dataset import verify_snapshot_manifest
+from marlin.dataset import file_list_sha256, verify_snapshot_manifest
 
 
 def test_verify_snapshot_manifest_returns_ordered_verified_shards(tmp_path: Path) -> None:
@@ -28,6 +28,11 @@ def test_verify_snapshot_manifest_returns_ordered_verified_shards(tmp_path: Path
                 "revision": "pinned",
                 "snapshot_root": str(tmp_path),
                 "files": shards,
+                "schema_version": 1,
+                "kind": "MARLIN offline SAFE-GPT training snapshot",
+                "file_count": 2,
+                "total_size_bytes": 11,
+                "file_list_sha256": file_list_sha256(shards),
             }
         )
     )
@@ -36,6 +41,7 @@ def test_verify_snapshot_manifest_returns_ordered_verified_shards(tmp_path: Path
         manifest,
         expected_dataset="datamol-io/safe-gpt",
         expected_revision="pinned",
+        expected_file_list_sha256=file_list_sha256(shards),
     )
 
     assert files == sorted(files)
@@ -53,6 +59,8 @@ def test_verify_snapshot_manifest_rejects_corrupt_shard(tmp_path: Path) -> None:
                 "dataset": "datamol-io/safe-gpt",
                 "revision": "pinned",
                 "snapshot_root": str(tmp_path),
+                "schema_version": 1,
+                "kind": "MARLIN offline SAFE-GPT training snapshot",
                 "files": [
                     {
                         "path": "data/train/train-00000.parquet",
@@ -60,6 +68,17 @@ def test_verify_snapshot_manifest_rejects_corrupt_shard(tmp_path: Path) -> None:
                         "sha256": "0" * 64,
                     }
                 ],
+                "file_count": 1,
+                "total_size_bytes": 7,
+                "file_list_sha256": file_list_sha256(
+                    [
+                        {
+                            "path": "data/train/train-00000.parquet",
+                            "size_bytes": 7,
+                            "sha256": "0" * 64,
+                        }
+                    ]
+                ),
             }
         )
     )
@@ -69,4 +88,77 @@ def test_verify_snapshot_manifest_rejects_corrupt_shard(tmp_path: Path) -> None:
             manifest,
             expected_dataset="datamol-io/safe-gpt",
             expected_revision="pinned",
+            expected_file_list_sha256=file_list_sha256(
+                [
+                    {
+                        "path": "data/train/train-00000.parquet",
+                        "size_bytes": 7,
+                        "sha256": "0" * 64,
+                    }
+                ]
+            ),
+        )
+
+
+@pytest.mark.parametrize("bad_path", ["/tmp/external.parquet", "../escape.parquet"])
+def test_verify_snapshot_manifest_rejects_non_relative_shard(
+    tmp_path: Path, bad_path: str
+) -> None:
+    files = [{"path": bad_path, "size_bytes": 1, "sha256": "0" * 64}]
+    manifest = tmp_path / "manifest.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "kind": "MARLIN offline SAFE-GPT training snapshot",
+                "dataset": "datamol-io/safe-gpt",
+                "revision": "pinned",
+                "snapshot_root": str(tmp_path),
+                "files": files,
+                "file_count": 1,
+                "total_size_bytes": 1,
+                "file_list_sha256": file_list_sha256(files),
+            }
+        )
+    )
+
+    with pytest.raises(ValueError, match="invalid local training shard path"):
+        verify_snapshot_manifest(
+            manifest,
+            expected_dataset="datamol-io/safe-gpt",
+            expected_revision="pinned",
+            expected_file_list_sha256=file_list_sha256(files),
+        )
+
+
+def test_verify_snapshot_manifest_rejects_duplicate_shard(tmp_path: Path) -> None:
+    entry = {
+        "path": "data/train/train-00000.parquet",
+        "size_bytes": 1,
+        "sha256": "0" * 64,
+    }
+    files = [entry, dict(entry)]
+    manifest = tmp_path / "manifest.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "kind": "MARLIN offline SAFE-GPT training snapshot",
+                "dataset": "datamol-io/safe-gpt",
+                "revision": "pinned",
+                "snapshot_root": str(tmp_path),
+                "files": files,
+                "file_count": 2,
+                "total_size_bytes": 2,
+                "file_list_sha256": file_list_sha256(files),
+            }
+        )
+    )
+
+    with pytest.raises(ValueError, match="duplicate shards"):
+        verify_snapshot_manifest(
+            manifest,
+            expected_dataset="datamol-io/safe-gpt",
+            expected_revision="pinned",
+            expected_file_list_sha256=file_list_sha256(files),
         )
