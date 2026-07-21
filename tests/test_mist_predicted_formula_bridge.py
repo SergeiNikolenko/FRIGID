@@ -32,6 +32,7 @@ def test_sirius_job_uses_import_safe_naming_convention() -> None:
     assert "--naming-convention '%index_%compoundname'" not in job_script
     assert "#SBATCH --gres=" not in job_script
     assert "  --gpu \\" not in job_script
+    assert 'PYTHONPATH="$MIST/src:$CODE:$CODE/src:$CODE/scripts"' in job_script
 
 
 def test_formula_bridge_selects_top_prediction_and_preserves_order(tmp_path: Path) -> None:
