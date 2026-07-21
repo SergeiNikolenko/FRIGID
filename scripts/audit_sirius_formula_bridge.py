@@ -140,6 +140,8 @@ def audit_project(
     mismatches = []
     observed_ids = set()
     for compound_dir in sorted(path for path in project_dir.iterdir() if path.is_dir()):
+        if compound_dir.name == "summary_statistics":
+            continue
         info = _read_info(compound_dir / "compound.info")
         spectrum_id = info["name"]
         if spectrum_id not in expected:

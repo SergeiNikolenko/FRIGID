@@ -300,6 +300,7 @@ def test_sirius_audit_rejects_signed_formula_unsupported_by_official_mist(
     )
     compound = tmp_path / "project/0_a"
     compound.mkdir(parents=True)
+    (tmp_path / "project/summary_statistics").mkdir()
     tree = {
         "molecularFormula": "C8H12N5",
         "annotations": {"precursorIonType": "[M-H2O+H]+"},
