@@ -157,10 +157,17 @@ def audit_project(
             expected_formula, expected_adduct
         )
         ms_headers = _read_ms_headers(compound_dir / "spectrum.ms")
-        tree = _read_single_tree(compound_dir / "trees")
-        observed_tree_formula = tree["molecularFormula"]
-        observed_tree_adduct = tree["annotations"]["precursorIonType"].replace(
-            " ", ""
+        tree_error = None
+        try:
+            tree = _read_single_tree(compound_dir / "trees")
+        except (FileNotFoundError, ValueError, zipfile.BadZipFile) as error:
+            tree = None
+            tree_error = f"{type(error).__name__}: {error}"
+        observed_tree_formula = None if tree is None else tree["molecularFormula"]
+        observed_tree_adduct = (
+            None
+            if tree is None
+            else tree["annotations"]["precursorIonType"].replace(" ", "")
         )
         observed_compound_adduct = info["ionType"].replace(" ", "")
         observed_input_formula = ms_headers.get("formula")
@@ -172,11 +179,14 @@ def audit_project(
             reasons.append("input_adduct")
         if observed_compound_adduct != expected_adduct:
             reasons.append("compound_adduct")
-        if observed_tree_formula != expected_tree_formula:
-            reasons.append("tree_formula")
-        if observed_tree_adduct != expected_adduct:
-            reasons.append("tree_adduct")
-        mist_tree_issues = _official_mist_tree_issues(tree)
+        if tree is None:
+            reasons.append("tree_unavailable")
+        else:
+            if observed_tree_formula != expected_tree_formula:
+                reasons.append("tree_formula")
+            if observed_tree_adduct != expected_adduct:
+                reasons.append("tree_adduct")
+        mist_tree_issues = [] if tree is None else _official_mist_tree_issues(tree)
         if mist_tree_issues:
             reasons.append("official_mist_tree_incompatible")
         record = {
@@ -190,6 +200,7 @@ def audit_project(
             "observed_compound_adduct": observed_compound_adduct,
             "observed_tree_formula": observed_tree_formula,
             "observed_tree_adduct": observed_tree_adduct,
+            "tree_error": tree_error,
             "formula_normalization": normalization,
             "official_mist_tree_issues": mist_tree_issues,
             "reasons": reasons,

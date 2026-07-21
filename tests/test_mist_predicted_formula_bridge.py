@@ -331,6 +331,34 @@ def test_sirius_audit_rejects_signed_formula_unsupported_by_official_mist(
     assert report["minimum_candidate_ranks"] == {"a": 2}
 
 
+def test_sirius_audit_advances_when_sirius_does_not_produce_a_tree(
+    tmp_path: Path,
+) -> None:
+    labels = tmp_path / "labels.tsv"
+    labels.write_text(
+        "dataset\tspec\tformula\tionization\tparentmass\tcandidate_rank\n"
+        "set\ta\tC3H9FN8\t[M-H2O+H]+\t161.106\t2\n"
+    )
+    compound = tmp_path / "project/0_a"
+    compound.mkdir(parents=True)
+    (compound / "compound.info").write_text(
+        "name\ta\nionMass\t161.106\nionType\t[M-H2O+H]+\n"
+    )
+    (compound / "spectrum.ms").write_text(
+        ">compound a\n>formula C3H9FN8\n>ionization [M-H2O+H]+\n"
+    )
+
+    report = audit_project(tmp_path / "project", labels, tmp_path / "audit.json")
+
+    assert report["mismatch_count"] == 1
+    mismatch = report["mismatches"][0]
+    assert mismatch["candidate_rank"] == 2
+    assert mismatch["reasons"] == ["tree_unavailable"]
+    assert mismatch["observed_tree_formula"] is None
+    assert mismatch["tree_error"].startswith("FileNotFoundError:")
+    assert report["minimum_candidate_ranks"] == {"a": 3}
+
+
 def test_bridge_manifest_rejects_audit_not_bound_to_formula_manifest(
     tmp_path: Path,
 ) -> None:
