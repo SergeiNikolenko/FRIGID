@@ -5,10 +5,21 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from scripts.package_mist_predictions import package_predictions
-from scripts.prepare_mist_predicted_formula_dataset import build_dataset
-from scripts.unpack_sirius_for_mist import unpack_project, write_mist_labels, write_summary
+from scripts.prepare_mist_predicted_formula_dataset import (
+    FORMULA_SOURCE,
+    build_dataset,
+    select_mass_consistent_candidate,
+)
+from scripts.audit_sirius_formula_bridge import audit_project
+from scripts.unpack_sirius_for_mist import (
+    unpack_project,
+    write_bridge_manifest,
+    write_mist_labels,
+    write_summary,
+)
 
 
 def test_sirius_job_uses_import_safe_naming_convention() -> None:
@@ -42,12 +53,33 @@ def test_formula_bridge_selects_top_prediction_and_preserves_order(tmp_path: Pat
     labels = pd.read_csv(tmp_path / "dataset/labels.tsv", sep="\t")
     assert labels["spec"].tolist() == ["a", "b"]
     assert labels["formula"].tolist() == ["C3H6", "C4H8"]
-    assert manifest["formula_source"] == (
-        "Highest-scoring MIST-CF candidate within 10 ppm; no ground-truth formula"
-    )
+    assert manifest["formula_source"] == FORMULA_SOURCE
     assert labels["candidate_rank"].tolist() == [1, 1]
     assert "FORMULA=C3H6" in (tmp_path / "dataset/forced_formula.mgf").read_text()
     assert ">formula C4H8" in (tmp_path / "dataset/spec_files/b.ms").read_text()
+
+
+def test_formula_bridge_advances_to_requested_candidate_rank() -> None:
+    candidates = [
+        {
+            "cand_form": "C3H6",
+            "cand_ion": "[M+H]+",
+            "scores": "0.9",
+            "parentmasses": "43.05422664",
+        },
+        {
+            "cand_form": "C3H6",
+            "cand_ion": "[M+H]+",
+            "scores": "0.8",
+            "parentmasses": "43.05422664",
+        },
+    ]
+
+    _, rank, _, _ = select_mass_consistent_candidate(
+        candidates, 43.05422664, minimum_rank=2
+    )
+
+    assert rank == 2
 
 
 def _write_zip(path: Path, member: str, content: str) -> None:
@@ -70,7 +102,7 @@ def test_sirius_unpack_and_mist_packaging_are_id_locked(tmp_path: Path) -> None:
     _write_zip(compound / "spectra", "C2H4_[M+H]+.tsv", "mz\tintensity\n")
     _write_zip(compound / "scores", "C2H4_[M+H]+.info", "score\n")
     (compound / "compound.info").write_text(
-        "name\ta\nionMass\t29.0\nionType\t[M + H]+\n"
+        "name\ta\nionMass\t29.03857658\nionType\t[M + H]+\n"
     )
     (compound / "spectrum.ms").write_text(
         ">compound a\n>formula C2H4\n>ionization [M + H]+\n"
@@ -100,6 +132,8 @@ def test_sirius_unpack_and_mist_packaging_are_id_locked(tmp_path: Path) -> None:
     with predictions.open("wb") as handle:
         pickle.dump(
             {
+                "dataset_name": mist_labels.parent.name,
+                "args": {"labels_name": mist_labels.name},
                 "names": ["b", "a"],
                 "preds": np.stack(
                     [np.full(4096, 2.0), np.full(4096, 1.0)]
@@ -112,11 +146,31 @@ def test_sirius_unpack_and_mist_packaging_are_id_locked(tmp_path: Path) -> None:
         json.dumps(
             {
                     "kind": "Mass-consistent MIST-CF predicted-formula bridge into official MIST",
-                    "formula_source": "Highest-scoring MIST-CF candidate within 10 ppm; no ground-truth formula",
+                    "formula_source": FORMULA_SOURCE,
                     "precursor_ppm_tolerance": 10.0,
                     "fallback_rows": 1,
                     "maximum_candidate_rank": 2,
                     "rows": 2,
+                    "sirius_consistency_validated": True,
+            }
+        )
+    )
+    from scripts.package_mist_predictions import sha256_file
+
+    sirius_bridge_manifest = tmp_path / "sirius_bridge_manifest.json"
+    sirius_bridge_manifest.write_text(
+        json.dumps(
+            {
+                "kind": "SIRIUS-validated formula-blind bridge into official MIST",
+                "formula_source": FORMULA_SOURCE,
+                "rows": 2,
+                "formula_manifest_sha256": sha256_file(formula_manifest),
+                "mist_labels_sha256": sha256_file(mist_labels),
+                "maximum_mist_precursor_ppm_error": 2.0,
+                "sirius_audit_sha256": "audit-sha256",
+                "summary_sha256": "summary-sha256",
+                "sirius_tree_evidence_sha256": "tree-evidence-sha256",
+                "per_id_mapping_sha256": "mapping-sha256",
             }
         )
     )
@@ -126,6 +180,8 @@ def test_sirius_unpack_and_mist_packaging_are_id_locked(tmp_path: Path) -> None:
         predictions,
         metadata,
         formula_manifest,
+        sirius_bridge_manifest,
+        mist_labels,
         output,
         "mist-commit",
         "5.5.7",
@@ -200,3 +256,70 @@ def test_sirius_unpack_accepts_documented_radical_cation_normalization(
     assert rows[0]["mist_cf_formula"] == "C10H12N4O2"
     assert rows[0]["tree_formula"] == "C10H11N4O2"
     assert rows[0]["formula_normalization"] == "sirius_[M]+_minus_H"
+    assert rows[0]["mist_adduct"] == "[M+H]+"
+    assert float(rows[0]["mist_precursor_ppm_error"]) < 10.0
+
+
+def test_sirius_audit_requests_next_rank_for_changed_adduct(tmp_path: Path) -> None:
+    labels = tmp_path / "labels.tsv"
+    labels.write_text(
+        "dataset\tspec\tformula\tionization\tparentmass\tcandidate_rank\n"
+        "set\ta\tC2H4\t[M+H]+\t29.03857658\t1\n"
+    )
+    compound = tmp_path / "project/0_a"
+    compound.mkdir(parents=True)
+    tree = {
+        "molecularFormula": "C2H4",
+        "annotations": {"precursorIonType": "[M+Na]+"},
+    }
+    _write_zip(compound / "trees", "tree.json", json.dumps(tree))
+    (compound / "compound.info").write_text(
+        "name\ta\nionMass\t29.03857658\nionType\t[M+Na]+\n"
+    )
+    (compound / "spectrum.ms").write_text(
+        ">compound a\n>formula C2H4\n>ionization [M+H]+\n"
+    )
+
+    report = audit_project(
+        tmp_path / "project", labels, tmp_path / "audit.json"
+    )
+
+    assert report["mismatch_count"] == 1
+    assert report["minimum_candidate_ranks"] == {"a": 2}
+
+
+def test_bridge_manifest_rejects_audit_not_bound_to_formula_manifest(
+    tmp_path: Path,
+) -> None:
+    labels = tmp_path / "labels.tsv"
+    labels.write_text("spec\n")
+    audit = tmp_path / "audit.json"
+    audit.write_text(
+        json.dumps(
+            {
+                "mismatch_count": 0,
+                "rows": 0,
+                "labels_sha256": "wrong",
+            }
+        )
+    )
+    formula_manifest = tmp_path / "formula.json"
+    formula_manifest.write_text(
+        json.dumps(
+            {
+                "sirius_consistency_validated": True,
+                "sirius_consistency_audit_sha256": "wrong",
+            }
+        )
+    )
+
+    with pytest.raises(ValueError, match="not bound to the supplied SIRIUS audit"):
+        write_bridge_manifest(
+            [],
+            formula_manifest,
+            audit,
+            labels,
+            tmp_path / "summary.tsv",
+            tmp_path / "mist_labels.tsv",
+            tmp_path / "bridge.json",
+        )

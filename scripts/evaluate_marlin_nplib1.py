@@ -39,6 +39,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--fingerprint-key", required=True)
     parser.add_argument("--threshold", type=float)
     parser.add_argument("--lane-provenance", type=Path)
+    parser.add_argument("--formula-manifest", type=Path)
+    parser.add_argument("--sirius-bridge-manifest", type=Path)
+    parser.add_argument("--mist-labels", type=Path)
     parser.add_argument("--lane", choices=("dreams", "mist"), required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--candidates", type=int, default=384)
@@ -113,10 +116,18 @@ def main() -> None:
     args = parse_args()
     if args.candidates <= 0:
         raise ValueError("--candidates must be positive")
-    if args.lane == "mist" and args.lane_provenance is None:
+    if args.lane == "mist" and any(
+        value is None
+        for value in (
+            args.lane_provenance,
+            args.formula_manifest,
+            args.sirius_bridge_manifest,
+            args.mist_labels,
+        )
+    ):
         raise ValueError(
-            "canonical MIST evaluation requires --lane-provenance for the "
-            "MIST-CF predicted-formula export"
+            "canonical MIST evaluation requires --lane-provenance, "
+            "--formula-manifest, --sirius-bridge-manifest, and --mist-labels"
         )
     args.output_dir.mkdir(parents=True, exist_ok=True)
     metadata = pd.read_csv(args.metadata)
@@ -127,6 +138,9 @@ def main() -> None:
             metadata_rows,
             args.fingerprints,
             args.metadata,
+            args.formula_manifest,
+            args.sirius_bridge_manifest,
+            args.mist_labels,
         )
     if args.max_spectra is not None:
         metadata = metadata.iloc[: args.max_spectra].copy()

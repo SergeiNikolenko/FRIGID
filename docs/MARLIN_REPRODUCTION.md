@@ -139,8 +139,8 @@ filtering eligibility before batching; the collator now fails closed. No job
   because the paper does not publish its encoder-training details.
 - MIST job 215 produced `0.533575`, but its peak-to-subformula features used the
   NPLIB1 ground-truth formula. It is therefore a leakage-positive oracle, not a
-  MARLIN(MIST) result. Final MIST evaluation requires MIST-CF top-1 predicted
-  formulas, regenerated subformula annotations, and a new fingerprint export.
+  MARLIN(MIST) result. Final MIST evaluation requires formula-blind MIST-CF
+  predictions, regenerated subformula annotations, and a new fingerprint export.
   The official MIST-CF checkpoints, CANOPUS archive, and SIRIUS 5.5.7 are now
   pinned in the isolated reproduction root. The released `split_1.tsv` has
   10,709 rows (7,727 train, 777 validation, 2,205 test). All 803 NPLIB1 IDs are
@@ -160,15 +160,17 @@ filtering eligibility before batching; the collator now fails closed. No job
   prospective inference path used for the released-checkpoint lane, changing
   only the scorer checkpoint. Its fast formula filter is the released generic
   biomolecular-formula model rather than an NPLIB1 spectrum-fit model.
-  `slurm_mist_predicted_formula_fingerprints.sbatch` then injects only those
-  top-1 predicted formulas into a forced-formula SIRIUS 5.5.7 run, validates
-  one fragmentation tree per benchmark ID, and feeds the trees into the
-  official MIST Morgan-4096 checkpoint. The bridge manifest explicitly rejects
-  any formula source other than MIST-CF top-1 predictions before packaging the
-  fingerprint bundle in the immutable 803-row benchmark order.
-  The unpacker also requires every SIRIUS tree formula and adduct to equal the
-  corresponding MIST-CF top-1 pair. Evaluation binds the supplied NPZ and
-  metadata hashes to the official-MIST/SIRIUS/checkpoint provenance manifest.
+  `slurm_mist_predicted_formula_fingerprints.sbatch` then tries MIST-CF
+  candidates in descending score order, retaining the first candidate within
+  10 ppm that SIRIUS 5.5.7 preserves exactly. Any SIRIUS formula/adduct rewrite
+  advances only that spectrum to its next ranked candidate and reruns the full
+  fail-closed audit. The final tree formula is also required to form a
+  mass-consistent official-MIST label; SIRIUS radical-cation normalization is
+  recorded explicitly. The initial formula manifest, post-SIRIUS audit,
+  per-ID mapping, MIST labels, final fingerprint NPZ, metadata, official MIST
+  commit, SIRIUS version, and checkpoint are cryptographically bound before
+  evaluation. This fallback policy is a clean-room implementation choice:
+  MARLIN does not publish the underdescribed formula-to-SIRIUS bridge.
   The official MIST code runs in a separate, frozen Python 3.8 environment;
   it is not allowed to mutate the completed MIST-CF scorer environment.
 

@@ -13,7 +13,10 @@ import pandas as pd
 MIST_LANE_KIND = (
     "official MIST fingerprint probabilities from MIST-CF predicted formulas"
 )
-MIST_FORMULA_SOURCE = "MIST-CF top-1 prediction; no ground-truth formula"
+MIST_FORMULA_SOURCE = (
+    "Highest-scoring SIRIUS-consistent MIST-CF candidate within 10 ppm; "
+    "no ground-truth formula"
+)
 
 
 def sha256_file(path: Path) -> str:
@@ -29,6 +32,9 @@ def validate_mist_lane_provenance(
     expected_rows: int,
     fingerprint_path: Path,
     metadata_path: Path,
+    formula_manifest_path: Path,
+    sirius_bridge_manifest_path: Path,
+    mist_labels_path: Path,
 ) -> dict:
     payload = json.loads(path.read_text())
     required = {
@@ -38,6 +44,9 @@ def validate_mist_lane_provenance(
         "fingerprint_bits": 4096,
         "output_sha256": sha256_file(fingerprint_path),
         "reference_metadata_sha256": sha256_file(metadata_path),
+        "formula_manifest_sha256": sha256_file(formula_manifest_path),
+        "sirius_bridge_manifest_sha256": sha256_file(sirius_bridge_manifest_path),
+        "mist_labels_sha256": sha256_file(mist_labels_path),
     }
     mismatches = {
         key: {"expected": expected, "observed": payload.get(key)}
@@ -50,7 +59,6 @@ def validate_mist_lane_provenance(
             f"{mismatches}"
         )
     for key in (
-        "formula_manifest_sha256",
         "official_mist_git_commit",
         "sirius_version",
         "mist_checkpoint_sha256",

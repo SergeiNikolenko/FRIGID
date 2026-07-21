@@ -48,7 +48,13 @@ def test_mass_bin_metrics_use_paper_boundaries():
     assert metrics["gte_500"] == {"rows": 1, "exact_top1": 0.0}
 
 
-def _mist_payload(fingerprint_path, metadata_path):
+def _mist_payload(
+    fingerprint_path,
+    metadata_path,
+    formula_manifest_path,
+    sirius_bridge_manifest_path,
+    mist_labels_path,
+):
     from marlin.evaluation import sha256_file
 
     return {
@@ -58,7 +64,9 @@ def _mist_payload(fingerprint_path, metadata_path):
         "fingerprint_bits": 4096,
         "output_sha256": sha256_file(fingerprint_path),
         "reference_metadata_sha256": sha256_file(metadata_path),
-        "formula_manifest_sha256": "formula-manifest-sha256",
+        "formula_manifest_sha256": sha256_file(formula_manifest_path),
+        "sirius_bridge_manifest_sha256": sha256_file(sirius_bridge_manifest_path),
+        "mist_labels_sha256": sha256_file(mist_labels_path),
         "official_mist_git_commit": "mist-commit",
         "sirius_version": "5.5.7",
         "mist_checkpoint_sha256": "checkpoint-sha256",
@@ -70,13 +78,29 @@ def test_mist_lane_provenance_rejects_oracle_formula_source(tmp_path):
     metadata = tmp_path / "metadata.csv"
     fingerprints.write_bytes(b"fingerprints")
     metadata.write_text("spec_name\n")
+    formula_manifest = tmp_path / "formula.json"
+    formula_manifest.write_text("{}")
+    sirius_bridge_manifest = tmp_path / "sirius.json"
+    sirius_bridge_manifest.write_text("{}")
+    mist_labels = tmp_path / "mist_labels.tsv"
+    mist_labels.write_text("spec\n")
     path = tmp_path / "manifest.json"
-    payload = _mist_payload(fingerprints, metadata)
+    payload = _mist_payload(
+        fingerprints, metadata, formula_manifest, sirius_bridge_manifest, mist_labels
+    )
     payload["formula_source"] = "ground-truth formula"
     path.write_text(json.dumps(payload))
 
     with pytest.raises(ValueError, match="formula-blind official lane"):
-        validate_mist_lane_provenance(path, 803, fingerprints, metadata)
+        validate_mist_lane_provenance(
+            path,
+            803,
+            fingerprints,
+            metadata,
+            formula_manifest,
+            sirius_bridge_manifest,
+            mist_labels,
+        )
 
 
 def test_mist_lane_provenance_accepts_clean_official_lane(tmp_path):
@@ -84,11 +108,30 @@ def test_mist_lane_provenance_accepts_clean_official_lane(tmp_path):
     metadata = tmp_path / "metadata.csv"
     fingerprints.write_bytes(b"fingerprints")
     metadata.write_text("spec_name\n")
+    formula_manifest = tmp_path / "formula.json"
+    formula_manifest.write_text("{}")
+    sirius_bridge_manifest = tmp_path / "sirius.json"
+    sirius_bridge_manifest.write_text("{}")
+    mist_labels = tmp_path / "mist_labels.tsv"
+    mist_labels.write_text("spec\n")
     path = tmp_path / "manifest.json"
-    payload = _mist_payload(fingerprints, metadata)
+    payload = _mist_payload(
+        fingerprints, metadata, formula_manifest, sirius_bridge_manifest, mist_labels
+    )
     path.write_text(json.dumps(payload))
 
-    assert validate_mist_lane_provenance(path, 803, fingerprints, metadata) == payload
+    assert (
+        validate_mist_lane_provenance(
+            path,
+            803,
+            fingerprints,
+            metadata,
+            formula_manifest,
+            sirius_bridge_manifest,
+            mist_labels,
+        )
+        == payload
+    )
 
 
 def test_mist_lane_provenance_rejects_fingerprint_hash_mismatch(tmp_path):
@@ -96,10 +139,26 @@ def test_mist_lane_provenance_rejects_fingerprint_hash_mismatch(tmp_path):
     metadata = tmp_path / "metadata.csv"
     fingerprints.write_bytes(b"fingerprints")
     metadata.write_text("spec_name\n")
+    formula_manifest = tmp_path / "formula.json"
+    formula_manifest.write_text("{}")
+    sirius_bridge_manifest = tmp_path / "sirius.json"
+    sirius_bridge_manifest.write_text("{}")
+    mist_labels = tmp_path / "mist_labels.tsv"
+    mist_labels.write_text("spec\n")
     path = tmp_path / "manifest.json"
-    payload = _mist_payload(fingerprints, metadata)
+    payload = _mist_payload(
+        fingerprints, metadata, formula_manifest, sirius_bridge_manifest, mist_labels
+    )
     payload["output_sha256"] = "wrong"
     path.write_text(json.dumps(payload))
 
     with pytest.raises(ValueError, match="formula-blind official lane"):
-        validate_mist_lane_provenance(path, 803, fingerprints, metadata)
+        validate_mist_lane_provenance(
+            path,
+            803,
+            fingerprints,
+            metadata,
+            formula_manifest,
+            sirius_bridge_manifest,
+            mist_labels,
+        )

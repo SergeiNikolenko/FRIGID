@@ -14,6 +14,10 @@ from rdkit import Chem
 
 
 PRECURSOR_PPM_TOLERANCE = 10.0
+FORMULA_SOURCE = (
+    "Highest-scoring SIRIUS-consistent MIST-CF candidate within 10 ppm; "
+    "no ground-truth formula"
+)
 ELECTRON_MASS = 0.00054858
 PERIODIC_TABLE = Chem.GetPeriodicTable()
 ION_REMAP = {
@@ -71,9 +75,13 @@ def read_ranked_predictions(path: Path) -> dict[str, list[dict[str, str]]]:
 
 
 def select_mass_consistent_candidate(
-    candidates: list[dict[str, str]], observed_precursor_mz: float
+    candidates: list[dict[str, str]],
+    observed_precursor_mz: float,
+    minimum_rank: int = 1,
 ) -> tuple[dict[str, str], int, float, float]:
     for rank, row in enumerate(candidates, start=1):
+        if rank < minimum_rank:
+            continue
         ion = ION_REMAP.get(row["cand_ion"].strip(), row["cand_ion"].strip())
         if ion not in ION_TO_MASS:
             continue
@@ -129,7 +137,12 @@ def peak_lines(lines: list[str]) -> list[str]:
     return [line for line in lines if "=" not in line]
 
 
-def build_dataset(mgf: Path, predictions: Path, output_dir: Path) -> dict:
+def build_dataset(
+    mgf: Path,
+    predictions: Path,
+    output_dir: Path,
+    minimum_candidate_ranks: dict[str, int] | None = None,
+) -> dict:
     if output_dir.exists() and any(output_dir.iterdir()):
         raise FileExistsError(f"Refusing to overwrite non-empty {output_dir}")
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -150,8 +163,9 @@ def build_dataset(mgf: Path, predictions: Path, output_dir: Path) -> dict:
     labels: list[dict[str, str]] = []
     for spectrum_id, headers, lines in blocks:
         observed_precursor_mz = float(headers["PEPMASS"].split()[0])
+        minimum_rank = (minimum_candidate_ranks or {}).get(spectrum_id, 1)
         row, candidate_rank, theoretical_mz, ppm_error = select_mass_consistent_candidate(
-            ranked[spectrum_id], observed_precursor_mz
+            ranked[spectrum_id], observed_precursor_mz, minimum_rank
         )
         formula = row["cand_form"].strip()
         ion = row["cand_ion"].strip()
@@ -206,7 +220,7 @@ def build_dataset(mgf: Path, predictions: Path, output_dir: Path) -> dict:
     manifest = {
         "schema_version": 1,
         "kind": "Mass-consistent MIST-CF predicted-formula bridge into official MIST",
-        "formula_source": "Highest-scoring MIST-CF candidate within 10 ppm; no ground-truth formula",
+        "formula_source": FORMULA_SOURCE,
         "precursor_ppm_tolerance": PRECURSOR_PPM_TOLERANCE,
         "fallback_rows": sum(int(row["candidate_rank"]) > 1 for row in labels),
         "maximum_candidate_rank": max(int(row["candidate_rank"]) for row in labels),
@@ -229,12 +243,31 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--mgf", type=Path, required=True)
     parser.add_argument("--predictions", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument("--minimum-candidate-ranks", type=Path)
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
-    print(json.dumps(build_dataset(args.mgf, args.predictions, args.output_dir)))
+    minimum_candidate_ranks = None
+    if args.minimum_candidate_ranks is not None:
+        payload = json.loads(args.minimum_candidate_ranks.read_text())
+        minimum_candidate_ranks = {
+            str(key): int(value)
+            for key, value in payload.get("minimum_candidate_ranks", payload).items()
+        }
+        if any(rank < 1 for rank in minimum_candidate_ranks.values()):
+            raise ValueError("Minimum candidate ranks must be positive")
+    print(
+        json.dumps(
+            build_dataset(
+                args.mgf,
+                args.predictions,
+                args.output_dir,
+                minimum_candidate_ranks,
+            )
+        )
+    )
 
 
 if __name__ == "__main__":

@@ -5,10 +5,24 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
 import json
 import re
 import zipfile
 from pathlib import Path
+
+from scripts.prepare_mist_predicted_formula_dataset import ION_TO_MASS, formula_mass
+
+
+PRECURSOR_PPM_TOLERANCE = 10.0
+
+
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def _formula_with_hydrogen_delta(formula: str, delta: int) -> str:
@@ -117,6 +131,24 @@ def unpack_project(project_dir: Path, labels_path: Path) -> list[dict[str, str]]
                 f"expected={expected_adduct} "
                 f"observed={observed_adduct}"
             )
+        mist_adduct = (
+            "[M+H]+"
+            if formula_normalization == "sirius_[M]+_minus_H"
+            else observed_adduct
+        )
+        mist_precursor_mz = formula_mass(observed_formula) + ION_TO_MASS[mist_adduct]
+        sirius_precursor_mz = float(info["ionMass"])
+        mist_precursor_ppm_error = (
+            abs(mist_precursor_mz - sirius_precursor_mz)
+            / sirius_precursor_mz
+            * 1e6
+        )
+        if mist_precursor_ppm_error > PRECURSOR_PPM_TOLERANCE:
+            raise ValueError(
+                f"MIST label mass mismatch for {spectrum_id}: "
+                f"formula={observed_formula} adduct={mist_adduct} "
+                f"ppm={mist_precursor_ppm_error}"
+            )
         rows.append(
             {
                 "spec_name": spectrum_id,
@@ -127,6 +159,8 @@ def unpack_project(project_dir: Path, labels_path: Path) -> list[dict[str, str]]
                 "mist_cf_formula": expected_formula,
                 "tree_formula": observed_formula,
                 "formula_normalization": formula_normalization,
+                "mist_adduct": mist_adduct,
+                "mist_precursor_ppm_error": f"{mist_precursor_ppm_error:.12g}",
                 "parentmass": info["ionMass"],
             }
         )
@@ -145,6 +179,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--labels", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--mist-labels-output", type=Path, required=True)
+    parser.add_argument("--formula-manifest", type=Path, required=True)
+    parser.add_argument("--sirius-audit", type=Path, required=True)
+    parser.add_argument("--bridge-manifest-output", type=Path, required=True)
     return parser.parse_args()
 
 
@@ -163,6 +200,8 @@ def write_summary(rows: list[dict[str, str]], output: Path) -> None:
                 "mist_cf_formula",
                 "tree_formula",
                 "formula_normalization",
+                "mist_adduct",
+                "mist_precursor_ppm_error",
                 "parentmass",
             ],
             delimiter="\t",
@@ -192,7 +231,7 @@ def write_mist_labels(rows: list[dict[str, str]], output: Path) -> None:
                 "dataset": output.parent.name,
                 "spec": row["spec_name"],
                 "formula": row["tree_formula"],
-                "ionization": row["adduct"],
+                "ionization": row["mist_adduct"],
                 "parentmass": row["parentmass"],
                 "mist_cf_formula": row["mist_cf_formula"],
                 "formula_normalization": row["formula_normalization"],
@@ -201,11 +240,89 @@ def write_mist_labels(rows: list[dict[str, str]], output: Path) -> None:
         )
 
 
+def write_bridge_manifest(
+    rows: list[dict[str, str]],
+    formula_manifest: Path,
+    sirius_audit: Path,
+    labels: Path,
+    summary: Path,
+    mist_labels: Path,
+    output: Path,
+) -> dict:
+    formula_payload = json.loads(formula_manifest.read_text())
+    audit_payload = json.loads(sirius_audit.read_text())
+    if not formula_payload.get("sirius_consistency_validated"):
+        raise ValueError("Formula manifest lacks successful SIRIUS consistency audit")
+    if formula_payload.get("sirius_consistency_audit_sha256") != sha256_file(
+        sirius_audit
+    ):
+        raise ValueError("Formula manifest is not bound to the supplied SIRIUS audit")
+    if audit_payload.get("mismatch_count") != 0:
+        raise ValueError("SIRIUS bridge still contains formula/adduct mismatches")
+    if audit_payload.get("rows") != len(rows):
+        raise ValueError("SIRIUS audit row count does not match unpacked bridge")
+    labels_sha256 = sha256_file(labels)
+    if (
+        formula_payload.get("labels_sha256") != labels_sha256
+        or audit_payload.get("labels_sha256") != labels_sha256
+    ):
+        raise ValueError("Formula manifest and SIRIUS audit are not bound to labels")
+    per_id_digest = hashlib.sha256(
+        json.dumps(
+            [
+                {
+                    "spec": row["spec_name"],
+                    "mist_cf_formula": row["mist_cf_formula"],
+                    "tree_formula": row["tree_formula"],
+                    "sirius_adduct": row["adduct"],
+                    "mist_adduct": row["mist_adduct"],
+                    "formula_normalization": row["formula_normalization"],
+                    "mist_precursor_ppm_error": row["mist_precursor_ppm_error"],
+                }
+                for row in rows
+            ],
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode()
+    ).hexdigest()
+    manifest = {
+        "schema_version": 1,
+        "kind": "SIRIUS-validated formula-blind bridge into official MIST",
+        "rows": len(rows),
+        "formula_source": formula_payload["formula_source"],
+        "precursor_ppm_tolerance": PRECURSOR_PPM_TOLERANCE,
+        "fallback_rows": formula_payload["fallback_rows"],
+        "maximum_candidate_rank": formula_payload["maximum_candidate_rank"],
+        "formula_manifest_sha256": sha256_file(formula_manifest),
+        "sirius_audit_sha256": sha256_file(sirius_audit),
+        "summary_sha256": sha256_file(summary),
+        "mist_labels_sha256": sha256_file(mist_labels),
+        "sirius_tree_evidence_sha256": audit_payload[
+            "sirius_tree_evidence_sha256"
+        ],
+        "per_id_mapping_sha256": per_id_digest,
+        "maximum_mist_precursor_ppm_error": max(
+            float(row["mist_precursor_ppm_error"]) for row in rows
+        ),
+    }
+    output.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
+    return manifest
+
+
 def main() -> None:
     args = parse_args()
     rows = unpack_project(args.project_dir, args.labels)
     write_summary(rows, args.output)
     write_mist_labels(rows, args.mist_labels_output)
+    write_bridge_manifest(
+        rows,
+        args.formula_manifest,
+        args.sirius_audit,
+        args.labels,
+        args.output,
+        args.mist_labels_output,
+        args.bridge_manifest_output,
+    )
     print(f"Prepared {len(rows)} SIRIUS trees for MIST")
 
 
