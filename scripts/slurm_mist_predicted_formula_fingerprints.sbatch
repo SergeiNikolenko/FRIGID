@@ -1,7 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=mist-predformula-fp
 #SBATCH --partition=gpu
-#SBATCH --gres=gpu:a100:1
 #SBATCH --cpus-per-task=12
 #SBATCH --mem=64G
 #SBATCH --time=06:00:00
@@ -26,6 +25,7 @@ MIST_CHECKPOINT_SHA256=$(sha256sum "$MIST_CHECKPOINT" | cut -d' ' -f1)
 SIRIUS_VERSION=5.5.7
 
 printf 'PROVENANCE\n'
+printf 'MIST_DEVICE=cpu\n'
 git -C "$CODE" rev-parse HEAD
 git -C "$MIST" rev-parse HEAD
 "$SIRIUS" --version
@@ -57,7 +57,6 @@ cd "$ROOT"
   --save-dir "$MIST_OUTPUT" \
   --dataset-name marlin_mist_cf_clean \
   --num-workers 12 \
-  --gpu \
   --labels-name labels.tsv
 
 "$PYTHON" "$CODE/scripts/package_mist_predictions.py" \
