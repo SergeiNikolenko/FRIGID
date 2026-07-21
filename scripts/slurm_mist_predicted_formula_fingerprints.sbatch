@@ -19,7 +19,7 @@ DATASET_PREFIX="$ROOT/data/paired_spectra/marlin_mist_cf_clean_job${SLURM_JOB_ID
 MIST_CHECKPOINT="$ROOT/checkpoints/mist/mist_fp_canopus_pretrain.ckpt"
 MIST_OUTPUT="$ROOT/runs/mist_connectivity_clean_fingerprints_job${SLURM_JOB_ID}"
 
-export PYTHONPATH="$MIST/src:$CODE:$CODE/src:$CODE/scripts"
+export PYTHONPATH="$CODE:$CODE/src:$CODE/scripts:$MIST/src"
 MIST_COMMIT=$(git -C "$MIST" rev-parse HEAD)
 MIST_CHECKPOINT_SHA256=$(sha256sum "$MIST_CHECKPOINT" | cut -d' ' -f1)
 SIRIUS_VERSION=5.5.7
@@ -91,6 +91,8 @@ DATASET_NAME=$(basename "$DATASET")
 
 mkdir -p "$MIST_OUTPUT"
 cd "$ROOT"
+export PYTHONPATH="$MIST/src"
+"$PYTHON" -c 'from mist import pred_fp; print(f"OFFICIAL_MIST={pred_fp.__file__}")'
 "$PYTHON" "$MIST/run_scripts/pred_fp.py" \
   --model-ckpt "$MIST_CHECKPOINT" \
   --save-dir "$MIST_OUTPUT" \
