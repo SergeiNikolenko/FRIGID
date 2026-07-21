@@ -40,7 +40,7 @@ sha256sum "$ROOT/envs/mist_official_py38/requirements.lock.txt"
 "$SIRIUS" \
   --cores 12 \
   --output "$DATASET/sirius_outputs" \
-  --naming-convention '%index_%compoundname' \
+  --naming-convention '%compoundname' \
   --input "$DATASET/forced_formula.mgf" \
   formula \
   --ppm-max-ms2 10

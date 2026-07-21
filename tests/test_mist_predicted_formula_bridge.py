@@ -11,6 +11,16 @@ from scripts.prepare_mist_predicted_formula_dataset import build_dataset
 from scripts.unpack_sirius_for_mist import unpack_project, write_summary
 
 
+def test_sirius_job_uses_import_safe_naming_convention() -> None:
+    job_script = (
+        Path(__file__).parents[1]
+        / "scripts/slurm_mist_predicted_formula_fingerprints.sbatch"
+    ).read_text()
+
+    assert "--naming-convention '%compoundname'" in job_script
+    assert "--naming-convention '%index_%compoundname'" not in job_script
+
+
 def test_formula_bridge_selects_top_prediction_and_preserves_order(tmp_path: Path) -> None:
     mgf = tmp_path / "test.mgf"
     mgf.write_text(
