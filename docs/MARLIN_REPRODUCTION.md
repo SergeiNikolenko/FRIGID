@@ -164,9 +164,14 @@ filtering eligibility before batching; the collator now fails closed. No job
   candidates in descending score order, retaining the first candidate within
   10 ppm that SIRIUS 5.5.7 preserves exactly. Any SIRIUS formula/adduct rewrite
   advances only that spectrum to its next ranked candidate and reruns the full
-  fail-closed audit. The final tree formula is also required to form a
-  mass-consistent official-MIST label; SIRIUS radical-cation normalization is
-  recorded explicitly. The initial formula manifest, post-SIRIUS audit,
+  fail-closed audit. Every SIRIUS root, fragment, and loss formula must also
+  satisfy the released MIST parser's unsigned formula grammar, supported-element
+  set, and fragment-subformula constraint. A signed SIRIUS neutralized-tree node
+  such as `C8H10N5-O` therefore advances to another MIST-CF candidate instead of
+  being silently misparsed or removed. The final tree formula is also required
+  to form a mass-consistent official-MIST label; SIRIUS radical-cation
+  normalization is recorded explicitly. The initial formula manifest,
+  post-SIRIUS/MIST-compatibility audit,
   per-ID mapping, MIST labels, final fingerprint NPZ, metadata, official MIST
   commit, SIRIUS version, and checkpoint are cryptographically bound before
   evaluation. This fallback policy is a clean-room implementation choice:

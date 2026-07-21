@@ -290,6 +290,46 @@ def test_sirius_audit_requests_next_rank_for_changed_adduct(tmp_path: Path) -> N
     assert report["minimum_candidate_ranks"] == {"a": 2}
 
 
+def test_sirius_audit_rejects_signed_formula_unsupported_by_official_mist(
+    tmp_path: Path,
+) -> None:
+    labels = tmp_path / "labels.tsv"
+    labels.write_text(
+        "dataset\tspec\tformula\tionization\tparentmass\tcandidate_rank\n"
+        "set\ta\tC8H12N5\t[M-H2O+H]+\t161.106\t1\n"
+    )
+    compound = tmp_path / "project/0_a"
+    compound.mkdir(parents=True)
+    tree = {
+        "molecularFormula": "C8H12N5",
+        "annotations": {"precursorIonType": "[M-H2O+H]+"},
+        "fragments": [
+            {"id": 0, "molecularFormula": "C8H12N5"},
+            {"id": 1, "molecularFormula": "C8H10N5-O"},
+        ],
+        "losses": [
+            {"source": 0, "target": 1, "molecularFormula": "H2O"}
+        ],
+    }
+    _write_zip(compound / "trees", "tree.json", json.dumps(tree))
+    (compound / "compound.info").write_text(
+        "name\ta\nionMass\t161.106\nionType\t[M-H2O+H]+\n"
+    )
+    (compound / "spectrum.ms").write_text(
+        ">compound a\n>formula C8H12N5\n>ionization [M-H2O+H]+\n"
+    )
+
+    report = audit_project(tmp_path / "project", labels, tmp_path / "audit.json")
+
+    assert report["mismatch_count"] == 1
+    mismatch = report["mismatches"][0]
+    assert mismatch["reasons"] == ["official_mist_tree_incompatible"]
+    assert mismatch["official_mist_tree_issues"] == [
+        {"kind": "fragment_formula", "fragment_id": 1, "formula": "C8H10N5-O"}
+    ]
+    assert report["minimum_candidate_ranks"] == {"a": 2}
+
+
 def test_bridge_manifest_rejects_audit_not_bound_to_formula_manifest(
     tmp_path: Path,
 ) -> None:

@@ -7,6 +7,7 @@ import argparse
 import csv
 import hashlib
 import json
+import re
 import zipfile
 from pathlib import Path
 
@@ -14,6 +15,27 @@ from scripts.unpack_sirius_for_mist import (
     _expected_tree_formula,
     _read_ms_headers,
 )
+
+
+FORMULA_TOKEN = re.compile(r"([A-Z][a-z]*)([0-9]*)")
+OFFICIAL_MIST_ELEMENTS = {
+    "C",
+    "N",
+    "P",
+    "O",
+    "S",
+    "Si",
+    "I",
+    "H",
+    "Cl",
+    "F",
+    "Br",
+    "B",
+    "Se",
+    "Fe",
+    "Co",
+    "As",
+}
 
 
 def sha256_file(path: Path) -> str:
@@ -48,6 +70,58 @@ def _read_single_tree(path: Path) -> dict:
                 f"Expected one SIRIUS tree in {path}, got {len(members)}"
             )
         return json.loads(bundle.read(members[0]))
+
+
+def _official_mist_formula_counts(formula: str) -> dict[str, int] | None:
+    parts = FORMULA_TOKEN.findall(formula)
+    if not parts or "".join(f"{element}{count}" for element, count in parts) != formula:
+        return None
+    if any(element not in OFFICIAL_MIST_ELEMENTS for element, _ in parts):
+        return None
+    return {element: int(count or "1") for element, count in parts}
+
+
+def _official_mist_tree_issues(tree: dict) -> list[dict[str, object]]:
+    root_formula = tree["molecularFormula"]
+    root_counts = _official_mist_formula_counts(root_formula)
+    if root_counts is None:
+        return [{"kind": "root_formula", "formula": root_formula}]
+
+    issues = []
+    for fragment in tree.get("fragments", []):
+        formula = fragment["molecularFormula"]
+        counts = _official_mist_formula_counts(formula)
+        if counts is None:
+            issues.append(
+                {
+                    "kind": "fragment_formula",
+                    "fragment_id": fragment.get("id"),
+                    "formula": formula,
+                }
+            )
+        elif any(
+            count > root_counts.get(element, 0)
+            for element, count in counts.items()
+        ):
+            issues.append(
+                {
+                    "kind": "fragment_not_subformula",
+                    "fragment_id": fragment.get("id"),
+                    "formula": formula,
+                }
+            )
+    for loss in tree.get("losses", []):
+        formula = loss["molecularFormula"]
+        if _official_mist_formula_counts(formula) is None:
+            issues.append(
+                {
+                    "kind": "loss_formula",
+                    "source": loss.get("source"),
+                    "target": loss.get("target"),
+                    "formula": formula,
+                }
+            )
+    return issues
 
 
 def audit_project(
@@ -100,6 +174,9 @@ def audit_project(
             reasons.append("tree_formula")
         if observed_tree_adduct != expected_adduct:
             reasons.append("tree_adduct")
+        mist_tree_issues = _official_mist_tree_issues(tree)
+        if mist_tree_issues:
+            reasons.append("official_mist_tree_incompatible")
         record = {
             "spec": spectrum_id,
             "candidate_rank": int(row.get("candidate_rank", "1")),
@@ -112,6 +189,7 @@ def audit_project(
             "observed_tree_formula": observed_tree_formula,
             "observed_tree_adduct": observed_tree_adduct,
             "formula_normalization": normalization,
+            "official_mist_tree_issues": mist_tree_issues,
             "reasons": reasons,
         }
         evidence.append(record)
@@ -128,7 +206,7 @@ def audit_project(
     ).hexdigest()
     report = {
         "schema_version": 1,
-        "kind": "SIRIUS formula/adduct consistency audit",
+        "kind": "SIRIUS formula/adduct and official MIST tree compatibility audit",
         "rows": len(evidence),
         "mismatch_count": len(mismatches),
         "mismatches": mismatches,
@@ -152,6 +230,7 @@ def audit_project(
                 "sirius_consistency_mismatch_count": 0,
                 "sirius_consistency_audit_sha256": sha256_file(output_path),
                 "sirius_tree_evidence_sha256": evidence_digest,
+                "official_mist_tree_compatibility_validated": True,
             }
         )
         manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")

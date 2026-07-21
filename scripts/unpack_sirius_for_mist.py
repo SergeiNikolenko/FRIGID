@@ -257,6 +257,8 @@ def write_bridge_manifest(
         sirius_audit
     ):
         raise ValueError("Formula manifest is not bound to the supplied SIRIUS audit")
+    if not formula_payload.get("official_mist_tree_compatibility_validated"):
+        raise ValueError("Formula manifest lacks official MIST tree compatibility audit")
     if audit_payload.get("mismatch_count") != 0:
         raise ValueError("SIRIUS bridge still contains formula/adduct mismatches")
     if audit_payload.get("rows") != len(rows):
