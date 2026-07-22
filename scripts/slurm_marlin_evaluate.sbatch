@@ -50,6 +50,9 @@ if [[ "$SLURM_ARRAY_TASK_ID" == 0 ]]; then
 else
   : "${MARLIN_MIST_FINGERPRINTS:?Set to a predicted-formula MIST export; the legacy ground-truth-formula oracle is forbidden}"
   : "${MARLIN_MIST_PROVENANCE:?Set to the MIST-CF predicted-formula provenance manifest}"
+  : "${MARLIN_MIST_FORMULA_MANIFEST:?Set to the MIST-CF top-1 formula manifest}"
+  : "${MARLIN_MIST_FEATURE_BRIDGE_MANIFEST:?Set to the MIST-CF peak-to-subformula bridge manifest}"
+  : "${MARLIN_MIST_LABELS:?Set to the official MIST labels generated from MIST-CF top-1 formulas}"
   if [[ "$MARLIN_MIST_FINGERPRINTS" == "$ROOT/runs/mist/test/fingerprints.npz" ]]; then
     echo "Refusing the legacy ground-truth-formula MIST oracle" >&2
     exit 2
@@ -60,5 +63,8 @@ else
     --fingerprints "$MARLIN_MIST_FINGERPRINTS" \
     --fingerprint-key "${MARLIN_MIST_FINGERPRINT_KEY:-mist_binary}" \
     --lane-provenance "$MARLIN_MIST_PROVENANCE" \
+    --formula-manifest "$MARLIN_MIST_FORMULA_MANIFEST" \
+    --feature-bridge-manifest "$MARLIN_MIST_FEATURE_BRIDGE_MANIFEST" \
+    --mist-labels "$MARLIN_MIST_LABELS" \
     --output-dir "$ROOT/runs/evaluation/$OUTPUT_TAG/mist"
 fi
