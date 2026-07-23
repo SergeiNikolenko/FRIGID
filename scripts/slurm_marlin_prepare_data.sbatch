@@ -11,7 +11,7 @@ set -euo pipefail
 ROOT=/home/nikolenko/work/Projects/MARLIN_reproduction_20260717
 CODE="$ROOT/code"
 DATA="$ROOT/data/nplib1/canopus_train_export"
-PYTHON=/home/nikolenko/work/Projects/FRIGID/.venv/bin/python
+PYTHON=$ROOT/.venv/bin/python
 export PYTHONPATH="$CODE/src:$CODE/scripts:$ROOT/vendor"
 
 for split in train val test; do

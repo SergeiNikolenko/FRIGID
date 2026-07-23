@@ -12,7 +12,7 @@ set -euo pipefail
 
 ROOT=/home/nikolenko/work/Projects/MARLIN_reproduction_20260717
 CODE="$ROOT/code"
-PYTHON=/home/nikolenko/work/Projects/FRIGID/.venv/bin/python
+PYTHON=$ROOT/.venv/bin/python
 CHECKPOINT="${MARLIN_CHECKPOINT:-$ROOT/runs/decoder/checkpoints/step=100000.ckpt}"
 OUTPUT_TAG="${MARLIN_OUTPUT_TAG:-full}"
 MAX_SPECTRA="${MARLIN_MAX_SPECTRA:-}"

@@ -11,7 +11,7 @@ set -euo pipefail
 
 ROOT=/home/nikolenko/work/Projects/MARLIN_reproduction_20260717
 CODE="$ROOT/code"
-PYTHON=/home/nikolenko/work/Projects/FRIGID/.venv/bin/python
+PYTHON=$ROOT/.venv/bin/python
 export PYTHONPATH="$CODE/src:$ROOT/vendor"
 
 "$PYTHON" - <<'PY'

@@ -148,6 +148,7 @@ def initialize_clearml(config: DictConfig):
         tags=list(config.tracking.clearml.tags),
         reuse_last_task_id=False,
         output_uri=False,
+        auto_connect_streams=False,
         auto_connect_frameworks={"pytorch": True, "tensorboard": True},
         auto_resource_monitoring={
             "report_frequency_sec": 5.0,

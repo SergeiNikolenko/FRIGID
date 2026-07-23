@@ -14,7 +14,7 @@ CODE="$ROOT/code"
 export PYTHONPATH="$CODE/src:$ROOT/vendor"
 cd "$CODE"
 
-/home/nikolenko/work/Projects/FRIGID/.venv/bin/python scripts/diagnose_marlin_checkpoint.py \
+$ROOT/.venv/bin/python scripts/diagnose_marlin_checkpoint.py \
   --checkpoint "$ROOT/runs/decoder/checkpoints/step=100000.ckpt" \
   --tokenizer "$ROOT/data/safe-gpt/tokenizer.json" \
   --metadata "$ROOT/data/processed/test/metadata.csv" \

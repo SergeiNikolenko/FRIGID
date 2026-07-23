@@ -14,7 +14,7 @@ mkdir -p "$DATA/nplib1"
 cd "$DATA"
 
 rm -f canopus_train_export_v2.tar
-PYTHONPATH="$ROOT/vendor" /home/nikolenko/work/Projects/FRIGID/.venv/bin/python \
+PYTHONPATH="$ROOT/vendor" $ROOT/.venv/bin/python \
   "$ROOT/code/scripts/download_zenodo_ranges.py" \
   https://zenodo.org/api/records/8316682/files/canopus_train_export_v2.tar/content \
   canopus_train_export_v2.tar \

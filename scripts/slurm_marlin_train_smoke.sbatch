@@ -11,7 +11,6 @@ set -euo pipefail
 
 ROOT=/home/nikolenko/work/Projects/MARLIN_reproduction_20260717
 CODE="$ROOT/code"
-PYTHON=/home/nikolenko/work/Projects/FRIGID/.venv/bin/python
 SMOKE_ROOT="$ROOT/runs/train-smoke-$SLURM_JOB_ID"
 SMOKE_BATCH_SIZE="${MARLIN_SMOKE_BATCH_SIZE:-1}"
 SMOKE_MAX_STEPS="${MARLIN_SMOKE_MAX_STEPS:-1}"
@@ -19,6 +18,8 @@ SMOKE_SHUFFLE_BUFFER="${MARLIN_SMOKE_SHUFFLE_BUFFER:-128}"
 export PYTHONPATH="$CODE/src:$ROOT/vendor"
 export HF_HOME="$ROOT/cache/huggingface"
 export TOKENIZERS_PARALLELISM=false
+
+source "$CODE/scripts/marlin_runtime_env.sh"
 
 cd "$CODE"
 "$PYTHON" scripts/train_marlin.py \
