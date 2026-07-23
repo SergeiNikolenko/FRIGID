@@ -13,6 +13,8 @@ def test_slurm_launchers_use_project_runtime_and_tls_preflight():
     for name in ("slurm_marlin_train.sbatch", "slurm_marlin_train_smoke.sbatch"):
         script = (PROJECT_ROOT / "scripts" / name).read_text()
         assert 'source "$CODE/scripts/marlin_runtime_env.sh"' in script
+    train_script = (PROJECT_ROOT / "scripts/slurm_marlin_train.sbatch").read_text()
+    assert '${RESUME_CHECKPOINT//=/\\\\=}' in train_script
 
 
 def test_clearml_does_not_capture_its_own_transport_errors():

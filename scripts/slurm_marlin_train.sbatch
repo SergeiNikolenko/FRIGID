@@ -29,6 +29,6 @@ TRAIN_ARGS=(
     "output.checkpoint_interval=$CHECKPOINT_INTERVAL"
 )
 if [[ -n "$RESUME_CHECKPOINT" ]]; then
-    TRAIN_ARGS+=("resume_checkpoint=$RESUME_CHECKPOINT")
+    TRAIN_ARGS+=("resume_checkpoint=${RESUME_CHECKPOINT//=/\\=}")
 fi
 "$PYTHON" scripts/train_marlin.py "${TRAIN_ARGS[@]}"
