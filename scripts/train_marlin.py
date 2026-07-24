@@ -180,6 +180,18 @@ def initialize_clearml(config: DictConfig):
     return task
 
 
+def load_decoder_weights_only(module: MarlinLightningModule, checkpoint_path: str | Path) -> None:
+    """Load decoder weights from a Lightning checkpoint without optimizer state."""
+    checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
+    decoder_state = {
+        key.removeprefix("decoder."): value
+        for key, value in checkpoint["state_dict"].items()
+        if key.startswith("decoder.")
+    }
+    module.decoder.load_state_dict(decoder_state, strict=True)
+    module.reset_ema()
+
+
 @hydra.main(version_base=None, config_path="../configs", config_name="marlin_nplib1")
 def main(config: DictConfig) -> None:
     L.seed_everything(config.seed, workers=True)
@@ -245,7 +257,16 @@ def main(config: DictConfig) -> None:
         balanced_token_loss_alpha=config.training.get("balanced_token_loss_alpha", 0.0),
         token_loss_weight_max=config.training.get("token_loss_weight_max", 20.0),
     )
-    if config.get("warm_start_checkpoint"):
+    if config.get("resume_weights_only_checkpoint"):
+        load_decoder_weights_only(module, config.resume_weights_only_checkpoint)
+        report = {
+            "source": str(config.resume_weights_only_checkpoint),
+            "mode": "lightning_decoder_weights_only",
+        }
+        report_path = Path(config.output.root) / "warm_start.json"
+        report_path.parent.mkdir(parents=True, exist_ok=True)
+        report_path.write_text(json.dumps(report, indent=2) + "\n")
+    elif config.get("warm_start_checkpoint"):
         report = load_frigid_decoder(
             module.decoder,
             config.warm_start_checkpoint,
