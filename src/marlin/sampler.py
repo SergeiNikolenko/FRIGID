@@ -61,6 +61,7 @@ class MarlinSampler:
         self.safe_to_smiles = safe_to_smiles
         self.grammar_mask = grammar_mask
         self.forbidden_token_ids = tuple(forbidden_token_ids)
+        self.mass_shell_enabled = True
 
     def _sampling_logits(
         self,
@@ -133,6 +134,8 @@ class MarlinSampler:
                 best_token = None
                 best_confidence = -torch.inf
                 positions = sorted(unresolved)
+                if self.grammar_mask is not None or self.mass_shell_enabled:
+                    positions = positions[:1]
                 for position in positions:
                     position_logits = self.constraint.apply(
                         logits[position] / temperature, state, target_mass
@@ -328,6 +331,8 @@ class MarlinSampler:
                     positions = torch.nonzero(unresolved[row], as_tuple=False).flatten()
                     if positions.numel() == 0:
                         continue
+                    if self.grammar_mask is not None or self.mass_shell_enabled:
+                        positions = positions[:1]
                     best_position = None
                     best_token = None
                     best_confidence = -torch.inf

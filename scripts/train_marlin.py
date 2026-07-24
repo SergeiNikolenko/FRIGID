@@ -222,6 +222,7 @@ def main(config: DictConfig) -> None:
         expected_dataset=str(config.data.dataset),
         expected_revision=str(config.data.revision),
         expected_file_list_sha256=str(config.data.snapshot_file_list_sha256),
+        verify_hashes=bool(config.data.get("verify_snapshot_hashes", True)),
     )
     if snapshot_manifest_sha256 != sha256_file(config.data.snapshot_manifest):
         raise ValueError("training snapshot manifest changed during verification")

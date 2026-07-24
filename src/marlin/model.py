@@ -22,6 +22,7 @@ class MarlinDecoderConfig:
     block_width: int = 8
     fingerprint_bits: int = 4096
     dropout: float = 0.1
+    eos_token_id: int = 2
     mask_token_id: int = 4
     pad_token_id: int = 0
 
@@ -295,9 +296,31 @@ class MarlinDecoder(nn.Module):
         correct = predictions.eq(clean_ids) & masked
         top_k = min(10, self.config.vocab_size)
         top10 = logits.topk(top_k, dim=-1).indices.eq(clean_ids.unsqueeze(-1)).any(dim=-1)
-        target_probabilities = logits.softmax(dim=-1).gather(
+        log_probabilities = logits.float().log_softmax(dim=-1)
+        probabilities = log_probabilities.exp()
+        target_probabilities = probabilities.gather(
             -1, clean_ids.unsqueeze(-1)
         ).squeeze(-1)
+        masked_probabilities = probabilities[masked]
+        masked_entropy = -(masked_probabilities * log_probabilities[masked]).sum(dim=-1).mean()
+        masked_top1_confidence = masked_probabilities.max(dim=-1).values.mean()
+        eos_targets = masked & clean_ids.eq(self.config.eos_token_id)
+        eos_target_count = eos_targets.sum()
+        eos_target_probability = torch.where(
+            eos_target_count > 0,
+            target_probabilities[eos_targets].mean(),
+            target_probabilities.new_tensor(0.0),
+        )
+        eos_logits = logits[..., self.config.eos_token_id]
+        eos_target_rank = torch.where(
+            eos_target_count > 0,
+            (logits[eos_targets] > eos_logits[eos_targets].unsqueeze(-1))
+            .sum(dim=-1)
+            .add(1)
+            .float()
+            .mean(),
+            eos_logits.new_tensor(0.0),
+        )
         masked_nll = (losses * masked).sum() / masked_count
         metrics = {
             "masked_token_accuracy_top1": correct.sum() / masked_count,
@@ -306,6 +329,14 @@ class MarlinDecoder(nn.Module):
             / masked_count,
             "masked_token_nll": masked_nll,
             "masked_token_perplexity": masked_nll.clamp_max(20).exp(),
+            "masked_prediction_entropy": masked_entropy,
+            "masked_top1_confidence": masked_top1_confidence,
+            "masked_argmax_eos_fraction": (
+                predictions.eq(self.config.eos_token_id) & masked
+            ).sum() / masked_count,
+            "masked_eos_target_count": eos_target_count.float(),
+            "masked_eos_target_probability": eos_target_probability,
+            "masked_eos_target_rank": eos_target_rank,
             "mask_fraction": masked.sum() / valid.sum().clamp_min(1),
             "masked_sequence_accuracy": (
                 (correct | ~masked).all(dim=1) & masked.any(dim=1)

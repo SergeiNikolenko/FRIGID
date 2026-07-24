@@ -27,8 +27,9 @@ def verify_snapshot_manifest(
     expected_dataset: str,
     expected_revision: str,
     expected_file_list_sha256: str,
+    verify_hashes: bool = True,
 ) -> tuple[list[str], str]:
-    """Verify every local shard against the pinned repository manifest."""
+    """Verify local shards against the pinned repository manifest."""
     path = Path(manifest_path)
     manifest = json.loads(path.read_text())
     if manifest.get("schema_version") != 1:
@@ -73,8 +74,9 @@ def verify_snapshot_manifest(
             raise FileNotFoundError(f"missing local training shard {shard}")
         if shard.stat().st_size != entry["size_bytes"]:
             raise ValueError(f"local training shard size mismatch: {shard}")
-        observed = sha256_file(shard)
-        if observed != entry["sha256"]:
-            raise ValueError(f"local training shard SHA-256 mismatch: {shard}")
+        if verify_hashes:
+            observed = sha256_file(shard)
+            if observed != entry["sha256"]:
+                raise ValueError(f"local training shard SHA-256 mismatch: {shard}")
         resolved.append(str(shard.resolve()))
     return resolved, sha256_file(path)

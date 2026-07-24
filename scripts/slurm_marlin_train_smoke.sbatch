@@ -26,6 +26,7 @@ cd "$CODE"
   loader.batch_size="$SMOKE_BATCH_SIZE" \
   loader.num_workers=0 \
   data.shuffle_buffer="$SMOKE_SHUFFLE_BUFFER" \
+  data.verify_snapshot_hashes=false \
   trainer.max_steps="$SMOKE_MAX_STEPS" \
   trainer.accumulate_grad_batches=1 \
   trainer.log_every_n_steps=1 \
