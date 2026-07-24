@@ -256,6 +256,9 @@ def main(config: DictConfig) -> None:
         eos_mask_probability=config.training.get("eos_mask_probability", 0.0),
         balanced_token_loss_alpha=config.training.get("balanced_token_loss_alpha", 0.0),
         token_loss_weight_max=config.training.get("token_loss_weight_max", 20.0),
+        full_sequence_mask_probability=config.training.get(
+            "full_sequence_mask_probability", 0.0
+        ),
     )
     if config.get("resume_weights_only_checkpoint"):
         load_decoder_weights_only(module, config.resume_weights_only_checkpoint)

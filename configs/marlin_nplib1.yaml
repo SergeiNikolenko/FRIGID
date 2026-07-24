@@ -60,6 +60,7 @@ training:
   eos_mask_probability: 0.0
   balanced_token_loss_alpha: 0.0
   token_loss_weight_max: 20.0
+  full_sequence_mask_probability: 0.0
 
 trainer:
   # Spectrum currently exposes one A100 through Slurm.

@@ -241,6 +241,7 @@ class MarlinDecoder(nn.Module):
         eos_mask_probability: float = 0.0,
         balanced_token_loss_alpha: float = 0.0,
         token_loss_weight_max: float = 20.0,
+        full_sequence_mask_probability: float = 0.0,
     ) -> torch.Tensor:
         """Continuous-time absorbing NELBO, sampled independently per block."""
         loss, _ = self.diffusion_objective(
@@ -253,6 +254,7 @@ class MarlinDecoder(nn.Module):
             eos_mask_probability=eos_mask_probability,
             balanced_token_loss_alpha=balanced_token_loss_alpha,
             token_loss_weight_max=token_loss_weight_max,
+            full_sequence_mask_probability=full_sequence_mask_probability,
             collect_metrics=False,
         )
         return loss
@@ -269,6 +271,7 @@ class MarlinDecoder(nn.Module):
         eos_mask_probability: float = 0.0,
         balanced_token_loss_alpha: float = 0.0,
         token_loss_weight_max: float = 20.0,
+        full_sequence_mask_probability: float = 0.0,
         collect_metrics: bool = False,
     ) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
         """Return the NELBO and optional reconstruction diagnostics."""
@@ -276,6 +279,8 @@ class MarlinDecoder(nn.Module):
             raise ValueError("eos_loss_weight must be positive")
         if not 0.0 <= eos_mask_probability <= 1.0:
             raise ValueError("eos_mask_probability must be in [0, 1]")
+        if not 0.0 <= full_sequence_mask_probability <= 1.0:
+            raise ValueError("full_sequence_mask_probability must be in [0, 1]")
         if balanced_token_loss_alpha < 0:
             raise ValueError("balanced_token_loss_alpha must be non-negative")
         if token_loss_weight_max < 1:
@@ -291,6 +296,17 @@ class MarlinDecoder(nn.Module):
         times = torch.rand((batch, block_count), device=clean_ids.device, generator=generator).clamp_min(1e-4)
         probabilities = times[:, block_ids]
         masked = (torch.rand(clean_ids.shape, device=clean_ids.device, generator=generator) < probabilities) & valid
+        full_sequence_masked = torch.zeros((batch,), dtype=torch.bool, device=clean_ids.device)
+        if full_sequence_mask_probability:
+            full_sequence_masked = (
+                torch.rand((batch,), device=clean_ids.device, generator=generator)
+                < full_sequence_mask_probability
+            )
+            masked = masked | (full_sequence_masked.unsqueeze(1) & valid)
+        loss_probabilities = probabilities.masked_fill(
+            full_sequence_masked.unsqueeze(1) & valid,
+            1.0,
+        )
         eos_targets = valid & clean_ids.eq(self.config.eos_token_id)
         if eos_mask_probability:
             eos_masked = (
@@ -329,7 +345,7 @@ class MarlinDecoder(nn.Module):
             )
         if eos_loss_weight != 1.0:
             target_weights = target_weights.masked_fill(eos_targets, eos_loss_weight)
-        weights = probabilities.reciprocal()
+        weights = loss_probabilities.reciprocal()
         valid_block_counts = valid.sum(dim=1).add(self.config.block_width - 1).div(
             self.config.block_width,
             rounding_mode="floor",
@@ -386,6 +402,7 @@ class MarlinDecoder(nn.Module):
             "masked_eos_target_probability": eos_target_probability,
             "masked_eos_target_rank": eos_target_rank,
             "mask_fraction": masked.sum() / valid.sum().clamp_min(1),
+            "full_sequence_mask_fraction": full_sequence_masked.float().mean(),
             "masked_sequence_accuracy": (
                 (correct | ~masked).all(dim=1) & masked.any(dim=1)
             ).float().sum()
