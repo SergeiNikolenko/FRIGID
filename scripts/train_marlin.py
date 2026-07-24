@@ -332,6 +332,7 @@ def main(config: DictConfig) -> None:
                 samples=config.training.molecular_validation_samples,
                 candidates=config.training.molecular_validation_candidates,
                 temperature=config.training.molecular_validation_temperature,
+                clearml_task=clearml_task,
             )
         )
     trainer = L.Trainer(

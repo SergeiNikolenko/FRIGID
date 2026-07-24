@@ -122,6 +122,68 @@ def test_molecular_validation_callback_builds_bounded_oracle_set(tmp_path):
     assert callback.records[0]["smiles"] == "CCO"
     assert callback.records[0]["fingerprint"].shape == (16,)
     assert callback.output_path == tmp_path / "molecular_validation.jsonl"
+    assert (
+        callback.latest_output_path
+        == tmp_path / "molecular_validation_latest.json"
+    )
+
+
+def test_molecular_validation_callback_reports_clearml_table_and_image(tmp_path):
+    class RecordingLogger:
+        def __init__(self):
+            self.tables = []
+            self.images = []
+
+        def report_table(self, **kwargs):
+            self.tables.append(kwargs)
+
+        def report_image(self, **kwargs):
+            self.images.append(kwargs)
+
+    class RecordingTask:
+        def __init__(self):
+            self.logger = RecordingLogger()
+
+        def get_logger(self):
+            return self.logger
+
+    metadata = tmp_path / "validation.csv"
+    metadata.write_text("smiles\nCCO\n")
+    tokenizer = load_safe_tokenizer(
+        "/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/data/safe-gpt/tokenizer.json"
+    )
+    task = RecordingTask()
+    callback = MarlinMolecularValidationCallback(
+        tokenizer,
+        metadata,
+        output_dir=tmp_path,
+        fingerprint_bits=16,
+        every_n_steps=10,
+        samples=1,
+        candidates=2,
+        clearml_task=task,
+    )
+
+    callback._report_clearml_samples(
+        step=10,
+        epoch=2.0,
+        sample_rows=[
+            {
+                "target_smiles": "CCO",
+                "top1_smiles": "CCO",
+                "generated_smiles": "CCO",
+                "tanimoto": 1.0,
+                "mass_error_ppm": 0.0,
+                "valid": 2,
+                "mass_valid": 2,
+            }
+        ],
+    )
+
+    assert len(task.logger.tables) == 1
+    assert len(task.logger.images) == 1
+    assert task.logger.tables[0]["iteration"] == 10
+    assert task.logger.images[0]["max_image_history"] == -1
 
 
 def test_theoretical_isotope_ratios_include_m_plus_one_and_two():

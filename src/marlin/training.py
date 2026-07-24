@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 import torch
 from rdkit import Chem, DataStructs
-from rdkit.Chem import AllChem, Descriptors
+from rdkit.Chem import AllChem, Descriptors, Draw
 
 from dlm.utils.utils_chem import safe_to_smiles, smiles_to_safe
 from dlm.utils.ema import ExponentialMovingAverage
@@ -322,6 +322,7 @@ class MarlinMolecularValidationCallback(L.Callback):
         samples: int = 2,
         candidates: int = 4,
         temperature: float = 1.0,
+        clearml_task=None,
     ) -> None:
         if every_n_steps <= 0:
             raise ValueError("molecular validation interval must be positive")
@@ -368,6 +369,7 @@ class MarlinMolecularValidationCallback(L.Callback):
         self.every_n_steps = every_n_steps
         self.candidates = candidates
         self.temperature = temperature
+        self.clearml_task = clearml_task
         self._last_step = -1
 
         special_ids = {
@@ -423,6 +425,63 @@ class MarlinMolecularValidationCallback(L.Callback):
             generation_mode="block",
         )
 
+    def _report_clearml_samples(
+        self,
+        *,
+        step: int,
+        epoch: float,
+        sample_rows: list[dict],
+    ) -> None:
+        if self.clearml_task is None:
+            return
+        logger = self.clearml_task.get_logger()
+        table = pd.DataFrame(sample_rows)
+        table.insert(0, "epoch", epoch)
+        table.insert(0, "step", step)
+        logger.report_table(
+            title="MARLIN molecular validation",
+            series="target vs generated",
+            iteration=step,
+            table_plot=table,
+        )
+
+        molecules = []
+        legends = []
+        for index, row in enumerate(sample_rows):
+            target = Chem.MolFromSmiles(row["target_smiles"])
+            if target is not None:
+                molecules.append(target)
+                legends.append(f"{index + 1} target\n{row['target_smiles']}")
+            generated_smiles = row["generated_smiles"]
+            generated = (
+                Chem.MolFromSmiles(generated_smiles)
+                if generated_smiles
+                else None
+            )
+            if generated is not None:
+                molecules.append(generated)
+                legends.append(
+                    f"{index + 1} generated\n"
+                    f"Tanimoto={row['tanimoto']:.3f} "
+                    f"mass={row['mass_error_ppm']:.1f} ppm\n"
+                    f"{generated_smiles}"
+                )
+        if molecules:
+            image = Draw.MolsToGridImage(
+                molecules,
+                legends=legends,
+                molsPerRow=2,
+                subImgSize=(420, 300),
+                useSVG=False,
+            )
+            logger.report_image(
+                title="MARLIN generated molecules",
+                series="target vs generated",
+                iteration=step,
+                image=image,
+                max_image_history=-1,
+            )
+
     @torch.no_grad()
     def on_train_batch_end(
         self,
@@ -472,6 +531,37 @@ class MarlinMolecularValidationCallback(L.Callback):
                 mass_valid += stats.mass_valid
                 unique_mass_valid += stats.unique_mass_valid
                 returned += int(bool(ranked))
+                generated_smiles = ranked[0].smiles if ranked else None
+                if generated_smiles is None:
+                    for terminal_safe in stats.sample_terminal_safes:
+                        decoded = safe_to_smiles(terminal_safe, fix=True)
+                        if decoded and Chem.MolFromSmiles(decoded) is not None:
+                            generated_smiles = decoded
+                            break
+                generated_molecule = (
+                    Chem.MolFromSmiles(generated_smiles)
+                    if generated_smiles
+                    else None
+                )
+                generated_tanimoto = 0.0
+                generated_mass_error_ppm = None
+                if generated_molecule is not None:
+                    generated_fingerprint = AllChem.GetMorganGenerator(
+                        radius=2,
+                        fpSize=record["fingerprint"].numel(),
+                    ).GetFingerprint(generated_molecule)
+                    generated_tanimoto = DataStructs.TanimotoSimilarity(
+                        _fingerprint_from_tensor(record["fingerprint"]),
+                        generated_fingerprint,
+                    )
+                    generated_mass_error_ppm = (
+                        abs(
+                            Descriptors.ExactMolWt(generated_molecule)
+                            - record["mass"]
+                        )
+                        / record["mass"]
+                        * 1e6
+                    )
                 if ranked:
                     top = ranked[0]
                     molecule = Chem.MolFromSmiles(top.smiles)
@@ -488,6 +578,9 @@ class MarlinMolecularValidationCallback(L.Callback):
                     {
                         "target_smiles": record["smiles"],
                         "top1_smiles": ranked[0].smiles if ranked else None,
+                        "generated_smiles": generated_smiles,
+                        "tanimoto": generated_tanimoto,
+                        "mass_error_ppm": generated_mass_error_ppm,
                         "valid": stats.valid,
                         "mass_valid": stats.mass_valid,
                     }
@@ -523,6 +616,18 @@ class MarlinMolecularValidationCallback(L.Callback):
             latest_temporary_path = self.latest_output_path.with_suffix(".tmp")
             latest_temporary_path.write_text(serialized + "\n")
             latest_temporary_path.replace(self.latest_output_path)
+            self._report_clearml_samples(
+                step=step,
+                epoch=float(trainer.current_epoch),
+                sample_rows=sample_rows,
+            )
         finally:
             pl_module.ema.restore(parameters)
             pl_module.decoder.train(was_training)
+
+
+def _fingerprint_from_tensor(array: torch.Tensor):
+    bit_vector = DataStructs.ExplicitBitVect(array.numel())
+    for index in torch.nonzero(array.reshape(-1), as_tuple=False).flatten().tolist():
+        bit_vector.SetBit(index)
+    return bit_vector
