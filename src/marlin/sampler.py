@@ -208,6 +208,8 @@ class MarlinSampler:
     ) -> tuple[list[MarlinCandidate], MarlinGenerationStats]:
         if candidates <= 0:
             raise ValueError("candidates must be positive")
+        if temperature <= 0:
+            raise ValueError("temperature must be positive")
         original = (fingerprint > 0.5).to(torch.float32)
         generated, valid, diagnostics = self._generate_many(
             original,
@@ -272,6 +274,7 @@ class MarlinSampler:
     ) -> tuple[list[tuple[str, str] | None], int, dict[str, int | list[str]]]:
         """Generate candidates in one GPU batch and retain per-row constraints."""
         device = next(self.model.parameters()).device
+        fingerprint = fingerprint.to(device=device, dtype=torch.float32)
         conditioned = torch.stack(
             [
                 perturb_fingerprint(
@@ -357,11 +360,17 @@ class MarlinSampler:
                                 target_mass,
                             )
                         probabilities = position_logits.softmax(dim=-1)
-                        confidence, token = probabilities.max(dim=-1)
+                        confidence = probabilities.max(dim=-1).values
                         if confidence > best_confidence:
                             best_confidence = confidence
                             best_position = relative_position
-                            best_token = int(token)
+                            best_token = int(
+                                torch.multinomial(
+                                    probabilities,
+                                    num_samples=1,
+                                    generator=generator,
+                                ).item()
+                            )
                     if best_position is None or not torch.isfinite(best_confidence):
                         diagnostics["constraint_dead_ends"] += 1
                         dead_ends = diagnostics["sample_dead_ends"]

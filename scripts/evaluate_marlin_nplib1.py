@@ -220,7 +220,7 @@ def main() -> None:
         "valence_slack": args.valence_slack,
         "eos_boost": args.eos_boost,
         "block_width": model.config.block_width,
-        "ema": True,
+        "ema": not args.no_ema,
         "weights": "ema" if not args.no_ema else "raw",
         "grammar_mask": not args.disable_grammar_mask,
         "mass_shell_constraint": not args.disable_mass_shell,
@@ -287,7 +287,9 @@ def main() -> None:
                 candidates=args.candidates,
                 diversity_dropout=args.diversity_dropout,
                 temperature=args.temperature,
-                generator=torch.Generator().manual_seed(args.seed + position),
+                generator=torch.Generator(device=device).manual_seed(
+                    args.seed + position
+                ),
             )
             if torch.cuda.is_available():
                 torch.cuda.synchronize()
