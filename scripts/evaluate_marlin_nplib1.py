@@ -55,6 +55,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--disable-grammar-mask", action="store_true")
     parser.add_argument("--disable-mass-shell", action="store_true")
+    parser.add_argument("--no-ema", action="store_true")
     return parser.parse_args()
 
 
@@ -70,7 +71,12 @@ def git_commit() -> str:
     return subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
 
 
-def load_ema_decoder(checkpoint_path: Path, device: torch.device) -> MarlinDecoder:
+def load_decoder(
+    checkpoint_path: Path,
+    device: torch.device,
+    *,
+    use_ema: bool = True,
+) -> MarlinDecoder:
     checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
     config = MarlinDecoderConfig(**checkpoint["hyper_parameters"]["config"])
     model = MarlinDecoder(config)
@@ -80,6 +86,8 @@ def load_ema_decoder(checkpoint_path: Path, device: torch.device) -> MarlinDecod
         if key.startswith("decoder.")
     }
     model.load_state_dict(state, strict=True)
+    if not use_ema:
+        return model.eval().to(device)
     ema = checkpoint.get("ema")
     if not ema:
         raise ValueError(f"checkpoint has no EMA state: {checkpoint_path}")
@@ -153,7 +161,7 @@ def main() -> None:
         allow_leading_subset=args.max_spectra is not None,
     )
     device = torch.device(args.device)
-    model = load_ema_decoder(args.checkpoint, device)
+    model = load_decoder(args.checkpoint, device, use_ema=not args.no_ema)
     tokenizer = load_safe_tokenizer(args.tokenizer)
     special_ids = {
         tokenizer.bos_token_id,
@@ -213,6 +221,7 @@ def main() -> None:
         "eos_boost": args.eos_boost,
         "block_width": model.config.block_width,
         "ema": True,
+        "weights": "ema" if not args.no_ema else "raw",
         "grammar_mask": not args.disable_grammar_mask,
         "mass_shell_constraint": not args.disable_mass_shell,
         "seed": args.seed,
