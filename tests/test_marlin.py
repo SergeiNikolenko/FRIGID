@@ -721,6 +721,58 @@ def test_sampler_can_disable_mass_shell_for_unconstrained_diagnostics():
     assert model.seen[1].tolist() == [[0, 3, 1]]
 
 
+def test_batched_sampler_returns_valid_candidates_when_mass_shell_is_disabled():
+    class CarbonModel(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.anchor = torch.nn.Parameter(torch.zeros(()))
+            self.config = MarlinDecoderConfig(
+                vocab_size=4,
+                hidden_size=4,
+                num_layers=1,
+                num_heads=1,
+                intermediate_size=4,
+                max_length=2,
+                block_width=1,
+                fingerprint_bits=8,
+                dropout=0.0,
+                mask_token_id=3,
+                pad_token_id=0,
+            )
+
+        def forward(self, input_ids, precursor_mass, fingerprint):
+            logits = torch.full((*input_ids.shape, 4), -torch.inf, device=input_ids.device)
+            logits[..., 1] = 0.0
+            return logits
+
+    sampler = MarlinSampler(
+        CarbonModel(),
+        MassShellConstraint(
+            [0.0, 12.0, 0.0, 0.0],
+            [0, 1, 0, 0],
+            [0.0, 4.0, 0.0, 0.0],
+            eos_token_id=2,
+            ppm_tolerance=10,
+        ),
+        bos_token_id=0,
+        eos_token_id=2,
+        mask_token_id=3,
+        decode_tokens=lambda ids: "C" * ids.count(1),
+        safe_to_smiles=lambda safe: safe,
+        forbidden_token_ids=(0, 3),
+        mass_shell_enabled=False,
+    )
+
+    ranked, stats = sampler.generate_ranked_with_stats(
+        torch.zeros(8), target_mass=100.0, candidates=1
+    )
+
+    assert stats.valid == 1
+    assert stats.mass_valid == 0
+    assert stats.unique_mass_valid == 0
+    assert [candidate.smiles for candidate in ranked] == ["C"]
+
+
 def test_batched_sampler_discards_tokens_after_eos_before_mass_and_decoding():
     class EosThenJunkModel(torch.nn.Module):
         def __init__(self):

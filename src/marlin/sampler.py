@@ -219,21 +219,23 @@ class MarlinSampler:
             temperature=temperature,
             generator=generator,
         )
-        unique: dict[str, tuple[str, str]] = {}
+        unique: dict[str, tuple[str, str, bool]] = {}
         mass_valid = 0
         for result in generated:
             if result is None:
                 continue
-            mass_valid += 1
-            safe, smiles = result
+            safe, smiles, is_mass_valid = result
+            mass_valid += int(is_mass_valid)
             molecule = Chem.MolFromSmiles(smiles)
             if molecule is not None:
                 canonical = Chem.MolToSmiles(molecule, canonical=True)
-                unique.setdefault(canonical, (safe, canonical))
+                unique.setdefault(canonical, (safe, canonical, is_mass_valid))
 
         reference = _fingerprint(original)
         ranked = []
-        for safe, smiles in unique.values():
+        unique_mass_valid = 0
+        for safe, smiles, is_mass_valid in unique.values():
+            unique_mass_valid += int(is_mass_valid)
             molecule = Chem.MolFromSmiles(smiles)
             exact_mass = Descriptors.ExactMolWt(molecule)
             ranked.append(
@@ -254,7 +256,7 @@ class MarlinSampler:
             attempts=candidates,
             valid=valid,
             mass_valid=mass_valid,
-            unique_mass_valid=len(ranked),
+            unique_mass_valid=unique_mass_valid,
             constraint_dead_ends=diagnostics["constraint_dead_ends"],
             eos_terminated=diagnostics["eos_terminated"],
             max_length_terminated=diagnostics["max_length_terminated"],
@@ -271,7 +273,7 @@ class MarlinSampler:
         diversity_dropout: float,
         temperature: float,
         generator: torch.Generator | None,
-    ) -> tuple[list[tuple[str, str] | None], int, dict[str, int | list[str]]]:
+    ) -> tuple[list[tuple[str, str, bool] | None], int, dict[str, int | list[str]]]:
         """Generate candidates in one GPU batch and retain per-row constraints."""
         device = next(self.model.parameters()).device
         fingerprint = fingerprint.to(device=device, dtype=torch.float32)
@@ -289,7 +291,7 @@ class MarlinSampler:
         )
         states = [MassShellState() for _ in range(candidates)]
         active = torch.ones(candidates, dtype=torch.bool, device=device)
-        results: list[tuple[str, str] | None] = [None] * candidates
+        results: list[tuple[str, str, bool] | None] = [None] * candidates
         valid = 0
         diagnostics: dict[str, object] = {
             "constraint_dead_ends": 0,
@@ -403,22 +405,29 @@ class MarlinSampler:
                 safe = self._decode_prefix(prefix[row].tolist())
                 smiles = self.safe_to_smiles(safe)
                 molecule = Chem.MolFromSmiles(smiles) if smiles else None
-                if self.constraint.accepts_smiles(smiles, target_mass):
+                is_valid = molecule is not None
+                is_mass_valid = self.constraint.accepts_smiles(smiles, target_mass)
+                if is_mass_valid or (is_valid and not self.mass_shell_enabled):
                     valid += 1
-                    results[row] = (safe, smiles)
+                    results[row] = (safe, smiles, is_mass_valid)
                     active[row] = False
                 elif self.eos_token_id in prefix[row, block_start:].tolist():
                     diagnostics["eos_terminated"] += 1
                     record_terminal_safe(safe)
-                    valid += int(molecule is not None)
+                    valid += int(is_valid)
                     active[row] = False
 
         for row in torch.nonzero(active, as_tuple=False).flatten().tolist():
             safe = self._decode_prefix(prefix[row].tolist())
             smiles = self.safe_to_smiles(safe)
+            molecule = Chem.MolFromSmiles(smiles) if smiles else None
+            is_valid = molecule is not None
+            is_mass_valid = self.constraint.accepts_smiles(smiles, target_mass)
+            if is_mass_valid or (is_valid and not self.mass_shell_enabled):
+                results[row] = (safe, smiles, is_mass_valid)
             diagnostics["max_length_terminated"] += 1
             record_terminal_safe(safe)
-            valid += int(bool(smiles) and Chem.MolFromSmiles(smiles) is not None)
+            valid += int(is_valid)
         return results, valid, diagnostics
 
 
