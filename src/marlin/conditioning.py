@@ -75,14 +75,26 @@ class MarlinConditioner(nn.Module):
         precursor_mass: torch.Tensor,
         fingerprint: torch.Tensor,
         isotope_ratios: torch.Tensor | None = None,
+        *,
+        include_mass: bool = True,
     ) -> tuple[torch.Tensor, torch.Tensor]:
-        mass_token = self.mass(precursor_mass).unsqueeze(1)
-        prefix_tokens = [mass_token]
+        prefix_tokens = []
+        if include_mass:
+            prefix_tokens.append(self.mass(precursor_mass).unsqueeze(1))
         if isotope_ratios is not None:
             if isotope_ratios.shape != (fingerprint.shape[0], 2):
                 raise ValueError("isotope_ratios must have shape [batch, 2]")
             prefix_tokens.append(self.isotope(isotope_ratios.float()).unsqueeze(1))
         fingerprint_tokens, fingerprint_mask = self.fingerprint(fingerprint)
+        if not prefix_tokens:
+            empty = ~fingerprint_mask.any(dim=1)
+            if empty.any():
+                # MultiheadAttention cannot consume an all-masked condition.
+                # This constant token carries no mass or fingerprint information.
+                fingerprint_tokens = fingerprint_tokens.clone()
+                fingerprint_mask = fingerprint_mask.clone()
+                fingerprint_tokens[empty, 0] = 0
+                fingerprint_mask[empty, 0] = True
         tokens = torch.cat((*prefix_tokens, fingerprint_tokens), dim=1)
         prefix_mask = torch.ones(
             (fingerprint.shape[0], len(prefix_tokens)),

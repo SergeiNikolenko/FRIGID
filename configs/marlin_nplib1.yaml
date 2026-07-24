@@ -53,6 +53,8 @@ training:
   noise_probability: 0.5
   noise_min_fraction: 0.1
   noise_max_fraction: 0.3
+  # Sparse reconstruction diagnostics reuse the training forward pass.
+  metric_interval: 50
 
 trainer:
   # Spectrum currently exposes one A100 through Slurm.

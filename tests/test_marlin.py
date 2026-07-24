@@ -285,6 +285,7 @@ def test_diffusion_keeps_bos_clean():
         precursor_mass,
         fingerprint,
         isotope_ratios=None,
+        **kwargs,
     ):
         captured["noised_ids"] = noised_ids.clone()
         captured["isotope_ratios"] = isotope_ratios
@@ -294,6 +295,7 @@ def test_diffusion_keeps_bos_clean():
             precursor_mass,
             fingerprint,
             isotope_ratios,
+            **kwargs,
         )
 
     model.two_stream_logits = capture
@@ -325,9 +327,9 @@ def test_diffusion_passes_isotope_ratios_to_conditioner():
     captured = {}
     original = model.conditioner.forward
 
-    def capture(precursor_mass, fingerprint, isotope_ratios=None):
+    def capture(precursor_mass, fingerprint, isotope_ratios=None, **kwargs):
         captured["isotope_ratios"] = isotope_ratios
-        return original(precursor_mass, fingerprint, isotope_ratios)
+        return original(precursor_mass, fingerprint, isotope_ratios, **kwargs)
 
     model.conditioner.forward = capture
     isotope_ratios = torch.tensor([[0.12, 0.03]])

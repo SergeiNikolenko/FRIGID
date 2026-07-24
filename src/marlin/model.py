@@ -130,6 +130,8 @@ class MarlinDecoder(nn.Module):
         precursor_mass: torch.Tensor,
         fingerprint: torch.Tensor,
         isotope_ratios: torch.Tensor | None = None,
+        *,
+        include_mass_conditioning: bool = True,
     ) -> torch.Tensor:
         if input_ids.ndim != 2:
             raise ValueError("input_ids must have shape [batch, length]")
@@ -145,6 +147,7 @@ class MarlinDecoder(nn.Module):
             fingerprint,
             isotope_ratios,
             positions=positions,
+            include_mass_conditioning=include_mass_conditioning,
             attention_mask=attention_mask,
         )
 
@@ -156,10 +159,16 @@ class MarlinDecoder(nn.Module):
         isotope_ratios: torch.Tensor | None,
         *,
         positions: torch.Tensor,
+        include_mass_conditioning: bool,
         attention_mask: torch.Tensor,
     ) -> torch.Tensor:
         hidden = self.token_embedding(input_ids) + self.position_embedding(positions).unsqueeze(0)
-        condition, condition_mask = self.conditioner(precursor_mass, fingerprint, isotope_ratios)
+        condition, condition_mask = self.conditioner(
+            precursor_mass,
+            fingerprint,
+            isotope_ratios,
+            include_mass=include_mass_conditioning,
+        )
         padding_mask = input_ids.eq(self.config.pad_token_id)
         for layer in self.layers:
             hidden = layer(
@@ -179,6 +188,8 @@ class MarlinDecoder(nn.Module):
         precursor_mass: torch.Tensor,
         fingerprint: torch.Tensor,
         isotope_ratios: torch.Tensor | None = None,
+        *,
+        include_mass_conditioning: bool = True,
     ) -> torch.Tensor:
         """Predict every noisy block against clean earlier blocks in one pass."""
         if clean_ids.shape != noised_ids.shape:
@@ -193,6 +204,7 @@ class MarlinDecoder(nn.Module):
             fingerprint,
             isotope_ratios,
             positions=positions,
+            include_mass_conditioning=include_mass_conditioning,
             attention_mask=mask,
         )
         return logits[:, length:]
@@ -203,6 +215,8 @@ class MarlinDecoder(nn.Module):
         precursor_mass: torch.Tensor,
         fingerprint: torch.Tensor,
         isotope_ratios: torch.Tensor | None = None,
+        *,
+        include_mass_conditioning: bool = True,
     ) -> torch.Tensor:
         """Predict the noisy stream using committed earlier blocks as clean context."""
         return self.two_stream_logits(
@@ -211,6 +225,7 @@ class MarlinDecoder(nn.Module):
             precursor_mass,
             fingerprint,
             isotope_ratios,
+            include_mass_conditioning=include_mass_conditioning,
         )
 
     def diffusion_loss(
@@ -223,6 +238,27 @@ class MarlinDecoder(nn.Module):
         generator: torch.Generator | None = None,
     ) -> torch.Tensor:
         """Continuous-time absorbing NELBO, sampled independently per block."""
+        loss, _ = self.diffusion_objective(
+            clean_ids,
+            precursor_mass,
+            fingerprint,
+            isotope_ratios=isotope_ratios,
+            generator=generator,
+            collect_metrics=False,
+        )
+        return loss
+
+    def diffusion_objective(
+        self,
+        clean_ids: torch.Tensor,
+        precursor_mass: torch.Tensor,
+        fingerprint: torch.Tensor,
+        *,
+        isotope_ratios: torch.Tensor | None = None,
+        generator: torch.Generator | None = None,
+        collect_metrics: bool = False,
+    ) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
+        """Return the NELBO and optional reconstruction diagnostics."""
         valid = clean_ids.ne(self.config.pad_token_id)
         valid[:, 0] = False
         batch, length = clean_ids.shape
@@ -241,6 +277,7 @@ class MarlinDecoder(nn.Module):
             precursor_mass,
             fingerprint,
             isotope_ratios,
+            include_mass_conditioning=True,
         )
         losses = F.cross_entropy(logits.transpose(1, 2), clean_ids, reduction="none")
         weights = probabilities.reciprocal()
@@ -249,4 +286,30 @@ class MarlinDecoder(nn.Module):
             rounding_mode="floor",
         ).clamp_min(1)
         per_example = (losses * weights * masked).sum(dim=1) / valid_block_counts
-        return per_example.mean()
+        loss = per_example.mean()
+        if not collect_metrics:
+            return loss, {}
+
+        masked_count = masked.sum().clamp_min(1)
+        predictions = logits.argmax(dim=-1)
+        correct = predictions.eq(clean_ids) & masked
+        top_k = min(10, self.config.vocab_size)
+        top10 = logits.topk(top_k, dim=-1).indices.eq(clean_ids.unsqueeze(-1)).any(dim=-1)
+        target_probabilities = logits.softmax(dim=-1).gather(
+            -1, clean_ids.unsqueeze(-1)
+        ).squeeze(-1)
+        masked_nll = (losses * masked).sum() / masked_count
+        metrics = {
+            "masked_token_accuracy_top1": correct.sum() / masked_count,
+            "masked_token_accuracy_top10": (top10 & masked).sum() / masked_count,
+            "masked_target_probability": (target_probabilities * masked).sum()
+            / masked_count,
+            "masked_token_nll": masked_nll,
+            "masked_token_perplexity": masked_nll.clamp_max(20).exp(),
+            "mask_fraction": masked.sum() / valid.sum().clamp_min(1),
+            "masked_sequence_accuracy": (
+                (correct | ~masked).all(dim=1) & masked.any(dim=1)
+            ).float().sum()
+            / masked.any(dim=1).sum().clamp_min(1),
+        }
+        return loss, metrics

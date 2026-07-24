@@ -129,6 +129,7 @@ class MarlinLightningModule(L.LightningModule):
         noise_min_fraction: float = 0.1,
         noise_max_fraction: float = 0.3,
         ema_decay: float = 0.9999,
+        metric_interval: int = 50,
     ) -> None:
         super().__init__()
         self.save_hyperparameters(
@@ -140,6 +141,7 @@ class MarlinLightningModule(L.LightningModule):
                 "noise_min_fraction": noise_min_fraction,
                 "noise_max_fraction": noise_max_fraction,
                 "ema_decay": ema_decay,
+                "metric_interval": metric_interval,
             }
         )
         self.decoder = MarlinDecoder(config)
@@ -149,6 +151,8 @@ class MarlinLightningModule(L.LightningModule):
         self.noise_min_fraction = noise_min_fraction
         self.noise_max_fraction = noise_max_fraction
         self.ema_decay = ema_decay
+        self.metric_interval = metric_interval
+        self._last_metric_step = -1
         self.ema = ExponentialMovingAverage(
             self.decoder.parameters(), decay=ema_decay, use_num_updates=False
         )
@@ -166,12 +170,26 @@ class MarlinLightningModule(L.LightningModule):
             min_fraction=self.noise_min_fraction,
             max_fraction=self.noise_max_fraction,
         )
-        loss = self.decoder.diffusion_loss(
+        collect_metrics = (
+            self.global_step % self.metric_interval == 0
+            and self.global_step != self._last_metric_step
+        )
+        loss, reconstruction_metrics = self.decoder.diffusion_objective(
             batch["input_ids"],
             batch["precursor_mass"],
             fingerprint,
             isotope_ratios=batch["isotope_ratios"],
+            collect_metrics=collect_metrics,
         )
+        if collect_metrics:
+            self._last_metric_step = self.global_step
+            for name, value in reconstruction_metrics.items():
+                self.log(
+                    f"train_{name}",
+                    value,
+                    on_step=True,
+                    sync_dist=True,
+                )
         self.log("train_loss", loss, prog_bar=True, on_step=True, sync_dist=True)
         self.log(
             "fingerprint_noise_fraction",
