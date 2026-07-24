@@ -310,7 +310,8 @@ class MarlinDecoder(nn.Module):
         losses = F.cross_entropy(logits.transpose(1, 2), clean_ids, reduction="none")
         target_weights = torch.ones_like(losses)
         if balanced_token_loss_alpha:
-            valid_targets = clean_ids[valid]
+            content_targets = valid & clean_ids.ne(self.config.eos_token_id)
+            valid_targets = clean_ids[content_targets]
             counts = torch.bincount(
                 valid_targets,
                 minlength=self.config.vocab_size,
@@ -322,7 +323,10 @@ class MarlinDecoder(nn.Module):
                 balanced_token_loss_alpha
             )
             token_weights = token_weights.clamp(max=token_loss_weight_max)
-            target_weights = target_weights * token_weights[clean_ids]
+            target_weights = target_weights.masked_scatter(
+                content_targets,
+                token_weights[clean_ids[content_targets]],
+            )
         if eos_loss_weight != 1.0:
             target_weights = target_weights.masked_fill(eos_targets, eos_loss_weight)
         weights = probabilities.reciprocal()

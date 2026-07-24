@@ -433,6 +433,59 @@ def test_diffusion_loss_averages_the_weighted_token_sum_over_blocks():
     assert torch.allclose(loss, expected)
 
 
+def test_balanced_token_loss_does_not_reweight_eos_targets():
+    config = MarlinDecoderConfig(
+        vocab_size=8,
+        hidden_size=8,
+        num_layers=1,
+        num_heads=1,
+        intermediate_size=16,
+        max_length=5,
+        block_width=2,
+        fingerprint_bits=4,
+        dropout=0.0,
+        eos_token_id=2,
+        mask_token_id=3,
+        pad_token_id=0,
+    )
+    model = MarlinDecoder(config)
+    for parameter in model.parameters():
+        parameter.data.zero_()
+    tokens = torch.tensor([[1, 2, 5, 5, 2]])
+    seed = 9
+    expected_generator = torch.Generator().manual_seed(seed)
+    times = torch.rand((1, 2), generator=expected_generator).clamp_min(1e-4)
+    probabilities = times[:, torch.tensor([0, 0, 0, 1, 1])]
+    valid = torch.tensor([[False, True, True, True, True]])
+    masked = (
+        torch.rand(tokens.shape, generator=expected_generator) < probabilities
+    ) & valid
+    eos_targets = valid & tokens.eq(config.eos_token_id)
+    masked = masked | (
+        torch.rand(tokens.shape, generator=expected_generator) < 1.0
+    ) & eos_targets
+    target_weights = torch.ones_like(probabilities)
+    target_weights = target_weights.masked_fill(eos_targets, 7.0)
+    expected = (
+        (target_weights * masked * probabilities.reciprocal()).sum()
+        * torch.log(torch.tensor(float(config.vocab_size)))
+        / 2
+    )
+
+    loss = model.diffusion_loss(
+        tokens,
+        torch.tensor([50.0]),
+        torch.zeros((1, 4)),
+        generator=torch.Generator().manual_seed(seed),
+        eos_loss_weight=7.0,
+        eos_mask_probability=1.0,
+        balanced_token_loss_alpha=1.0,
+        token_loss_weight_max=20.0,
+    )
+
+    assert torch.allclose(loss, expected)
+
+
 def test_attention_warm_start_concatenates_qkv():
     attention = torch.nn.MultiheadAttention(4, 1, batch_first=True)
     state = {}
