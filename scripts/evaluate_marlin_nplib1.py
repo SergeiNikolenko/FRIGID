@@ -47,6 +47,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--candidates", type=int, default=384)
     parser.add_argument("--diversity-dropout", type=float, default=0.3)
     parser.add_argument("--temperature", type=float, default=1.0)
+    parser.add_argument("--generation-mode", choices=("block", "canvas"), default="block")
     parser.add_argument("--ppm-tolerance", type=float, default=10.0)
     parser.add_argument("--valence-slack", type=float, default=4.0)
     parser.add_argument("--eos-boost", type=float, default=1.0)
@@ -208,6 +209,7 @@ def main() -> None:
             tokenizer.pad_token_id,
         ),
         mass_shell_enabled=not args.disable_mass_shell,
+        generation_mode=args.generation_mode,
     )
 
     settings = {
@@ -217,6 +219,7 @@ def main() -> None:
         "candidates": args.candidates,
         "diversity_dropout": args.diversity_dropout,
         "temperature": args.temperature,
+        "generation_mode": args.generation_mode,
         "ppm_tolerance": args.ppm_tolerance,
         "valence_slack": args.valence_slack,
         "eos_boost": args.eos_boost,

@@ -52,7 +52,10 @@ class MarlinSampler:
         | None = None,
         forbidden_token_ids: Sequence[int] = (),
         mass_shell_enabled: bool = True,
+        generation_mode: str = "block",
     ) -> None:
+        if generation_mode not in {"block", "canvas"}:
+            raise ValueError("generation_mode must be 'block' or 'canvas'")
         self.model = model
         self.constraint = constraint
         self.bos_token_id = bos_token_id
@@ -63,6 +66,7 @@ class MarlinSampler:
         self.grammar_mask = grammar_mask
         self.forbidden_token_ids = tuple(forbidden_token_ids)
         self.mass_shell_enabled = mass_shell_enabled
+        self.generation_mode = generation_mode
 
     def _sampling_logits(
         self,
@@ -211,7 +215,12 @@ class MarlinSampler:
         if temperature <= 0:
             raise ValueError("temperature must be positive")
         original = (fingerprint > 0.5).to(torch.float32)
-        generated, valid, diagnostics = self._generate_many(
+        generator_fn = (
+            self._generate_many_canvas
+            if self.generation_mode == "canvas"
+            else self._generate_many
+        )
+        generated, valid, diagnostics = generator_fn(
             original,
             target_mass,
             candidates=candidates,
@@ -428,6 +437,150 @@ class MarlinSampler:
             diagnostics["max_length_terminated"] += 1
             record_terminal_safe(safe)
             valid += int(is_valid)
+        return results, valid, diagnostics
+
+    def _canvas_length(self, target_mass: float) -> int:
+        content_length = round(target_mass / 8.0)
+        content_length = max(content_length, self.model.config.block_width * 2)
+        return min(content_length + 2, self.model.config.max_length)
+
+    def _canvas_lengths(
+        self,
+        target_mass: float,
+        candidates: int,
+        device: torch.device,
+        generator: torch.Generator | None,
+    ) -> torch.Tensor:
+        base = self._canvas_length(target_mass)
+        jitter = max(1, min(12, self.model.config.block_width * 2))
+        lower = max(3, base - jitter)
+        upper = min(self.model.config.max_length, base + jitter)
+        if lower == upper:
+            return torch.full((candidates,), lower, device=device, dtype=torch.long)
+        return torch.randint(
+            lower,
+            upper + 1,
+            (candidates,),
+            device=device,
+            generator=generator,
+        )
+
+    def _decode_canvas_row(self, token_ids: Sequence[int]) -> str:
+        compact = []
+        for token_id in token_ids:
+            if token_id == self.model.config.pad_token_id:
+                continue
+            compact.append(token_id)
+            if token_id == self.eos_token_id:
+                break
+        return self._decode_prefix(compact)
+
+    def _generate_many_canvas(
+        self,
+        fingerprint: torch.Tensor,
+        target_mass: float,
+        *,
+        candidates: int,
+        diversity_dropout: float,
+        temperature: float,
+        generator: torch.Generator | None,
+    ) -> tuple[list[tuple[str, str, bool] | None], int, dict[str, int | list[str]]]:
+        """Generate candidates by filling a fixed masked canvas like DLM sampling."""
+        device = next(self.model.parameters()).device
+        fingerprint = fingerprint.to(device=device, dtype=torch.float32)
+        conditioned = torch.stack(
+            [
+                perturb_fingerprint(
+                    fingerprint, dropout=diversity_dropout, generator=generator
+                )
+                for _ in range(candidates)
+            ]
+        ).to(device=device, dtype=torch.float32)
+        masses = torch.full((candidates,), target_mass, device=device)
+        lengths = self._canvas_lengths(target_mass, candidates, device, generator)
+        max_length = int(lengths.max().item())
+        canvas = torch.full(
+            (candidates, max_length),
+            self.model.config.pad_token_id,
+            device=device,
+            dtype=torch.long,
+        )
+        canvas[:, 0] = self.bos_token_id
+        unresolved = torch.zeros((candidates, max_length), dtype=torch.bool, device=device)
+        for row, length in enumerate(lengths.tolist()):
+            canvas[row, 1 : length - 1] = self.mask_token_id
+            canvas[row, length - 1] = self.eos_token_id
+            unresolved[row, 1 : length - 1] = True
+
+        forbidden = set(self.forbidden_token_ids)
+        forbidden.add(self.eos_token_id)
+        forbidden_ids = sorted(forbidden)
+        diagnostics: dict[str, object] = {
+            "constraint_dead_ends": 0,
+            "eos_terminated": candidates,
+            "max_length_terminated": 0,
+            "sample_terminal_safes": [],
+            "sample_dead_ends": [],
+        }
+
+        while unresolved.any():
+            with torch.autocast(
+                device_type=device.type,
+                dtype=torch.bfloat16,
+                enabled=device.type == "cuda",
+            ):
+                logits = self._sampling_logits(canvas, masses, conditioned)
+            for row in torch.nonzero(unresolved.any(dim=1), as_tuple=False).flatten().tolist():
+                positions = torch.nonzero(unresolved[row], as_tuple=False).flatten()
+                if positions.numel() == 0:
+                    continue
+                block_ids = (positions - 1).div(
+                    self.model.config.block_width,
+                    rounding_mode="floor",
+                )
+                positions = positions[block_ids.eq(block_ids.min())]
+                probabilities_by_position = []
+                confidences = []
+                for position in positions.tolist():
+                    position_logits = logits[row, position] / temperature
+                    if forbidden_ids:
+                        position_logits[forbidden_ids] = -torch.inf
+                    probabilities = position_logits.softmax(dim=-1)
+                    confidence = probabilities.max(dim=-1).values
+                    probabilities_by_position.append(probabilities)
+                    confidences.append(confidence)
+                confidence_tensor = torch.stack(confidences)
+                if not torch.isfinite(confidence_tensor).any():
+                    diagnostics["constraint_dead_ends"] += 1
+                    unresolved[row] = False
+                    continue
+                selected_index = int(confidence_tensor.argmax().item())
+                selected_position = int(positions[selected_index].item())
+                token = int(
+                    torch.multinomial(
+                        probabilities_by_position[selected_index],
+                        num_samples=1,
+                        generator=generator,
+                    ).item()
+                )
+                canvas[row, selected_position] = token
+                unresolved[row, selected_position] = False
+
+        results: list[tuple[str, str, bool] | None] = [None] * candidates
+        valid = 0
+        terminal_examples = diagnostics["sample_terminal_safes"]
+        assert isinstance(terminal_examples, list)
+        for row in range(candidates):
+            safe = self._decode_canvas_row(canvas[row].tolist())
+            smiles = self.safe_to_smiles(safe)
+            molecule = Chem.MolFromSmiles(smiles) if smiles else None
+            is_valid = molecule is not None
+            is_mass_valid = self.constraint.accepts_smiles(smiles, target_mass)
+            valid += int(is_valid)
+            if len(terminal_examples) < 5:
+                terminal_examples.append(safe[:512])
+            if is_mass_valid or (is_valid and not self.mass_shell_enabled):
+                results[row] = (safe, smiles, is_mass_valid)
         return results, valid, diagnostics
 
 
