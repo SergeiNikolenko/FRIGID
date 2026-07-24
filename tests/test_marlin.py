@@ -615,6 +615,59 @@ def test_constrained_sampler_reveals_only_contiguous_prefix_positions():
     assert model.seen[1].tolist() == [[0, 1, 3]]
 
 
+def test_sampler_can_disable_mass_shell_for_unconstrained_diagnostics():
+    class SuffixConfidentModel(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.anchor = torch.nn.Parameter(torch.zeros(()))
+            self.seen = []
+            self.config = MarlinDecoderConfig(
+                vocab_size=4,
+                hidden_size=4,
+                num_layers=1,
+                num_heads=1,
+                intermediate_size=4,
+                max_length=3,
+                block_width=2,
+                fingerprint_bits=8,
+                dropout=0.0,
+                mask_token_id=3,
+                pad_token_id=0,
+            )
+
+        def forward(self, input_ids, precursor_mass, fingerprint):
+            self.seen.append(input_ids.detach().clone())
+            logits = torch.full((*input_ids.shape, 4), -torch.inf, device=input_ids.device)
+            logits[:, 1, 2] = 1.0
+            logits[:, 1, 1] = 0.0
+            logits[:, 2, 1] = 10.0
+            logits[:, 2, 2] = 0.0
+            return logits
+
+    model = SuffixConfidentModel()
+    sampler = MarlinSampler(
+        model,
+        MassShellConstraint(
+            [0.0, 12.0, 0.0, 0.0],
+            [0, 1, 0, 0],
+            [0.0, 4.0, 0.0, 0.0],
+            eos_token_id=2,
+            ppm_tolerance=10,
+        ),
+        bos_token_id=0,
+        eos_token_id=2,
+        mask_token_id=3,
+        decode_tokens=lambda ids: "C" if 1 in ids else "",
+        safe_to_smiles=lambda safe: safe or None,
+        forbidden_token_ids=(0, 3),
+        mass_shell_enabled=False,
+    )
+
+    sampler.generate_ranked_with_stats(torch.zeros(8), target_mass=12.0, candidates=1)
+
+    assert model.seen[1].tolist() == [[0, 3, 1]]
+
+
 def test_batched_sampler_discards_tokens_after_eos_before_mass_and_decoding():
     class EosThenJunkModel(torch.nn.Module):
         def __init__(self):

@@ -51,6 +51,7 @@ class MarlinSampler:
         ]
         | None = None,
         forbidden_token_ids: Sequence[int] = (),
+        mass_shell_enabled: bool = True,
     ) -> None:
         self.model = model
         self.constraint = constraint
@@ -61,7 +62,7 @@ class MarlinSampler:
         self.safe_to_smiles = safe_to_smiles
         self.grammar_mask = grammar_mask
         self.forbidden_token_ids = tuple(forbidden_token_ids)
-        self.mass_shell_enabled = True
+        self.mass_shell_enabled = mass_shell_enabled
 
     def _sampling_logits(
         self,
@@ -137,9 +138,11 @@ class MarlinSampler:
                 if self.grammar_mask is not None or self.mass_shell_enabled:
                     positions = positions[:1]
                 for position in positions:
-                    position_logits = self.constraint.apply(
-                        logits[position] / temperature, state, target_mass
-                    )
+                    position_logits = logits[position] / temperature
+                    if self.mass_shell_enabled:
+                        position_logits = self.constraint.apply(
+                            position_logits, state, target_mass
+                        )
                     if self.forbidden_token_ids:
                         position_logits[list(self.forbidden_token_ids)] = -torch.inf
                     if self.grammar_mask is not None:
@@ -338,11 +341,13 @@ class MarlinSampler:
                     best_confidence = -torch.inf
                     for relative_position in positions.tolist():
                         position = block_start + relative_position
-                        position_logits = self.constraint.apply(
-                            logits[row, position] / temperature,
-                            states[row],
-                            target_mass,
-                        )
+                        position_logits = logits[row, position] / temperature
+                        if self.mass_shell_enabled:
+                            position_logits = self.constraint.apply(
+                                position_logits,
+                                states[row],
+                                target_mass,
+                            )
                         if self.forbidden_token_ids:
                             position_logits[list(self.forbidden_token_ids)] = -torch.inf
                         if self.grammar_mask is not None:

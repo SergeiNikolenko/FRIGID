@@ -54,6 +54,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-spectra", type=int)
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--disable-grammar-mask", action="store_true")
+    parser.add_argument("--disable-mass-shell", action="store_true")
     return parser.parse_args()
 
 
@@ -197,6 +198,7 @@ def main() -> None:
             tokenizer.mask_token_id,
             tokenizer.pad_token_id,
         ),
+        mass_shell_enabled=not args.disable_mass_shell,
     )
 
     settings = {
@@ -212,6 +214,7 @@ def main() -> None:
         "block_width": model.config.block_width,
         "ema": True,
         "grammar_mask": not args.disable_grammar_mask,
+        "mass_shell_constraint": not args.disable_mass_shell,
         "seed": args.seed,
         "max_spectra": args.max_spectra,
     }
@@ -387,6 +390,9 @@ def main() -> None:
             "grammar_decode_order": "paper-specified confidence order"
             if args.disable_grammar_mask
             else "paper-specified confidence order with inferred hole handling",
+            "mass_shell_constraint": "disabled diagnostic validity-gate lane"
+            if args.disable_mass_shell
+            else "enabled",
         },
     }
     (args.output_dir / "metrics.json").write_text(

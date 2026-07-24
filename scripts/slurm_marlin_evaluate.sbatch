@@ -18,6 +18,7 @@ OUTPUT_TAG="${MARLIN_OUTPUT_TAG:-full}"
 MAX_SPECTRA="${MARLIN_MAX_SPECTRA:-}"
 CANDIDATES="${MARLIN_CANDIDATES:-384}"
 DISABLE_GRAMMAR="${MARLIN_DISABLE_GRAMMAR:-0}"
+DISABLE_MASS_SHELL="${MARLIN_DISABLE_MASS_SHELL:-0}"
 export PYTHONPATH="$CODE/src:$ROOT/vendor"
 export TOKENIZERS_PARALLELISM=false
 
@@ -37,6 +38,9 @@ if [[ -n "$MAX_SPECTRA" ]]; then
 fi
 if [[ "$DISABLE_GRAMMAR" == "1" ]]; then
   COMMON_ARGS+=(--disable-grammar-mask)
+fi
+if [[ "$DISABLE_MASS_SHELL" == "1" ]]; then
+  COMMON_ARGS+=(--disable-mass-shell)
 fi
 
 if [[ "$SLURM_ARRAY_TASK_ID" == 0 ]]; then
