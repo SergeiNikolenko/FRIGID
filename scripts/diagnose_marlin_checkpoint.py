@@ -14,7 +14,7 @@ from rdkit import Chem, DataStructs
 from rdkit.Chem import AllChem, Descriptors
 
 from dlm.utils.utils_chem import smiles_to_safe
-from evaluate_marlin_nplib1 import load_ema_decoder
+from evaluate_marlin_nplib1 import load_decoder
 from marlin.tokenizer import load_safe_tokenizer
 
 
@@ -27,13 +27,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--row", type=int, default=0)
     parser.add_argument("--rows", type=int, default=1)
     parser.add_argument("--device", default="cuda")
+    parser.add_argument("--no-ema", action="store_true")
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
     device = torch.device(args.device)
-    model = load_ema_decoder(args.checkpoint, device)
+    model = load_decoder(args.checkpoint, device, use_ema=not args.no_ema)
     tokenizer = load_safe_tokenizer(args.tokenizer)
     metadata = pd.read_csv(args.metadata).iloc[args.row : args.row + args.rows]
     if metadata.empty:
@@ -131,7 +132,7 @@ def main() -> None:
     total = sum(row["teacher_forced_total"] for row in rows)
     result = {
         "checkpoint": str(args.checkpoint),
-        "ema": True,
+        "ema": not args.no_ema,
         "block_width": model.config.block_width,
         "row_start": args.row,
         "row_count": len(rows),

@@ -11,12 +11,25 @@ set -euo pipefail
 
 ROOT=/home/nikolenko/work/Projects/MARLIN_reproduction_20260717
 CODE="$ROOT/code"
+CHECKPOINT="${MARLIN_CHECKPOINT:-$ROOT/runs/decoder/checkpoints/step=100000.ckpt}"
+OUTPUT="${MARLIN_OUTPUT:-$ROOT/runs/evaluation/diagnostics/teacher_forced_rows0_31.json}"
+ROWS="${MARLIN_ROWS:-32}"
+ROW="${MARLIN_ROW:-0}"
+NO_EMA="${MARLIN_NO_EMA:-0}"
 export PYTHONPATH="$CODE/src:$ROOT/vendor"
 cd "$CODE"
 
+ARGS=(
+  --checkpoint "$CHECKPOINT"
+  --tokenizer "$ROOT/data/safe-gpt/tokenizer.json"
+  --metadata "$ROOT/data/processed/test/metadata.csv"
+  --output "$OUTPUT"
+  --row "$ROW"
+  --rows "$ROWS"
+)
+if [[ "$NO_EMA" == "1" ]]; then
+  ARGS+=(--no-ema)
+fi
+
 $ROOT/.venv/bin/python scripts/diagnose_marlin_checkpoint.py \
-  --checkpoint "$ROOT/runs/decoder/checkpoints/step=100000.ckpt" \
-  --tokenizer "$ROOT/data/safe-gpt/tokenizer.json" \
-  --metadata "$ROOT/data/processed/test/metadata.csv" \
-  --output "$ROOT/runs/evaluation/diagnostics/teacher_forced_rows0_31.json" \
-  --rows 32
+  "${ARGS[@]}"
