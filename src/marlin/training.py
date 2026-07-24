@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict
+import json
 from pathlib import Path
 
 import lightning as L
@@ -14,9 +15,13 @@ from rdkit.Chem import AllChem, Descriptors
 
 from dlm.utils.utils_chem import safe_to_smiles, smiles_to_safe
 from dlm.utils.ema import ExponentialMovingAverage
+from marlin.grammar import SafeGrammarMask
+from marlin.mass_shell import MassShellConstraint
 from marlin.model import MarlinDecoder, MarlinDecoderConfig
 from marlin.noise import symmetric_fingerprint_noise
 from marlin.isotopes import theoretical_isotope_ratios
+from marlin.sampler import MarlinSampler
+from marlin.token_properties import build_token_property_table
 
 
 def load_excluded_connectivity_keys(path: str | Path | None) -> set[str]:
@@ -301,3 +306,221 @@ class MarlinLightningModule(L.LightningModule):
     def on_load_checkpoint(self, checkpoint: dict) -> None:
         if "ema" in checkpoint:
             self.ema.load_state_dict(checkpoint["ema"])
+
+
+class MarlinMolecularValidationCallback(L.Callback):
+    """Log bounded oracle-conditioned molecular generation metrics during training."""
+
+    def __init__(
+        self,
+        tokenizer,
+        metadata_csv: str | Path,
+        *,
+        output_dir: str | Path,
+        fingerprint_bits: int = 4096,
+        every_n_steps: int = 500,
+        samples: int = 2,
+        candidates: int = 4,
+        temperature: float = 1.0,
+    ) -> None:
+        if every_n_steps <= 0:
+            raise ValueError("molecular validation interval must be positive")
+        if samples <= 0 or candidates <= 0:
+            raise ValueError(
+                "molecular validation samples and candidates must be positive"
+            )
+        if temperature <= 0:
+            raise ValueError("molecular validation temperature must be positive")
+
+        table = pd.read_csv(metadata_csv)
+        if "smiles" not in table:
+            raise ValueError("molecular validation CSV must contain a smiles column")
+        records = []
+        fingerprint_generator = AllChem.GetMorganGenerator(
+            radius=2, fpSize=fingerprint_bits
+        )
+        for smiles in table["smiles"].dropna().astype(str):
+            molecule = Chem.MolFromSmiles(smiles)
+            if molecule is None:
+                continue
+            fingerprint = fingerprint_generator.GetFingerprint(molecule)
+            array = np.zeros(fingerprint_bits, dtype=np.float32)
+            DataStructs.ConvertToNumpyArray(fingerprint, array)
+            records.append(
+                {
+                    "smiles": Chem.MolToSmiles(molecule, canonical=True),
+                    "connectivity": Chem.MolToInchiKey(molecule).split("-")[0],
+                    "fingerprint": torch.from_numpy(array),
+                    "mass": float(Descriptors.ExactMolWt(molecule)),
+                }
+            )
+            if len(records) >= samples:
+                break
+        if not records:
+            raise ValueError("molecular validation CSV contains no valid molecules")
+
+        self.tokenizer = tokenizer
+        self.records = records
+        self.output_path = Path(output_dir) / "molecular_validation.jsonl"
+        self.every_n_steps = every_n_steps
+        self.candidates = candidates
+        self.temperature = temperature
+        self._last_step = -1
+
+        special_ids = {
+            tokenizer.bos_token_id,
+            tokenizer.eos_token_id,
+            tokenizer.mask_token_id,
+            tokenizer.pad_token_id,
+        }
+        token_masses, token_atoms, token_valences = build_token_property_table(
+            len(tokenizer), tokenizer.convert_ids_to_tokens, special_ids
+        )
+        self.constraint = MassShellConstraint(
+            token_masses,
+            token_atoms,
+            token_valences,
+            eos_token_id=tokenizer.eos_token_id,
+            ppm_tolerance=10.0,
+            valence_slack=4.0,
+            eos_boost=1.0,
+        )
+        self.grammar = SafeGrammarMask(
+            [
+                tokenizer.convert_ids_to_tokens(index)
+                for index in range(len(tokenizer))
+            ],
+            lambda ids: tokenizer.decode(ids, skip_special_tokens=True),
+            eos_token_id=tokenizer.eos_token_id,
+            mask_token_id=tokenizer.mask_token_id,
+            special_token_ids=tuple(special_ids) + (tokenizer.unk_token_id,),
+            ppm_tolerance=10.0,
+            valence_slack=4.0,
+        )
+
+    def _sampler(self, model: MarlinDecoder) -> MarlinSampler:
+        return MarlinSampler(
+            model,
+            self.constraint,
+            bos_token_id=self.tokenizer.bos_token_id,
+            eos_token_id=self.tokenizer.eos_token_id,
+            mask_token_id=self.tokenizer.mask_token_id,
+            decode_tokens=lambda ids: self.tokenizer.decode(
+                ids, skip_special_tokens=True
+            ),
+            safe_to_smiles=lambda safe: safe_to_smiles(safe, fix=True),
+            grammar_mask=self.grammar,
+            forbidden_token_ids=(
+                self.tokenizer.unk_token_id,
+                self.tokenizer.bos_token_id,
+                self.tokenizer.mask_token_id,
+                self.tokenizer.pad_token_id,
+            ),
+            mass_shell_enabled=True,
+            generation_mode="block",
+        )
+
+    @torch.no_grad()
+    def on_train_batch_end(
+        self,
+        trainer: L.Trainer,
+        pl_module: MarlinLightningModule,
+        outputs,
+        batch,
+        batch_idx: int,
+    ) -> None:
+        step = int(trainer.global_step)
+        if (
+            not trainer.is_global_zero
+            or step <= 0
+            or step % self.every_n_steps
+            or step == self._last_step
+        ):
+            return
+        self._last_step = step
+
+        parameters = [
+            parameter
+            for parameter in pl_module.decoder.parameters()
+            if parameter.requires_grad
+        ]
+        was_training = pl_module.decoder.training
+        pl_module.ema.store(parameters)
+        pl_module.ema.copy_to(parameters)
+        pl_module.decoder.eval()
+        try:
+            sampler = self._sampler(pl_module.decoder)
+            attempts = valid = mass_valid = unique_mass_valid = returned = exact = 0
+            top1_tanimoto = []
+            sample_rows = []
+            device = pl_module.device
+            rng = torch.Generator(device=device).manual_seed(10_000 + step)
+            for record in self.records:
+                ranked, stats = sampler.generate_ranked_with_stats(
+                    record["fingerprint"].to(device),
+                    record["mass"],
+                    candidates=self.candidates,
+                    diversity_dropout=0.0,
+                    temperature=self.temperature,
+                    generator=rng,
+                )
+                attempts += stats.attempts
+                valid += stats.valid
+                mass_valid += stats.mass_valid
+                unique_mass_valid += stats.unique_mass_valid
+                returned += int(bool(ranked))
+                if ranked:
+                    top = ranked[0]
+                    molecule = Chem.MolFromSmiles(top.smiles)
+                    predicted_key = (
+                        Chem.MolToInchiKey(molecule).split("-")[0]
+                        if molecule is not None
+                        else None
+                    )
+                    exact += int(predicted_key == record["connectivity"])
+                    top1_tanimoto.append(top.tanimoto)
+                else:
+                    top1_tanimoto.append(0.0)
+                sample_rows.append(
+                    {
+                        "target_smiles": record["smiles"],
+                        "top1_smiles": ranked[0].smiles if ranked else None,
+                        "valid": stats.valid,
+                        "mass_valid": stats.mass_valid,
+                    }
+                )
+
+            count = len(self.records)
+            metrics = {
+                "validity": valid / attempts,
+                "mass_validity": mass_valid / attempts,
+                "unique_mass_validity": unique_mass_valid / attempts,
+                "candidate_return_rate": returned / count,
+                "exact_top1": exact / count,
+                "tanimoto_top1": float(np.mean(top1_tanimoto)),
+            }
+            for name, value in metrics.items():
+                pl_module.log(
+                    f"molecular_{name}",
+                    value,
+                    on_step=True,
+                    on_epoch=False,
+                    logger=True,
+                    sync_dist=False,
+                )
+            self.output_path.parent.mkdir(parents=True, exist_ok=True)
+            with self.output_path.open("a") as handle:
+                handle.write(
+                    json.dumps(
+                        {
+                            "step": step,
+                            "metrics": metrics,
+                            "samples": sample_rows,
+                        },
+                        sort_keys=True,
+                    )
+                    + "\n"
+                )
+        finally:
+            pl_module.ema.restore(parameters)
+            pl_module.decoder.train(was_training)

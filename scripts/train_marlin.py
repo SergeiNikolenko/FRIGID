@@ -4,11 +4,12 @@
 
 from __future__ import annotations
 
-import os
-import sys
+import hashlib
 import json
+import os
 import platform
 import subprocess
+import sys
 from datetime import datetime, timezone
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
@@ -29,10 +30,18 @@ from marlin.tokenizer import load_safe_tokenizer, validate_safe_tokenizer
 from marlin.training import (
     MarlinCollator,
     MarlinLightningModule,
+    MarlinMolecularValidationCallback,
     MarlinMetadataDataset,
     MarlinTrainingFilter,
 )
-from marlin.warm_start import load_frigid_decoder, sha256_file
+
+
+def sha256_file(path: str | Path) -> str:
+    digest = hashlib.sha256()
+    with Path(path).open("rb") as handle:
+        for chunk in iter(lambda: handle.read(8 * 1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def git_state() -> tuple[str | None, list[str]]:
@@ -84,7 +93,6 @@ def write_run_manifest(config: DictConfig, tokenizer_sha256: str) -> dict:
         "config": OmegaConf.to_container(config, resolve=True),
         "inputs": {
             "tokenizer_sha256": tokenizer_sha256,
-            "warm_start_sha256": str(config.warm_start_sha256),
             "nplib1_test_exclusions_sha256": sha256_file(
                 config.data.exclude_inchikeys
             ),
@@ -269,21 +277,6 @@ def main(config: DictConfig) -> None:
         report_path = Path(config.output.root) / "warm_start.json"
         report_path.parent.mkdir(parents=True, exist_ok=True)
         report_path.write_text(json.dumps(report, indent=2) + "\n")
-    elif config.get("warm_start_checkpoint"):
-        report = load_frigid_decoder(
-            module.decoder,
-            config.warm_start_checkpoint,
-            expected_sha256=config.get("warm_start_sha256"),
-        )
-        report["tokenizer"] = str(config.data.tokenizer_file)
-        report["tokenizer_sha256"] = tokenizer_sha256
-        report["special_token_ids"] = special_token_ids
-        report["dataset"] = str(config.data.dataset)
-        report["dataset_revision"] = str(config.data.revision)
-        module.reset_ema()
-        report_path = Path(config.output.root) / "warm_start.json"
-        report_path.parent.mkdir(parents=True, exist_ok=True)
-        report_path.write_text(json.dumps(report, indent=2) + "\n")
     if metadata_csv is None:
         dataset = datasets.load_dataset(
             "parquet",
@@ -326,6 +319,21 @@ def main(config: DictConfig) -> None:
         every_n_train_steps=config.output.checkpoint_interval,
         save_top_k=-1,
     )
+    callbacks: list[L.Callback] = [checkpoint]
+    molecular_validation_csv = config.training.get("molecular_validation_csv")
+    if molecular_validation_csv:
+        callbacks.append(
+            MarlinMolecularValidationCallback(
+                tokenizer,
+                molecular_validation_csv,
+                output_dir=config.output.root,
+                fingerprint_bits=decoder_config.fingerprint_bits,
+                every_n_steps=config.training.molecular_validation_interval,
+                samples=config.training.molecular_validation_samples,
+                candidates=config.training.molecular_validation_candidates,
+                temperature=config.training.molecular_validation_temperature,
+            )
+        )
     trainer = L.Trainer(
         accelerator="gpu",
         devices=config.trainer.devices,
@@ -335,7 +343,7 @@ def main(config: DictConfig) -> None:
         accumulate_grad_batches=config.trainer.accumulate_grad_batches,
         gradient_clip_val=1.0,
         log_every_n_steps=config.trainer.log_every_n_steps,
-        callbacks=[checkpoint],
+        callbacks=callbacks,
         default_root_dir=config.output.root,
     )
     try:

@@ -2,8 +2,6 @@
 # max_steps and mass Fourier frequencies are explicitly inferred because the paper omits them.
 seed: 42
 resume_checkpoint: null
-warm_start_checkpoint: /home/nikolenko/work/Projects/MARLIN_reproduction_20260717/checkpoints/DLM.ckpt
-warm_start_sha256: b6177c2d43448380aba80ff41c01461ea34ca2ca93b213986954c5afb7f0f457
 
 data:
   dataset: datamol-io/safe-gpt
@@ -23,7 +21,7 @@ data:
   snapshot_file_list_sha256: ca5356076d4e6e4920a019d55af0a769b0984d736f3feb9799045f3c49244e6f
   verify_snapshot_hashes: true
   exclude_inchikeys: /home/nikolenko/work/Projects/MARLIN_reproduction_20260717/data/nplib1_test_inchikeys.csv
-  # Inferred: preserve the fixed 256-position DLM warm start without truncation.
+  # Inferred: preserve complete SAFE targets within the fixed 256-token context.
   length_audit_manifest: /home/nikolenko/work/Projects/MARLIN_reproduction_20260717/manifests/safe_gpt_eligibility_a7a49f6_first1000000.json
   length_audit_sha256: c6267bfcffe51b42fa82d3514cb148ba15fa9e7c0141119682aa12c64413b0fd
   shuffle_buffer: 100000
@@ -61,6 +59,11 @@ training:
   balanced_token_loss_alpha: 0.0
   token_loss_weight_max: 20.0
   full_sequence_mask_probability: 0.0
+  molecular_validation_csv: null
+  molecular_validation_interval: 500
+  molecular_validation_samples: 2
+  molecular_validation_candidates: 4
+  molecular_validation_temperature: 1.0
 
 trainer:
   # Spectrum currently exposes one A100 through Slurm.
@@ -72,8 +75,8 @@ trainer:
   log_every_n_steps: 50
 
 output:
-  root: /home/nikolenko/work/Projects/MARLIN_reproduction_20260717/runs/decoder
-  checkpoints: /home/nikolenko/work/Projects/MARLIN_reproduction_20260717/runs/decoder/checkpoints
+  root: /mnt/netstorage/nikolenko/marlin/runs/decoder
+  checkpoints: /mnt/netstorage/nikolenko/marlin/runs/decoder/checkpoints
   checkpoint_interval: 5000
 
 tracking:

@@ -19,6 +19,7 @@ from marlin.tokenizer import load_safe_tokenizer
 from marlin.training import (
     MarlinCollator,
     MarlinLightningModule,
+    MarlinMolecularValidationCallback,
     MarlinTrainingFilter,
 )
 from marlin.warm_start import _copy_attention, sha256_file
@@ -98,6 +99,29 @@ def test_marlin_uses_fixed_decay_ema():
 
     assert module.ema.decay == 0.9999
     assert module.ema.num_updates is None
+
+
+def test_molecular_validation_callback_builds_bounded_oracle_set(tmp_path):
+    metadata = tmp_path / "validation.csv"
+    metadata.write_text("smiles\nCCO\ninvalid\n")
+    tokenizer = load_safe_tokenizer(
+        "/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/data/safe-gpt/tokenizer.json"
+    )
+
+    callback = MarlinMolecularValidationCallback(
+        tokenizer,
+        metadata,
+        output_dir=tmp_path,
+        fingerprint_bits=16,
+        every_n_steps=10,
+        samples=1,
+        candidates=2,
+    )
+
+    assert len(callback.records) == 1
+    assert callback.records[0]["smiles"] == "CCO"
+    assert callback.records[0]["fingerprint"].shape == (16,)
+    assert callback.output_path == tmp_path / "molecular_validation.jsonl"
 
 
 def test_theoretical_isotope_ratios_include_m_plus_one_and_two():

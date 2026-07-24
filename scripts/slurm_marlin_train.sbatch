@@ -11,7 +11,8 @@ set -euo pipefail
 
 ROOT=/home/nikolenko/work/Projects/MARLIN_reproduction_20260717
 CODE="$ROOT/code"
-OUTPUT_ROOT="${MARLIN_OUTPUT_ROOT:-$ROOT/runs/decoder}"
+SHARED_ROOT="${MARLIN_SHARED_ROOT:-/mnt/netstorage/nikolenko/marlin}"
+OUTPUT_ROOT="${MARLIN_OUTPUT_ROOT:-$SHARED_ROOT/runs/decoder}"
 MAX_STEPS="${MARLIN_MAX_STEPS:-100000}"
 CHECKPOINT_INTERVAL="${MARLIN_CHECKPOINT_INTERVAL:-5000}"
 RESUME_CHECKPOINT="${MARLIN_RESUME_CHECKPOINT:-}"
@@ -30,8 +31,13 @@ ACCUMULATE_GRAD_BATCHES="${MARLIN_ACCUMULATE_GRAD_BATCHES:-32}"
 METADATA_CSV="${MARLIN_METADATA_CSV:-}"
 METADATA_EXCLUDE_INCHIKEYS="${MARLIN_METADATA_EXCLUDE_INCHIKEYS:-}"
 LEARNING_RATE="${MARLIN_LEARNING_RATE:-}"
+MOLECULAR_VALIDATION_CSV="${MARLIN_MOLECULAR_VALIDATION_CSV:-}"
+MOLECULAR_VALIDATION_INTERVAL="${MARLIN_MOLECULAR_VALIDATION_INTERVAL:-500}"
+MOLECULAR_VALIDATION_SAMPLES="${MARLIN_MOLECULAR_VALIDATION_SAMPLES:-2}"
+MOLECULAR_VALIDATION_CANDIDATES="${MARLIN_MOLECULAR_VALIDATION_CANDIDATES:-4}"
+MOLECULAR_VALIDATION_TEMPERATURE="${MARLIN_MOLECULAR_VALIDATION_TEMPERATURE:-1.0}"
 export PYTHONPATH="$CODE/src:$ROOT/vendor"
-export HF_HOME="$ROOT/cache/huggingface"
+export HF_HOME="${MARLIN_HF_HOME:-$SHARED_ROOT/cache/huggingface}"
 export TOKENIZERS_PARALLELISM=false
 
 source "$CODE/scripts/marlin_runtime_env.sh"
@@ -52,6 +58,10 @@ TRAIN_ARGS=(
     "training.balanced_token_loss_alpha=$BALANCED_TOKEN_LOSS_ALPHA"
     "training.token_loss_weight_max=$TOKEN_LOSS_WEIGHT_MAX"
     "training.full_sequence_mask_probability=$FULL_SEQUENCE_MASK_PROBABILITY"
+    "training.molecular_validation_interval=$MOLECULAR_VALIDATION_INTERVAL"
+    "training.molecular_validation_samples=$MOLECULAR_VALIDATION_SAMPLES"
+    "training.molecular_validation_candidates=$MOLECULAR_VALIDATION_CANDIDATES"
+    "training.molecular_validation_temperature=$MOLECULAR_VALIDATION_TEMPERATURE"
     "data.verify_snapshot_hashes=$VERIFY_SNAPSHOT_HASHES"
 )
 if [[ -n "$LEARNING_RATE" ]]; then
@@ -69,5 +79,8 @@ if [[ -n "$METADATA_CSV" ]]; then
 fi
 if [[ -n "$METADATA_EXCLUDE_INCHIKEYS" ]]; then
     TRAIN_ARGS+=("+data.metadata_exclude_inchikeys=$METADATA_EXCLUDE_INCHIKEYS")
+fi
+if [[ -n "$MOLECULAR_VALIDATION_CSV" ]]; then
+    TRAIN_ARGS+=("training.molecular_validation_csv=$MOLECULAR_VALIDATION_CSV")
 fi
 "$PYTHON" scripts/train_marlin.py "${TRAIN_ARGS[@]}"
