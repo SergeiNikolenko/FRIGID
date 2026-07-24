@@ -237,6 +237,8 @@ class MarlinDecoder(nn.Module):
         *,
         isotope_ratios: torch.Tensor | None = None,
         generator: torch.Generator | None = None,
+        eos_loss_weight: float = 1.0,
+        eos_mask_probability: float = 0.0,
     ) -> torch.Tensor:
         """Continuous-time absorbing NELBO, sampled independently per block."""
         loss, _ = self.diffusion_objective(
@@ -245,6 +247,8 @@ class MarlinDecoder(nn.Module):
             fingerprint,
             isotope_ratios=isotope_ratios,
             generator=generator,
+            eos_loss_weight=eos_loss_weight,
+            eos_mask_probability=eos_mask_probability,
             collect_metrics=False,
         )
         return loss
@@ -257,9 +261,15 @@ class MarlinDecoder(nn.Module):
         *,
         isotope_ratios: torch.Tensor | None = None,
         generator: torch.Generator | None = None,
+        eos_loss_weight: float = 1.0,
+        eos_mask_probability: float = 0.0,
         collect_metrics: bool = False,
     ) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
         """Return the NELBO and optional reconstruction diagnostics."""
+        if eos_loss_weight <= 0:
+            raise ValueError("eos_loss_weight must be positive")
+        if not 0.0 <= eos_mask_probability <= 1.0:
+            raise ValueError("eos_mask_probability must be in [0, 1]")
         valid = clean_ids.ne(self.config.pad_token_id)
         valid[:, 0] = False
         batch, length = clean_ids.shape
@@ -271,6 +281,13 @@ class MarlinDecoder(nn.Module):
         times = torch.rand((batch, block_count), device=clean_ids.device, generator=generator).clamp_min(1e-4)
         probabilities = times[:, block_ids]
         masked = (torch.rand(clean_ids.shape, device=clean_ids.device, generator=generator) < probabilities) & valid
+        eos_targets = valid & clean_ids.eq(self.config.eos_token_id)
+        if eos_mask_probability:
+            eos_masked = (
+                torch.rand(clean_ids.shape, device=clean_ids.device, generator=generator)
+                < eos_mask_probability
+            ) & eos_targets
+            masked = masked | eos_masked
         noised = clean_ids.masked_fill(masked, self.config.mask_token_id)
         logits = self.two_stream_logits(
             clean_ids,
@@ -281,12 +298,15 @@ class MarlinDecoder(nn.Module):
             include_mass_conditioning=True,
         )
         losses = F.cross_entropy(logits.transpose(1, 2), clean_ids, reduction="none")
+        target_weights = torch.ones_like(losses)
+        if eos_loss_weight != 1.0:
+            target_weights = target_weights.masked_fill(eos_targets, eos_loss_weight)
         weights = probabilities.reciprocal()
         valid_block_counts = valid.sum(dim=1).add(self.config.block_width - 1).div(
             self.config.block_width,
             rounding_mode="floor",
         ).clamp_min(1)
-        per_example = (losses * weights * masked).sum(dim=1) / valid_block_counts
+        per_example = (losses * target_weights * weights * masked).sum(dim=1) / valid_block_counts
         loss = per_example.mean()
         if not collect_metrics:
             return loss, {}
@@ -304,17 +324,17 @@ class MarlinDecoder(nn.Module):
         masked_probabilities = probabilities[masked]
         masked_entropy = -(masked_probabilities * log_probabilities[masked]).sum(dim=-1).mean()
         masked_top1_confidence = masked_probabilities.max(dim=-1).values.mean()
-        eos_targets = masked & clean_ids.eq(self.config.eos_token_id)
-        eos_target_count = eos_targets.sum()
+        masked_eos_targets = masked & eos_targets
+        eos_target_count = masked_eos_targets.sum()
         eos_target_probability = torch.where(
             eos_target_count > 0,
-            target_probabilities[eos_targets].mean(),
+            target_probabilities[masked_eos_targets].mean(),
             target_probabilities.new_tensor(0.0),
         )
         eos_logits = logits[..., self.config.eos_token_id]
         eos_target_rank = torch.where(
             eos_target_count > 0,
-            (logits[eos_targets] > eos_logits[eos_targets].unsqueeze(-1))
+            (logits[masked_eos_targets] > eos_logits[masked_eos_targets].unsqueeze(-1))
             .sum(dim=-1)
             .add(1)
             .float()

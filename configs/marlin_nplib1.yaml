@@ -56,6 +56,8 @@ training:
   noise_max_fraction: 0.3
   # Sparse reconstruction diagnostics reuse the training forward pass.
   metric_interval: 50
+  eos_loss_weight: 1.0
+  eos_mask_probability: 0.0
 
 trainer:
   # Spectrum currently exposes one A100 through Slurm.
