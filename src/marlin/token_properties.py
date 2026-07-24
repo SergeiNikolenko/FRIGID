@@ -31,16 +31,26 @@ class TokenProperties:
     valence_sum: float
 
 
+def _canonical_element_symbol(symbol: str) -> str | None:
+    canonical = symbol.capitalize() if len(symbol) == 1 else symbol
+    try:
+        return canonical if _PERIODIC_TABLE.GetAtomicNumber(canonical) > 0 else None
+    except RuntimeError:
+        return None
+
+
 def token_properties(token: str) -> TokenProperties:
     """Return a lower-bound mass and a conservative valence budget."""
     bracket_atoms = list(BRACKET_ATOM_PATTERN.finditer(token))
     bracket_ranges = [match.span() for match in bracket_atoms]
     atoms: list[tuple[str, int | None]] = []
     for match in bracket_atoms:
-        symbol = match.group("symbol")
+        symbol = _canonical_element_symbol(match.group("symbol"))
+        if symbol is None:
+            continue
         atoms.append(
             (
-                symbol.capitalize() if len(symbol) == 1 else symbol,
+                symbol,
                 int(match.group("isotope")) if match.group("isotope") else None,
             )
         )

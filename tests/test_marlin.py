@@ -14,7 +14,8 @@ from marlin.model import (
 from marlin.noise import symmetric_fingerprint_noise
 from marlin.isotopes import theoretical_isotope_ratios
 from marlin.sampler import MarlinSampler
-from marlin.token_properties import token_properties
+from marlin.token_properties import build_token_property_table, token_properties
+from marlin.tokenizer import load_safe_tokenizer
 from marlin.training import (
     MarlinCollator,
     MarlinLightningModule,
@@ -160,6 +161,32 @@ def test_token_properties_use_explicit_isotope_mass():
     assert boron_10.heavy_mass < boron_default.heavy_mass
     assert carbon_13.heavy_atoms == 1
     assert carbon_13.heavy_mass > carbon_default.heavy_mass
+
+
+def test_token_properties_ignore_unknown_safe_bracket_tokens():
+    properties = token_properties("[Z]")
+    assert properties.heavy_atoms == 0
+    assert properties.heavy_mass == 0.0
+    assert properties.valence_sum == 0.0
+
+
+def test_official_safe_vocabulary_builds_token_property_table():
+    tokenizer = load_safe_tokenizer(
+        "/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/data/safe-gpt/tokenizer.json"
+    )
+    special_ids = {
+        tokenizer.bos_token_id,
+        tokenizer.eos_token_id,
+        tokenizer.mask_token_id,
+        tokenizer.pad_token_id,
+    }
+    masses, atom_counts, valences = build_token_property_table(
+        len(tokenizer), tokenizer.convert_ids_to_tokens, special_ids
+    )
+
+    assert len(masses) == len(tokenizer)
+    assert len(atom_counts) == len(tokenizer)
+    assert len(valences) == len(tokenizer)
 
 
 def test_training_collator_refuses_to_truncate_safe(monkeypatch):
