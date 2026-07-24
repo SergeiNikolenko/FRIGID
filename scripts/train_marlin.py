@@ -238,6 +238,8 @@ def main(config: DictConfig) -> None:
         metric_interval=config.training.metric_interval,
         eos_loss_weight=config.training.get("eos_loss_weight", 1.0),
         eos_mask_probability=config.training.get("eos_mask_probability", 0.0),
+        balanced_token_loss_alpha=config.training.get("balanced_token_loss_alpha", 0.0),
+        token_loss_weight_max=config.training.get("token_loss_weight_max", 20.0),
     )
     if config.get("warm_start_checkpoint"):
         report = load_frigid_decoder(

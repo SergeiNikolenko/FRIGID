@@ -58,6 +58,8 @@ training:
   metric_interval: 50
   eos_loss_weight: 1.0
   eos_mask_probability: 0.0
+  balanced_token_loss_alpha: 0.0
+  token_loss_weight_max: 20.0
 
 trainer:
   # Spectrum currently exposes one A100 through Slurm.

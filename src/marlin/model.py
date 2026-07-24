@@ -239,6 +239,8 @@ class MarlinDecoder(nn.Module):
         generator: torch.Generator | None = None,
         eos_loss_weight: float = 1.0,
         eos_mask_probability: float = 0.0,
+        balanced_token_loss_alpha: float = 0.0,
+        token_loss_weight_max: float = 20.0,
     ) -> torch.Tensor:
         """Continuous-time absorbing NELBO, sampled independently per block."""
         loss, _ = self.diffusion_objective(
@@ -249,6 +251,8 @@ class MarlinDecoder(nn.Module):
             generator=generator,
             eos_loss_weight=eos_loss_weight,
             eos_mask_probability=eos_mask_probability,
+            balanced_token_loss_alpha=balanced_token_loss_alpha,
+            token_loss_weight_max=token_loss_weight_max,
             collect_metrics=False,
         )
         return loss
@@ -263,6 +267,8 @@ class MarlinDecoder(nn.Module):
         generator: torch.Generator | None = None,
         eos_loss_weight: float = 1.0,
         eos_mask_probability: float = 0.0,
+        balanced_token_loss_alpha: float = 0.0,
+        token_loss_weight_max: float = 20.0,
         collect_metrics: bool = False,
     ) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
         """Return the NELBO and optional reconstruction diagnostics."""
@@ -270,6 +276,10 @@ class MarlinDecoder(nn.Module):
             raise ValueError("eos_loss_weight must be positive")
         if not 0.0 <= eos_mask_probability <= 1.0:
             raise ValueError("eos_mask_probability must be in [0, 1]")
+        if balanced_token_loss_alpha < 0:
+            raise ValueError("balanced_token_loss_alpha must be non-negative")
+        if token_loss_weight_max < 1:
+            raise ValueError("token_loss_weight_max must be at least 1")
         valid = clean_ids.ne(self.config.pad_token_id)
         valid[:, 0] = False
         batch, length = clean_ids.shape
@@ -299,6 +309,20 @@ class MarlinDecoder(nn.Module):
         )
         losses = F.cross_entropy(logits.transpose(1, 2), clean_ids, reduction="none")
         target_weights = torch.ones_like(losses)
+        if balanced_token_loss_alpha:
+            valid_targets = clean_ids[valid]
+            counts = torch.bincount(
+                valid_targets,
+                minlength=self.config.vocab_size,
+            ).to(losses.dtype)
+            positive_counts = counts[counts > 0]
+            mean_count = positive_counts.mean() if positive_counts.numel() else counts.new_tensor(1.0)
+            token_weights = torch.ones_like(counts)
+            token_weights[counts > 0] = (mean_count / counts[counts > 0]).pow(
+                balanced_token_loss_alpha
+            )
+            token_weights = token_weights.clamp(max=token_loss_weight_max)
+            target_weights = target_weights * token_weights[clean_ids]
         if eos_loss_weight != 1.0:
             target_weights = target_weights.masked_fill(eos_targets, eos_loss_weight)
         weights = probabilities.reciprocal()
