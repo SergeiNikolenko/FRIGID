@@ -55,6 +55,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--disable-grammar-mask", action="store_true")
     parser.add_argument("--disable-mass-shell", action="store_true")
+    parser.add_argument("--fix-safe-decode", action="store_true")
     parser.add_argument("--no-ema", action="store_true")
     return parser.parse_args()
 
@@ -188,7 +189,7 @@ def main() -> None:
         eos_token_id=tokenizer.eos_token_id,
         mask_token_id=tokenizer.mask_token_id,
         decode_tokens=lambda ids: tokenizer.decode(ids, skip_special_tokens=True),
-        safe_to_smiles=lambda safe: safe_to_smiles(safe, fix=False),
+        safe_to_smiles=lambda safe: safe_to_smiles(safe, fix=args.fix_safe_decode),
         grammar_mask=None
         if args.disable_grammar_mask
         else SafeGrammarMask(
@@ -224,6 +225,7 @@ def main() -> None:
         "weights": "ema" if not args.no_ema else "raw",
         "grammar_mask": not args.disable_grammar_mask,
         "mass_shell_constraint": not args.disable_mass_shell,
+        "safe_decode_fix": args.fix_safe_decode,
         "seed": args.seed,
         "max_spectra": args.max_spectra,
     }
