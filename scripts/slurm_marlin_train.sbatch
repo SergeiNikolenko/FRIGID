@@ -54,9 +54,9 @@ if [[ -n "$RESUME_CHECKPOINT" ]]; then
     TRAIN_ARGS+=("resume_checkpoint=${RESUME_CHECKPOINT//=/\\=}")
 fi
 if [[ -n "$METADATA_CSV" ]]; then
-    TRAIN_ARGS+=("data.metadata_csv=$METADATA_CSV")
+    TRAIN_ARGS+=("+data.metadata_csv=$METADATA_CSV")
 fi
 if [[ -n "$METADATA_EXCLUDE_INCHIKEYS" ]]; then
-    TRAIN_ARGS+=("data.metadata_exclude_inchikeys=$METADATA_EXCLUDE_INCHIKEYS")
+    TRAIN_ARGS+=("+data.metadata_exclude_inchikeys=$METADATA_EXCLUDE_INCHIKEYS")
 fi
 "$PYTHON" scripts/train_marlin.py "${TRAIN_ARGS[@]}"
