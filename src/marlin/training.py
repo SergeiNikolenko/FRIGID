@@ -362,6 +362,9 @@ class MarlinMolecularValidationCallback(L.Callback):
         self.tokenizer = tokenizer
         self.records = records
         self.output_path = Path(output_dir) / "molecular_validation.jsonl"
+        self.latest_output_path = (
+            Path(output_dir) / "molecular_validation_latest.json"
+        )
         self.every_n_steps = every_n_steps
         self.candidates = candidates
         self.temperature = temperature
@@ -509,18 +512,17 @@ class MarlinMolecularValidationCallback(L.Callback):
                     sync_dist=False,
                 )
             self.output_path.parent.mkdir(parents=True, exist_ok=True)
+            result = {
+                "step": step,
+                "metrics": metrics,
+                "samples": sample_rows,
+            }
+            serialized = json.dumps(result, sort_keys=True)
             with self.output_path.open("a") as handle:
-                handle.write(
-                    json.dumps(
-                        {
-                            "step": step,
-                            "metrics": metrics,
-                            "samples": sample_rows,
-                        },
-                        sort_keys=True,
-                    )
-                    + "\n"
-                )
+                handle.write(serialized + "\n")
+            latest_temporary_path = self.latest_output_path.with_suffix(".tmp")
+            latest_temporary_path.write_text(serialized + "\n")
+            latest_temporary_path.replace(self.latest_output_path)
         finally:
             pl_module.ema.restore(parameters)
             pl_module.decoder.train(was_training)

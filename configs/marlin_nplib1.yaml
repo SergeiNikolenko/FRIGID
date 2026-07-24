@@ -15,7 +15,7 @@ data:
     eos: 2
     pad: 3
     mask: 4
-  hf_cache_dir: /home/nikolenko/work/Projects/MARLIN_reproduction_20260717/cache/huggingface
+  hf_cache_dir: /mnt/netstorage/nikolenko/marlin/cache/huggingface
   # Local content-addressed mirror; canonical training must not depend on HTTP streaming.
   snapshot_manifest: /mnt/netstorage/nikolenko/marlin/safe-gpt-16d0be9ad6177ae683a32a86204530e8ee624a0f/manifest.json
   snapshot_file_list_sha256: ca5356076d4e6e4920a019d55af0a769b0984d736f3feb9799045f3c49244e6f
