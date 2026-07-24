@@ -27,6 +27,7 @@ SHUFFLE_BUFFER="${MARLIN_SHUFFLE_BUFFER:-100000}"
 ACCUMULATE_GRAD_BATCHES="${MARLIN_ACCUMULATE_GRAD_BATCHES:-32}"
 METADATA_CSV="${MARLIN_METADATA_CSV:-}"
 METADATA_EXCLUDE_INCHIKEYS="${MARLIN_METADATA_EXCLUDE_INCHIKEYS:-}"
+LEARNING_RATE="${MARLIN_LEARNING_RATE:-}"
 export PYTHONPATH="$CODE/src:$ROOT/vendor"
 export HF_HOME="$ROOT/cache/huggingface"
 export TOKENIZERS_PARALLELISM=false
@@ -50,6 +51,9 @@ TRAIN_ARGS=(
     "training.token_loss_weight_max=$TOKEN_LOSS_WEIGHT_MAX"
     "data.verify_snapshot_hashes=$VERIFY_SNAPSHOT_HASHES"
 )
+if [[ -n "$LEARNING_RATE" ]]; then
+    TRAIN_ARGS+=("optim.learning_rate=$LEARNING_RATE")
+fi
 if [[ -n "$RESUME_CHECKPOINT" ]]; then
     TRAIN_ARGS+=("resume_checkpoint=${RESUME_CHECKPOINT//=/\\=}")
 fi
