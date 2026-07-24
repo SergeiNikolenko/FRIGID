@@ -29,6 +29,7 @@ from marlin.tokenizer import load_safe_tokenizer, validate_safe_tokenizer
 from marlin.training import (
     MarlinCollator,
     MarlinLightningModule,
+    MarlinMetadataDataset,
     MarlinTrainingFilter,
 )
 from marlin.warm_start import load_frigid_decoder, sha256_file
@@ -204,28 +205,31 @@ def main(config: DictConfig) -> None:
         raise ValueError("model MASK token ID does not match the SAFE tokenizer")
     if special_token_ids["pad"] != decoder_config.pad_token_id:
         raise ValueError("model PAD token ID does not match the SAFE tokenizer")
-    length_audit = json.loads(Path(config.data.length_audit_manifest).read_text())
-    if sha256_file(config.data.length_audit_manifest) != config.data.length_audit_sha256:
-        raise ValueError("training length audit manifest hash mismatch")
-    if length_audit["dataset_revision"] != str(config.data.revision):
-        raise ValueError("training length audit dataset revision mismatch")
-    if length_audit["maximum_allowed_length"] != decoder_config.max_length:
-        raise ValueError("training length audit decoder context mismatch")
-    if not length_audit.get("strict_safe_decode", False):
-        raise ValueError("training audit did not use strict SAFE decoding")
-    if length_audit.get("exclusion_sha256") != sha256_file(
-        config.data.exclude_inchikeys
-    ):
-        raise ValueError("training audit exclusion hash mismatch")
-    local_shards, snapshot_manifest_sha256 = verify_snapshot_manifest(
-        config.data.snapshot_manifest,
-        expected_dataset=str(config.data.dataset),
-        expected_revision=str(config.data.revision),
-        expected_file_list_sha256=str(config.data.snapshot_file_list_sha256),
-        verify_hashes=bool(config.data.get("verify_snapshot_hashes", True)),
-    )
-    if snapshot_manifest_sha256 != sha256_file(config.data.snapshot_manifest):
-        raise ValueError("training snapshot manifest changed during verification")
+    metadata_csv = config.data.get("metadata_csv")
+    local_shards = None
+    if metadata_csv is None:
+        length_audit = json.loads(Path(config.data.length_audit_manifest).read_text())
+        if sha256_file(config.data.length_audit_manifest) != config.data.length_audit_sha256:
+            raise ValueError("training length audit manifest hash mismatch")
+        if length_audit["dataset_revision"] != str(config.data.revision):
+            raise ValueError("training length audit dataset revision mismatch")
+        if length_audit["maximum_allowed_length"] != decoder_config.max_length:
+            raise ValueError("training length audit decoder context mismatch")
+        if not length_audit.get("strict_safe_decode", False):
+            raise ValueError("training audit did not use strict SAFE decoding")
+        if length_audit.get("exclusion_sha256") != sha256_file(
+            config.data.exclude_inchikeys
+        ):
+            raise ValueError("training audit exclusion hash mismatch")
+        local_shards, snapshot_manifest_sha256 = verify_snapshot_manifest(
+            config.data.snapshot_manifest,
+            expected_dataset=str(config.data.dataset),
+            expected_revision=str(config.data.revision),
+            expected_file_list_sha256=str(config.data.snapshot_file_list_sha256),
+            verify_hashes=bool(config.data.get("verify_snapshot_hashes", True)),
+        )
+        if snapshot_manifest_sha256 != sha256_file(config.data.snapshot_manifest):
+            raise ValueError("training snapshot manifest changed during verification")
     write_run_manifest(config, tokenizer_sha256)
     module = MarlinLightningModule(
         decoder_config,
@@ -256,20 +260,28 @@ def main(config: DictConfig) -> None:
         report_path = Path(config.output.root) / "warm_start.json"
         report_path.parent.mkdir(parents=True, exist_ok=True)
         report_path.write_text(json.dumps(report, indent=2) + "\n")
-    dataset = datasets.load_dataset(
-        "parquet",
-        data_files={"train": local_shards},
-        split="train",
-        streaming=True,
-        cache_dir=config.data.hf_cache_dir,
-    ).filter(
-        MarlinTrainingFilter(
+    if metadata_csv is None:
+        dataset = datasets.load_dataset(
+            "parquet",
+            data_files={"train": local_shards},
+            split="train",
+            streaming=True,
+            cache_dir=config.data.hf_cache_dir,
+        ).filter(
+            MarlinTrainingFilter(
+                tokenizer,
+                decoder_config.max_length,
+                config.data.exclude_inchikeys,
+            ),
+        )
+        dataset = dataset.shuffle(seed=config.seed, buffer_size=config.data.shuffle_buffer)
+    else:
+        dataset = MarlinMetadataDataset(
+            metadata_csv,
             tokenizer,
-            decoder_config.max_length,
-            config.data.exclude_inchikeys,
-        ),
-    )
-    dataset = dataset.shuffle(seed=config.seed, buffer_size=config.data.shuffle_buffer)
+            max_length=decoder_config.max_length,
+            exclude_inchikeys=config.data.get("metadata_exclude_inchikeys"),
+        )
     collator = MarlinCollator(
         tokenizer,
         max_length=decoder_config.max_length,

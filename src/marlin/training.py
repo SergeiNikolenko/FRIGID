@@ -12,7 +12,7 @@ import torch
 from rdkit import Chem, DataStructs
 from rdkit.Chem import AllChem, Descriptors
 
-from dlm.utils.utils_chem import safe_to_smiles
+from dlm.utils.utils_chem import safe_to_smiles, smiles_to_safe
 from dlm.utils.ema import ExponentialMovingAverage
 from marlin.model import MarlinDecoder, MarlinDecoderConfig
 from marlin.noise import symmetric_fingerprint_noise
@@ -77,6 +77,8 @@ class MarlinCollator:
         isotope_ratios: list[torch.Tensor] = []
         for example in examples:
             safe = example.get("safe", example.get("input"))
+            if not safe and example.get("smiles"):
+                safe = smiles_to_safe(str(example["smiles"]))
             if not safe:
                 raise ValueError("pre-batch filter admitted an empty SAFE sequence")
             smiles = safe_to_smiles(safe, fix=False)
@@ -116,6 +118,43 @@ class MarlinCollator:
             "precursor_mass": torch.tensor(masses, dtype=torch.float32),
             "isotope_ratios": torch.stack(isotope_ratios),
         }
+
+
+class MarlinMetadataDataset(torch.utils.data.Dataset):
+    """Finite local metadata table for short NPLIB domain fine-tuning."""
+
+    def __init__(
+        self,
+        metadata_csv: str | Path,
+        tokenizer,
+        *,
+        max_length: int,
+        exclude_inchikeys: str | Path | None = None,
+    ) -> None:
+        table = pd.read_csv(metadata_csv)
+        exclude = load_excluded_connectivity_keys(exclude_inchikeys)
+        rows = []
+        for record in table.to_dict("records"):
+            smiles = str(record.get("smiles", ""))
+            molecule = Chem.MolFromSmiles(smiles) if smiles else None
+            if molecule is None:
+                continue
+            key = Chem.MolToInchiKey(molecule).split("-")[0]
+            if key in exclude:
+                continue
+            safe = smiles_to_safe(smiles)
+            if len(tokenizer.encode(safe, add_special_tokens=True)) > max_length:
+                continue
+            rows.append({"safe": safe})
+        if not rows:
+            raise ValueError(f"no MARLIN-compatible rows in {metadata_csv}")
+        self.rows = rows
+
+    def __len__(self) -> int:
+        return len(self.rows)
+
+    def __getitem__(self, index: int) -> dict[str, str]:
+        return self.rows[index]
 
 
 class MarlinLightningModule(L.LightningModule):
