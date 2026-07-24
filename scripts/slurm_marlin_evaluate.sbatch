@@ -19,6 +19,11 @@ MAX_SPECTRA="${MARLIN_MAX_SPECTRA:-}"
 CANDIDATES="${MARLIN_CANDIDATES:-384}"
 DISABLE_GRAMMAR="${MARLIN_DISABLE_GRAMMAR:-0}"
 DISABLE_MASS_SHELL="${MARLIN_DISABLE_MASS_SHELL:-0}"
+TEMPERATURE="${MARLIN_TEMPERATURE:-1.0}"
+DIVERSITY_DROPOUT="${MARLIN_DIVERSITY_DROPOUT:-0.3}"
+PPM_TOLERANCE="${MARLIN_PPM_TOLERANCE:-10}"
+VALENCE_SLACK="${MARLIN_VALENCE_SLACK:-4}"
+EOS_BOOST="${MARLIN_EOS_BOOST:-1.0}"
 export PYTHONPATH="$CODE/src:$ROOT/vendor"
 export TOKENIZERS_PARALLELISM=false
 
@@ -29,9 +34,11 @@ COMMON_ARGS=(
   --tokenizer "$ROOT/data/safe-gpt/tokenizer.json"
   --metadata "$ROOT/data/processed/test/metadata.csv"
   --candidates "$CANDIDATES"
-  --diversity-dropout 0.3
-  --ppm-tolerance 10
-  --valence-slack 4
+  --diversity-dropout "$DIVERSITY_DROPOUT"
+  --temperature "$TEMPERATURE"
+  --ppm-tolerance "$PPM_TOLERANCE"
+  --valence-slack "$VALENCE_SLACK"
+  --eos-boost "$EOS_BOOST"
 )
 if [[ -n "$MAX_SPECTRA" ]]; then
   COMMON_ARGS+=(--max-spectra "$MAX_SPECTRA")
