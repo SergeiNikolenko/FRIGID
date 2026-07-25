@@ -27,6 +27,7 @@ from marlin.warm_start import (
     _copy_attention,
     _copy_embeddings,
     _copy_fingerprint_encoder,
+    _ema_backbone_state,
     sha256_file,
 )
 
@@ -623,6 +624,33 @@ def test_frigid_warm_start_loads_complete_embedding_stack():
         model.embedding_norm.bias,
         state[f"{prefix}.LayerNorm.bias"],
     )
+
+
+def test_frigid_warm_start_maps_ema_to_unique_backbone_parameters():
+    tied = torch.tensor([3.0])
+    raw_fingerprint = torch.tensor([5.0])
+    checkpoint = {
+        "state_dict": {
+            "backbone.embedding.weight": tied,
+            "backbone.layer.weight": torch.tensor([4.0]),
+            "backbone.decoder.weight": tied,
+            "fingerprint.embedding.weight": raw_fingerprint,
+        },
+        "ema": {
+            "shadow_params": [torch.tensor([30.0]), torch.tensor([40.0])],
+        },
+    }
+
+    effective = _ema_backbone_state(checkpoint)
+
+    assert torch.equal(
+        effective["backbone.embedding.weight"], torch.tensor([30.0])
+    )
+    assert torch.equal(effective["backbone.layer.weight"], torch.tensor([40.0]))
+    assert effective["backbone.decoder.weight"] is effective[
+        "backbone.embedding.weight"
+    ]
+    assert effective["fingerprint.embedding.weight"] is raw_fingerprint
 
 
 def test_fingerprint_warm_start_loads_set_encoder():

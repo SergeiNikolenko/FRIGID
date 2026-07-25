@@ -127,6 +127,58 @@ def _copy_fingerprint_encoder(
         )
 
 
+def _tensor_storage_key(tensor: torch.Tensor) -> tuple:
+    storage = tensor.untyped_storage()
+    return (
+        storage.data_ptr(),
+        storage.nbytes(),
+        tensor.storage_offset(),
+        tuple(tensor.shape),
+        tuple(tensor.stride()),
+    )
+
+
+def _ema_backbone_state(checkpoint: dict) -> dict[str, torch.Tensor]:
+    """Replace raw backbone parameters with the EMA used by FRIGID inference."""
+    state = checkpoint.get("state_dict", checkpoint)
+    ema = checkpoint.get("ema")
+    if not isinstance(ema, dict) or "shadow_params" not in ema:
+        return state
+
+    canonical_names = []
+    alias_to_canonical = {}
+    storage_to_name = {}
+    for name, tensor in state.items():
+        if not name.startswith("backbone."):
+            continue
+        storage_key = _tensor_storage_key(tensor)
+        canonical_name = storage_to_name.get(storage_key)
+        if canonical_name is None:
+            storage_to_name[storage_key] = name
+            canonical_names.append(name)
+        else:
+            alias_to_canonical[name] = canonical_name
+
+    shadows = ema["shadow_params"]
+    if len(canonical_names) != len(shadows):
+        raise ValueError(
+            "FRIGID EMA/backbone parameter count mismatch: "
+            f"{len(shadows)} != {len(canonical_names)}"
+        )
+
+    effective = dict(state)
+    for name, shadow in zip(canonical_names, shadows):
+        if state[name].shape != shadow.shape:
+            raise ValueError(
+                f"FRIGID EMA shape mismatch for {name}: "
+                f"{tuple(shadow.shape)} != {tuple(state[name].shape)}"
+            )
+        effective[name] = shadow
+    for alias, canonical in alias_to_canonical.items():
+        effective[alias] = effective[canonical]
+    return effective
+
+
 def sha256_file(path: str | Path) -> str:
     digest = hashlib.sha256()
     with Path(path).open("rb") as handle:
@@ -140,7 +192,7 @@ def load_frigid_decoder(
     checkpoint_path: str | Path,
     *,
     expected_sha256: str | None = None,
-) -> dict[str, bool | int | str]:
+) -> dict[str, bool | float | int | str]:
     """Load all architecture-compatible FRIGID weights and leave mass tokens new."""
     checkpoint_sha256 = sha256_file(checkpoint_path)
     if expected_sha256 is not None and checkpoint_sha256 != expected_sha256:
@@ -149,7 +201,7 @@ def load_frigid_decoder(
             f"expected {expected_sha256}"
         )
     checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
-    state = checkpoint.get("state_dict", checkpoint)
+    state = _ema_backbone_state(checkpoint)
     if not model.config.frigid_compatible_layer_order:
         raise ValueError(
             "FRIGID warm-start requires frigid_compatible_layer_order=true"
@@ -217,4 +269,7 @@ def load_frigid_decoder(
         "frigid_compatible_layer_order": bool(
             model.config.frigid_compatible_layer_order
         ),
+        "backbone_weights": "ema" if "ema" in checkpoint else "raw",
+        "frigid_ema_decay": checkpoint.get("ema", {}).get("decay", 0.0),
+        "frigid_ema_updates": checkpoint.get("ema", {}).get("num_updates", 0),
     }
