@@ -3,7 +3,7 @@ import torch
 from rdkit import Chem
 from rdkit.Chem import Descriptors
 
-from marlin.conditioning import MarlinConditioner
+from marlin.conditioning import MarlinConditioner, SparseFingerprintEncoder
 from marlin.grammar import SafeGrammarMask
 from marlin.mass_shell import MassShellConstraint, MassShellState
 from marlin.model import (
@@ -23,7 +23,12 @@ from marlin.training import (
     MarlinMolecularValidationCallback,
     MarlinTrainingFilter,
 )
-from marlin.warm_start import _copy_attention, sha256_file
+from marlin.warm_start import (
+    _copy_attention,
+    _copy_embeddings,
+    _copy_fingerprint_encoder,
+    sha256_file,
+)
 
 
 def test_block_causal_mask_allows_current_and_previous_blocks():
@@ -583,6 +588,150 @@ def test_attention_warm_start_concatenates_qkv():
     _copy_attention(attention, state, "x", "test")
     assert torch.equal(attention.in_proj_weight[:4], state["x.query.weight"])
     assert torch.equal(attention.in_proj_weight[-4:], state["x.value.weight"])
+
+
+def test_frigid_warm_start_loads_complete_embedding_stack():
+    model = MarlinDecoder(
+        MarlinDecoderConfig(
+            vocab_size=8,
+            hidden_size=4,
+            num_layers=1,
+            num_heads=1,
+            intermediate_size=4,
+            max_length=4,
+            fingerprint_bits=8,
+            dropout=0.0,
+            frigid_compatible_layer_order=True,
+        )
+    )
+    prefix = "backbone.bert.embeddings"
+    state = {
+        f"{prefix}.word_embeddings.weight": torch.full((8, 4), 1.0),
+        f"{prefix}.position_embeddings.weight": torch.full((4, 4), 2.0),
+        f"{prefix}.token_type_embeddings.weight": torch.full((2, 4), 3.0),
+        f"{prefix}.LayerNorm.weight": torch.full((4,), 4.0),
+        f"{prefix}.LayerNorm.bias": torch.full((4,), 5.0),
+    }
+
+    _copy_embeddings(model, state, prefix)
+
+    assert torch.equal(
+        model.token_type_embedding.weight,
+        state[f"{prefix}.token_type_embeddings.weight"],
+    )
+    assert torch.equal(
+        model.embedding_norm.bias,
+        state[f"{prefix}.LayerNorm.bias"],
+    )
+
+
+def test_fingerprint_warm_start_loads_set_encoder():
+    encoder = SparseFingerprintEncoder(
+        bits=8,
+        hidden_size=4,
+        num_heads=1,
+        num_self_attention_layers=1,
+        dropout=0.0,
+    )
+    prefix = "fingerprint_conditioner.fingerprint_encoder"
+    state = {
+        f"{prefix}.bit_embeddings.weight": torch.full((8, 4), 1.0),
+        f"{prefix}.layer_norm.weight": torch.full((4,), 2.0),
+        f"{prefix}.layer_norm.bias": torch.full((4,), 3.0),
+    }
+    for offset, part in enumerate(("query", "key", "value"), start=4):
+        state[f"{prefix}.self_attention_layers.0.{part}.weight"] = torch.full(
+            (4, 4), float(offset)
+        )
+        state[f"{prefix}.self_attention_layers.0.{part}.bias"] = torch.full(
+            (4,), float(offset)
+        )
+    state[f"{prefix}.self_attention_layers.0.output_dense.weight"] = torch.full(
+        (4, 4), 7.0
+    )
+    state[f"{prefix}.self_attention_layers.0.output_dense.bias"] = torch.full(
+        (4,), 8.0
+    )
+    state[f"{prefix}.self_attention_layers.0.output_layer_norm.weight"] = (
+        torch.full((4,), 9.0)
+    )
+    state[f"{prefix}.self_attention_layers.0.output_layer_norm.bias"] = (
+        torch.full((4,), 10.0)
+    )
+
+    _copy_fingerprint_encoder(encoder, state, prefix)
+
+    assert torch.equal(encoder.embedding.weight, state[f"{prefix}.bit_embeddings.weight"])
+    assert torch.equal(encoder.layer_norm.weight, state[f"{prefix}.layer_norm.weight"])
+    layer = encoder.self_attention_layers[0]
+    assert torch.equal(
+        layer.attention.in_proj_weight[:4],
+        state[f"{prefix}.self_attention_layers.0.query.weight"],
+    )
+    assert torch.equal(
+        layer.norm.bias,
+        state[f"{prefix}.self_attention_layers.0.output_layer_norm.bias"],
+    )
+
+
+def test_frigid_compatible_layer_applies_ffn_before_cross_attention():
+    events = []
+    config = MarlinDecoderConfig(
+        vocab_size=8,
+        hidden_size=4,
+        num_layers=1,
+        num_heads=1,
+        intermediate_size=4,
+        max_length=4,
+        block_width=2,
+        fingerprint_bits=8,
+        dropout=0.0,
+        frigid_compatible_layer_order=True,
+    )
+    layer = MarlinDecoder(config).layers[0]
+
+    class AttentionRecorder(torch.nn.Module):
+        def __init__(self, name):
+            super().__init__()
+            self.name = name
+
+        def forward(self, query, key, value, **kwargs):
+            events.append(self.name)
+            return torch.zeros_like(query), None
+
+    class Recorder(torch.nn.Module):
+        def __init__(self, name):
+            super().__init__()
+            self.name = name
+
+        def forward(self, value):
+            events.append(self.name)
+            return value
+
+    layer.self_attention = AttentionRecorder("self_attention")
+    layer.cross_attention = AttentionRecorder("cross_attention")
+    layer.norm1 = Recorder("norm1")
+    layer.linear1 = Recorder("linear1")
+    layer.linear2 = Recorder("linear2")
+    layer.norm2 = Recorder("norm2")
+    layer.norm3 = Recorder("norm3")
+    layer(
+        torch.zeros((1, 2, 4)),
+        torch.zeros((1, 1, 4)),
+        attention_mask=torch.zeros((2, 2), dtype=torch.bool),
+        padding_mask=None,
+        condition_padding_mask=None,
+    )
+
+    assert events == [
+        "self_attention",
+        "norm1",
+        "linear1",
+        "linear2",
+        "norm3",
+        "cross_attention",
+        "norm2",
+    ]
 
 
 def test_warm_start_sha256_file(tmp_path):

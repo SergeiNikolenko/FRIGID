@@ -22,6 +22,8 @@ class MarlinDecoderConfig:
     block_width: int = 8
     fingerprint_bits: int = 4096
     dropout: float = 0.1
+    fingerprint_self_attention_layers: int = 0
+    frigid_compatible_layer_order: bool = False
     eos_token_id: int = 2
     mask_token_id: int = 4
     pad_token_id: int = 0
@@ -80,6 +82,7 @@ class MarlinDecoderLayer(nn.Module):
         self.norm2 = nn.LayerNorm(config.hidden_size)
         self.norm3 = nn.LayerNorm(config.hidden_size)
         self.dropout = nn.Dropout(config.dropout)
+        self.frigid_compatible_layer_order = config.frigid_compatible_layer_order
 
     def forward(
         self,
@@ -99,6 +102,17 @@ class MarlinDecoderLayer(nn.Module):
             need_weights=False,
         )
         hidden = self.norm1(hidden + self.dropout(update))
+        if self.frigid_compatible_layer_order:
+            update = self.linear2(self.dropout(F.gelu(self.linear1(hidden))))
+            hidden = self.norm3(hidden + self.dropout(update))
+            update, _ = self.cross_attention(
+                hidden,
+                condition,
+                condition,
+                key_padding_mask=condition_padding_mask,
+                need_weights=False,
+            )
+            return self.norm2(hidden + self.dropout(update))
         update, _ = self.cross_attention(
             hidden,
             condition,
@@ -117,7 +131,20 @@ class MarlinDecoder(nn.Module):
         self.config = config
         self.token_embedding = nn.Embedding(config.vocab_size, config.hidden_size)
         self.position_embedding = nn.Embedding(config.max_length, config.hidden_size)
-        self.conditioner = MarlinConditioner(config.hidden_size, config.fingerprint_bits)
+        if config.frigid_compatible_layer_order:
+            self.token_type_embedding = nn.Embedding(2, config.hidden_size)
+            self.embedding_norm = nn.LayerNorm(config.hidden_size)
+        else:
+            self.token_type_embedding = None
+            self.embedding_norm = nn.Identity()
+        self.embedding_dropout = nn.Dropout(config.dropout)
+        self.conditioner = MarlinConditioner(
+            config.hidden_size,
+            config.fingerprint_bits,
+            num_heads=config.num_heads,
+            fingerprint_self_attention_layers=config.fingerprint_self_attention_layers,
+            dropout=config.dropout,
+        )
         self.layers = nn.ModuleList(MarlinDecoderLayer(config) for _ in range(config.num_layers))
         self.prediction_dense = nn.Linear(config.hidden_size, config.hidden_size)
         self.prediction_norm = nn.LayerNorm(config.hidden_size)
@@ -163,7 +190,12 @@ class MarlinDecoder(nn.Module):
         include_mass_conditioning: bool,
         attention_mask: torch.Tensor,
     ) -> torch.Tensor:
-        hidden = self.token_embedding(input_ids) + self.position_embedding(positions).unsqueeze(0)
+        hidden = self.token_embedding(input_ids) + self.position_embedding(
+            positions
+        ).unsqueeze(0)
+        if self.token_type_embedding is not None:
+            hidden = hidden + self.token_type_embedding(torch.zeros_like(input_ids))
+            hidden = self.embedding_dropout(self.embedding_norm(hidden))
         condition, condition_mask = self.conditioner(
             precursor_mass,
             fingerprint,

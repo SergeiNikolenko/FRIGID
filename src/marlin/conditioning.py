@@ -36,10 +36,24 @@ class FourierMassEncoder(nn.Module):
 class SparseFingerprintEncoder(nn.Module):
     """Encode each active Morgan bit as a separate conditioning token."""
 
-    def __init__(self, bits: int, hidden_size: int) -> None:
+    def __init__(
+        self,
+        bits: int,
+        hidden_size: int,
+        *,
+        num_heads: int = 1,
+        num_self_attention_layers: int = 0,
+        dropout: float = 0.0,
+    ) -> None:
         super().__init__()
         self.bits = bits
         self.embedding = nn.Embedding(bits, hidden_size)
+        self.layer_norm = nn.LayerNorm(hidden_size)
+        self.dropout = nn.Dropout(dropout)
+        self.self_attention_layers = nn.ModuleList(
+            FingerprintSetAttentionLayer(hidden_size, num_heads, dropout)
+            for _ in range(num_self_attention_layers)
+        )
 
     def forward(self, fingerprint: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         if fingerprint.ndim != 2 or fingerprint.shape[1] != self.bits:
@@ -53,7 +67,43 @@ class SparseFingerprintEncoder(nn.Module):
             row_indices = torch.nonzero(active[row], as_tuple=False).flatten()
             indices[row, : row_indices.numel()] = row_indices
             mask[row, : row_indices.numel()] = True
-        return self.embedding(indices), mask
+        tokens = self.dropout(self.layer_norm(self.embedding(indices)))
+        attention_mask = mask.clone()
+        empty = ~attention_mask.any(dim=1)
+        if empty.any():
+            attention_mask[empty, 0] = True
+        for layer in self.self_attention_layers:
+            tokens = layer(tokens, attention_mask)
+        return tokens * mask.unsqueeze(-1), mask
+
+
+class FingerprintSetAttentionLayer(nn.Module):
+    """Permutation-equivariant residual self-attention over active fingerprint bits."""
+
+    def __init__(self, hidden_size: int, num_heads: int, dropout: float) -> None:
+        super().__init__()
+        self.attention = nn.MultiheadAttention(
+            hidden_size,
+            num_heads,
+            dropout,
+            batch_first=True,
+        )
+        self.dropout = nn.Dropout(dropout)
+        self.norm = nn.LayerNorm(hidden_size)
+
+    def forward(
+        self,
+        hidden: torch.Tensor,
+        attention_mask: torch.Tensor,
+    ) -> torch.Tensor:
+        update, _ = self.attention(
+            hidden,
+            hidden,
+            hidden,
+            key_padding_mask=~attention_mask,
+            need_weights=False,
+        )
+        return self.norm(hidden + self.dropout(update))
 
 
 class MarlinConditioner(nn.Module):
@@ -64,11 +114,20 @@ class MarlinConditioner(nn.Module):
         hidden_size: int,
         fingerprint_bits: int = 4096,
         num_mass_frequencies: int = 64,
+        num_heads: int = 1,
+        fingerprint_self_attention_layers: int = 0,
+        dropout: float = 0.0,
     ) -> None:
         super().__init__()
         self.mass = FourierMassEncoder(hidden_size, num_mass_frequencies)
         self.isotope = nn.Sequential(nn.Linear(2, hidden_size), nn.SiLU(), nn.Linear(hidden_size, hidden_size))
-        self.fingerprint = SparseFingerprintEncoder(fingerprint_bits, hidden_size)
+        self.fingerprint = SparseFingerprintEncoder(
+            fingerprint_bits,
+            hidden_size,
+            num_heads=num_heads,
+            num_self_attention_layers=fingerprint_self_attention_layers,
+            dropout=dropout,
+        )
 
     def forward(
         self,

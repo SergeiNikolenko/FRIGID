@@ -43,6 +43,9 @@ model:
   block_width: 8
   fingerprint_bits: 4096
   dropout: 0.1
+  # Inferred from the released FRIGID warm-start checkpoint.
+  fingerprint_self_attention_layers: 3
+  frigid_compatible_layer_order: true
   mask_token_id: 4
   pad_token_id: 3
 
