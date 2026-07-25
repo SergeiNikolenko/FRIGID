@@ -34,6 +34,7 @@ from marlin.training import (
     MarlinMetadataDataset,
     MarlinTrainingFilter,
 )
+from marlin.warm_start import load_frigid_decoder
 
 
 def sha256_file(path: str | Path) -> str:
@@ -268,7 +269,34 @@ def main(config: DictConfig) -> None:
             "full_sequence_mask_probability", 0.0
         ),
     )
-    if config.get("resume_weights_only_checkpoint"):
+    initialization_sources = {
+        "resume_checkpoint": config.get("resume_checkpoint"),
+        "resume_weights_only_checkpoint": config.get("resume_weights_only_checkpoint"),
+        "frigid_warm_start_checkpoint": config.get("frigid_warm_start_checkpoint"),
+    }
+    selected_sources = [name for name, value in initialization_sources.items() if value]
+    if len(selected_sources) > 1:
+        raise ValueError(
+            "choose exactly one initialization source; got "
+            + ", ".join(selected_sources)
+        )
+    if config.get("frigid_warm_start_checkpoint"):
+        if not config.get("frigid_warm_start_sha256"):
+            raise ValueError(
+                "frigid_warm_start_sha256 is required with "
+                "frigid_warm_start_checkpoint"
+            )
+        report = load_frigid_decoder(
+            module.decoder,
+            config.frigid_warm_start_checkpoint,
+            expected_sha256=config.get("frigid_warm_start_sha256"),
+        )
+        module.reset_ema()
+        report["mode"] = "frigid_architecture_compatible"
+        report_path = Path(config.output.root) / "warm_start.json"
+        report_path.parent.mkdir(parents=True, exist_ok=True)
+        report_path.write_text(json.dumps(report, indent=2) + "\n")
+    elif config.get("resume_weights_only_checkpoint"):
         load_decoder_weights_only(module, config.resume_weights_only_checkpoint)
         report = {
             "source": str(config.resume_weights_only_checkpoint),

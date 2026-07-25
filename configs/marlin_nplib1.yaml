@@ -2,6 +2,9 @@
 # max_steps and mass Fourier frequencies are explicitly inferred because the paper omits them.
 seed: 42
 resume_checkpoint: null
+resume_weights_only_checkpoint: null
+frigid_warm_start_checkpoint: null
+frigid_warm_start_sha256: null
 
 data:
   dataset: datamol-io/safe-gpt
