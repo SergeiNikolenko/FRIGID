@@ -22,6 +22,7 @@ class MarlinDecoderConfig:
     block_width: int = 8
     fingerprint_bits: int = 4096
     dropout: float = 0.1
+    layer_norm_eps: float = 1e-12
     fingerprint_self_attention_layers: int = 0
     frigid_compatible_layer_order: bool = False
     eos_token_id: int = 2
@@ -78,9 +79,9 @@ class MarlinDecoderLayer(nn.Module):
         )
         self.linear1 = nn.Linear(config.hidden_size, config.intermediate_size)
         self.linear2 = nn.Linear(config.intermediate_size, config.hidden_size)
-        self.norm1 = nn.LayerNorm(config.hidden_size)
-        self.norm2 = nn.LayerNorm(config.hidden_size)
-        self.norm3 = nn.LayerNorm(config.hidden_size)
+        self.norm1 = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
+        self.norm2 = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
+        self.norm3 = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
         self.dropout = nn.Dropout(config.dropout)
         self.frigid_compatible_layer_order = config.frigid_compatible_layer_order
 
@@ -133,7 +134,9 @@ class MarlinDecoder(nn.Module):
         self.position_embedding = nn.Embedding(config.max_length, config.hidden_size)
         if config.frigid_compatible_layer_order:
             self.token_type_embedding = nn.Embedding(2, config.hidden_size)
-            self.embedding_norm = nn.LayerNorm(config.hidden_size)
+            self.embedding_norm = nn.LayerNorm(
+                config.hidden_size, eps=config.layer_norm_eps
+            )
         else:
             self.token_type_embedding = None
             self.embedding_norm = nn.Identity()
@@ -144,10 +147,13 @@ class MarlinDecoder(nn.Module):
             num_heads=config.num_heads,
             fingerprint_self_attention_layers=config.fingerprint_self_attention_layers,
             dropout=config.dropout,
+            layer_norm_eps=config.layer_norm_eps,
         )
         self.layers = nn.ModuleList(MarlinDecoderLayer(config) for _ in range(config.num_layers))
         self.prediction_dense = nn.Linear(config.hidden_size, config.hidden_size)
-        self.prediction_norm = nn.LayerNorm(config.hidden_size)
+        self.prediction_norm = nn.LayerNorm(
+            config.hidden_size, eps=config.layer_norm_eps
+        )
         self.output = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
         self.output_bias = nn.Parameter(torch.zeros(config.vocab_size))
         self.output.weight = self.token_embedding.weight

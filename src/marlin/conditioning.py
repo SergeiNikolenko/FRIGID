@@ -44,14 +44,20 @@ class SparseFingerprintEncoder(nn.Module):
         num_heads: int = 1,
         num_self_attention_layers: int = 0,
         dropout: float = 0.0,
+        layer_norm_eps: float = 1e-12,
     ) -> None:
         super().__init__()
         self.bits = bits
         self.embedding = nn.Embedding(bits, hidden_size)
-        self.layer_norm = nn.LayerNorm(hidden_size)
+        self.layer_norm = nn.LayerNorm(hidden_size, eps=layer_norm_eps)
         self.dropout = nn.Dropout(dropout)
         self.self_attention_layers = nn.ModuleList(
-            FingerprintSetAttentionLayer(hidden_size, num_heads, dropout)
+            FingerprintSetAttentionLayer(
+                hidden_size,
+                num_heads,
+                dropout,
+                layer_norm_eps=layer_norm_eps,
+            )
             for _ in range(num_self_attention_layers)
         )
 
@@ -80,7 +86,14 @@ class SparseFingerprintEncoder(nn.Module):
 class FingerprintSetAttentionLayer(nn.Module):
     """Permutation-equivariant residual self-attention over active fingerprint bits."""
 
-    def __init__(self, hidden_size: int, num_heads: int, dropout: float) -> None:
+    def __init__(
+        self,
+        hidden_size: int,
+        num_heads: int,
+        dropout: float,
+        *,
+        layer_norm_eps: float = 1e-12,
+    ) -> None:
         super().__init__()
         self.attention = nn.MultiheadAttention(
             hidden_size,
@@ -89,7 +102,7 @@ class FingerprintSetAttentionLayer(nn.Module):
             batch_first=True,
         )
         self.dropout = nn.Dropout(dropout)
-        self.norm = nn.LayerNorm(hidden_size)
+        self.norm = nn.LayerNorm(hidden_size, eps=layer_norm_eps)
 
     def forward(
         self,
@@ -117,6 +130,7 @@ class MarlinConditioner(nn.Module):
         num_heads: int = 1,
         fingerprint_self_attention_layers: int = 0,
         dropout: float = 0.0,
+        layer_norm_eps: float = 1e-12,
     ) -> None:
         super().__init__()
         self.mass = FourierMassEncoder(hidden_size, num_mass_frequencies)
@@ -127,6 +141,7 @@ class MarlinConditioner(nn.Module):
             num_heads=num_heads,
             num_self_attention_layers=fingerprint_self_attention_layers,
             dropout=dropout,
+            layer_norm_eps=layer_norm_eps,
         )
 
     def forward(

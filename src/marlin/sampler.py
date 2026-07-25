@@ -377,13 +377,7 @@ class MarlinSampler:
                         if confidence > best_confidence:
                             best_confidence = confidence
                             best_position = relative_position
-                            best_token = int(
-                                torch.multinomial(
-                                    probabilities,
-                                    num_samples=1,
-                                    generator=generator,
-                                ).item()
-                            )
+                            best_token = int(probabilities.argmax().item())
                     if best_position is None or not torch.isfinite(best_confidence):
                         diagnostics["constraint_dead_ends"] += 1
                         dead_ends = diagnostics["sample_dead_ends"]
@@ -558,13 +552,7 @@ class MarlinSampler:
                     continue
                 selected_index = int(confidence_tensor.argmax().item())
                 selected_position = int(positions[selected_index].item())
-                token = int(
-                    torch.multinomial(
-                        probabilities_by_position[selected_index],
-                        num_samples=1,
-                        generator=generator,
-                    ).item()
-                )
+                token = int(probabilities_by_position[selected_index].argmax().item())
                 canvas[row, selected_position] = token
                 unresolved[row, selected_position] = False
 

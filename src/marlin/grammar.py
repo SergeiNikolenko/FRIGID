@@ -745,12 +745,11 @@ class SafeGrammarMask:
         logits: torch.Tensor,
         target_mass: float | None = None,
     ) -> torch.Tensor:
-        # The paper does not specify grammar state for holes inside a partially
-        # revealed block. Conservatively avoid false pruning until every earlier
-        # position is known. EOS may be revealed before those positions by the
-        # confidence-order sampler; the unresolved holes are filled afterward.
+        # Grammar state is defined only for a contiguous committed prefix.
+        # Give positions after an unresolved hole no support so confidence-order
+        # sampling cannot commit a suffix that invalidates the eventual prefix.
         if self.mask_token_id is not None and self.mask_token_id in prefix_ids:
-            return logits.clone()
+            return torch.full_like(logits, -torch.inf)
         prefix = self.decode_prefix(prefix_ids)
         constrained = torch.full_like(logits, -torch.inf)
         valid_ids = self._valid_token_ids(prefix)

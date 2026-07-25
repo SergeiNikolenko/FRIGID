@@ -88,6 +88,44 @@ def test_conditioner_omits_disabled_isotope_token():
     assert mask.tolist() == [[True, True, True]]
 
 
+def test_frigid_compatible_decoder_propagates_layer_norm_epsilon():
+    epsilon = 3e-7
+    model = MarlinDecoder(
+        MarlinDecoderConfig(
+            vocab_size=8,
+            hidden_size=8,
+            num_layers=2,
+            num_heads=1,
+            intermediate_size=16,
+            max_length=5,
+            block_width=2,
+            fingerprint_bits=8,
+            dropout=0.0,
+            fingerprint_self_attention_layers=2,
+            frigid_compatible_layer_order=True,
+            layer_norm_eps=epsilon,
+        )
+    )
+
+    layer_norms = [
+        model.embedding_norm,
+        model.prediction_norm,
+        model.conditioner.fingerprint.layer_norm,
+        *(
+            norm
+            for layer in model.layers
+            for norm in (layer.norm1, layer.norm2, layer.norm3)
+        ),
+        *(layer.norm for layer in model.conditioner.fingerprint.self_attention_layers),
+    ]
+
+    assert all(norm.eps == epsilon for norm in layer_norms)
+
+
+def test_marlin_decoder_defaults_to_frigid_layer_norm_epsilon():
+    assert MarlinDecoderConfig().layer_norm_eps == 1e-12
+
+
 def test_marlin_uses_fixed_decay_ema():
     config = MarlinDecoderConfig(
         vocab_size=8,
@@ -942,7 +980,7 @@ def test_constrained_sampler_uses_model_confidence_reveal_order():
     assert model.seen[1].tolist() == [[0, 3, 1]]
 
 
-def test_constrained_sampler_can_reveal_eos_before_an_earlier_block_hole():
+def test_constrained_sampler_does_not_reveal_eos_before_an_earlier_block_hole():
     class EarlyEosModel(torch.nn.Module):
         def __init__(self):
             super().__init__()
@@ -1015,7 +1053,7 @@ def test_constrained_sampler_can_reveal_eos_before_an_earlier_block_hole():
         generator=torch.Generator().manual_seed(7),
     )
 
-    assert model.seen[1].tolist() == [[1, 4, 2]]
+    assert model.seen[1].tolist() == [[1, 5, 4]]
     assert stats.mass_valid == 1
     assert [candidate.smiles for candidate in ranked] == ["C"]
 
@@ -1177,6 +1215,74 @@ def test_batched_sampler_returns_valid_candidates_when_mass_shell_is_disabled():
     assert stats.valid == 1
     assert stats.mass_valid == 0
     assert stats.unique_mass_valid == 0
+    assert [candidate.smiles for candidate in ranked] == ["C"]
+
+
+@pytest.mark.parametrize("generation_mode", ["block", "canvas"])
+def test_batched_sampler_uses_argmax_token_deterministically(
+    monkeypatch, generation_mode
+):
+    class AmbiguousModel(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.anchor = torch.nn.Parameter(torch.zeros(()))
+            self.config = MarlinDecoderConfig(
+                vocab_size=5,
+                hidden_size=4,
+                num_layers=1,
+                num_heads=1,
+                intermediate_size=4,
+                max_length=3,
+                block_width=1,
+                fingerprint_bits=8,
+                dropout=0.0,
+                mask_token_id=3,
+                pad_token_id=0,
+            )
+
+        def forward(self, input_ids, precursor_mass, fingerprint):
+            logits = torch.full(
+                (*input_ids.shape, 5),
+                -torch.inf,
+                device=input_ids.device,
+            )
+            logits[..., 1] = 2.0
+            logits[..., 4] = 1.0
+            return logits
+
+    def fail_if_sampled(*_args, **_kwargs):
+        pytest.fail("token selection must use argmax, not multinomial sampling")
+
+    monkeypatch.setattr(torch, "multinomial", fail_if_sampled)
+    sampler = MarlinSampler(
+        AmbiguousModel(),
+        MassShellConstraint(
+            [0.0, 12.0, 0.0, 0.0, 16.0],
+            [0, 1, 0, 0, 1],
+            [0.0, 4.0, 0.0, 0.0, 2.0],
+            eos_token_id=2,
+            ppm_tolerance=10,
+        ),
+        bos_token_id=0,
+        eos_token_id=2,
+        mask_token_id=3,
+        decode_tokens=lambda ids: "".join(
+            {1: "C", 4: "O"}.get(token_id, "") for token_id in ids
+        ),
+        safe_to_smiles=lambda safe: safe or None,
+        forbidden_token_ids=(0, 3),
+        mass_shell_enabled=False,
+        generation_mode=generation_mode,
+    )
+
+    ranked, stats = sampler.generate_ranked_with_stats(
+        torch.zeros(8),
+        target_mass=12.0,
+        candidates=1,
+        diversity_dropout=0.0,
+    )
+
+    assert stats.valid == 1
     assert [candidate.smiles for candidate in ranked] == ["C"]
 
 
