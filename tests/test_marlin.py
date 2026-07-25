@@ -89,7 +89,9 @@ def test_conditioner_omits_disabled_isotope_token():
 
 
 def test_frigid_compatible_decoder_propagates_layer_norm_epsilon():
-    epsilon = 3e-7
+    backbone_epsilon = 3e-7
+    cross_attention_epsilon = 4e-7
+    fingerprint_epsilon = 5e-7
     model = MarlinDecoder(
         MarlinDecoderConfig(
             vocab_size=8,
@@ -103,27 +105,39 @@ def test_frigid_compatible_decoder_propagates_layer_norm_epsilon():
             dropout=0.0,
             fingerprint_self_attention_layers=2,
             frigid_compatible_layer_order=True,
-            layer_norm_eps=epsilon,
+            layer_norm_eps=backbone_epsilon,
+            cross_attention_layer_norm_eps=cross_attention_epsilon,
+            fingerprint_layer_norm_eps=fingerprint_epsilon,
         )
     )
 
-    layer_norms = [
+    backbone_layer_norms = [
         model.embedding_norm,
         model.prediction_norm,
-        model.conditioner.fingerprint.layer_norm,
         *(
             norm
             for layer in model.layers
-            for norm in (layer.norm1, layer.norm2, layer.norm3)
+            for norm in (layer.norm1, layer.norm3)
         ),
+    ]
+    cross_attention_layer_norms = [layer.norm2 for layer in model.layers]
+    fingerprint_layer_norms = [
+        model.conditioner.fingerprint.layer_norm,
         *(layer.norm for layer in model.conditioner.fingerprint.self_attention_layers),
     ]
 
-    assert all(norm.eps == epsilon for norm in layer_norms)
+    assert all(norm.eps == backbone_epsilon for norm in backbone_layer_norms)
+    assert all(
+        norm.eps == cross_attention_epsilon
+        for norm in cross_attention_layer_norms
+    )
+    assert all(norm.eps == fingerprint_epsilon for norm in fingerprint_layer_norms)
 
 
 def test_marlin_decoder_defaults_to_frigid_layer_norm_epsilon():
     assert MarlinDecoderConfig().layer_norm_eps == 1e-12
+    assert MarlinDecoderConfig().cross_attention_layer_norm_eps == 1e-5
+    assert MarlinDecoderConfig().fingerprint_layer_norm_eps == 1e-5
 
 
 def test_marlin_uses_fixed_decay_ema():
