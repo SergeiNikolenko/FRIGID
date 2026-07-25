@@ -139,8 +139,6 @@ class MarlinSampler:
                 best_token = None
                 best_confidence = -torch.inf
                 positions = sorted(unresolved)
-                if self.grammar_mask is not None or self.mass_shell_enabled:
-                    positions = positions[:1]
                 for position in positions:
                     position_logits = logits[position] / temperature
                     if self.mass_shell_enabled:
@@ -348,8 +346,6 @@ class MarlinSampler:
                     positions = torch.nonzero(unresolved[row], as_tuple=False).flatten()
                     if positions.numel() == 0:
                         continue
-                    if self.grammar_mask is not None or self.mass_shell_enabled:
-                        positions = positions[:1]
                     best_position = None
                     best_token = None
                     best_confidence = -torch.inf

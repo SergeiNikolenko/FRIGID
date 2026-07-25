@@ -645,7 +645,7 @@ def test_batched_sampler_reports_attempt_validity_and_uniqueness():
     assert len(ranked) == 1
 
 
-def test_constrained_sampler_keeps_reveal_order_contiguous():
+def test_generate_one_uses_model_confidence_reveal_order():
     class PositionConfidenceModel(torch.nn.Module):
         def __init__(self):
             super().__init__()
@@ -697,10 +697,74 @@ def test_constrained_sampler_keeps_reveal_order_contiguous():
     result = sampler.generate_one(torch.zeros(8), target_mass)
 
     assert result == ("CC", "CC")
-    assert model.seen[1].tolist() == [[0, 1, 3]]
+    assert model.seen[1].tolist() == [[0, 3, 1]]
 
 
-def test_constrained_sampler_reveals_only_contiguous_prefix_positions():
+def test_constrained_sampler_uses_model_confidence_reveal_order():
+    class SuffixConfidentModel(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.anchor = torch.nn.Parameter(torch.zeros(()))
+            self.seen = []
+            self.config = MarlinDecoderConfig(
+                vocab_size=5,
+                hidden_size=4,
+                num_layers=1,
+                num_heads=1,
+                intermediate_size=4,
+                max_length=3,
+                block_width=2,
+                fingerprint_bits=8,
+                dropout=0.0,
+                mask_token_id=3,
+                pad_token_id=0,
+            )
+
+        def forward(self, input_ids, precursor_mass, fingerprint):
+            self.seen.append(input_ids.detach().clone())
+            logits = torch.full(
+                (*input_ids.shape, 5),
+                -torch.inf,
+                device=input_ids.device,
+            )
+            logits[:, 1, 1] = 1.0
+            logits[:, 1, 4] = 0.0
+            logits[:, 2, 1] = 10.0
+            logits[:, 2, 4] = 0.0
+            return logits
+
+    model = SuffixConfidentModel()
+    sampler = MarlinSampler(
+        model,
+        MassShellConstraint(
+            [0.0, 12.0, 0.0, 0.0, 16.0],
+            [0, 1, 0, 0, 1],
+            [0.0, 4.0, 0.0, 0.0, 2.0],
+            eos_token_id=2,
+            ppm_tolerance=10,
+        ),
+        bos_token_id=0,
+        eos_token_id=2,
+        mask_token_id=3,
+        decode_tokens=lambda ids: "".join(
+            {1: "C", 4: "O"}.get(token_id, "") for token_id in ids
+        ),
+        safe_to_smiles=lambda safe: safe,
+        grammar_mask=lambda _prefix, logits, _mass: logits,
+        forbidden_token_ids=(0, 3),
+    )
+
+    sampler.generate_ranked_with_stats(
+        torch.zeros(8),
+        target_mass=Descriptors.ExactMolWt(Chem.MolFromSmiles("CC")),
+        candidates=1,
+        generator=torch.Generator().manual_seed(7),
+    )
+
+    assert model.seen[1].tolist() == [[0, 3, 1]]
+
+
+def test_constrained_sampler_reports_confidence_order_dead_end():
     class SuffixBiasedModel(torch.nn.Module):
         def __init__(self):
             super().__init__()
@@ -751,8 +815,8 @@ def test_constrained_sampler_reveals_only_contiguous_prefix_positions():
         forbidden_token_ids=(0, 3),
     )
 
-    assert sampler.generate_one(torch.zeros(8), target_mass) == ("C", "C")
-    assert model.seen[1].tolist() == [[0, 1, 3]]
+    assert sampler.generate_one(torch.zeros(8), target_mass) is None
+    assert model.seen[1].tolist() == [[0, 3, 4]]
 
 
 def test_sampler_can_disable_mass_shell_for_unconstrained_diagnostics():
@@ -981,7 +1045,7 @@ def test_batched_sampler_discards_tokens_after_eos_before_mass_and_decoding():
     assert [candidate.smiles for candidate in ranked] == ["C"]
 
 
-def test_batched_sampler_charges_suffix_revealed_before_eos():
+def test_batched_sampler_charges_suffix_before_rejecting_dead_end():
     class SuffixFirstModel(torch.nn.Module):
         def __init__(self):
             super().__init__()
@@ -1032,16 +1096,17 @@ def test_batched_sampler_charges_suffix_revealed_before_eos():
         forbidden_token_ids=(0, 3),
     )
 
-    assert sampler.generate_one(torch.zeros(8), target_mass) == ("C", "C")
-    assert model.seen[1].tolist() == [[0, 1, 3, 3]]
+    assert sampler.generate_one(torch.zeros(8), target_mass) is None
+    assert model.seen[1].tolist() == [[0, 3, 3, 4]]
     model.seen.clear()
     ranked, stats = sampler.generate_ranked_with_stats(
         torch.zeros(8), target_mass, candidates=1
     )
 
-    assert model.seen[1].tolist() == [[0, 1, 3, 3]]
-    assert stats.mass_valid == 1
-    assert [candidate.smiles for candidate in ranked] == ["C"]
+    assert model.seen[1].tolist() == [[0, 3, 3, 4]]
+    assert stats.eos_terminated == 1
+    assert stats.mass_valid == 0
+    assert ranked == []
 
 
 def test_mass_state_counts_committed_tokens_across_holes_and_stops_at_eos():
