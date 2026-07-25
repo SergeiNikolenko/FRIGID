@@ -4,6 +4,7 @@ from rdkit import Chem
 from rdkit.Chem import Descriptors
 
 from marlin.conditioning import MarlinConditioner
+from marlin.grammar import SafeGrammarMask
 from marlin.mass_shell import MassShellConstraint, MassShellState
 from marlin.model import (
     MarlinDecoder,
@@ -762,6 +763,84 @@ def test_constrained_sampler_uses_model_confidence_reveal_order():
     )
 
     assert model.seen[1].tolist() == [[0, 3, 1]]
+
+
+def test_constrained_sampler_can_reveal_eos_before_an_earlier_block_hole():
+    class EarlyEosModel(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.anchor = torch.nn.Parameter(torch.zeros(()))
+            self.seen = []
+            self.config = MarlinDecoderConfig(
+                vocab_size=7,
+                hidden_size=4,
+                num_layers=1,
+                num_heads=1,
+                intermediate_size=4,
+                max_length=3,
+                block_width=2,
+                fingerprint_bits=8,
+                dropout=0.0,
+                mask_token_id=4,
+                pad_token_id=3,
+            )
+
+        def forward(self, input_ids, precursor_mass, fingerprint):
+            self.seen.append(input_ids.detach().clone())
+            logits = torch.full(
+                (*input_ids.shape, 7),
+                -torch.inf,
+                device=input_ids.device,
+            )
+            if input_ids[0, 2].item() == 2:
+                logits[:, 1, 5] = 10.0
+            else:
+                logits[:, 1, 5] = 0.0
+                logits[:, 1, 6] = 0.0
+            logits[:, 2, 2] = 10.0
+            logits[:, 2, 6] = 8.0
+            return logits
+
+    tokens = ("[UNK]", "[CLS]", "[SEP]", "[PAD]", "[MASK]", "C", "O")
+    grammar = SafeGrammarMask(
+        tokens,
+        lambda ids: "".join(tokens[index] for index in ids if index >= 5),
+        eos_token_id=2,
+        mask_token_id=4,
+        special_token_ids=(0, 1, 2, 3, 4),
+    )
+    model = EarlyEosModel()
+    target_mass = Descriptors.ExactMolWt(Chem.MolFromSmiles("C"))
+    sampler = MarlinSampler(
+        model,
+        MassShellConstraint(
+            [0.0, 0.0, 0.0, 0.0, 0.0, 12.0, 15.99491462],
+            [0, 0, 0, 0, 0, 1, 1],
+            [0.0, 0.0, 0.0, 0.0, 0.0, 4.0, 2.0],
+            eos_token_id=2,
+            ppm_tolerance=10,
+        ),
+        bos_token_id=1,
+        eos_token_id=2,
+        mask_token_id=4,
+        decode_tokens=lambda ids: "".join(
+            tokens[index] for index in ids if index >= 5
+        ),
+        safe_to_smiles=lambda safe: safe or None,
+        grammar_mask=grammar,
+        forbidden_token_ids=(0, 1, 3, 4),
+    )
+
+    ranked, stats = sampler.generate_ranked_with_stats(
+        torch.zeros(8),
+        target_mass,
+        candidates=1,
+        generator=torch.Generator().manual_seed(7),
+    )
+
+    assert model.seen[1].tolist() == [[1, 4, 2]]
+    assert stats.mass_valid == 1
+    assert [candidate.smiles for candidate in ranked] == ["C"]
 
 
 def test_constrained_sampler_reports_confidence_order_dead_end():

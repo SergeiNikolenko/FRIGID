@@ -143,7 +143,11 @@ class MarlinSampler:
                     position_logits = logits[position] / temperature
                     if self.mass_shell_enabled:
                         position_logits = self.constraint.apply(
-                            position_logits, state, target_mass
+                            position_logits,
+                            state,
+                            target_mass,
+                            allow_early_eos=self.mask_token_id
+                            in prefix[:position],
                         )
                     if self.forbidden_token_ids:
                         position_logits[list(self.forbidden_token_ids)] = -torch.inf
@@ -357,6 +361,8 @@ class MarlinSampler:
                                 position_logits,
                                 states[row],
                                 target_mass,
+                                allow_early_eos=self.mask_token_id
+                                in prefix[row, :position],
                             )
                         if self.forbidden_token_ids:
                             position_logits[list(self.forbidden_token_ids)] = -torch.inf

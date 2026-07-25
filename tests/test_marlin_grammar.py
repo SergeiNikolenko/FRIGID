@@ -85,7 +85,7 @@ def test_safe_grammar_retains_all_valid_tokens_and_masks_invalid_token():
     assert int(constrained.argmax()) == 5
 
 
-def test_safe_grammar_does_not_false_prune_across_partial_block_hole():
+def test_safe_grammar_does_not_false_prune_eos_across_partial_block_hole():
     tokens = ("[UNK]", "[CLS]", "[SEP]", "[PAD]", "[MASK]", "C", "O")
     grammar = SafeGrammarMask(
         tokens,
@@ -98,7 +98,7 @@ def test_safe_grammar_does_not_false_prune_across_partial_block_hole():
 
     constrained = grammar([1, 4], logits)
 
-    assert torch.isneginf(constrained[2])
+    assert constrained[2] == logits[2]
     assert torch.equal(constrained[:2], logits[:2])
     assert torch.equal(constrained[3:], logits[3:])
 
