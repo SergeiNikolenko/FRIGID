@@ -17,8 +17,14 @@
 ## MARLIN scope
 
 - Implement and evaluate MARLIN from arXiv:2607.04774 directly.
-- Do not use FRIGID code, weights, samplers, warm starts, or architectural
-  components in MARLIN training or evaluation.
+- The strict clean-room reproduction lane may use the official FRIGID
+  checkpoint only as the hashed one-time warm start described by the MARLIN
+  paper. Do not use the FRIGID sampler or a FRIGID teacher in its objective or
+  evaluation.
+- A separate user-authorized experimental lane may use the official FRIGID
+  checkpoint as a teacher. Label every such run `FRIGID-distilled MARLIN`,
+  record checkpoint hashes and provenance, and never present it as the strict
+  paper reproduction.
 - Judge progress with molecular generation metrics (validity, uniqueness,
   candidate return rate, mass validity, and structure similarity), not loss
   alone.
