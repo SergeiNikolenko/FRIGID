@@ -23,6 +23,10 @@ NO_EMA="${MARLIN_NO_EMA:-0}"
 DISABLE_GRAMMAR="${MARLIN_DISABLE_GRAMMAR:-0}"
 DISABLE_MASS_SHELL="${MARLIN_DISABLE_MASS_SHELL:-0}"
 GENERATION_MODE="${MARLIN_GENERATION_MODE:-block}"
+CLEARML_PROJECT="${MARLIN_CLEARML_PROJECT:-}"
+CLEARML_TASK_NAME="${MARLIN_CLEARML_TASK_NAME:-}"
+CLEARML_TAGS="${MARLIN_CLEARML_TAGS:-marlin,evaluation,oracle}"
+source "$CODE/scripts/marlin_runtime_env.sh"
 
 export PYTHONPATH="$CODE/src:$ROOT/vendor"
 export TOKENIZERS_PARALLELISM=false
@@ -52,5 +56,19 @@ fi
 if [[ "$DISABLE_MASS_SHELL" == "1" ]]; then
     ARGS+=(--disable-mass-shell)
 fi
+if [[ -n "$CLEARML_PROJECT" || -n "$CLEARML_TASK_NAME" ]]; then
+    : "${CLEARML_PROJECT:?Set MARLIN_CLEARML_PROJECT when enabling ClearML}"
+    CLEARML_TASK_NAME="${CLEARML_TASK_NAME:-marlin-oracle-eval}"
+    ARGS+=(
+        --clearml-project "$CLEARML_PROJECT"
+        --clearml-task-name "$CLEARML_TASK_NAME-${SLURM_JOB_ID:-local}"
+    )
+    IFS=',' read -r -a CLEARML_TAG_ARRAY <<< "$CLEARML_TAGS"
+    for clearml_tag in "${CLEARML_TAG_ARRAY[@]}"; do
+        if [[ -n "$clearml_tag" ]]; then
+            ARGS+=(--clearml-tag "$clearml_tag")
+        fi
+    done
+fi
 
-"$ROOT/.venv/bin/python" scripts/evaluate_marlin_nplib1.py "${ARGS[@]}"
+"$PYTHON" scripts/evaluate_marlin_nplib1.py "${ARGS[@]}"

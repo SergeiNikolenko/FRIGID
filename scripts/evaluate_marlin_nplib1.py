@@ -6,6 +6,8 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
+import os
 import subprocess
 import time
 from pathlib import Path
@@ -58,6 +60,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--disable-mass-shell", action="store_true")
     parser.add_argument("--fix-safe-decode", action="store_true")
     parser.add_argument("--no-ema", action="store_true")
+    parser.add_argument("--clearml-project")
+    parser.add_argument("--clearml-task-name")
+    parser.add_argument("--clearml-tag", action="append", default=[])
     return parser.parse_args()
 
 
@@ -123,10 +128,183 @@ def connectivity(smiles: str) -> str | None:
     return Chem.MolToInchiKey(molecule).split("-")[0]
 
 
+def add_formula_metrics(
+    row: dict,
+    *,
+    target_formula: str | None = None,
+) -> dict:
+    """Add formula recall metrics to a prediction row, including resumed rows."""
+    if target_formula is None:
+        target_molecule = Chem.MolFromSmiles(row["target_smiles"])
+        if target_molecule is None:
+            raise ValueError(f"invalid target SMILES: {row['target_smiles']}")
+        target_formula = rdMolDescriptors.CalcMolFormula(target_molecule)
+    candidates = row.get("candidates", [])
+    row["formula_top1"] = bool(
+        candidates and candidates[0].get("formula") == target_formula
+    )
+    row["formula_top10"] = any(
+        candidate.get("formula") == target_formula for candidate in candidates[:10]
+    )
+    return row
+
+
+def formula_metric_summary(rows: list[dict]) -> dict[str, float]:
+    rows_with_candidate = [row for row in rows if row["candidate_returned"]]
+    return {
+        "formula_top1_all": mean_metric(rows, "formula_top1"),
+        "formula_top1_returned": mean_metric(
+            rows_with_candidate, "formula_top1"
+        ),
+        "formula_top10_all": mean_metric(rows, "formula_top10"),
+        "formula_top10_returned": mean_metric(
+            rows_with_candidate, "formula_top10"
+        ),
+    }
+
+
+def _clearml_candidate_table(
+    rows: list[dict],
+    *,
+    candidates_per_spectrum: int = 3,
+    max_rows: int = 100,
+) -> pd.DataFrame:
+    columns = [
+        "spec_name",
+        "rank",
+        "target_smiles",
+        "candidate_smiles",
+        "exact",
+        "formula_match",
+        "target_tanimoto",
+        "mass_error_ppm",
+    ]
+    table_rows = []
+    for row in rows:
+        target_molecule = Chem.MolFromSmiles(row["target_smiles"])
+        if target_molecule is None:
+            continue
+        target_formula = rdMolDescriptors.CalcMolFormula(target_molecule)
+        selected_candidates = row.get("candidates", [])[:candidates_per_spectrum]
+        if not selected_candidates:
+            table_rows.append(
+                {
+                    "spec_name": row["spec_name"],
+                    "rank": None,
+                    "target_smiles": row["target_smiles"],
+                    "candidate_smiles": None,
+                    "exact": False,
+                    "formula_match": False,
+                    "target_tanimoto": None,
+                    "mass_error_ppm": None,
+                }
+            )
+            if len(table_rows) >= max_rows:
+                break
+            continue
+        for rank, candidate in enumerate(
+            selected_candidates,
+            start=1,
+        ):
+            table_rows.append(
+                {
+                    "spec_name": row["spec_name"],
+                    "rank": rank,
+                    "target_smiles": row["target_smiles"],
+                    "candidate_smiles": candidate["smiles"],
+                    "exact": bool(candidate["exact_connectivity"]),
+                    "formula_match": candidate.get("formula") == target_formula,
+                    "target_tanimoto": candidate[
+                        "target_fingerprint_tanimoto"
+                    ],
+                    "mass_error_ppm": candidate["mass_error_ppm"],
+                }
+            )
+            if len(table_rows) >= max_rows:
+                return pd.DataFrame(table_rows, columns=columns)
+    return pd.DataFrame(table_rows, columns=columns)
+
+
+def publish_clearml_evaluation(
+    *,
+    project_name: str | None,
+    task_name: str | None,
+    tags: list[str],
+    metrics: dict,
+    rows: list[dict],
+    settings: dict,
+) -> dict[str, str] | None:
+    """Publish a completed evaluation only when explicitly configured."""
+    if project_name is None and task_name is None:
+        return None
+    if not project_name or not task_name:
+        raise ValueError(
+            "--clearml-project and --clearml-task-name must be provided together"
+        )
+
+    from clearml import Task
+
+    task = Task.init(
+        project_name=project_name,
+        task_name=task_name,
+        task_type=Task.TaskTypes.testing,
+        tags=tags,
+        reuse_last_task_id=False,
+        output_uri=False,
+        auto_connect_streams=False,
+        auto_connect_frameworks=False,
+        auto_resource_monitoring=False,
+    )
+    try:
+        task.connect(dict(settings), name="evaluation_settings")
+        logger = task.get_logger()
+        iteration = int(metrics["rows"])
+        scalar_metrics = {
+            "Exact@1": "exact_top1",
+            "Exact@10": "exact_top10",
+            "Formula@1": "formula_top1_all",
+            "Formula@10": "formula_top10_all",
+            "Candidate return": "candidate_return_rate",
+            "Validity": "validity",
+            "Mass validity": "mass_validity",
+            "Uniqueness": "uniqueness",
+            "Tanimoto@1 (returned)": "tanimoto_top1",
+            "Tanimoto@10 (returned)": "tanimoto_top10",
+        }
+        for series, key in scalar_metrics.items():
+            value = float(metrics[key])
+            if not math.isfinite(value):
+                continue
+            logger.report_scalar(
+                title="Molecular metrics",
+                series=series,
+                value=value,
+                iteration=iteration,
+            )
+        logger.report_table(
+            title="MARLIN molecular evaluation",
+            series="Top candidates",
+            iteration=iteration,
+            table_plot=_clearml_candidate_table(rows),
+        )
+        return {
+            "task_id": task.id,
+            "task_name": task.name,
+            "project_name": project_name,
+            "web_url": task.get_output_log_web_page(),
+        }
+    finally:
+        task.close()
+
+
 def main() -> None:
     args = parse_args()
     if args.candidates <= 0:
         raise ValueError("--candidates must be positive")
+    if bool(args.clearml_project) != bool(args.clearml_task_name):
+        raise ValueError(
+            "--clearml-project and --clearml-task-name must be provided together"
+        )
     if args.lane == "mist" and any(
         value is None
         for value in (
@@ -275,6 +453,7 @@ def main() -> None:
                     raise ValueError(
                         f"duplicate spectrum in predictions: {row['spec_name']}"
                     )
+                add_formula_metrics(row)
                 completed.add(row["spec_name"])
                 rows.append(row)
 
@@ -354,11 +533,9 @@ def main() -> None:
                     (candidate["target_fingerprint_tanimoto"] for candidate in top_ten),
                     default=0.0,
                 ),
-                "formula_top1": bool(
-                    candidates and candidates[0]["formula"] == target_formula
-                ),
                 "candidates": candidates,
             }
+            add_formula_metrics(result, target_formula=target_formula)
             output.write(json.dumps(result, sort_keys=True) + "\n")
             output.flush()
             rows.append(result)
@@ -377,8 +554,7 @@ def main() -> None:
         "candidate_return_rate": len(rows_with_candidate) / max(len(rows), 1),
         "tanimoto_top1": mean_metric(rows_with_candidate, "tanimoto_top1"),
         "tanimoto_top10": mean_metric(rows_with_candidate, "tanimoto_top10"),
-        "formula_top1_all": mean_metric(rows, "formula_top1"),
-        "formula_top1_returned": mean_metric(rows_with_candidate, "formula_top1"),
+        **formula_metric_summary(rows),
         "mass_bins": mass_bin_metrics(rows),
         "validity": mean_metric(rows, "validity"),
         "mass_validity": mean_metric(rows, "mass_validity"),
@@ -393,6 +569,8 @@ def main() -> None:
             "tanimoto_top10": "rows with a returned candidate",
             "formula_top1_all": "all rows",
             "formula_top1_returned": "rows with a returned candidate",
+            "formula_top10_all": "all rows",
+            "formula_top10_returned": "rows with a returned candidate",
             "validity": "all rows",
             "mass_validity": "all rows",
             "uniqueness": "all rows",
@@ -431,6 +609,19 @@ def main() -> None:
     (args.output_dir / "manifest.json").write_text(
         json.dumps(manifest, indent=2, sort_keys=True) + "\n"
     )
+    clearml_task = publish_clearml_evaluation(
+        project_name=args.clearml_project,
+        task_name=args.clearml_task_name,
+        tags=args.clearml_tag,
+        metrics=metrics,
+        rows=rows,
+        settings=settings,
+    )
+    if clearml_task is not None:
+        clearml_task["slurm_job_id"] = os.environ.get("SLURM_JOB_ID")
+        (args.output_dir / "clearml_task.json").write_text(
+            json.dumps(clearml_task, indent=2, sort_keys=True) + "\n"
+        )
 
 
 if __name__ == "__main__":
