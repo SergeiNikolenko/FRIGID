@@ -46,6 +46,10 @@ export TOKENIZERS_PARALLELISM=false
 source "$CODE/scripts/marlin_runtime_env.sh"
 
 cd "$CODE"
+if [[ -n "$RESUME_CHECKPOINT" && -n "$RESUME_WEIGHTS_ONLY_CHECKPOINT" ]]; then
+    echo "Set only one of MARLIN_RESUME_CHECKPOINT and MARLIN_RESUME_WEIGHTS_ONLY_CHECKPOINT" >&2
+    exit 2
+fi
 TRAIN_ARGS=()
 append_override() {
     local key="$1"
@@ -81,6 +85,7 @@ if [[ -n "$LEARNING_RATE" ]]; then
 fi
 if [[ -n "$RESUME_CHECKPOINT" ]]; then
     TRAIN_ARGS+=("resume_checkpoint=${RESUME_CHECKPOINT//=/\\=}")
+    TRAIN_ARGS+=("resume_weights_only_checkpoint=null")
 fi
 if [[ -n "$RESUME_WEIGHTS_ONLY_CHECKPOINT" ]]; then
     TRAIN_ARGS+=("resume_weights_only_checkpoint=${RESUME_WEIGHTS_ONLY_CHECKPOINT//=/\\=}")

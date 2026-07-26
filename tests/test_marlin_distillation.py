@@ -377,6 +377,9 @@ def test_block_curriculum_configs_are_conservative_and_raw_evaluated():
     assert stage1.adaptation.kl_weight == 0.5
     assert stage1.optim.learning_rate == pytest.approx(1e-5)
     assert stage1.training.ema_decay == pytest.approx(0.99)
+    assert stage1.training.molecular_validation_csv.endswith(
+        "/datasets/nplib1/val-metadata.csv"
+    )
     assert stage1.training.molecular_validation_use_ema is False
     assert (
         stage2.adaptation.trainable_scope

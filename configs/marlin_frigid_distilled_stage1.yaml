@@ -34,6 +34,7 @@ trainer:
 
 training:
   ema_decay: 0.99
+  molecular_validation_csv: /mnt/netstorage/nikolenko/marlin/datasets/nplib1/val-metadata.csv
   molecular_validation_interval: 250
   molecular_validation_samples: 4
   molecular_validation_candidates: 16
