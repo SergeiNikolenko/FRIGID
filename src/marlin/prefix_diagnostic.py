@@ -45,7 +45,7 @@ def _distribution_record(
     }
 
 
-def summarize_prefix_actions(actions: Sequence[dict]) -> dict[str, float | int | None]:
+def summarize_prefix_actions(actions: Sequence[dict]) -> dict[str, object]:
     """Return compact reconstruction statistics for action-level records."""
 
     total = len(actions)
@@ -69,9 +69,21 @@ def summarize_prefix_actions(actions: Sequence[dict]) -> dict[str, float | int |
         and action["constrained"]["target_rank"] <= 10
         for action in actions
     )
-    first_disallowed = next(
-        (int(action["position"]) for action in actions if not action["target_allowed"]),
+    first_disallowed_action = next(
+        (action for action in actions if not action["target_allowed"]),
         None,
+    )
+    first_disallowed = (
+        None
+        if first_disallowed_action is None
+        else {
+            **(
+                {"metadata_row": int(first_disallowed_action["metadata_row"])}
+                if "metadata_row" in first_disallowed_action
+                else {}
+            ),
+            "position": int(first_disallowed_action["position"]),
+        }
     )
     return {
         "actions": total,
@@ -80,7 +92,10 @@ def summarize_prefix_actions(actions: Sequence[dict]) -> dict[str, float | int |
         "constraint_dead_end_actions": sum(
             action["constrained"]["top1_id"] is None for action in actions
         ),
-        "first_disallowed_position": first_disallowed,
+        "first_disallowed_position": (
+            None if first_disallowed is None else first_disallowed["position"]
+        ),
+        "first_disallowed": first_disallowed,
         "raw_top1_correct": raw_top1,
         "raw_top1_accuracy": raw_top1 / total,
         "raw_top10_correct": raw_top10,
@@ -98,6 +113,17 @@ def summarize_prefix_actions(actions: Sequence[dict]) -> dict[str, float | int |
         )
         / total,
     }
+
+
+def summarize_prefix_rows(rows: Sequence[dict]) -> dict[str, object]:
+    """Aggregate row actions while retaining the first failure's row identity."""
+
+    actions = [
+        {**action, "metadata_row": int(row["metadata_row"])}
+        for row in rows
+        for action in row["actions"]
+    ]
+    return summarize_prefix_actions(actions)
 
 
 @torch.no_grad()
@@ -126,6 +152,12 @@ def diagnose_production_prefix(
         raise ValueError("target sequence must end with EOS")
     if sampler.eos_token_id in token_ids[1:-1]:
         raise ValueError("target sequence contains EOS before its final token")
+    forbidden_targets = set(sampler.forbidden_token_ids) | {sampler.mask_token_id}
+    for position, token_id in enumerate(token_ids[1:-1], start=1):
+        if token_id in forbidden_targets:
+            raise ValueError(
+                f"forbidden target token ID {token_id} at position {position}"
+            )
     if len(token_ids) > sampler.model.config.max_length:
         raise ValueError("target sequence exceeds model max_length")
 
@@ -137,6 +169,11 @@ def diagnose_production_prefix(
 
     for position, target_id in enumerate(token_ids[1:], start=1):
         if position == len(canvas):
+            if target_id == sampler.eos_token_id:
+                safe = sampler._decode_prefix(canvas)
+                smiles = sampler.safe_to_smiles(safe)
+                if sampler.constraint.accepts_smiles(smiles, target_mass):
+                    break
             block_width = sampler._next_block_width(len(canvas))
             if block_width <= 0:
                 raise ValueError("production canvas ended before target EOS")

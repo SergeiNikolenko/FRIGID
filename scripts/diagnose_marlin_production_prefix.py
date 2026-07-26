@@ -20,7 +20,7 @@ from marlin.grammar import SafeGrammarMask
 from marlin.mass_shell import MassShellConstraint
 from marlin.prefix_diagnostic import (
     diagnose_production_prefix,
-    summarize_prefix_actions,
+    summarize_prefix_rows,
 )
 from marlin.sampler import MarlinSampler
 from marlin.token_properties import build_token_property_table
@@ -132,7 +132,6 @@ def main() -> None:
         raise KeyError("metadata must contain a smiles column")
 
     rows = []
-    all_actions = []
     for metadata_index, record in metadata.iterrows():
         safe, target_token_ids = encode_audit_sequence(
             str(record["smiles"]),
@@ -151,7 +150,6 @@ def main() -> None:
             temperature=args.temperature,
         )
         actions = diagnostic["actions"]
-        all_actions.extend(actions)
         rows.append(
             {
                 "metadata_row": int(metadata_index),
@@ -185,7 +183,7 @@ def main() -> None:
             "valence_slack": 4.0,
             "eos_boost": 1.0,
         },
-        "aggregate": summarize_prefix_actions(all_actions),
+        "aggregate": summarize_prefix_rows(rows),
         "rows": rows,
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)

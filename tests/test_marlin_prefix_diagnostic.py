@@ -1,8 +1,12 @@
+import pytest
 import torch
 
 from marlin.mass_shell import MassShellConstraint
 from marlin.model import MarlinDecoderConfig
-from marlin.prefix_diagnostic import diagnose_production_prefix
+from marlin.prefix_diagnostic import (
+    diagnose_production_prefix,
+    summarize_prefix_rows,
+)
 from marlin.sampler import MarlinSampler
 
 
@@ -69,7 +73,7 @@ def make_sampler(*, grammar_mask=None):
     )
 
 
-def test_prefix_diagnostic_reveals_true_actions_across_production_blocks():
+def test_prefix_diagnostic_stops_before_redundant_eos_block():
     model, sampler = make_sampler()
 
     result = diagnose_production_prefix(
@@ -83,46 +87,120 @@ def test_prefix_diagnostic_reveals_true_actions_across_production_blocks():
     assert [canvas.tolist() for canvas in model.seen] == [
         [[1, 3, 3]],
         [[1, 4, 3]],
-        [[1, 4, 5, 3, 3]],
     ]
     assert [action["target_token"] for action in result["actions"]] == [
         "C",
         "O",
-        "[EOS]",
     ]
-    assert [action["raw"]["top1_id"] for action in result["actions"]] == [3, 3, 3]
+    assert [action["raw"]["top1_id"] for action in result["actions"]] == [3, 3]
     assert [
         action["constrained"]["top1_id"] for action in result["actions"]
-    ] == [4, 5, 2]
+    ] == [4, 5]
     assert result["summary"]["target_allowed_rate"] == 1.0
     assert result["summary"]["constrained_top1_accuracy"] == 1.0
     assert result["summary"]["raw_top1_accuracy"] == 0.0
 
 
+def test_prefix_diagnostic_still_scores_eos_inside_current_block():
+    model, sampler = make_sampler()
+
+    result = diagnose_production_prefix(
+        sampler,
+        [1, 4, 2],
+        torch.zeros(8),
+        16.031300128,
+        lambda token_id: TOKENS[token_id],
+    )
+
+    assert [canvas.tolist() for canvas in model.seen] == [
+        [[1, 3, 3]],
+        [[1, 4, 3]],
+    ]
+    assert [action["target_token"] for action in result["actions"]] == [
+        "C",
+        "[EOS]",
+    ]
+
+
 def test_prefix_diagnostic_records_disallowed_target_and_continues_to_eos():
+    def reject_carbon(prefix_ids, logits, _target_mass):
+        constrained = logits.clone()
+        if prefix_ids == [1]:
+            constrained[4] = -torch.inf
+        return constrained
+
+    model, sampler = make_sampler(grammar_mask=reject_carbon)
+
+    result = diagnose_production_prefix(
+        sampler,
+        [1, 4, 2],
+        torch.zeros(8),
+        16.031300128,
+        lambda token_id: TOKENS[token_id],
+    )
+
+    assert len(model.seen) == 2
+    assert [action["target_allowed"] for action in result["actions"]] == [
+        False,
+        True,
+    ]
+    assert result["actions"][0]["constrained"]["target_rank"] is None
+    assert result["actions"][0]["constrained"]["target_probability"] == 0.0
+    assert result["summary"]["target_allowed"] == 1
+    assert result["summary"]["first_disallowed_position"] == 1
+
+
+@pytest.mark.parametrize("target_id", (0, 1, 3, 6))
+def test_prefix_diagnostic_rejects_forbidden_target_token(target_id):
+    _, sampler = make_sampler()
+    # ID 6 stands in for the tokenizer's UNK ID in this tiny vocabulary.
+    sampler.forbidden_token_ids = (*sampler.forbidden_token_ids, 6)
+
+    with pytest.raises(
+        ValueError,
+        match=rf"forbidden target token ID {target_id} at position 2",
+    ):
+        diagnose_production_prefix(
+            sampler,
+            [1, 4, target_id, 2],
+            torch.zeros(8),
+            32.026214748,
+            lambda token_id: TOKENS[token_id],
+        )
+
+
+def test_prefix_summary_reports_row_aware_first_disallowed_locator():
     def reject_oxygen(prefix_ids, logits, _target_mass):
         constrained = logits.clone()
         if prefix_ids == [1, 4]:
             constrained[5] = -torch.inf
         return constrained
 
-    model, sampler = make_sampler(grammar_mask=reject_oxygen)
-
-    result = diagnose_production_prefix(
-        sampler,
+    _, allowed_sampler = make_sampler()
+    allowed = diagnose_production_prefix(
+        allowed_sampler,
+        [1, 4, 2],
+        torch.zeros(8),
+        16.031300128,
+        lambda token_id: TOKENS[token_id],
+    )
+    _, rejected_sampler = make_sampler(grammar_mask=reject_oxygen)
+    rejected = diagnose_production_prefix(
+        rejected_sampler,
         [1, 4, 5, 2],
         torch.zeros(8),
         32.026214748,
         lambda token_id: TOKENS[token_id],
     )
+    summary = summarize_prefix_rows(
+        [
+            {"metadata_row": 3, "actions": allowed["actions"]},
+            {"metadata_row": 17, "actions": rejected["actions"]},
+        ]
+    )
 
-    assert len(model.seen) == 3
-    assert [action["target_allowed"] for action in result["actions"]] == [
-        True,
-        False,
-        True,
-    ]
-    assert result["actions"][1]["constrained"]["target_rank"] is None
-    assert result["actions"][1]["constrained"]["target_probability"] == 0.0
-    assert result["summary"]["target_allowed"] == 2
-    assert result["summary"]["first_disallowed_position"] == 2
+    assert summary["first_disallowed"] == {
+        "metadata_row": 17,
+        "position": 2,
+    }
+    assert summary["first_disallowed_position"] == 2
