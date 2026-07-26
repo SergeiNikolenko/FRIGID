@@ -15,6 +15,9 @@ def test_slurm_launchers_use_project_runtime_and_tls_preflight():
         assert 'source "$CODE/scripts/marlin_runtime_env.sh"' in script
     train_script = (PROJECT_ROOT / "scripts/slurm_marlin_train.sbatch").read_text()
     assert '${RESUME_CHECKPOINT//=/\\\\=}' in train_script
+    assert "++data.metadata_csv=" in train_script
+    assert "++data.metadata_csv_sha256=" in train_script
+    assert "MARLIN_METADATA_CSV_SHA256 is required" in train_script
 
 
 def test_clearml_does_not_capture_its_own_transport_errors():

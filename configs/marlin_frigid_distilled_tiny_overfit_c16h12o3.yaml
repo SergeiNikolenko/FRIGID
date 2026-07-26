@@ -12,6 +12,7 @@ adaptation:
 
 data:
   metadata_csv: /mnt/netstorage/nikolenko/marlin/datasets/marlin-tiny-overfit-block32-v2/train-metadata.csv
+  metadata_csv_sha256: 866a53ba9f390475e6dd086aa358313a50e1d56438002f90dde22effe868193b
 
 loader:
   batch_size: 4

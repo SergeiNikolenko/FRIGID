@@ -54,6 +54,29 @@ def sha256_file(path: str | Path) -> str:
     return digest.hexdigest()
 
 
+def validate_metadata_csv(config: DictConfig) -> tuple[str | None, str | None]:
+    """Resolve and verify an optional finite metadata training table."""
+
+    metadata_csv = config.data.get("metadata_csv")
+    expected_sha256 = config.data.get("metadata_csv_sha256")
+    if metadata_csv is None:
+        if expected_sha256:
+            raise ValueError(
+                "data.metadata_csv is required with data.metadata_csv_sha256"
+            )
+        return None, None
+    if not expected_sha256:
+        raise ValueError("data.metadata_csv_sha256 is required with data.metadata_csv")
+
+    metadata_csv = str(metadata_csv)
+    actual_sha256 = sha256_file(metadata_csv)
+    if actual_sha256 != str(expected_sha256):
+        raise ValueError(
+            f"metadata CSV SHA-256 is {actual_sha256}; expected {expected_sha256}"
+        )
+    return metadata_csv, actual_sha256
+
+
 def git_state() -> tuple[str | None, list[str]]:
     """Return the checked-out commit and any uncommitted paths."""
     try:
@@ -198,13 +221,28 @@ def initialization_source(config: DictConfig) -> str | None:
     return selected[0] if selected else None
 
 
-def write_run_manifest(config: DictConfig, tokenizer_sha256: str) -> dict:
+def write_run_manifest(
+    config: DictConfig,
+    tokenizer_sha256: str,
+    *,
+    metadata_csv_sha256: str | None = None,
+) -> dict:
     """Persist the immutable training inputs and execution environment."""
     commit, dirty = git_state()
     if dirty:
         raise RuntimeError(f"refusing canonical training from dirty git state: {dirty}")
     mode = adaptation_mode(config)
     strict_reproduction = mode == STRICT_MARLIN_MODE
+    metadata_csv = config.data.get("metadata_csv")
+    if metadata_csv is not None:
+        expected_metadata_sha256 = config.data.get("metadata_csv_sha256")
+        if metadata_csv_sha256 is None or metadata_csv_sha256 != str(
+            expected_metadata_sha256
+        ):
+            raise ValueError("run manifest requires the verified metadata CSV SHA-256")
+    elif metadata_csv_sha256 is not None:
+        raise ValueError("metadata CSV SHA-256 provided without a metadata CSV")
+
     manifest = {
         "schema_version": 1,
         "kind": (
@@ -288,6 +326,11 @@ def write_run_manifest(config: DictConfig, tokenizer_sha256: str) -> dict:
             "data-loader and GPU execution settings",
         ],
     }
+    if metadata_csv is not None:
+        manifest["inputs"].update(
+            metadata_csv=str(metadata_csv),
+            metadata_csv_sha256=metadata_csv_sha256,
+        )
     output = Path(config.output.root) / "run_manifest.json"
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
@@ -380,7 +423,7 @@ def main(config: DictConfig) -> None:
         tokenizer,
         special_token_ids,
     )
-    metadata_csv = config.data.get("metadata_csv")
+    metadata_csv, metadata_csv_sha256 = validate_metadata_csv(config)
     local_shards = None
     if metadata_csv is None:
         length_audit = json.loads(Path(config.data.length_audit_manifest).read_text())
@@ -405,7 +448,11 @@ def main(config: DictConfig) -> None:
         )
         if snapshot_manifest_sha256 != sha256_file(config.data.snapshot_manifest):
             raise ValueError("training snapshot manifest changed during verification")
-    write_run_manifest(config, tokenizer_sha256)
+    write_run_manifest(
+        config,
+        tokenizer_sha256,
+        metadata_csv_sha256=metadata_csv_sha256,
+    )
     module = MarlinLightningModule(
         decoder_config,
         learning_rate=config.optim.learning_rate,
