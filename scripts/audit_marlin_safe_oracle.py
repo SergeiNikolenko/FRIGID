@@ -11,10 +11,9 @@ import subprocess
 from pathlib import Path
 
 import pandas as pd
-import safe
 import torch
 
-from dlm.utils.utils_chem import safe_to_smiles
+from dlm.utils.utils_chem import safe_to_smiles, smiles_to_safe
 from marlin.grammar import SafeGrammarMask, _scan
 from marlin.tokenizer import load_safe_tokenizer
 
@@ -47,6 +46,16 @@ def _git_commit() -> str | None:
 def _record(examples: dict[str, list], key: str, payload: dict) -> None:
     if len(examples[key]) < 10:
         examples[key].append(payload)
+
+
+def encode_audit_sequence(smiles: str, tokenizer) -> tuple[str, list[int]]:
+    """Encode a SMILES exactly as the MARLIN metadata training path does."""
+
+    safe_string = smiles_to_safe(smiles)
+    if not safe_string:
+        raise ValueError(f"failed to convert SMILES to SAFE: {smiles}")
+    token_ids = tokenizer.encode(safe_string, add_special_tokens=True)
+    return safe_string, token_ids
 
 
 def main() -> None:
@@ -95,18 +104,12 @@ def main() -> None:
 
     for row_index, smiles in enumerate(table[args.smiles_column].astype(str)):
         try:
-            safe_string = safe.encode(
-                smiles,
-                canonical=True,
-                randomize=False,
-                ignore_stereo=True,
-            )
+            safe_string, token_ids = encode_audit_sequence(smiles, tokenizer)
         except Exception as error:
             counts["encode_failures"] += 1
             _record(examples, "encode_failures", {"row": row_index, "error": str(error)})
             continue
         counts["encoded"] += 1
-        token_ids = tokenizer.encode(safe_string, add_special_tokens=True)
         counts["max_token_length"] = max(counts["max_token_length"], len(token_ids))
         if len(token_ids) > args.max_length:
             counts["over_max_length"] += 1
