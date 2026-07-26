@@ -91,6 +91,9 @@ class FrigidDistillationSettings:
     trainable_scope: str = MASS_ONLY_TRAINABLE_SCOPE
     block_width_override: int = 256
     attention_mode: str = "frigid_full"
+    current_block_masking: str = "full"
+    full_block_mask_probability: float = 0.0
+    rollout_prefix_probability: float = 0.0
     temperature: float = 2.0
     kl_weight: float = 1.0
     use_isotope: bool = False
@@ -106,6 +109,29 @@ class FrigidDistillationSettings:
         if self.attention_mode not in {"frigid_full", "block"}:
             raise ValueError(
                 "FRIGID distillation attention_mode must be 'frigid_full' or 'block'"
+            )
+        if self.current_block_masking not in {"full", "continuous_time"}:
+            raise ValueError(
+                "FRIGID distillation current_block_masking must be "
+                "'full' or 'continuous_time'"
+            )
+        if not 0.0 <= self.full_block_mask_probability <= 1.0:
+            raise ValueError("full_block_mask_probability must be in [0, 1]")
+        if not 0.0 <= self.rollout_prefix_probability <= 1.0:
+            raise ValueError("rollout_prefix_probability must be in [0, 1]")
+        if (
+            self.rollout_prefix_probability > 0.0
+            and self.current_block_masking != "continuous_time"
+        ):
+            raise ValueError(
+                "rollout-prefix states require continuous-time current-block masking"
+            )
+        if (
+            self.current_block_masking == "continuous_time"
+            and self.attention_mode != "block"
+        ):
+            raise ValueError(
+                "continuous-time current-block masking requires block attention"
             )
         if self.trainable_scope not in TRAINABLE_SCOPES:
             raise ValueError(
@@ -136,7 +162,12 @@ class FrigidDistillationSettings:
 class FairBlockInputs:
     input_ids: torch.Tensor
     current_mask: torch.Tensor
+    current_content_mask: torch.Tensor
     selected_blocks: torch.Tensor
+    mask_probabilities: torch.Tensor
+    loss_weights: torch.Tensor
+    full_block_masked: torch.Tensor
+    rollout_prefix_masked: torch.Tensor
 
 
 @dataclass(frozen=True)
@@ -157,18 +188,45 @@ def build_fair_block_inputs(
     mask_token_id: int,
     generator: torch.Generator | None = None,
     selected_blocks: torch.Tensor | None = None,
+    current_block_masking: str = "full",
+    full_block_mask_probability: float = 0.0,
+    rollout_prefix_probability: float = 0.0,
+    current_mask_probabilities: torch.Tensor | None = None,
 ) -> FairBlockInputs:
-    """Keep the prefix clean and MASK the selected block plus its suffix.
+    """Build a fair current-block state for teacher and two-stream student.
 
-    One block is selected independently for each row. Only tokens in that
-    current block contribute to either CE or KL, so teacher and student see the
-    same evidence and are scored on the same positions.
+    Full masking preserves the stage-zero bridge. Continuous-time masking
+    samples ``t ~ U(0, 1]`` and independently masks current-block tokens with
+    probability ``t``. A configurable auxiliary path exposes a clean prefix
+    and masks the remainder of the current block, matching production grammar
+    rollouts. Future blocks become PAD so the full-attention teacher cannot
+    exploit a target-length-bearing MASK suffix that the two-stream student
+    cannot attend to. Only masked current-block tokens are scored.
     """
 
     if clean_ids.ndim != 2:
         raise ValueError("clean_ids must have shape [batch, length]")
     if block_width <= 0:
         raise ValueError("block_width must be positive")
+    if current_block_masking not in {"full", "continuous_time"}:
+        raise ValueError(
+            "current_block_masking must be 'full' or 'continuous_time'"
+        )
+    if not 0.0 <= full_block_mask_probability <= 1.0:
+        raise ValueError("full_block_mask_probability must be in [0, 1]")
+    if not 0.0 <= rollout_prefix_probability <= 1.0:
+        raise ValueError("rollout_prefix_probability must be in [0, 1]")
+    if current_block_masking == "full" and rollout_prefix_probability > 0.0:
+        raise ValueError(
+            "rollout_prefix_probability requires continuous-time masking"
+        )
+    if (
+        current_block_masking == "full"
+        and current_mask_probabilities is not None
+    ):
+        raise ValueError(
+            "current_mask_probabilities require continuous-time masking"
+        )
 
     batch_size, length = clean_ids.shape
     positions = torch.arange(length, device=clean_ids.device).reshape(1, -1)
@@ -204,13 +262,142 @@ def build_fair_block_inputs(
             raise ValueError("selected block is outside a sequence")
 
     selected = selected_blocks.reshape(-1, 1)
-    current_mask = content & block_ids.eq(selected)
-    current_or_suffix = content & block_ids.ge(selected)
-    input_ids = clean_ids.masked_fill(current_or_suffix, mask_token_id)
+    current_content = content & block_ids.eq(selected)
+    suffix = content & block_ids.gt(selected)
+    fallback_rows = torch.zeros(
+        batch_size,
+        device=clean_ids.device,
+        dtype=torch.bool,
+    )
+    if current_block_masking == "full":
+        mask_probabilities = torch.ones(
+            batch_size,
+            device=clean_ids.device,
+            dtype=torch.float32,
+        )
+        full_block_masked = torch.ones(
+            batch_size,
+            device=clean_ids.device,
+            dtype=torch.bool,
+        )
+        rollout_prefix_masked = torch.zeros(
+            batch_size,
+            device=clean_ids.device,
+            dtype=torch.bool,
+        )
+        current_mask = current_content
+        input_ids = clean_ids.masked_fill(
+            current_content | suffix,
+            mask_token_id,
+        )
+    else:
+        if current_mask_probabilities is None:
+            mask_probabilities = torch.rand(
+                batch_size,
+                device=clean_ids.device,
+                generator=generator,
+            ).clamp_min(1e-4)
+            full_block_masked = (
+                torch.rand(
+                    batch_size,
+                    device=clean_ids.device,
+                    generator=generator,
+                )
+                < full_block_mask_probability
+            )
+            mask_probabilities = mask_probabilities.masked_fill(
+                full_block_masked,
+                1.0,
+            )
+        else:
+            mask_probabilities = current_mask_probabilities.to(
+                device=clean_ids.device,
+                dtype=torch.float32,
+            )
+            if mask_probabilities.shape != (batch_size,):
+                raise ValueError(
+                    "current_mask_probabilities must have shape [batch]"
+                )
+            if (
+                ~torch.isfinite(mask_probabilities)
+                | (mask_probabilities <= 0)
+                | (mask_probabilities > 1)
+            ).any():
+                raise ValueError(
+                    "current_mask_probabilities must be finite and in (0, 1]"
+                )
+            full_block_masked = mask_probabilities.eq(1.0)
+        mask_draws = torch.rand(
+            clean_ids.shape,
+            device=clean_ids.device,
+            generator=generator,
+        )
+        current_mask = (
+            current_content
+            & mask_draws.lt(mask_probabilities.reshape(-1, 1))
+        )
+        rollout_prefix_masked = (
+            torch.rand(
+                batch_size,
+                device=clean_ids.device,
+                generator=generator,
+            )
+            < rollout_prefix_probability
+        ) & ~full_block_masked
+        current_lengths = current_content.sum(dim=1)
+        revealed_counts = torch.floor(
+            (1.0 - mask_probabilities) * current_lengths.float()
+        ).long()
+        revealed_counts = torch.where(
+            current_lengths.gt(1),
+            revealed_counts.clamp_min(1),
+            torch.zeros_like(revealed_counts),
+        )
+        revealed_counts = torch.minimum(
+            revealed_counts,
+            (current_lengths - 1).clamp_min(0),
+        )
+        within_block = (positions - 1).clamp_min(0).remainder(block_width)
+        prefix_suffix_mask = current_content & within_block.ge(
+            revealed_counts.reshape(-1, 1)
+        )
+        current_mask = torch.where(
+            rollout_prefix_masked.reshape(-1, 1),
+            prefix_suffix_mask,
+            current_mask,
+        )
+        if not current_mask.any():
+            fallback_row = int(mask_probabilities.argmax().item())
+            first_current_positions = current_content.float().argmax(dim=1)
+            current_mask[fallback_row, first_current_positions[fallback_row]] = True
+            fallback_rows[fallback_row] = True
+        full_block_masked = (current_mask | ~current_content).all(dim=1)
+        input_ids = clean_ids.masked_fill(current_mask, mask_token_id)
+        input_ids = input_ids.masked_fill(suffix, pad_token_id)
+    loss_weights = torch.zeros(
+        clean_ids.shape,
+        device=clean_ids.device,
+        dtype=torch.float32,
+    )
+    inverse_probabilities = mask_probabilities.reciprocal().masked_fill(
+        rollout_prefix_masked | fallback_rows,
+        1.0,
+    )
+    loss_weights = loss_weights.masked_scatter(
+        current_mask,
+        inverse_probabilities
+        .reshape(-1, 1)
+        .expand_as(clean_ids)[current_mask],
+    )
     return FairBlockInputs(
         input_ids=input_ids,
         current_mask=current_mask,
+        current_content_mask=current_content,
         selected_blocks=selected_blocks,
+        mask_probabilities=mask_probabilities,
+        loss_weights=loss_weights,
+        full_block_masked=full_block_masked,
+        rollout_prefix_masked=rollout_prefix_masked,
     )
 
 
@@ -222,8 +409,10 @@ def frigid_distillation_loss(
     *,
     temperature: float,
     kl_weight: float,
+    loss_weights: torch.Tensor | None = None,
+    normalization_mask: torch.Tensor | None = None,
 ) -> FrigidDistillationLoss:
-    """Compute target CE plus temperature-scaled teacher KL on one block."""
+    """Compute weighted target CE plus temperature-scaled teacher KL."""
 
     if student_logits.shape != teacher_logits.shape:
         raise ValueError("teacher and student logits must have equal shapes")
@@ -231,6 +420,28 @@ def frigid_distillation_loss(
         raise ValueError("logits and target token shapes do not match")
     if current_mask.shape != targets.shape or current_mask.dtype != torch.bool:
         raise ValueError("current_mask must be boolean with the target shape")
+    if loss_weights is None:
+        loss_weights = torch.ones_like(targets, dtype=torch.float32)
+    if loss_weights.shape != targets.shape:
+        raise ValueError("loss_weights must have the target shape")
+    if (~torch.isfinite(loss_weights) | (loss_weights < 0)).any():
+        raise ValueError("loss_weights must be finite and non-negative")
+    if normalization_mask is not None:
+        if (
+            normalization_mask.shape != targets.shape
+            or normalization_mask.dtype != torch.bool
+        ):
+            raise ValueError(
+                "normalization_mask must be boolean with the target shape"
+            )
+        if (current_mask & ~normalization_mask).any():
+            raise ValueError(
+                "current_mask must be contained in normalization_mask"
+            )
+        if not normalization_mask.any(dim=1).all():
+            raise ValueError(
+                "normalization_mask must contain a target in every row"
+            )
     if temperature <= 0:
         raise ValueError("temperature must be positive")
     if kl_weight < 0:
@@ -242,12 +453,53 @@ def frigid_distillation_loss(
     selected_student = student_logits[current_mask].float()
     selected_teacher = teacher_logits.detach()[current_mask].float()
     selected_targets = targets[current_mask]
-    cross_entropy = F.cross_entropy(selected_student, selected_targets)
-    kl = F.kl_div(
+    selected_weights = loss_weights[current_mask].float()
+    if selected_weights.sum().item() <= 0:
+        raise ValueError("masked current tokens must have positive loss weights")
+    token_cross_entropy = F.cross_entropy(
+        selected_student,
+        selected_targets,
+        reduction="none",
+    )
+    token_kl = F.kl_div(
         F.log_softmax(selected_student / temperature, dim=-1),
         F.softmax(selected_teacher / temperature, dim=-1),
-        reduction="batchmean",
-    ) * temperature**2
+        reduction="none",
+    ).sum(dim=-1) * temperature**2
+    if normalization_mask is None:
+        weight_sum = selected_weights.sum()
+        cross_entropy = (
+            token_cross_entropy * selected_weights
+        ).sum() / weight_sum
+        kl = (token_kl * selected_weights).sum() / weight_sum
+    else:
+        batch_size = targets.shape[0]
+        row_indices = (
+            torch.arange(batch_size, device=targets.device)
+            .reshape(-1, 1)
+            .expand_as(targets)[current_mask]
+        )
+        cross_entropy_by_row = torch.zeros(
+            batch_size,
+            device=selected_student.device,
+            dtype=selected_student.dtype,
+        )
+        kl_by_row = torch.zeros_like(cross_entropy_by_row)
+        cross_entropy_by_row.scatter_add_(
+            0,
+            row_indices,
+            token_cross_entropy * selected_weights,
+        )
+        kl_by_row.scatter_add_(
+            0,
+            row_indices,
+            token_kl * selected_weights,
+        )
+        fixed_denominator = normalization_mask.sum(dim=1).to(
+            dtype=selected_student.dtype
+        )
+        cross_entropy = (cross_entropy_by_row / fixed_denominator).mean()
+        kl = (kl_by_row / fixed_denominator).mean()
     agreement = (
         selected_student.argmax(dim=-1)
         .eq(selected_teacher.argmax(dim=-1))

@@ -12,6 +12,9 @@ adaptation:
   trainable_scope: attention_plus_top4_ffn
   attention_mode: block
   block_width_override: 8
+  current_block_masking: continuous_time
+  full_block_mask_probability: 0.25
+  rollout_prefix_probability: 0.5
   kl_weight: 0.25
 
 model:
@@ -35,6 +38,7 @@ tracking:
       - not-strict-reproduction
       - stage-2
       - block-attention-8
+      - rollout-state-distillation
       - raw-molecular-validation
       - formula-teacher
       - fingerprint-teacher

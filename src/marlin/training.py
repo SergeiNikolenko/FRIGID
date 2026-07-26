@@ -344,6 +344,9 @@ class MarlinLightningModule(L.LightningModule):
             pad_token_id=self.decoder.config.pad_token_id,
             mask_token_id=self.decoder.config.mask_token_id,
             generator=generator,
+            current_block_masking=settings.current_block_masking,
+            full_block_mask_probability=settings.full_block_mask_probability,
+            rollout_prefix_probability=settings.rollout_prefix_probability,
         )
         if settings.attention_mode == "frigid_full":
             student_logits = self.decoder(
@@ -374,6 +377,12 @@ class MarlinLightningModule(L.LightningModule):
             fair.current_mask,
             temperature=settings.temperature,
             kl_weight=settings.kl_weight,
+            loss_weights=fair.loss_weights,
+            normalization_mask=(
+                fair.current_content_mask
+                if settings.current_block_masking == "continuous_time"
+                else None
+            ),
         )
         current_accuracy = (
             student_logits.detach()
@@ -390,6 +399,15 @@ class MarlinLightningModule(L.LightningModule):
             ),
             "distillation_current_token_accuracy": current_accuracy,
             "current_tokens": result.current_tokens.detach(),
+            "distillation_mask_probability": (
+                fair.mask_probabilities.mean().detach()
+            ),
+            "distillation_full_block_mask_fraction": (
+                fair.full_block_masked.float().mean().detach()
+            ),
+            "distillation_rollout_prefix_fraction": (
+                fair.rollout_prefix_masked.float().mean().detach()
+            ),
         }
         return result.loss, metrics
 
@@ -555,6 +573,9 @@ class ClearMLScalarCallback(L.Callback):
         "train_distillation_kl",
         "train_distillation_student_teacher_top1_agreement",
         "train_distillation_current_token_accuracy",
+        "train_distillation_mask_probability",
+        "train_distillation_full_block_mask_fraction",
+        "train_distillation_rollout_prefix_fraction",
         "train_current_tokens",
         "learning_rate",
         "grad_norm",
@@ -818,6 +839,7 @@ class MarlinMolecularValidationCallback(L.Callback):
         try:
             sampler = self._sampler(pl_module.decoder)
             attempts = valid = mass_valid = unique_mass_valid = returned = exact = 0
+            dead_ends = eos_terminated = max_length_terminated = 0
             top1_tanimoto = []
             sample_rows = []
             device = pl_module.device
@@ -835,6 +857,9 @@ class MarlinMolecularValidationCallback(L.Callback):
                 valid += stats.valid
                 mass_valid += stats.mass_valid
                 unique_mass_valid += stats.unique_mass_valid
+                dead_ends += stats.constraint_dead_ends
+                eos_terminated += stats.eos_terminated
+                max_length_terminated += stats.max_length_terminated
                 returned += int(bool(ranked))
                 generated_smiles = ranked[0].smiles if ranked else None
                 if generated_smiles is None:
@@ -888,6 +913,9 @@ class MarlinMolecularValidationCallback(L.Callback):
                         "mass_error_ppm": generated_mass_error_ppm,
                         "valid": stats.valid,
                         "mass_valid": stats.mass_valid,
+                        "constraint_dead_ends": stats.constraint_dead_ends,
+                        "eos_terminated": stats.eos_terminated,
+                        "max_length_terminated": stats.max_length_terminated,
                     }
                 )
 
@@ -899,6 +927,9 @@ class MarlinMolecularValidationCallback(L.Callback):
                 "candidate_return_rate": returned / count,
                 "exact_top1": exact / count,
                 "tanimoto_top1": float(np.mean(top1_tanimoto)),
+                "constraint_dead_end_rate": dead_ends / attempts,
+                "eos_termination_rate": eos_terminated / attempts,
+                "max_length_termination_rate": max_length_terminated / attempts,
             }
             for name, value in metrics.items():
                 pl_module.log(

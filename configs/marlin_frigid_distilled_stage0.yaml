@@ -13,6 +13,9 @@ adaptation:
   teacher_checkpoint: /mnt/netstorage/nikolenko/marlin/checkpoints/frigid/DLM.ckpt
   teacher_sha256: b6177c2d43448380aba80ff41c01461ea34ca2ca93b213986954c5afb7f0f457
   attention_mode: frigid_full
+  current_block_masking: full
+  full_block_mask_probability: 0.0
+  rollout_prefix_probability: 0.0
   # Defines the fair current/suffix masking block. Attention itself is explicit
   # full attention and does not use this width as an approximation.
   block_width_override: 256

@@ -80,6 +80,36 @@ def test_two_stream_current_logits_cannot_read_clean_current_or_future():
     assert torch.allclose(first[:, 3:5], second[:, 3:5], atol=1e-6)
 
 
+def test_sampling_logits_use_revealed_tokens_inside_current_block():
+    config = MarlinDecoderConfig(
+        vocab_size=9,
+        hidden_size=8,
+        num_layers=1,
+        num_heads=1,
+        intermediate_size=16,
+        max_length=8,
+        block_width=4,
+        fingerprint_bits=8,
+        dropout=0.0,
+        mask_token_id=4,
+        pad_token_id=0,
+    )
+    decoder = MarlinDecoder(config).eval()
+    all_masked = torch.tensor([[1, 4, 4, 4, 4]])
+    partially_revealed = torch.tensor([[1, 5, 4, 4, 4]])
+    mass = torch.tensor([100.0])
+    fingerprint = torch.zeros((1, 8))
+
+    masked_logits = decoder.sampling_logits(all_masked, mass, fingerprint)
+    revealed_logits = decoder.sampling_logits(
+        partially_revealed,
+        mass,
+        fingerprint,
+    )
+
+    assert not torch.allclose(masked_logits[:, 2:], revealed_logits[:, 2:])
+
+
 def test_symmetric_noise_preserves_number_of_on_bits():
     fingerprint = torch.tensor([[1, 1, 1, 1, 0, 0, 0, 0]], dtype=torch.float32)
     generator = torch.Generator().manual_seed(7)
@@ -238,6 +268,9 @@ def test_molecular_validation_can_evaluate_raw_weights_without_touching_ema(
                 valid=0,
                 mass_valid=0,
                 unique_mass_valid=0,
+                constraint_dead_ends=2,
+                eos_terminated=0,
+                max_length_terminated=0,
                 sample_terminal_safes=[],
             )
 
@@ -284,6 +317,7 @@ def test_molecular_validation_can_evaluate_raw_weights_without_touching_ema(
     result = json.loads(callback.latest_output_path.read_text())
     assert result["weights"] == "raw"
     assert result["metrics"]["validity"] == 0.0
+    assert result["metrics"]["constraint_dead_end_rate"] == 1.0
 
 
 def test_molecular_validation_callback_reports_clearml_table_and_image(tmp_path):

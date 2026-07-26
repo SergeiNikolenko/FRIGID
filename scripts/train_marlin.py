@@ -143,6 +143,15 @@ def build_distillation(
         trainable_scope=str(config.adaptation.get("trainable_scope", "mass_only")),
         block_width_override=int(config.adaptation.block_width_override),
         attention_mode=str(config.adaptation.get("attention_mode", "frigid_full")),
+        current_block_masking=str(
+            config.adaptation.get("current_block_masking", "full")
+        ),
+        full_block_mask_probability=float(
+            config.adaptation.get("full_block_mask_probability", 0.0)
+        ),
+        rollout_prefix_probability=float(
+            config.adaptation.get("rollout_prefix_probability", 0.0)
+        ),
         temperature=float(config.adaptation.temperature),
         kl_weight=float(config.adaptation.kl_weight),
         use_isotope=bool(config.adaptation.get("use_isotope", False)),
