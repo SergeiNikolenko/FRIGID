@@ -9,6 +9,7 @@ from hydra import compose, initialize_config_dir
 from omegaconf import OmegaConf
 
 from marlin.distillation import (
+    ALL_DECODER_TRAINABLE_SCOPE,
     ATTENTION_BRIDGE_TRAINABLE_SCOPE,
     ATTENTION_PLUS_ALL_FFN_TRAINABLE_SCOPE,
     ATTENTION_PLUS_TOP4_FFN_TRAINABLE_SCOPE,
@@ -846,6 +847,91 @@ def test_top4_prediction_head_scope_keeps_tied_output_frozen_after_backward():
         assert parameter.grad is not None
 
 
+def test_all_decoder_scope_matches_every_unique_decoder_parameter():
+    config = replace(
+        MarlinDecoderConfig(),
+        num_layers=2,
+        max_length=8,
+        block_width=8,
+        fingerprint_bits=8,
+        fingerprint_self_attention_layers=1,
+        frigid_compatible_layer_order=True,
+    )
+    decoder = MarlinDecoder(config)
+    named_parameters = dict(decoder.named_parameters())
+    expected = expected_distillation_trainable_parameters(
+        ALL_DECODER_TRAINABLE_SCOPE,
+        num_layers=config.num_layers,
+        fingerprint_self_attention_layers=(
+            config.fingerprint_self_attention_layers
+        ),
+        frigid_compatible_layer_order=config.frigid_compatible_layer_order,
+    )
+
+    assert expected == set(named_parameters)
+    assert decoder.output.weight is decoder.token_embedding.weight
+    assert "token_embedding.weight" in expected
+    assert "output.weight" not in named_parameters
+    assert "position_embedding.weight" in expected
+    assert "token_type_embedding.weight" in expected
+    assert "embedding_norm.weight" in expected
+    assert "conditioner.fingerprint.embedding.weight" in expected
+    assert (
+        "conditioner.fingerprint.self_attention_layers."
+        "0.attention.in_proj_weight"
+    ) in expected
+    assert "layers.0.self_attention.in_proj_weight" in expected
+    assert "layers.1.cross_attention.out_proj.weight" in expected
+    assert "layers.0.linear1.weight" in expected
+    assert "layers.1.linear2.bias" in expected
+    assert "prediction_dense.weight" in expected
+    assert "prediction_norm.bias" in expected
+    assert "output_bias" in expected
+
+
+def test_all_decoder_scope_trains_only_student_decoder_parameters():
+    class ParameterizedTeacher(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.teacher_parameter = torch.nn.Parameter(torch.ones(()))
+
+        def logits(self, input_ids, formulas, fingerprint):
+            del formulas, fingerprint
+            return torch.zeros((*input_ids.shape, 7), device=input_ids.device)
+
+    config = replace(
+        _tiny_config(),
+        fingerprint_self_attention_layers=1,
+        frigid_compatible_layer_order=True,
+    )
+    teacher = ParameterizedTeacher()
+    module = MarlinLightningModule(
+        config,
+        distillation=FrigidDistillationSettings(
+            mode=FRIGID_DISTILLED_MARLIN_MODE,
+            trainable_scope=ALL_DECODER_TRAINABLE_SCOPE,
+            attention_mode="block",
+            block_width_override=2,
+            current_block_masking="full",
+            temperature=2.0,
+            kl_weight=0.5,
+        ),
+        frigid_teacher=teacher,
+    )
+    decoder_parameters = dict(module.decoder.named_parameters())
+    module_parameters = dict(module.named_parameters())
+
+    assert {
+        name for name, parameter in decoder_parameters.items() if parameter.requires_grad
+    } == set(decoder_parameters)
+    assert set(module_parameters) == {
+        f"decoder.{name}" for name in decoder_parameters
+    }
+    assert teacher.teacher_parameter.requires_grad
+    assert teacher.teacher_parameter.grad is None
+    assert all("teacher" not in name for name in module_parameters)
+
+
 def test_all_ffn_scope_has_exact_decoder_parameter_set():
     num_layers = 12
     mass_parameters = {
@@ -1195,6 +1281,72 @@ def test_prediction_head_tiny_config_only_changes_scope_and_run_identity():
     assert prediction_head.trainer == balanced_cyclic.trainer
     assert "prediction-head" in prediction_head.tracking.clearml.tags
     assert "attention-plus-top4-ffn" in prediction_head.tracking.clearml.tags
+
+
+def test_all_decoder_tiny_config_preserves_balanced_cyclic_gate():
+    config_dir = str(Path(__file__).resolve().parents[1] / "configs")
+    with initialize_config_dir(version_base=None, config_dir=config_dir):
+        prediction_head = compose(
+            config_name=(
+                "marlin_frigid_distilled_tiny_overfit_c16h12o3_"
+                "action_ce_balanced_cyclic_prediction_head"
+            )
+        )
+        all_decoder = compose(
+            config_name=(
+                "marlin_frigid_distilled_tiny_overfit_c16h12o3_"
+                "action_ce_balanced_cyclic_all_decoder"
+            )
+        )
+
+    prediction_head_container = OmegaConf.to_container(
+        prediction_head, resolve=True
+    )
+    all_decoder_container = OmegaConf.to_container(all_decoder, resolve=True)
+    assert isinstance(prediction_head_container, dict)
+    assert isinstance(all_decoder_container, dict)
+
+    expected_differences = {
+        "adaptation.stage",
+        "adaptation.trainable_scope",
+        "optim.learning_rate",
+        "output.root",
+        "output.checkpoints",
+        "tracking.clearml.task_name",
+        "tracking.clearml.tags",
+    }
+
+    def differing_paths(left, right, prefix=""):
+        if isinstance(left, dict) and isinstance(right, dict):
+            assert left.keys() == right.keys()
+            return {
+                path
+                for key in left
+                for path in differing_paths(
+                    left[key],
+                    right[key],
+                    f"{prefix}.{key}" if prefix else key,
+                )
+            }
+        return {prefix} if left != right else set()
+
+    assert (
+        differing_paths(prediction_head_container, all_decoder_container)
+        == expected_differences
+    )
+    assert all_decoder.adaptation.trainable_scope == ALL_DECODER_TRAINABLE_SCOPE
+    assert all_decoder.optim.learning_rate == pytest.approx(5.0e-5)
+    assert all_decoder.data == prediction_head.data
+    assert all_decoder.loader == prediction_head.loader
+    assert all_decoder.model == prediction_head.model
+    assert all_decoder.training == prediction_head.training
+    assert all_decoder.trainer == prediction_head.trainer
+    assert all_decoder.trainer.max_steps == 400
+    assert "FRIGID-distilled-MARLIN" in all_decoder.tracking.clearml.tags
+    assert "not-strict-reproduction" in all_decoder.tracking.clearml.tags
+    assert "diagnostic-only" in all_decoder.tracking.clearml.tags
+    assert "all-decoder" in all_decoder.tracking.clearml.tags
+    assert "full-decoder-finetune" in all_decoder.tracking.clearml.tags
 
 
 def test_frigid_teacher_rejects_tokenizer_mismatch():

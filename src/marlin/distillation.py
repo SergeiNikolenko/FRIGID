@@ -21,6 +21,7 @@ ATTENTION_PLUS_TOP4_FFN_PREDICTION_HEAD_TRAINABLE_SCOPE = (
     "attention_plus_top4_ffn_prediction_head"
 )
 ATTENTION_PLUS_ALL_FFN_TRAINABLE_SCOPE = "attention_plus_all_ffn"
+ALL_DECODER_TRAINABLE_SCOPE = "all_decoder"
 RANDOM_ROLLOUT_PREFIX_SCHEDULE = "random"
 CYCLIC_ROLLOUT_PREFIX_SCHEDULE = "cyclic"
 ROLLOUT_PREFIX_SCHEDULES = frozenset(
@@ -33,6 +34,7 @@ TRAINABLE_SCOPES = frozenset(
         ATTENTION_PLUS_TOP4_FFN_TRAINABLE_SCOPE,
         ATTENTION_PLUS_TOP4_FFN_PREDICTION_HEAD_TRAINABLE_SCOPE,
         ATTENTION_PLUS_ALL_FFN_TRAINABLE_SCOPE,
+        ALL_DECODER_TRAINABLE_SCOPE,
     }
 )
 
@@ -41,6 +43,8 @@ def expected_distillation_trainable_parameters(
     scope: str,
     *,
     num_layers: int,
+    fingerprint_self_attention_layers: int = 0,
+    frigid_compatible_layer_order: bool = False,
 ) -> frozenset[str]:
     """Return the exact, fail-closed set of trainable decoder parameters."""
 
@@ -50,6 +54,77 @@ def expected_distillation_trainable_parameters(
         )
     if num_layers <= 0:
         raise ValueError("num_layers must be positive")
+    if fingerprint_self_attention_layers < 0:
+        raise ValueError("fingerprint_self_attention_layers must be non-negative")
+
+    if scope == ALL_DECODER_TRAINABLE_SCOPE:
+        names = {
+            "output_bias",
+            "token_embedding.weight",
+            "position_embedding.weight",
+            "conditioner.mass.projection.0.weight",
+            "conditioner.mass.projection.0.bias",
+            "conditioner.mass.projection.2.weight",
+            "conditioner.mass.projection.2.bias",
+            "conditioner.isotope.0.weight",
+            "conditioner.isotope.0.bias",
+            "conditioner.isotope.2.weight",
+            "conditioner.isotope.2.bias",
+            "conditioner.fingerprint.embedding.weight",
+            "conditioner.fingerprint.layer_norm.weight",
+            "conditioner.fingerprint.layer_norm.bias",
+            "prediction_dense.weight",
+            "prediction_dense.bias",
+            "prediction_norm.weight",
+            "prediction_norm.bias",
+        }
+        if frigid_compatible_layer_order:
+            names.update(
+                {
+                    "token_type_embedding.weight",
+                    "embedding_norm.weight",
+                    "embedding_norm.bias",
+                }
+            )
+        fingerprint_attention_modules = (
+            "attention.in_proj_weight",
+            "attention.in_proj_bias",
+            "attention.out_proj.weight",
+            "attention.out_proj.bias",
+            "norm.weight",
+            "norm.bias",
+        )
+        for layer_index in range(fingerprint_self_attention_layers):
+            names.update(
+                "conditioner.fingerprint.self_attention_layers."
+                f"{layer_index}.{suffix}"
+                for suffix in fingerprint_attention_modules
+            )
+        decoder_layer_modules = (
+            "self_attention.in_proj_weight",
+            "self_attention.in_proj_bias",
+            "self_attention.out_proj.weight",
+            "self_attention.out_proj.bias",
+            "cross_attention.in_proj_weight",
+            "cross_attention.in_proj_bias",
+            "cross_attention.out_proj.weight",
+            "cross_attention.out_proj.bias",
+            "linear1.weight",
+            "linear1.bias",
+            "linear2.weight",
+            "linear2.bias",
+            "norm1.weight",
+            "norm1.bias",
+            "norm2.weight",
+            "norm2.bias",
+            "norm3.weight",
+            "norm3.bias",
+        )
+        for layer_index in range(num_layers):
+            names.update(
+                f"layers.{layer_index}.{suffix}" for suffix in decoder_layer_modules
+            )
+        return frozenset(names)
 
     names = {
         "conditioner.mass.projection.0.weight",

@@ -16,6 +16,7 @@ from rdkit.Chem import AllChem, Descriptors, Draw, rdMolDescriptors
 
 from dlm.utils.utils_chem import safe_to_smiles, smiles_to_safe
 from marlin.distillation import (
+    ALL_DECODER_TRAINABLE_SCOPE,
     CYCLIC_ROLLOUT_PREFIX_SCHEDULE,
     FairBlockInputs,
     FrigidDistillationSettings,
@@ -268,6 +269,12 @@ class MarlinLightningModule(L.LightningModule):
         expected = expected_distillation_trainable_parameters(
             self.distillation.trainable_scope,
             num_layers=self.decoder.config.num_layers,
+            fingerprint_self_attention_layers=(
+                self.decoder.config.fingerprint_self_attention_layers
+            ),
+            frigid_compatible_layer_order=(
+                self.decoder.config.frigid_compatible_layer_order
+            ),
         )
         named_parameters = dict(self.decoder.named_parameters())
         missing = expected.difference(named_parameters)
@@ -276,6 +283,13 @@ class MarlinLightningModule(L.LightningModule):
                 "decoder does not expose the requested trainable parameters: "
                 + ", ".join(sorted(missing))
             )
+        if self.distillation.trainable_scope == ALL_DECODER_TRAINABLE_SCOPE:
+            uncovered = set(named_parameters).difference(expected)
+            if uncovered:
+                raise RuntimeError(
+                    "all_decoder scope does not cover decoder parameters: "
+                    + ", ".join(sorted(uncovered))
+                )
         for name, parameter in named_parameters.items():
             parameter.requires_grad_(name in expected)
         actual = {
