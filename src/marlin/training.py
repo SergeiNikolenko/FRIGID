@@ -18,7 +18,6 @@ from dlm.utils.utils_chem import safe_to_smiles, smiles_to_safe
 from marlin.distillation import (
     FairBlockInputs,
     FrigidDistillationSettings,
-    MASS_ONLY_TRAINABLE_SCOPE,
     build_fair_block_inputs,
     expected_distillation_trainable_parameters,
     frigid_distillation_loss,
@@ -291,11 +290,9 @@ class MarlinLightningModule(L.LightningModule):
 
         if self.distillation is None:
             return
-        if self.distillation.trainable_scope == MASS_ONLY_TRAINABLE_SCOPE:
-            self.decoder.eval()
-            self.decoder.conditioner.mass.train()
-        else:
-            self.decoder.train()
+        # Evaluation mode disables dropout without disabling autograd. Exact
+        # parameter trainability remains controlled solely by requires_grad.
+        self.decoder.eval()
 
     def train(self, mode: bool = True):
         result = super().train(mode)

@@ -1,4 +1,5 @@
 import importlib.util
+from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 
@@ -10,6 +11,7 @@ from marlin.distillation import (
     ATTENTION_BRIDGE_TRAINABLE_SCOPE,
     ATTENTION_PLUS_TOP4_FFN_TRAINABLE_SCOPE,
     FRIGID_DISTILLED_MARLIN_MODE,
+    MASS_ONLY_TRAINABLE_SCOPE,
     FrozenFrigidTeacher,
     FrigidDistillationSettings,
     build_fair_block_inputs,
@@ -398,7 +400,84 @@ def test_block_distillation_reports_deterministic_revealed_context_response():
     assert metrics["distillation_student_context_logit_l1"].item() > 0
     assert metrics["distillation_teacher_context_logit_l1"].item() > 0
     assert torch.isfinite(metrics["distillation_context_response_ratio"])
-    assert module.decoder.training
+    assert not module.decoder.training
+
+
+@pytest.mark.parametrize(
+    ("scope", "attention_mode"),
+    (
+        (MASS_ONLY_TRAINABLE_SCOPE, "frigid_full"),
+        (ATTENTION_BRIDGE_TRAINABLE_SCOPE, "block"),
+        (ATTENTION_PLUS_TOP4_FFN_TRAINABLE_SCOPE, "block"),
+    ),
+)
+def test_distillation_scopes_disable_dropout_but_keep_selected_gradients(
+    scope,
+    attention_mode,
+):
+    class ConstantTeacher:
+        def logits(self, input_ids, formulas, fingerprint):
+            del formulas, fingerprint
+            return torch.zeros((*input_ids.shape, 7), device=input_ids.device)
+
+    config = replace(_tiny_config(), block_width=8, dropout=0.5)
+    module = MarlinLightningModule(
+        config,
+        distillation=FrigidDistillationSettings(
+            mode=FRIGID_DISTILLED_MARLIN_MODE,
+            trainable_scope=scope,
+            attention_mode=attention_mode,
+            block_width_override=8,
+            current_block_masking="full",
+            temperature=2.0,
+            kl_weight=0.5,
+        ),
+        frigid_teacher=ConstantTeacher(),
+    )
+    module.train()
+
+    assert module.training
+    assert not module.decoder.training
+    assert all(
+        not submodule.training
+        for submodule in module.decoder.modules()
+        if isinstance(submodule, torch.nn.Dropout)
+    )
+
+    expected = expected_distillation_trainable_parameters(
+        scope,
+        num_layers=module.decoder.config.num_layers,
+    )
+    named_parameters = dict(module.decoder.named_parameters())
+    actual = {
+        name for name, parameter in named_parameters.items() if parameter.requires_grad
+    }
+    assert actual == set(expected)
+    optimizer = module.configure_optimizers()
+    optimized = {
+        id(parameter)
+        for parameter_group in optimizer.param_groups
+        for parameter in parameter_group["params"]
+    }
+    assert optimized == {id(named_parameters[name]) for name in expected}
+
+    batch = {
+        "input_ids": torch.tensor([[1, 5, 6, 2, 0]]),
+        "fingerprint": torch.tensor(
+            [[1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0]]
+        ),
+        "precursor_mass": torch.tensor([44.0]),
+        "formula": ["C2H4O"],
+    }
+    loss, _ = module.frigid_distillation_objective(
+        batch,
+        generator=torch.Generator().manual_seed(5),
+    )
+    loss.backward()
+
+    assert {
+        name for name in expected if named_parameters[name].grad is not None
+    } == set(expected)
 
 
 def test_block_context_metrics_keep_keys_when_batch_has_no_revealed_tokens():
