@@ -17,6 +17,9 @@ FRIGID_DISTILLED_MARLIN_MODE = "frigid_distilled_marlin"
 MASS_ONLY_TRAINABLE_SCOPE = "mass_only"
 ATTENTION_BRIDGE_TRAINABLE_SCOPE = "attention_bridge"
 ATTENTION_PLUS_TOP4_FFN_TRAINABLE_SCOPE = "attention_plus_top4_ffn"
+ATTENTION_PLUS_TOP4_FFN_PREDICTION_HEAD_TRAINABLE_SCOPE = (
+    "attention_plus_top4_ffn_prediction_head"
+)
 ATTENTION_PLUS_ALL_FFN_TRAINABLE_SCOPE = "attention_plus_all_ffn"
 RANDOM_ROLLOUT_PREFIX_SCHEDULE = "random"
 CYCLIC_ROLLOUT_PREFIX_SCHEDULE = "cyclic"
@@ -28,6 +31,7 @@ TRAINABLE_SCOPES = frozenset(
         MASS_ONLY_TRAINABLE_SCOPE,
         ATTENTION_BRIDGE_TRAINABLE_SCOPE,
         ATTENTION_PLUS_TOP4_FFN_TRAINABLE_SCOPE,
+        ATTENTION_PLUS_TOP4_FFN_PREDICTION_HEAD_TRAINABLE_SCOPE,
         ATTENTION_PLUS_ALL_FFN_TRAINABLE_SCOPE,
     }
 )
@@ -77,6 +81,7 @@ def expected_distillation_trainable_parameters(
 
     if scope in {
         ATTENTION_PLUS_TOP4_FFN_TRAINABLE_SCOPE,
+        ATTENTION_PLUS_TOP4_FFN_PREDICTION_HEAD_TRAINABLE_SCOPE,
         ATTENTION_PLUS_ALL_FFN_TRAINABLE_SCOPE,
     }:
         ffn_modules = (
@@ -88,14 +93,24 @@ def expected_distillation_trainable_parameters(
             "norm3.bias",
         )
         first_ffn_layer = (
-            max(0, num_layers - 4)
-            if scope == ATTENTION_PLUS_TOP4_FFN_TRAINABLE_SCOPE
-            else 0
+            0
+            if scope == ATTENTION_PLUS_ALL_FFN_TRAINABLE_SCOPE
+            else max(0, num_layers - 4)
         )
         for layer_index in range(first_ffn_layer, num_layers):
             names.update(
                 f"layers.{layer_index}.{suffix}" for suffix in ffn_modules
             )
+    if scope == ATTENTION_PLUS_TOP4_FFN_PREDICTION_HEAD_TRAINABLE_SCOPE:
+        names.update(
+            {
+                "prediction_dense.weight",
+                "prediction_dense.bias",
+                "prediction_norm.weight",
+                "prediction_norm.bias",
+                "output_bias",
+            }
+        )
     return frozenset(names)
 
 

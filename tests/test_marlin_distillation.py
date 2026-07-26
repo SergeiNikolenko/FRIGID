@@ -12,6 +12,7 @@ from marlin.distillation import (
     ATTENTION_BRIDGE_TRAINABLE_SCOPE,
     ATTENTION_PLUS_ALL_FFN_TRAINABLE_SCOPE,
     ATTENTION_PLUS_TOP4_FFN_TRAINABLE_SCOPE,
+    ATTENTION_PLUS_TOP4_FFN_PREDICTION_HEAD_TRAINABLE_SCOPE,
     CYCLIC_ROLLOUT_PREFIX_SCHEDULE,
     FRIGID_DISTILLED_MARLIN_MODE,
     MASS_ONLY_TRAINABLE_SCOPE,
@@ -24,7 +25,7 @@ from marlin.distillation import (
 )
 from marlin.ema import AllParameterExponentialMovingAverage
 from marlin.losses import balanced_token_target_weights
-from marlin.model import MarlinDecoderConfig
+from marlin.model import MarlinDecoder, MarlinDecoderConfig
 from marlin.training import ClearMLScalarCallback, MarlinLightningModule
 
 
@@ -606,6 +607,7 @@ def test_block_distillation_reports_deterministic_revealed_context_response():
         (MASS_ONLY_TRAINABLE_SCOPE, "frigid_full"),
         (ATTENTION_BRIDGE_TRAINABLE_SCOPE, "block"),
         (ATTENTION_PLUS_TOP4_FFN_TRAINABLE_SCOPE, "block"),
+        (ATTENTION_PLUS_TOP4_FFN_PREDICTION_HEAD_TRAINABLE_SCOPE, "block"),
         (ATTENTION_PLUS_ALL_FFN_TRAINABLE_SCOPE, "block"),
     ),
 )
@@ -728,10 +730,15 @@ def test_curriculum_scopes_have_fail_closed_parameter_counts():
         ATTENTION_PLUS_ALL_FFN_TRAINABLE_SCOPE,
         num_layers=12,
     )
+    top4_prediction_head = expected_distillation_trainable_parameters(
+        ATTENTION_PLUS_TOP4_FFN_PREDICTION_HEAD_TRAINABLE_SCOPE,
+        num_layers=12,
+    )
 
     assert len(stage1) == 148
     assert len(stage2) == 172
     assert len(all_ffn) == 220
+    assert len(top4_prediction_head) == 177
     assert "token_embedding.weight" not in stage1
     assert "prediction_dense.weight" not in stage2
     assert "conditioner.fingerprint.embedding.weight" not in all_ffn
@@ -739,6 +746,104 @@ def test_curriculum_scopes_have_fail_closed_parameter_counts():
     assert "layers.7.linear1.weight" not in stage2
     assert "layers.0.linear1.weight" in all_ffn
     assert "layers.11.norm3.bias" in all_ffn
+    assert top4_prediction_head.difference(stage2) == {
+        "prediction_dense.weight",
+        "prediction_dense.bias",
+        "prediction_norm.weight",
+        "prediction_norm.bias",
+        "output_bias",
+    }
+    assert "token_embedding.weight" not in top4_prediction_head
+    assert "output.weight" not in top4_prediction_head
+
+
+def test_top4_prediction_head_scope_adds_exact_unshared_head_parameters():
+    config = replace(
+        MarlinDecoderConfig(),
+        num_layers=1,
+        max_length=8,
+        block_width=8,
+        fingerprint_bits=8,
+        fingerprint_self_attention_layers=0,
+    )
+    decoder = MarlinDecoder(config)
+    named_parameters = dict(decoder.named_parameters())
+    top4 = expected_distillation_trainable_parameters(
+        ATTENTION_PLUS_TOP4_FFN_TRAINABLE_SCOPE,
+        num_layers=config.num_layers,
+    )
+    top4_prediction_head = expected_distillation_trainable_parameters(
+        ATTENTION_PLUS_TOP4_FFN_PREDICTION_HEAD_TRAINABLE_SCOPE,
+        num_layers=config.num_layers,
+    )
+    added = top4_prediction_head.difference(top4)
+
+    assert added == {
+        "prediction_dense.weight",
+        "prediction_dense.bias",
+        "prediction_norm.weight",
+        "prediction_norm.bias",
+        "output_bias",
+    }
+    assert sum(named_parameters[name].numel() for name in added) == 807_384
+    assert decoder.output.weight is decoder.token_embedding.weight
+    assert "output.weight" not in named_parameters
+
+    for name, parameter in named_parameters.items():
+        parameter.requires_grad_(name in top4_prediction_head)
+    assert not decoder.token_embedding.weight.requires_grad
+    assert not decoder.output.weight.requires_grad
+
+
+def test_top4_prediction_head_scope_keeps_tied_output_frozen_after_backward():
+    class ConstantTeacher:
+        def logits(self, input_ids, formulas, fingerprint):
+            del formulas, fingerprint
+            return torch.zeros((*input_ids.shape, 7), device=input_ids.device)
+
+    module = MarlinLightningModule(
+        _tiny_config(),
+        distillation=FrigidDistillationSettings(
+            mode=FRIGID_DISTILLED_MARLIN_MODE,
+            trainable_scope=(
+                ATTENTION_PLUS_TOP4_FFN_PREDICTION_HEAD_TRAINABLE_SCOPE
+            ),
+            attention_mode="block",
+            block_width_override=2,
+            current_block_masking="full",
+            temperature=2.0,
+            kl_weight=0.5,
+        ),
+        frigid_teacher=ConstantTeacher(),
+    )
+    batch = {
+        "input_ids": torch.tensor([[1, 5, 6, 2, 0]]),
+        "fingerprint": torch.tensor(
+            [[1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0]]
+        ),
+        "precursor_mass": torch.tensor([44.0]),
+        "formula": ["C2H4O"],
+    }
+
+    loss, _ = module.frigid_distillation_objective(
+        batch,
+        generator=torch.Generator().manual_seed(5),
+    )
+    loss.backward()
+
+    assert module.decoder.output.weight is module.decoder.token_embedding.weight
+    assert not module.decoder.token_embedding.weight.requires_grad
+    assert module.decoder.token_embedding.weight.grad is None
+    for name in (
+        "prediction_dense.weight",
+        "prediction_dense.bias",
+        "prediction_norm.weight",
+        "prediction_norm.bias",
+        "output_bias",
+    ):
+        parameter = dict(module.decoder.named_parameters())[name]
+        assert parameter.requires_grad
+        assert parameter.grad is not None
 
 
 def test_all_ffn_scope_has_exact_decoder_parameter_set():
@@ -1026,6 +1131,70 @@ def test_balanced_cyclic_action_ce_config_only_changes_controlled_arm():
     assert balanced_cyclic.trainer.gradient_clip_val == 1.0
     assert "balanced-token-loss" in balanced_cyclic.tracking.clearml.tags
     assert "deterministic-cyclic-prefix" in balanced_cyclic.tracking.clearml.tags
+
+
+def test_prediction_head_tiny_config_only_changes_scope_and_run_identity():
+    config_dir = str(Path(__file__).resolve().parents[1] / "configs")
+    with initialize_config_dir(version_base=None, config_dir=config_dir):
+        balanced_cyclic = compose(
+            config_name=(
+                "marlin_frigid_distilled_tiny_overfit_c16h12o3_"
+                "action_ce_balanced_cyclic"
+            )
+        )
+        prediction_head = compose(
+            config_name=(
+                "marlin_frigid_distilled_tiny_overfit_c16h12o3_"
+                "action_ce_balanced_cyclic_prediction_head"
+            )
+        )
+
+    balanced_container = OmegaConf.to_container(balanced_cyclic, resolve=True)
+    prediction_head_container = OmegaConf.to_container(
+        prediction_head, resolve=True
+    )
+    assert isinstance(balanced_container, dict)
+    assert isinstance(prediction_head_container, dict)
+
+    expected_differences = {
+        "adaptation.stage",
+        "adaptation.trainable_scope",
+        "output.root",
+        "output.checkpoints",
+        "tracking.clearml.task_name",
+        "tracking.clearml.tags",
+    }
+
+    def differing_paths(left, right, prefix=""):
+        if isinstance(left, dict) and isinstance(right, dict):
+            assert left.keys() == right.keys()
+            return {
+                path
+                for key in left
+                for path in differing_paths(
+                    left[key],
+                    right[key],
+                    f"{prefix}.{key}" if prefix else key,
+                )
+            }
+        return {prefix} if left != right else set()
+
+    assert (
+        differing_paths(balanced_container, prediction_head_container)
+        == expected_differences
+    )
+    assert (
+        prediction_head.adaptation.trainable_scope
+        == ATTENTION_PLUS_TOP4_FFN_PREDICTION_HEAD_TRAINABLE_SCOPE
+    )
+    assert prediction_head.data == balanced_cyclic.data
+    assert prediction_head.loader == balanced_cyclic.loader
+    assert prediction_head.model == balanced_cyclic.model
+    assert prediction_head.optim == balanced_cyclic.optim
+    assert prediction_head.training == balanced_cyclic.training
+    assert prediction_head.trainer == balanced_cyclic.trainer
+    assert "prediction-head" in prediction_head.tracking.clearml.tags
+    assert "attention-plus-top4-ffn" in prediction_head.tracking.clearml.tags
 
 
 def test_frigid_teacher_rejects_tokenizer_mismatch():

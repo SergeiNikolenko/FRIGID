@@ -1,0 +1,36 @@
+# Diagnostic-only prediction-head capacity check on the balanced cyclic arm.
+# This is FRIGID-distilled MARLIN, not a strict paper reproduction or benchmark.
+defaults:
+  - marlin_frigid_distilled_tiny_overfit_c16h12o3_action_ce_balanced_cyclic
+  - _self_
+
+# Keep the same stage-0 initialization, objective, data, optimizer, clipping,
+# and budget. Add only the untied prediction transform, norm, and output bias;
+# the tied token/output embedding remains frozen.
+adaptation:
+  stage: diagnostic-tiny-overfit-c16h12o3-action-ce-balanced-cyclic-prediction-head
+  trainable_scope: attention_plus_top4_ffn_prediction_head
+
+output:
+  root: /mnt/netstorage/nikolenko/marlin/runs/frigid-distilled-tiny-c16h12o3-action-ce-balanced-cyclic-prediction-head
+  checkpoints: /mnt/netstorage/nikolenko/marlin/runs/frigid-distilled-tiny-c16h12o3-action-ce-balanced-cyclic-prediction-head/checkpoints
+
+tracking:
+  clearml:
+    task_name: frigid-distilled-marlin-tiny-c16h12o3-action-ce-balanced-cyclic-prediction-head
+    tags:
+      - FRIGID-distilled-MARLIN
+      - not-strict-reproduction
+      - diagnostic-only
+      - tiny-overfit
+      - c16h12o3-isomers
+      - block-attention-32
+      - attention-plus-top4-ffn
+      - prediction-head
+      - production-action-ce
+      - rollout-prefix-only
+      - kl-zero
+      - balanced-token-loss
+      - deterministic-cyclic-prefix
+      - deterministic-dropout
+      - raw-molecular-validation
