@@ -16,6 +16,7 @@ from rdkit.Chem import AllChem, Descriptors, Draw, rdMolDescriptors
 
 from dlm.utils.utils_chem import safe_to_smiles, smiles_to_safe
 from marlin.distillation import (
+    CYCLIC_ROLLOUT_PREFIX_SCHEDULE,
     FairBlockInputs,
     FrigidDistillationSettings,
     build_fair_block_inputs,
@@ -403,6 +404,7 @@ class MarlinLightningModule(L.LightningModule):
         *,
         generator: torch.Generator | None = None,
         collect_context_metrics: bool = False,
+        rollout_prefix_step: int | None = None,
     ) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
         """Compute the distilled student objective on one fair masked block."""
 
@@ -444,6 +446,8 @@ class MarlinLightningModule(L.LightningModule):
             current_block_masking=settings.current_block_masking,
             full_block_mask_probability=settings.full_block_mask_probability,
             rollout_prefix_probability=settings.rollout_prefix_probability,
+            rollout_prefix_schedule=settings.rollout_prefix_schedule,
+            rollout_prefix_step=rollout_prefix_step,
         )
         if settings.attention_mode == "frigid_full":
             student_logits = self.decoder(
@@ -467,6 +471,8 @@ class MarlinLightningModule(L.LightningModule):
             list(formulas),
             fingerprint,
         )
+        target_balance_mask = input_ids.ne(self.decoder.config.pad_token_id)
+        target_balance_mask[:, 0] = False
         result = frigid_distillation_loss(
             student_logits,
             teacher_logits,
@@ -480,13 +486,34 @@ class MarlinLightningModule(L.LightningModule):
                 if settings.current_block_masking == "continuous_time"
                 else None
             ),
+            balanced_token_loss_alpha=self.balanced_token_loss_alpha,
+            token_loss_weight_max=self.token_loss_weight_max,
+            eos_token_id=self.decoder.config.eos_token_id,
+            target_balance_mask=target_balance_mask,
         )
+        predictions = student_logits.detach().argmax(dim=-1)
         current_accuracy = (
-            student_logits.detach()
-            .argmax(dim=-1)[fair.loss_mask]
+            predictions[fair.loss_mask]
             .eq(input_ids[fair.loss_mask])
             .float()
             .mean()
+        )
+        content_targets = target_balance_mask & input_ids.ne(
+            self.decoder.config.eos_token_id
+        )
+        token_counts = torch.bincount(
+            input_ids[content_targets],
+            minlength=self.decoder.config.vocab_size,
+        )
+        majority_token_id = token_counts.argmax()
+        non_majority_mask = fair.loss_mask & input_ids.ne(majority_token_id)
+        non_majority_tokens = non_majority_mask.sum()
+        non_majority_correct = (
+            predictions.eq(input_ids) & non_majority_mask
+        ).sum()
+        non_majority_accuracy = (
+            non_majority_correct.float()
+            / non_majority_tokens.clamp_min(1).float()
         )
         metrics = {
             "distillation_cross_entropy": result.cross_entropy.detach(),
@@ -495,6 +522,13 @@ class MarlinLightningModule(L.LightningModule):
                 result.student_teacher_top1_agreement.detach()
             ),
             "distillation_current_token_accuracy": current_accuracy,
+            "distillation_non_majority_token_accuracy": (
+                non_majority_accuracy
+            ),
+            "distillation_non_majority_tokens": non_majority_tokens.float(),
+            "distillation_selected_target_weight": (
+                result.selected_target_weight.detach()
+            ),
             "current_tokens": result.current_tokens.detach(),
             "distillation_mask_probability": (
                 fair.mask_probabilities.mean().detach()
@@ -529,6 +563,12 @@ class MarlinLightningModule(L.LightningModule):
             loss, distillation_metrics = self.frigid_distillation_objective(
                 batch,
                 collect_context_metrics=collect_context_metrics,
+                rollout_prefix_step=(
+                    int(self.global_step)
+                    if self.distillation.rollout_prefix_schedule
+                    == CYCLIC_ROLLOUT_PREFIX_SCHEDULE
+                    else None
+                ),
             )
             if collect_context_metrics:
                 self._last_distillation_context_step = int(self.global_step)
@@ -691,6 +731,9 @@ class ClearMLScalarCallback(L.Callback):
         "train_distillation_kl",
         "train_distillation_student_teacher_top1_agreement",
         "train_distillation_current_token_accuracy",
+        "train_distillation_non_majority_token_accuracy",
+        "train_distillation_non_majority_tokens",
+        "train_distillation_selected_target_weight",
         "train_distillation_mask_probability",
         "train_distillation_full_block_mask_fraction",
         "train_distillation_rollout_prefix_fraction",

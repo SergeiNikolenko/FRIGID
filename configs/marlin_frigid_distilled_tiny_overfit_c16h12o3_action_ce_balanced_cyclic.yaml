@@ -1,0 +1,38 @@
+# Diagnostic-only balanced production-action objective on the same four isomers.
+# This is FRIGID-distilled MARLIN, not a strict paper reproduction or benchmark.
+defaults:
+  - marlin_frigid_distilled_tiny_overfit_c16h12o3_action_ce
+  - _self_
+
+# Keep the same stage-0 initialization, top-4 FFN capacity, optimizer, clipping,
+# data, batch, and 400-step budget. Balance corpus token targets and cycle every
+# production prefix deterministically once per 32 optimizer steps.
+adaptation:
+  stage: diagnostic-tiny-overfit-c16h12o3-block32-action-ce-balanced-cyclic
+  rollout_prefix_schedule: cyclic
+
+training:
+  balanced_token_loss_alpha: 1.0
+
+output:
+  root: /mnt/netstorage/nikolenko/marlin/runs/frigid-distilled-tiny-c16h12o3-action-ce-balanced-cyclic
+  checkpoints: /mnt/netstorage/nikolenko/marlin/runs/frigid-distilled-tiny-c16h12o3-action-ce-balanced-cyclic/checkpoints
+
+tracking:
+  clearml:
+    task_name: frigid-distilled-marlin-tiny-c16h12o3-action-ce-balanced-cyclic
+    tags:
+      - FRIGID-distilled-MARLIN
+      - not-strict-reproduction
+      - diagnostic-only
+      - tiny-overfit
+      - c16h12o3-isomers
+      - block-attention-32
+      - attention-plus-top4-ffn
+      - production-action-ce
+      - rollout-prefix-only
+      - kl-zero
+      - balanced-token-loss
+      - deterministic-cyclic-prefix
+      - deterministic-dropout
+      - raw-molecular-validation

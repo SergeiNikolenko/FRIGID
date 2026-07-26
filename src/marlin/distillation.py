@@ -9,6 +9,7 @@ from collections.abc import Sequence
 import torch
 from torch.nn import functional as F
 
+from marlin.losses import balanced_token_target_weights
 from marlin.warm_start import sha256_file
 
 
@@ -17,6 +18,11 @@ MASS_ONLY_TRAINABLE_SCOPE = "mass_only"
 ATTENTION_BRIDGE_TRAINABLE_SCOPE = "attention_bridge"
 ATTENTION_PLUS_TOP4_FFN_TRAINABLE_SCOPE = "attention_plus_top4_ffn"
 ATTENTION_PLUS_ALL_FFN_TRAINABLE_SCOPE = "attention_plus_all_ffn"
+RANDOM_ROLLOUT_PREFIX_SCHEDULE = "random"
+CYCLIC_ROLLOUT_PREFIX_SCHEDULE = "cyclic"
+ROLLOUT_PREFIX_SCHEDULES = frozenset(
+    {RANDOM_ROLLOUT_PREFIX_SCHEDULE, CYCLIC_ROLLOUT_PREFIX_SCHEDULE}
+)
 TRAINABLE_SCOPES = frozenset(
     {
         MASS_ONLY_TRAINABLE_SCOPE,
@@ -104,6 +110,7 @@ class FrigidDistillationSettings:
     current_block_masking: str = "full"
     full_block_mask_probability: float = 0.0
     rollout_prefix_probability: float = 0.0
+    rollout_prefix_schedule: str = RANDOM_ROLLOUT_PREFIX_SCHEDULE
     temperature: float = 2.0
     kl_weight: float = 1.0
     use_isotope: bool = False
@@ -129,6 +136,10 @@ class FrigidDistillationSettings:
             raise ValueError("full_block_mask_probability must be in [0, 1]")
         if not 0.0 <= self.rollout_prefix_probability <= 1.0:
             raise ValueError("rollout_prefix_probability must be in [0, 1]")
+        if self.rollout_prefix_schedule not in ROLLOUT_PREFIX_SCHEDULES:
+            raise ValueError(
+                "rollout_prefix_schedule must be 'random' or 'cyclic'"
+            )
         if (
             self.rollout_prefix_probability > 0.0
             and self.current_block_masking != "continuous_time"
@@ -136,6 +147,15 @@ class FrigidDistillationSettings:
             raise ValueError(
                 "rollout-prefix states require continuous-time current-block masking"
             )
+        if self.rollout_prefix_schedule == CYCLIC_ROLLOUT_PREFIX_SCHEDULE:
+            if self.rollout_prefix_probability != 1.0:
+                raise ValueError(
+                    "cyclic rollout-prefix schedule requires probability 1"
+                )
+            if self.full_block_mask_probability != 0.0:
+                raise ValueError(
+                    "cyclic rollout-prefix schedule requires full-block probability 0"
+                )
         if (
             self.current_block_masking == "continuous_time"
             and self.attention_mode != "block"
@@ -188,6 +208,7 @@ class FrigidDistillationLoss:
     kl: torch.Tensor
     student_teacher_top1_agreement: torch.Tensor
     current_tokens: torch.Tensor
+    selected_target_weight: torch.Tensor
 
 
 def build_fair_block_inputs(
@@ -202,6 +223,8 @@ def build_fair_block_inputs(
     current_block_masking: str = "full",
     full_block_mask_probability: float = 0.0,
     rollout_prefix_probability: float = 0.0,
+    rollout_prefix_schedule: str = RANDOM_ROLLOUT_PREFIX_SCHEDULE,
+    rollout_prefix_step: int | None = None,
     current_mask_probabilities: torch.Tensor | None = None,
 ) -> FairBlockInputs:
     """Build a fair current-block state for teacher and two-stream student.
@@ -230,6 +253,29 @@ def build_fair_block_inputs(
         raise ValueError("full_block_mask_probability must be in [0, 1]")
     if not 0.0 <= rollout_prefix_probability <= 1.0:
         raise ValueError("rollout_prefix_probability must be in [0, 1]")
+    if rollout_prefix_schedule not in ROLLOUT_PREFIX_SCHEDULES:
+        raise ValueError("rollout_prefix_schedule must be 'random' or 'cyclic'")
+    if rollout_prefix_schedule == CYCLIC_ROLLOUT_PREFIX_SCHEDULE:
+        if rollout_prefix_probability != 1.0:
+            raise ValueError("cyclic rollout-prefix schedule requires probability 1")
+        if full_block_mask_probability != 0.0:
+            raise ValueError(
+                "cyclic rollout-prefix schedule requires full-block probability 0"
+            )
+        if (
+            isinstance(rollout_prefix_step, bool)
+            or not isinstance(rollout_prefix_step, int)
+            or rollout_prefix_step < 0
+        ):
+            raise ValueError(
+                "cyclic rollout-prefix schedule requires a non-negative integer step"
+            )
+        if current_mask_probabilities is not None:
+            raise ValueError(
+                "cyclic rollout-prefix schedule forbids random mask probabilities"
+            )
+    elif rollout_prefix_step is not None:
+        raise ValueError("rollout_prefix_step requires cyclic rollout-prefix schedule")
     if current_block_masking == "full" and rollout_prefix_probability > 0.0:
         raise ValueError(
             "rollout_prefix_probability requires continuous-time masking"
@@ -305,7 +351,24 @@ def build_fair_block_inputs(
             mask_token_id,
         )
     else:
-        if current_mask_probabilities is None:
+        current_lengths = current_content.sum(dim=1)
+        within_block = (positions - 1).clamp_min(0).remainder(block_width)
+        if rollout_prefix_schedule == CYCLIC_ROLLOUT_PREFIX_SCHEDULE:
+            step = torch.full_like(current_lengths, rollout_prefix_step)
+            revealed_counts = torch.remainder(step, current_lengths)
+            mask_probabilities = (
+                (current_lengths - revealed_counts).float()
+                / current_lengths.float()
+            )
+            rollout_prefix_masked = torch.ones(
+                batch_size,
+                device=clean_ids.device,
+                dtype=torch.bool,
+            )
+            current_mask = current_content & within_block.ge(
+                revealed_counts.reshape(-1, 1)
+            )
+        elif current_mask_probabilities is None:
             mask_probabilities = torch.rand(
                 batch_size,
                 device=clean_ids.device,
@@ -341,43 +404,42 @@ def build_fair_block_inputs(
                     "current_mask_probabilities must be finite and in (0, 1]"
                 )
             full_block_masked = mask_probabilities.eq(1.0)
-        mask_draws = torch.rand(
-            clean_ids.shape,
-            device=clean_ids.device,
-            generator=generator,
-        )
-        current_mask = (
-            current_content
-            & mask_draws.lt(mask_probabilities.reshape(-1, 1))
-        )
-        rollout_prefix_masked = (
-            torch.rand(
-                batch_size,
+        if rollout_prefix_schedule == RANDOM_ROLLOUT_PREFIX_SCHEDULE:
+            mask_draws = torch.rand(
+                clean_ids.shape,
                 device=clean_ids.device,
                 generator=generator,
             )
-            < rollout_prefix_probability
-        ) & ~full_block_masked
-        current_lengths = current_content.sum(dim=1)
-        # With t ~ Uniform(0, 1], floor((1 - t) * length) uniformly selects
-        # every production prefix length from zero through length - 1. Keep
-        # zero so rollout rows include the BOS-only first-token action.
-        revealed_counts = torch.floor(
-            (1.0 - mask_probabilities) * current_lengths.float()
-        ).long()
-        revealed_counts = torch.minimum(
-            revealed_counts,
-            (current_lengths - 1).clamp_min(0),
-        )
-        within_block = (positions - 1).clamp_min(0).remainder(block_width)
-        prefix_suffix_mask = current_content & within_block.ge(
-            revealed_counts.reshape(-1, 1)
-        )
-        current_mask = torch.where(
-            rollout_prefix_masked.reshape(-1, 1),
-            prefix_suffix_mask,
-            current_mask,
-        )
+            current_mask = (
+                current_content
+                & mask_draws.lt(mask_probabilities.reshape(-1, 1))
+            )
+            rollout_prefix_masked = (
+                torch.rand(
+                    batch_size,
+                    device=clean_ids.device,
+                    generator=generator,
+                )
+                < rollout_prefix_probability
+            ) & ~full_block_masked
+            # With t ~ Uniform(0, 1], floor((1 - t) * length) uniformly
+            # selects every production prefix length from zero through
+            # length - 1, including the BOS-only first-token action.
+            revealed_counts = torch.floor(
+                (1.0 - mask_probabilities) * current_lengths.float()
+            ).long()
+            revealed_counts = torch.minimum(
+                revealed_counts,
+                (current_lengths - 1).clamp_min(0),
+            )
+            prefix_suffix_mask = current_content & within_block.ge(
+                revealed_counts.reshape(-1, 1)
+            )
+            current_mask = torch.where(
+                rollout_prefix_masked.reshape(-1, 1),
+                prefix_suffix_mask,
+                current_mask,
+            )
         if not current_mask.any():
             fallback_row = int(mask_probabilities.argmax().item())
             first_current_positions = current_content.float().argmax(dim=1)
@@ -446,6 +508,10 @@ def frigid_distillation_loss(
     kl_weight: float,
     loss_weights: torch.Tensor | None = None,
     normalization_mask: torch.Tensor | None = None,
+    balanced_token_loss_alpha: float = 0.0,
+    token_loss_weight_max: float = 20.0,
+    eos_token_id: int | None = None,
+    target_balance_mask: torch.Tensor | None = None,
 ) -> FrigidDistillationLoss:
     """Compute weighted target CE plus temperature-scaled teacher KL."""
 
@@ -485,11 +551,31 @@ def frigid_distillation_loss(
     if current_tokens.item() == 0:
         raise ValueError("the selected block contains no target tokens")
 
+    if target_balance_mask is None or eos_token_id is None:
+        if balanced_token_loss_alpha != 0:
+            raise ValueError(
+                "balanced distillation requires target_balance_mask and eos_token_id"
+            )
+        balance_mask = torch.zeros_like(current_mask)
+        effective_eos_token_id = 0
+    else:
+        balance_mask = target_balance_mask
+        effective_eos_token_id = eos_token_id
+    target_weights = balanced_token_target_weights(
+        targets,
+        balance_mask,
+        vocab_size=student_logits.shape[-1],
+        eos_token_id=effective_eos_token_id,
+        alpha=balanced_token_loss_alpha,
+        weight_max=token_loss_weight_max,
+    ).to(device=student_logits.device)
+
     selected_student = student_logits[current_mask].float()
     selected_teacher = teacher_logits.detach()[current_mask].float()
     selected_targets = targets[current_mask]
-    selected_weights = loss_weights[current_mask].float()
-    if selected_weights.sum().item() <= 0:
+    selected_sampling_weights = loss_weights[current_mask].float()
+    selected_target_weights = target_weights[current_mask].float()
+    if selected_sampling_weights.sum().item() <= 0:
         raise ValueError("masked current tokens must have positive loss weights")
     token_cross_entropy = F.cross_entropy(
         selected_student,
@@ -502,11 +588,13 @@ def frigid_distillation_loss(
         reduction="none",
     ).sum(dim=-1) * temperature**2
     if normalization_mask is None:
-        weight_sum = selected_weights.sum()
+        weight_sum = selected_sampling_weights.sum()
         cross_entropy = (
-            token_cross_entropy * selected_weights
+            token_cross_entropy
+            * selected_sampling_weights
+            * selected_target_weights
         ).sum() / weight_sum
-        kl = (token_kl * selected_weights).sum() / weight_sum
+        kl = (token_kl * selected_sampling_weights).sum() / weight_sum
     else:
         batch_size = targets.shape[0]
         row_indices = (
@@ -523,12 +611,14 @@ def frigid_distillation_loss(
         cross_entropy_by_row.scatter_add_(
             0,
             row_indices,
-            token_cross_entropy * selected_weights,
+            token_cross_entropy
+            * selected_sampling_weights
+            * selected_target_weights,
         )
         kl_by_row.scatter_add_(
             0,
             row_indices,
-            token_kl * selected_weights,
+            token_kl * selected_sampling_weights,
         )
         fixed_denominator = normalization_mask.sum(dim=1).to(
             dtype=selected_student.dtype
@@ -547,6 +637,7 @@ def frigid_distillation_loss(
         kl=kl,
         student_teacher_top1_agreement=agreement,
         current_tokens=current_tokens,
+        selected_target_weight=selected_target_weights.mean(),
     )
 
 

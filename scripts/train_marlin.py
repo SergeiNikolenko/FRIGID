@@ -188,6 +188,9 @@ def build_distillation(
         rollout_prefix_probability=float(
             config.adaptation.get("rollout_prefix_probability", 0.0)
         ),
+        rollout_prefix_schedule=str(
+            config.adaptation.get("rollout_prefix_schedule", "random")
+        ),
         temperature=float(config.adaptation.temperature),
         kl_weight=float(config.adaptation.kl_weight),
         use_isotope=bool(config.adaptation.get("use_isotope", False)),

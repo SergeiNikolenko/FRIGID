@@ -12,8 +12,10 @@ from marlin.distillation import (
     ATTENTION_BRIDGE_TRAINABLE_SCOPE,
     ATTENTION_PLUS_ALL_FFN_TRAINABLE_SCOPE,
     ATTENTION_PLUS_TOP4_FFN_TRAINABLE_SCOPE,
+    CYCLIC_ROLLOUT_PREFIX_SCHEDULE,
     FRIGID_DISTILLED_MARLIN_MODE,
     MASS_ONLY_TRAINABLE_SCOPE,
+    RANDOM_ROLLOUT_PREFIX_SCHEDULE,
     FrozenFrigidTeacher,
     FrigidDistillationSettings,
     build_fair_block_inputs,
@@ -21,6 +23,7 @@ from marlin.distillation import (
     frigid_distillation_loss,
 )
 from marlin.ema import AllParameterExponentialMovingAverage
+from marlin.losses import balanced_token_target_weights
 from marlin.model import MarlinDecoderConfig
 from marlin.training import ClearMLScalarCallback, MarlinLightningModule
 
@@ -161,6 +164,73 @@ def test_rollout_prefix_reveal_counts_cover_every_production_action():
     assert fair.full_block_masked.tolist() == [True, False, False, False]
 
 
+def test_cyclic_rollout_prefix_covers_every_row_without_random_draws():
+    clean = torch.tensor(
+        [
+            [1, 5, 6, 7, 2],
+            [1, 5, 2, 0, 0],
+        ]
+    )
+    selected_blocks = torch.zeros(2, dtype=torch.long)
+    generator = torch.Generator().manual_seed(17)
+    initial_generator_state = generator.get_state().clone()
+    selected_positions = [[], []]
+
+    for step in range(4):
+        fair = build_fair_block_inputs(
+            clean,
+            block_width=4,
+            bos_token_id=1,
+            pad_token_id=0,
+            mask_token_id=4,
+            selected_blocks=selected_blocks,
+            current_block_masking="continuous_time",
+            rollout_prefix_probability=1.0,
+            rollout_prefix_schedule=CYCLIC_ROLLOUT_PREFIX_SCHEDULE,
+            rollout_prefix_step=step,
+            generator=generator,
+        )
+        expected_revealed = (step % 4, step % 2)
+        for row, revealed in enumerate(expected_revealed):
+            selected_positions[row].append(
+                int(torch.nonzero(fair.loss_mask[row]).item())
+            )
+            assert fair.input_ids[row, 1 : 1 + revealed].ne(4).all()
+            assert fair.loss_weights[row, 1 + revealed].item() == (4, 2)[row]
+        assert fair.rollout_prefix_masked.tolist() == [True, True]
+        assert fair.mask_probabilities.tolist() == pytest.approx(
+            [(4 - step % 4) / 4, (2 - step % 2) / 2]
+        )
+
+    assert selected_positions == [[1, 2, 3, 4], [1, 2, 1, 2]]
+    assert torch.equal(generator.get_state(), initial_generator_state)
+
+
+def test_cyclic_rollout_prefix_configuration_is_fail_closed():
+    with pytest.raises(ValueError, match="requires probability 1"):
+        FrigidDistillationSettings(
+            mode=FRIGID_DISTILLED_MARLIN_MODE,
+            trainable_scope=ATTENTION_BRIDGE_TRAINABLE_SCOPE,
+            attention_mode="block",
+            current_block_masking="continuous_time",
+            rollout_prefix_probability=0.5,
+            rollout_prefix_schedule=CYCLIC_ROLLOUT_PREFIX_SCHEDULE,
+        )
+
+    clean = torch.tensor([[1, 5, 2]])
+    with pytest.raises(ValueError, match="non-negative integer step"):
+        build_fair_block_inputs(
+            clean,
+            block_width=2,
+            bos_token_id=1,
+            pad_token_id=0,
+            mask_token_id=4,
+            current_block_masking="continuous_time",
+            rollout_prefix_probability=1.0,
+            rollout_prefix_schedule=CYCLIC_ROLLOUT_PREFIX_SCHEDULE,
+        )
+
+
 def test_empty_continuous_time_microbatch_uses_bounded_fallback_weight():
     clean = torch.tensor([[1, 5, 6, 5, 6, 0]])
     fair = build_fair_block_inputs(
@@ -243,6 +313,91 @@ def test_frigid_distillation_loss_applies_inverse_time_weights():
         result.cross_entropy,
         (per_token * weights.reshape(-1)).sum() / current.sum(),
     )
+
+
+def test_balanced_distillation_weights_are_exact_and_leave_eos_at_one():
+    targets = torch.tensor(
+        [
+            [1, 5, 5, 2],
+            [1, 5, 6, 2],
+        ]
+    )
+    valid = torch.tensor(
+        [
+            [False, True, True, True],
+            [False, True, True, True],
+        ]
+    )
+    target_weights = balanced_token_target_weights(
+        targets,
+        valid,
+        vocab_size=7,
+        eos_token_id=2,
+        alpha=1.0,
+        weight_max=20.0,
+    )
+
+    assert torch.allclose(
+        target_weights,
+        torch.tensor(
+            [
+                [1.0, 2.0 / 3.0, 2.0 / 3.0, 1.0],
+                [1.0, 2.0 / 3.0, 2.0, 1.0],
+            ]
+        ),
+    )
+
+    selected = torch.tensor(
+        [
+            [False, True, False, True],
+            [False, False, True, True],
+        ]
+    )
+    student = torch.zeros((2, 4, 7))
+    result = frigid_distillation_loss(
+        student,
+        torch.zeros_like(student),
+        targets,
+        selected,
+        temperature=1.0,
+        kl_weight=0.0,
+        balanced_token_loss_alpha=1.0,
+        token_loss_weight_max=20.0,
+        eos_token_id=2,
+        target_balance_mask=valid,
+    )
+    expected_selected_weight = torch.tensor((2.0 / 3.0 + 1.0 + 2.0 + 1.0) / 4)
+    expected_cross_entropy = torch.log(torch.tensor(7.0)) * expected_selected_weight
+
+    assert torch.allclose(result.selected_target_weight, expected_selected_weight)
+    assert torch.allclose(result.cross_entropy, expected_cross_entropy)
+
+
+def test_balanced_distillation_rejects_incomplete_or_invalid_configuration():
+    targets = torch.tensor([[1, 5, 2]])
+    selected = torch.tensor([[False, True, False]])
+    logits = torch.zeros((1, 3, 7))
+
+    with pytest.raises(ValueError, match="requires target_balance_mask"):
+        frigid_distillation_loss(
+            logits,
+            logits,
+            targets,
+            selected,
+            temperature=1.0,
+            kl_weight=0.0,
+            balanced_token_loss_alpha=1.0,
+        )
+    with pytest.raises(ValueError, match="finite and at least 1"):
+        frigid_distillation_loss(
+            logits,
+            logits,
+            targets,
+            selected,
+            temperature=1.0,
+            kl_weight=0.0,
+            token_loss_weight_max=float("inf"),
+        )
 
 
 def test_all_parameter_ema_preserves_frozen_parameter_order():
@@ -798,6 +953,81 @@ def test_action_ce_tiny_config_only_changes_objective_and_run_identity():
     assert "kl-zero" in action_ce.tracking.clearml.tags
 
 
+def test_balanced_cyclic_action_ce_config_only_changes_controlled_arm():
+    config_dir = str(Path(__file__).resolve().parents[1] / "configs")
+    with initialize_config_dir(version_base=None, config_dir=config_dir):
+        action_ce = compose(
+            config_name=(
+                "marlin_frigid_distilled_tiny_overfit_c16h12o3_action_ce"
+            )
+        )
+        balanced_cyclic = compose(
+            config_name=(
+                "marlin_frigid_distilled_tiny_overfit_c16h12o3_"
+                "action_ce_balanced_cyclic"
+            )
+        )
+
+    action_ce_container = OmegaConf.to_container(action_ce, resolve=True)
+    balanced_container = OmegaConf.to_container(balanced_cyclic, resolve=True)
+    assert isinstance(action_ce_container, dict)
+    assert isinstance(balanced_container, dict)
+
+    expected_differences = {
+        "adaptation.stage",
+        "adaptation.rollout_prefix_schedule",
+        "training.balanced_token_loss_alpha",
+        "output.root",
+        "output.checkpoints",
+        "tracking.clearml.task_name",
+        "tracking.clearml.tags",
+    }
+
+    def differing_paths(left, right, prefix=""):
+        if isinstance(left, dict) and isinstance(right, dict):
+            assert left.keys() == right.keys()
+            return {
+                path
+                for key in left
+                for path in differing_paths(
+                    left[key],
+                    right[key],
+                    f"{prefix}.{key}" if prefix else key,
+                )
+            }
+        return {prefix} if left != right else set()
+
+    assert (
+        differing_paths(action_ce_container, balanced_container)
+        == expected_differences
+    )
+    assert (
+        action_ce.adaptation.rollout_prefix_schedule
+        == RANDOM_ROLLOUT_PREFIX_SCHEDULE
+    )
+    assert (
+        balanced_cyclic.adaptation.rollout_prefix_schedule
+        == CYCLIC_ROLLOUT_PREFIX_SCHEDULE
+    )
+    assert balanced_cyclic.training.balanced_token_loss_alpha == 1.0
+    assert balanced_cyclic.training.token_loss_weight_max == 20.0
+    assert balanced_cyclic.adaptation.full_block_mask_probability == 0.0
+    assert balanced_cyclic.adaptation.rollout_prefix_probability == 1.0
+    assert balanced_cyclic.adaptation.kl_weight == 0.0
+    assert (
+        balanced_cyclic.adaptation.trainable_scope
+        == action_ce.adaptation.trainable_scope
+    )
+    assert balanced_cyclic.data == action_ce.data
+    assert balanced_cyclic.loader == action_ce.loader
+    assert balanced_cyclic.model == action_ce.model
+    assert balanced_cyclic.optim == action_ce.optim
+    assert balanced_cyclic.trainer.max_steps == 400
+    assert balanced_cyclic.trainer.gradient_clip_val == 1.0
+    assert "balanced-token-loss" in balanced_cyclic.tracking.clearml.tags
+    assert "deterministic-cyclic-prefix" in balanced_cyclic.tracking.clearml.tags
+
+
 def test_frigid_teacher_rejects_tokenizer_mismatch():
     class Tokenizer:
         unk_token_id = 0
@@ -933,6 +1163,9 @@ def test_clearml_scalar_callback_reports_first_step_and_interval():
         logged_metrics = {
             "train_loss": torch.tensor(14.5),
             "train_distillation_kl": torch.tensor(2.25),
+            "train_distillation_non_majority_token_accuracy": torch.tensor(0.5),
+            "train_distillation_non_majority_tokens": torch.tensor(2.0),
+            "train_distillation_selected_target_weight": torch.tensor(1.5),
             "ignored": torch.tensor(99.0),
         }
 
@@ -950,6 +1183,12 @@ def test_clearml_scalar_callback_reports_first_step_and_interval():
     assert [(call["series"], call["iteration"]) for call in task.logger.calls] == [
         ("train_loss", 1),
         ("train_distillation_kl", 1),
+        ("train_distillation_non_majority_token_accuracy", 1),
+        ("train_distillation_non_majority_tokens", 1),
+        ("train_distillation_selected_target_weight", 1),
         ("train_loss", 10),
         ("train_distillation_kl", 10),
+        ("train_distillation_non_majority_token_accuracy", 10),
+        ("train_distillation_non_majority_tokens", 10),
+        ("train_distillation_selected_target_weight", 10),
     ]
