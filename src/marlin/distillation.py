@@ -230,16 +230,41 @@ class FrozenFrigidTeacher:
         expected_special_token_ids: dict[str, int] | None,
     ) -> None:
         if expected_vocab is not None:
-            teacher_vocab = dict(self.model.tokenizer.get_vocab())
-            if teacher_vocab != dict(expected_vocab):
-                keys = set(teacher_vocab) | set(expected_vocab)
+            tokenizer = self.model.tokenizer
+            teacher_vocab = dict(tokenizer.get_vocab())
+            tokenizer_vocab_size = int(getattr(tokenizer, "vocab_size"))
+            backbone = getattr(self.model, "backbone", None)
+            backbone_config = getattr(backbone, "config", None)
+            model_vocab_size = int(
+                getattr(backbone_config, "vocab_size", tokenizer_vocab_size)
+            )
+            if model_vocab_size != tokenizer_vocab_size:
+                raise ValueError(
+                    "FRIGID tokenizer/model vocabulary sizes differ: "
+                    f"tokenizer={tokenizer_vocab_size}, model={model_vocab_size}"
+                )
+
+            expected_vocab = dict(expected_vocab)
+            expected_ids = set(expected_vocab.values())
+            if expected_ids != set(range(model_vocab_size)):
+                raise ValueError(
+                    "student tokenizer IDs do not exactly cover the FRIGID model "
+                    f"vocabulary [0, {model_vocab_size})"
+                )
+            teacher_model_vocab = {
+                token: token_id
+                for token, token_id in teacher_vocab.items()
+                if token_id < model_vocab_size
+            }
+            if teacher_model_vocab != expected_vocab:
+                keys = set(teacher_model_vocab) | set(expected_vocab)
                 mismatches = sorted(
                     key
                     for key in keys
-                    if teacher_vocab.get(key) != expected_vocab.get(key)
+                    if teacher_model_vocab.get(key) != expected_vocab.get(key)
                 )
                 raise ValueError(
-                    "FRIGID teacher/student tokenizer vocabularies differ at: "
+                    "FRIGID teacher/student model vocabularies differ at: "
                     + ", ".join(mismatches[:5])
                 )
         if expected_special_token_ids is not None:

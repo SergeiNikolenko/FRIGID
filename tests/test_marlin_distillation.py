@@ -180,10 +180,21 @@ def test_frigid_teacher_rejects_tokenizer_mismatch():
         eos_token_id = 2
         pad_token_id = 3
         mask_token_id = 4
+        vocab_size = 5
 
         @staticmethod
-        def get_vocab():
-            return {"[UNK]": 0, "[BOS]": 1, "[EOS]": 2}
+        def model_vocab():
+            return {
+                "[UNK]": 0,
+                "[BOS]": 1,
+                "[EOS]": 2,
+                "[PAD]": 3,
+                "[MASK]": 4,
+            }
+
+        @classmethod
+        def get_vocab(cls):
+            return {**cls.model_vocab(), "<": 5, ">": 6}
 
     class Model:
         tokenizer = Tokenizer()
@@ -196,18 +207,18 @@ def test_frigid_teacher_rejects_tokenizer_mismatch():
 
     teacher = FrozenFrigidTeacher(Model())
     teacher.validate_student_tokenizer(
-        Tokenizer.get_vocab(),
+        Tokenizer.model_vocab(),
         {"unk": 0, "bos": 1, "eos": 2, "pad": 3, "mask": 4},
     )
 
     with pytest.raises(ValueError, match="vocabularies differ"):
         teacher.validate_student_tokenizer(
-            {"[UNK]": 0, "[BOS]": 1, "[EOS]": 6},
+            {**Tokenizer.model_vocab(), "[EOS]": 3, "[PAD]": 2},
             None,
         )
     with pytest.raises(ValueError, match="mask token IDs differ"):
         teacher.validate_student_tokenizer(
-            Tokenizer.get_vocab(),
+            Tokenizer.model_vocab(),
             {"mask": 9},
         )
 
