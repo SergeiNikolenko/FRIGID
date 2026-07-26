@@ -5,10 +5,12 @@ from unittest.mock import patch
 
 import pytest
 import torch
+from hydra import compose, initialize_config_dir
 from omegaconf import OmegaConf
 
 from marlin.distillation import (
     ATTENTION_BRIDGE_TRAINABLE_SCOPE,
+    ATTENTION_PLUS_ALL_FFN_TRAINABLE_SCOPE,
     ATTENTION_PLUS_TOP4_FFN_TRAINABLE_SCOPE,
     FRIGID_DISTILLED_MARLIN_MODE,
     MASS_ONLY_TRAINABLE_SCOPE,
@@ -409,6 +411,7 @@ def test_block_distillation_reports_deterministic_revealed_context_response():
         (MASS_ONLY_TRAINABLE_SCOPE, "frigid_full"),
         (ATTENTION_BRIDGE_TRAINABLE_SCOPE, "block"),
         (ATTENTION_PLUS_TOP4_FFN_TRAINABLE_SCOPE, "block"),
+        (ATTENTION_PLUS_ALL_FFN_TRAINABLE_SCOPE, "block"),
     ),
 )
 def test_distillation_scopes_disable_dropout_but_keep_selected_gradients(
@@ -526,13 +529,74 @@ def test_curriculum_scopes_have_fail_closed_parameter_counts():
         ATTENTION_PLUS_TOP4_FFN_TRAINABLE_SCOPE,
         num_layers=12,
     )
+    all_ffn = expected_distillation_trainable_parameters(
+        ATTENTION_PLUS_ALL_FFN_TRAINABLE_SCOPE,
+        num_layers=12,
+    )
 
     assert len(stage1) == 148
     assert len(stage2) == 172
+    assert len(all_ffn) == 220
     assert "token_embedding.weight" not in stage1
     assert "prediction_dense.weight" not in stage2
+    assert "conditioner.fingerprint.embedding.weight" not in all_ffn
     assert "layers.8.linear1.weight" in stage2
     assert "layers.7.linear1.weight" not in stage2
+    assert "layers.0.linear1.weight" in all_ffn
+    assert "layers.11.norm3.bias" in all_ffn
+
+
+def test_all_ffn_scope_has_exact_decoder_parameter_set():
+    num_layers = 12
+    mass_parameters = {
+        "conditioner.mass.projection.0.weight",
+        "conditioner.mass.projection.0.bias",
+        "conditioner.mass.projection.2.weight",
+        "conditioner.mass.projection.2.bias",
+    }
+    attention_and_norm_parameters = {
+        f"layers.{layer_index}.{suffix}"
+        for layer_index in range(num_layers)
+        for suffix in (
+            "self_attention.in_proj_weight",
+            "self_attention.in_proj_bias",
+            "self_attention.out_proj.weight",
+            "self_attention.out_proj.bias",
+            "cross_attention.in_proj_weight",
+            "cross_attention.in_proj_bias",
+            "cross_attention.out_proj.weight",
+            "cross_attention.out_proj.bias",
+            "norm1.weight",
+            "norm1.bias",
+            "norm2.weight",
+            "norm2.bias",
+        )
+    }
+    all_ffn_parameters = {
+        f"layers.{layer_index}.{suffix}"
+        for layer_index in range(num_layers)
+        for suffix in (
+            "linear1.weight",
+            "linear1.bias",
+            "linear2.weight",
+            "linear2.bias",
+            "norm3.weight",
+            "norm3.bias",
+        )
+    }
+    exact = mass_parameters | attention_and_norm_parameters | all_ffn_parameters
+
+    expected = expected_distillation_trainable_parameters(
+        ATTENTION_PLUS_ALL_FFN_TRAINABLE_SCOPE,
+        num_layers=num_layers,
+    )
+
+    assert expected == exact
+    assert len(expected) == 220
+    assert not any(name.startswith("conditioner.fingerprint.") for name in expected)
+    assert not any("embedding" in name for name in expected)
+    assert not any(name.startswith("prediction_") for name in expected)
+    assert not any(name.startswith("output") for name in expected)
 
 
 def test_block_curriculum_configs_are_conservative_and_raw_evaluated():
@@ -587,6 +651,52 @@ def test_block_curriculum_configs_are_conservative_and_raw_evaluated():
     assert tiny.training.molecular_validation_candidates == 1
     assert tiny.training.molecular_validation_use_ema is False
     assert stage1c.optim.learning_rate == pytest.approx(5e-6)
+
+
+def test_all_ffn_tiny_config_only_changes_capacity_and_run_identity():
+    config_dir = str(Path(__file__).resolve().parents[1] / "configs")
+    with initialize_config_dir(version_base=None, config_dir=config_dir):
+        top4 = compose(config_name="marlin_frigid_distilled_tiny_overfit_c16h12o3")
+        all_ffn = compose(
+            config_name="marlin_frigid_distilled_tiny_overfit_c16h12o3_all_ffn"
+        )
+
+    top4_container = OmegaConf.to_container(top4, resolve=True)
+    all_ffn_container = OmegaConf.to_container(all_ffn, resolve=True)
+    assert isinstance(top4_container, dict)
+    assert isinstance(all_ffn_container, dict)
+
+    expected_differences = {
+        "adaptation.stage",
+        "adaptation.trainable_scope",
+        "optim.learning_rate",
+        "output.root",
+        "output.checkpoints",
+        "tracking.clearml.task_name",
+        "tracking.clearml.tags",
+    }
+
+    def differing_paths(left, right, prefix=""):
+        if isinstance(left, dict) and isinstance(right, dict):
+            assert left.keys() == right.keys()
+            return {
+                path
+                for key in left
+                for path in differing_paths(
+                    left[key],
+                    right[key],
+                    f"{prefix}.{key}" if prefix else key,
+                )
+            }
+        return {prefix} if left != right else set()
+
+    assert differing_paths(top4_container, all_ffn_container) == expected_differences
+    assert all_ffn.adaptation.trainable_scope == ATTENTION_PLUS_ALL_FFN_TRAINABLE_SCOPE
+    assert all_ffn.optim.learning_rate == pytest.approx(1e-5)
+    assert all_ffn.data.metadata_csv == top4.data.metadata_csv
+    assert all_ffn.trainer == top4.trainer
+    assert "diagnostic-only" in all_ffn.tracking.clearml.tags
+    assert "attention-plus-all-ffn" in all_ffn.tracking.clearml.tags
 
 
 def test_frigid_teacher_rejects_tokenizer_mismatch():

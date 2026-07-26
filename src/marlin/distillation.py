@@ -16,11 +16,13 @@ FRIGID_DISTILLED_MARLIN_MODE = "frigid_distilled_marlin"
 MASS_ONLY_TRAINABLE_SCOPE = "mass_only"
 ATTENTION_BRIDGE_TRAINABLE_SCOPE = "attention_bridge"
 ATTENTION_PLUS_TOP4_FFN_TRAINABLE_SCOPE = "attention_plus_top4_ffn"
+ATTENTION_PLUS_ALL_FFN_TRAINABLE_SCOPE = "attention_plus_all_ffn"
 TRAINABLE_SCOPES = frozenset(
     {
         MASS_ONLY_TRAINABLE_SCOPE,
         ATTENTION_BRIDGE_TRAINABLE_SCOPE,
         ATTENTION_PLUS_TOP4_FFN_TRAINABLE_SCOPE,
+        ATTENTION_PLUS_ALL_FFN_TRAINABLE_SCOPE,
     }
 )
 
@@ -67,7 +69,10 @@ def expected_distillation_trainable_parameters(
             f"layers.{layer_index}.{suffix}" for suffix in attention_modules
         )
 
-    if scope == ATTENTION_PLUS_TOP4_FFN_TRAINABLE_SCOPE:
+    if scope in {
+        ATTENTION_PLUS_TOP4_FFN_TRAINABLE_SCOPE,
+        ATTENTION_PLUS_ALL_FFN_TRAINABLE_SCOPE,
+    }:
         ffn_modules = (
             "linear1.weight",
             "linear1.bias",
@@ -76,7 +81,12 @@ def expected_distillation_trainable_parameters(
             "norm3.weight",
             "norm3.bias",
         )
-        for layer_index in range(max(0, num_layers - 4), num_layers):
+        first_ffn_layer = (
+            max(0, num_layers - 4)
+            if scope == ATTENTION_PLUS_TOP4_FFN_TRAINABLE_SCOPE
+            else 0
+        )
+        for layer_index in range(first_ffn_layer, num_layers):
             names.update(
                 f"layers.{layer_index}.{suffix}" for suffix in ffn_modules
             )

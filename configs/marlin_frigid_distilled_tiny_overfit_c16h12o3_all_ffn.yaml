@@ -1,0 +1,31 @@
+# Diagnostic-only full-decoder-capacity check on the same four C16H12O3 isomers.
+# This is FRIGID-distilled MARLIN, not a strict paper reproduction or benchmark.
+defaults:
+  - marlin_frigid_distilled_tiny_overfit_c16h12o3
+  - _self_
+
+adaptation:
+  stage: diagnostic-tiny-overfit-c16h12o3-block32-all-ffn
+  trainable_scope: attention_plus_all_ffn
+
+optim:
+  learning_rate: 1.0e-5
+
+output:
+  root: /mnt/netstorage/nikolenko/marlin/runs/frigid-distilled-tiny-c16h12o3-all-ffn
+  checkpoints: /mnt/netstorage/nikolenko/marlin/runs/frigid-distilled-tiny-c16h12o3-all-ffn/checkpoints
+
+tracking:
+  clearml:
+    task_name: frigid-distilled-marlin-tiny-c16h12o3-all-ffn
+    tags:
+      - FRIGID-distilled-MARLIN
+      - not-strict-reproduction
+      - diagnostic-only
+      - tiny-overfit
+      - c16h12o3-isomers
+      - block-attention-32
+      - attention-plus-all-ffn
+      - next-token-rollout-distillation
+      - deterministic-dropout
+      - raw-molecular-validation
