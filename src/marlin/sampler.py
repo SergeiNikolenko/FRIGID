@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import math
 from typing import Callable, Sequence
 
 import torch
@@ -34,6 +35,54 @@ class MarlinGenerationStats:
     max_length_terminated: int
     sample_terminal_safes: tuple[str, ...]
     sample_dead_ends: tuple[dict[str, float | int | str], ...]
+
+
+@dataclass(frozen=True)
+class MarlinBeamSearchStats:
+    beam_width: int
+    branch_factor: int
+    max_model_batch_size: int
+    max_completed_paths: int
+    expanded_hypotheses: int
+    expanded_tokens: int
+    completed_paths: int
+    valid_paths: int
+    strict_valid_paths: int
+    mass_valid_paths: int
+    constraint_dead_ends: int
+    eos_terminated: int
+    block_terminated: int
+    max_length_terminated: int
+    pruned_hypotheses: int
+    backtrack_recoveries: int
+    best_completed_log_probability: float | None
+    max_committed_tokens: int
+    sample_terminal_safes: tuple[str, ...]
+    sample_dead_ends: tuple[dict[str, float | int | str], ...]
+    completion_paths: tuple[dict[str, float | int | bool | str | None], ...]
+
+
+@dataclass(frozen=True)
+class _BeamHypothesis:
+    canvas: tuple[int, ...]
+    state: MassShellState
+    log_probability: float
+    used_alternative: bool
+
+
+@dataclass(frozen=True)
+class _BeamCompletion:
+    canvas: tuple[int, ...]
+    log_probability: float
+    termination: str
+    used_alternative: bool
+
+
+@dataclass(frozen=True)
+class _BeamExpansion:
+    log_probability: float
+    hypothesis: _BeamHypothesis | None = None
+    completion: _BeamCompletion | None = None
 
 
 class MarlinSampler:
@@ -296,6 +345,376 @@ class MarlinSampler:
             max_length_terminated=diagnostics["max_length_terminated"],
             sample_terminal_safes=tuple(diagnostics["sample_terminal_safes"]),
             sample_dead_ends=tuple(diagnostics["sample_dead_ends"]),
+        )
+
+    @torch.no_grad()
+    def generate_beam_ranked_with_stats(
+        self,
+        fingerprint: torch.Tensor,
+        target_mass: float,
+        *,
+        beam_width: int = 64,
+        branch_factor: int = 10,
+        temperature: float = 1.0,
+        max_model_batch_size: int = 64,
+        max_completed_paths: int | None = None,
+    ) -> tuple[list[MarlinCandidate], MarlinBeamSearchStats]:
+        """Search contiguous constrained prefixes without irreversible argmax.
+
+        This is a bounded diagnostic recovery path for models trained on the
+        first unresolved token. It leaves the production greedy sampler
+        unchanged and keeps the best active prefixes by cumulative log
+        probability after every committed token.
+        """
+
+        if beam_width <= 0:
+            raise ValueError("beam_width must be positive")
+        if branch_factor <= 0:
+            raise ValueError("branch_factor must be positive")
+        if not math.isfinite(temperature) or temperature <= 0:
+            raise ValueError("temperature must be finite and positive")
+        if not math.isfinite(target_mass) or target_mass <= 0:
+            raise ValueError("target_mass must be finite and positive")
+        if max_model_batch_size <= 0:
+            raise ValueError("max_model_batch_size must be positive")
+        completion_limit = (
+            beam_width if max_completed_paths is None else max_completed_paths
+        )
+        if completion_limit <= 0:
+            raise ValueError("max_completed_paths must be positive")
+        if self.generation_mode != "block":
+            raise ValueError("beam search currently requires block generation mode")
+
+        device = next(self.model.parameters()).device
+        original = (fingerprint > 0.5).to(device=device, dtype=torch.float32)
+        conditioned = original.reshape(1, -1)
+        first_width = self._next_block_width(1)
+        if first_width <= 0:
+            raise ValueError(
+                "beam search requires model.config.max_length to be at least 2"
+            )
+        beams = [
+            _BeamHypothesis(
+                canvas=(self.bos_token_id,) + (self.mask_token_id,) * first_width,
+                state=MassShellState(),
+                log_probability=0.0,
+                used_alternative=False,
+            )
+        ]
+        completions: list[_BeamCompletion] = []
+        expanded_hypotheses = 0
+        expanded_tokens = 0
+        constraint_dead_ends = 0
+        eos_terminated = 0
+        block_terminated = 0
+        max_length_terminated = 0
+        pruned_hypotheses = 0
+        max_committed_tokens = 0
+        dead_end_examples: list[dict[str, float | int | str]] = []
+
+        def content_token_count(canvas: Sequence[int]) -> int:
+            count = 0
+            for token_id in canvas[1:]:
+                if token_id in {self.eos_token_id, self.mask_token_id}:
+                    break
+                count += 1
+            return count
+
+        def production_accepts(canvas: Sequence[int]) -> bool:
+            safe = self._decode_prefix(canvas)
+            smiles = self.safe_to_smiles(safe)
+            molecule = Chem.MolFromSmiles(smiles) if smiles else None
+            is_valid = molecule is not None
+            is_mass_valid = self.constraint.accepts_smiles(smiles, target_mass)
+            return is_mass_valid or (is_valid and not self.mass_shell_enabled)
+
+        while beams:
+            canvas_lengths = {len(beam.canvas) for beam in beams}
+            if len(canvas_lengths) != 1:
+                raise AssertionError("active beam canvases must have equal lengths")
+            try:
+                position = beams[0].canvas.index(self.mask_token_id)
+            except ValueError as error:
+                raise AssertionError("active beam has no unresolved token") from error
+            if any(beam.canvas.index(self.mask_token_id) != position for beam in beams):
+                raise AssertionError(
+                    "active beam canvases must share the unresolved position"
+                )
+
+            token_logit_chunks = []
+            for start in range(0, len(beams), max_model_batch_size):
+                chunk = beams[start : start + max_model_batch_size]
+                input_ids = torch.tensor(
+                    [beam.canvas for beam in chunk],
+                    device=device,
+                    dtype=torch.long,
+                )
+                masses = torch.full(
+                    (len(chunk),), target_mass, device=device, dtype=torch.float32
+                )
+                fingerprints = conditioned.expand(len(chunk), -1)
+                with torch.autocast(
+                    device_type=device.type,
+                    dtype=torch.bfloat16,
+                    enabled=device.type == "cuda",
+                ):
+                    logits = self._sampling_logits(input_ids, masses, fingerprints)
+                token_logit_chunks.append(logits[:, position].float())
+            token_logits = torch.cat(token_logit_chunks, dim=0)
+
+            expansions: list[_BeamExpansion] = []
+            constrained_rows = []
+            for beam, row_logits in zip(beams, token_logits):
+                constrained_rows.append(
+                    self.constrain_action_logits(
+                        beam.canvas[:position],
+                        row_logits / temperature,
+                        target_mass,
+                        state=beam.state,
+                    )
+                )
+            constrained_logits = torch.stack(constrained_rows)
+            finite = torch.isfinite(constrained_logits)
+            usable = constrained_logits.masked_fill(~finite, -torch.inf)
+            log_normalizer = torch.logsumexp(usable, dim=-1, keepdim=True)
+            log_probabilities = usable - log_normalizer
+            log_probabilities = torch.where(
+                finite.any(dim=-1, keepdim=True),
+                log_probabilities,
+                torch.full_like(log_probabilities, -torch.inf),
+            )
+            selected_width = min(branch_factor, log_probabilities.shape[-1])
+            ordered_ids = torch.argsort(
+                log_probabilities,
+                dim=-1,
+                descending=True,
+                stable=True,
+            )[:, :selected_width]
+            selected_values = torch.gather(log_probabilities, dim=-1, index=ordered_ids)
+            packed = (
+                torch.stack(
+                    (selected_values, ordered_ids.to(selected_values.dtype)),
+                    dim=-1,
+                )
+                .cpu()
+                .tolist()
+            )
+
+            expanded_hypotheses += len(beams)
+            for beam, row_choices in zip(beams, packed):
+                finite_choices = [
+                    (float(value), int(token_id))
+                    for value, token_id in row_choices
+                    if math.isfinite(float(value))
+                ]
+                if not finite_choices:
+                    constraint_dead_ends += 1
+                    if len(dead_end_examples) < 5:
+                        dead_end_examples.append(
+                            {
+                                "safe": self._decode_prefix(beam.canvas)[:512],
+                                "heavy_mass": beam.state.heavy_mass,
+                                "heavy_atoms": beam.state.heavy_atoms,
+                                "valence_sum": beam.state.valence_sum,
+                            }
+                        )
+                    continue
+
+                for local_rank, (value, token_id) in enumerate(finite_choices):
+                    expanded_tokens += 1
+                    canvas = list(beam.canvas)
+                    canvas[position] = token_id
+                    score = beam.log_probability + value
+                    used_alternative = beam.used_alternative or local_rank > 0
+                    if token_id == self.eos_token_id:
+                        eos_terminated += 1
+                        if production_accepts(canvas):
+                            expansions.append(
+                                _BeamExpansion(
+                                    log_probability=score,
+                                    completion=_BeamCompletion(
+                                        canvas=tuple(canvas),
+                                        log_probability=score,
+                                        termination="eos",
+                                        used_alternative=used_alternative,
+                                    ),
+                                )
+                            )
+                        continue
+
+                    max_committed_tokens = max(
+                        max_committed_tokens,
+                        content_token_count(canvas),
+                    )
+                    state = self.constraint.advance(beam.state, token_id)
+                    if self.mask_token_id not in canvas:
+                        safe = self._decode_prefix(canvas)
+                        smiles = self.safe_to_smiles(safe)
+                        is_valid = bool(
+                            smiles and Chem.MolFromSmiles(smiles) is not None
+                        )
+                        is_mass_valid = self.constraint.accepts_smiles(
+                            smiles, target_mass
+                        )
+                        if is_mass_valid or (is_valid and not self.mass_shell_enabled):
+                            block_terminated += 1
+                            expansions.append(
+                                _BeamExpansion(
+                                    log_probability=score,
+                                    completion=_BeamCompletion(
+                                        canvas=tuple(canvas),
+                                        log_probability=score,
+                                        termination="block",
+                                        used_alternative=used_alternative,
+                                    ),
+                                )
+                            )
+                            continue
+                        if len(canvas) >= self.model.config.max_length:
+                            max_length_terminated += 1
+                            continue
+                        next_width = self._next_block_width(len(canvas))
+                        canvas.extend([self.mask_token_id] * next_width)
+                    expansions.append(
+                        _BeamExpansion(
+                            log_probability=score,
+                            hypothesis=_BeamHypothesis(
+                                canvas=tuple(canvas),
+                                state=state,
+                                log_probability=score,
+                                used_alternative=used_alternative,
+                            ),
+                        )
+                    )
+
+            new_completions = [
+                expansion.completion
+                for expansion in expansions
+                if expansion.completion is not None
+            ]
+            completions.extend(new_completions)
+            completions.sort(
+                key=lambda completion: (
+                    -completion.log_probability,
+                    completion.canvas,
+                )
+            )
+            if len(completions) > completion_limit:
+                pruned_hypotheses += len(completions) - completion_limit
+                del completions[completion_limit:]
+
+            live = [
+                expansion.hypothesis
+                for expansion in expansions
+                if expansion.hypothesis is not None
+            ]
+            live.sort(
+                key=lambda hypothesis: (
+                    -hypothesis.log_probability,
+                    hypothesis.canvas,
+                )
+            )
+            if len(live) > beam_width:
+                pruned_hypotheses += len(live) - beam_width
+            beams = live[:beam_width]
+            if (
+                len(completions) == completion_limit
+                and beams
+                and completions[-1].log_probability >= beams[0].log_probability
+            ):
+                break
+
+        generated: list[tuple[str, str, bool]] = []
+        valid_paths = 0
+        strict_valid_paths = 0
+        mass_valid_paths = 0
+        terminal_examples: list[str] = []
+        completion_paths: list[dict[str, float | int | bool | str | None]] = []
+        for completion in completions:
+            safe = self._decode_prefix(completion.canvas)
+            smiles = self.safe_to_smiles(safe)
+            molecule = Chem.MolFromSmiles(smiles) if smiles else None
+            is_valid = molecule is not None
+            strict_smiles = self.strict_safe_to_smiles(safe)
+            strict_molecule = (
+                Chem.MolFromSmiles(strict_smiles) if strict_smiles else None
+            )
+            is_mass_valid = self.constraint.accepts_smiles(smiles, target_mass)
+            valid_paths += int(is_valid)
+            strict_valid_paths += int(strict_molecule is not None)
+            mass_valid_paths += int(is_mass_valid)
+            if len(terminal_examples) < 5:
+                terminal_examples.append(safe[:512])
+            completion_paths.append(
+                {
+                    "log_probability": completion.log_probability,
+                    "termination": completion.termination,
+                    "used_alternative": completion.used_alternative,
+                    "content_tokens": content_token_count(completion.canvas),
+                    "safe": safe,
+                    "smiles": smiles,
+                    "valid": is_valid,
+                    "strict_valid": strict_molecule is not None,
+                    "mass_valid": is_mass_valid,
+                }
+            )
+            if is_mass_valid or (is_valid and not self.mass_shell_enabled):
+                if smiles is None:
+                    raise AssertionError("accepted completion has no SMILES")
+                generated.append((safe, smiles, is_mass_valid))
+
+        unique: dict[str, tuple[str, str, bool]] = {}
+        for safe, smiles, is_mass_valid in generated:
+            molecule = Chem.MolFromSmiles(smiles)
+            if molecule is None:
+                continue
+            canonical = Chem.MolToSmiles(molecule, canonical=True)
+            unique.setdefault(canonical, (safe, canonical, is_mass_valid))
+
+        reference = _fingerprint(original)
+        ranked = []
+        for safe, smiles, _ in unique.values():
+            molecule = Chem.MolFromSmiles(smiles)
+            exact_mass = Descriptors.ExactMolWt(molecule)
+            ranked.append(
+                MarlinCandidate(
+                    smiles=smiles,
+                    safe=safe,
+                    tanimoto=DataStructs.TanimotoSimilarity(
+                        reference, _morgan(molecule)
+                    ),
+                    mass_error_ppm=(1e6 * (exact_mass - target_mass) / target_mass),
+                )
+            )
+        ranked.sort(
+            key=lambda candidate: (-candidate.tanimoto, abs(candidate.mass_error_ppm))
+        )
+        return ranked, MarlinBeamSearchStats(
+            beam_width=beam_width,
+            branch_factor=branch_factor,
+            max_model_batch_size=max_model_batch_size,
+            max_completed_paths=completion_limit,
+            expanded_hypotheses=expanded_hypotheses,
+            expanded_tokens=expanded_tokens,
+            completed_paths=len(completions),
+            valid_paths=valid_paths,
+            strict_valid_paths=strict_valid_paths,
+            mass_valid_paths=mass_valid_paths,
+            constraint_dead_ends=constraint_dead_ends,
+            eos_terminated=eos_terminated,
+            block_terminated=block_terminated,
+            max_length_terminated=max_length_terminated,
+            pruned_hypotheses=pruned_hypotheses,
+            backtrack_recoveries=sum(
+                int(completion.used_alternative) for completion in completions
+            ),
+            best_completed_log_probability=(
+                completions[0].log_probability if completions else None
+            ),
+            max_committed_tokens=max_committed_tokens,
+            sample_terminal_safes=tuple(terminal_examples),
+            sample_dead_ends=tuple(dead_end_examples),
+            completion_paths=tuple(completion_paths),
         )
 
     def _generate_many(

@@ -1515,6 +1515,401 @@ def test_batched_sampler_uses_argmax_token_deterministically(
     assert [candidate.smiles for candidate in ranked] == ["C"]
 
 
+def test_constrained_beam_recovers_mass_valid_second_choice():
+    class GreedyTrapModel(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.anchor = torch.nn.Parameter(torch.zeros(()))
+            self.config = MarlinDecoderConfig(
+                vocab_size=5,
+                hidden_size=4,
+                num_layers=1,
+                num_heads=1,
+                intermediate_size=4,
+                max_length=3,
+                block_width=2,
+                fingerprint_bits=8,
+                dropout=0.0,
+                mask_token_id=3,
+                pad_token_id=0,
+            )
+
+        def forward(self, input_ids, precursor_mass, fingerprint):
+            del precursor_mass, fingerprint
+            logits = torch.full((*input_ids.shape, 5), -torch.inf, device=input_ids.device)
+            for row in range(input_ids.shape[0]):
+                if input_ids[row, 1].item() == 3:
+                    logits[row, 1, 4] = 2.0
+                    logits[row, 1, 1] = 1.0
+                else:
+                    logits[row, 2, 2] = 5.0
+            return logits
+
+    tokens = ("[UNK]", "C", "[SEP]", "[MASK]", "O")
+    target_mass = Descriptors.ExactMolWt(Chem.MolFromSmiles("C"))
+    sampler = MarlinSampler(
+        GreedyTrapModel(),
+        MassShellConstraint(
+            [0.0, 12.0, 0.0, 0.0, 15.99491462],
+            [0, 1, 0, 0, 1],
+            [0.0, 4.0, 0.0, 0.0, 2.0],
+            eos_token_id=2,
+            ppm_tolerance=10,
+        ),
+        bos_token_id=0,
+        eos_token_id=2,
+        mask_token_id=3,
+        decode_tokens=lambda ids: "".join(
+            tokens[index] for index in ids if index in {1, 4}
+        ),
+        safe_to_smiles=lambda safe: safe or None,
+        forbidden_token_ids=(0, 3),
+    )
+
+    greedy, _ = sampler.generate_ranked_with_stats(
+        torch.zeros(8),
+        target_mass,
+        candidates=1,
+        diversity_dropout=0.0,
+    )
+    beam, stats = sampler.generate_beam_ranked_with_stats(
+        torch.zeros(8),
+        target_mass,
+        beam_width=2,
+        branch_factor=2,
+    )
+
+    assert greedy == []
+    assert [candidate.smiles for candidate in beam] == ["C"]
+    assert stats.completed_paths == 1
+    assert stats.mass_valid_paths == 1
+    assert stats.expanded_hypotheses == 3
+    assert stats.eos_terminated == 2
+    assert stats.backtrack_recoveries == 1
+    assert stats.max_committed_tokens == 1
+
+
+def test_constrained_beam_bounds_completed_pool():
+    class TwoTerminalModel(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.anchor = torch.nn.Parameter(torch.zeros(()))
+            self.config = MarlinDecoderConfig(
+                vocab_size=5,
+                hidden_size=4,
+                num_layers=1,
+                num_heads=1,
+                intermediate_size=4,
+                max_length=2,
+                block_width=1,
+                fingerprint_bits=8,
+                dropout=0.0,
+                mask_token_id=3,
+                pad_token_id=0,
+            )
+
+        def forward(self, input_ids, precursor_mass, fingerprint):
+            del precursor_mass, fingerprint
+            logits = torch.full(
+                (*input_ids.shape, 5), -torch.inf, device=input_ids.device
+            )
+            logits[:, 1, 1] = 2.0
+            logits[:, 1, 4] = 1.0
+            return logits
+
+    sampler = MarlinSampler(
+        TwoTerminalModel(),
+        MassShellConstraint(
+            [0.0, 12.0, 0.0, 0.0, 14.0],
+            [0, 1, 0, 0, 1],
+            [0.0, 4.0, 0.0, 0.0, 3.0],
+            eos_token_id=2,
+            ppm_tolerance=10,
+        ),
+        bos_token_id=0,
+        eos_token_id=2,
+        mask_token_id=3,
+        decode_tokens=lambda ids: "".join(
+            {1: "C", 4: "N"}.get(token_id, "") for token_id in ids
+        ),
+        safe_to_smiles=lambda safe: safe or None,
+        forbidden_token_ids=(0, 3),
+        mass_shell_enabled=False,
+    )
+
+    ranked, stats = sampler.generate_beam_ranked_with_stats(
+        torch.zeros(8),
+        target_mass=100.0,
+        beam_width=1,
+        branch_factor=2,
+    )
+
+    assert [candidate.smiles for candidate in ranked] == ["C"]
+    assert stats.completed_paths == 1
+    assert stats.expanded_tokens == 2
+    assert stats.block_terminated == 2
+    assert stats.pruned_hypotheses == 1
+
+
+def test_constrained_beam_invalid_eos_does_not_exhaust_live_frontier():
+    class InvalidEosTrapModel(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.anchor = torch.nn.Parameter(torch.zeros(()))
+            self.batch_sizes = []
+            self.config = MarlinDecoderConfig(
+                vocab_size=5,
+                hidden_size=4,
+                num_layers=1,
+                num_heads=1,
+                intermediate_size=4,
+                max_length=3,
+                block_width=2,
+                fingerprint_bits=8,
+                dropout=0.0,
+                mask_token_id=3,
+                pad_token_id=0,
+            )
+
+        def forward(self, input_ids, precursor_mass, fingerprint):
+            del precursor_mass, fingerprint
+            self.batch_sizes.append(input_ids.shape[0])
+            logits = torch.full(
+                (*input_ids.shape, 5), -torch.inf, device=input_ids.device
+            )
+            for row in range(input_ids.shape[0]):
+                if input_ids[row, 1].item() == 3:
+                    logits[row, 1, 2] = 3.0
+                    logits[row, 1, 1] = 2.0
+                    logits[row, 1, 4] = 1.0
+                else:
+                    logits[row, 2, 1] = 3.0
+            return logits
+
+    model = InvalidEosTrapModel()
+    sampler = MarlinSampler(
+        model,
+        MassShellConstraint(
+            [0.0, 12.0, 0.0, 0.0, 16.0],
+            [0, 1, 0, 0, 1],
+            [0.0, 4.0, 0.0, 0.0, 2.0],
+            eos_token_id=2,
+            ppm_tolerance=10,
+        ),
+        bos_token_id=0,
+        eos_token_id=2,
+        mask_token_id=3,
+        decode_tokens=lambda ids: "".join(
+            {1: "C", 4: "O"}.get(token_id, "") for token_id in ids
+        ),
+        safe_to_smiles=lambda safe: safe or None,
+        forbidden_token_ids=(0, 3),
+        mass_shell_enabled=False,
+    )
+
+    ranked, stats = sampler.generate_beam_ranked_with_stats(
+        torch.zeros(8),
+        target_mass=100.0,
+        beam_width=2,
+        branch_factor=3,
+        max_model_batch_size=1,
+    )
+
+    assert {candidate.smiles for candidate in ranked} == {"CC", "CO"}
+    assert stats.completed_paths == 2
+    assert stats.eos_terminated == 1
+    assert stats.backtrack_recoveries == 2
+    assert stats.max_committed_tokens == 2
+    assert max(model.batch_sizes) == 1
+
+
+def test_constrained_beam_handles_partial_final_block():
+    class PartialBlockModel(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.anchor = torch.nn.Parameter(torch.zeros(()))
+            self.canvases = []
+            self.config = MarlinDecoderConfig(
+                vocab_size=4,
+                hidden_size=4,
+                num_layers=1,
+                num_heads=1,
+                intermediate_size=4,
+                max_length=4,
+                block_width=2,
+                fingerprint_bits=8,
+                dropout=0.0,
+                mask_token_id=3,
+                pad_token_id=0,
+            )
+
+        def forward(self, input_ids, precursor_mass, fingerprint):
+            del precursor_mass, fingerprint
+            self.canvases.extend(input_ids.detach().cpu().tolist())
+            logits = torch.full(
+                (*input_ids.shape, 4), -torch.inf, device=input_ids.device
+            )
+            for row in range(input_ids.shape[0]):
+                position = input_ids[row].tolist().index(3)
+                logits[row, position, 1] = 1.0
+            return logits
+
+    model = PartialBlockModel()
+    sampler = MarlinSampler(
+        model,
+        MassShellConstraint(
+            [0.0, 12.0, 0.0, 0.0],
+            [0, 1, 0, 0],
+            [0.0, 4.0, 0.0, 0.0],
+            eos_token_id=2,
+            ppm_tolerance=10,
+        ),
+        bos_token_id=0,
+        eos_token_id=2,
+        mask_token_id=3,
+        decode_tokens=lambda ids: "".join("C" for token_id in ids if token_id == 1),
+        safe_to_smiles=lambda safe: safe if len(safe) >= 3 else None,
+        forbidden_token_ids=(0, 2, 3),
+        mass_shell_enabled=False,
+    )
+
+    ranked, stats = sampler.generate_beam_ranked_with_stats(
+        torch.zeros(8),
+        target_mass=100.0,
+        beam_width=1,
+        branch_factor=1,
+    )
+
+    assert [candidate.smiles for candidate in ranked] == ["CCC"]
+    assert model.canvases == [
+        [0, 3, 3],
+        [0, 1, 3],
+        [0, 1, 1, 3],
+    ]
+    assert max(len(canvas) for canvas in model.canvases) == 4
+    assert stats.max_committed_tokens == 3
+
+
+def test_constrained_beam_eos_ignores_masked_suffix():
+    class EosModel(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.anchor = torch.nn.Parameter(torch.zeros(()))
+            self.canvases = []
+            self.config = MarlinDecoderConfig(
+                vocab_size=4,
+                hidden_size=4,
+                num_layers=1,
+                num_heads=1,
+                intermediate_size=4,
+                max_length=4,
+                block_width=3,
+                fingerprint_bits=8,
+                dropout=0.0,
+                mask_token_id=3,
+                pad_token_id=0,
+            )
+
+        def forward(self, input_ids, precursor_mass, fingerprint):
+            del precursor_mass, fingerprint
+            self.canvases.extend(input_ids.detach().cpu().tolist())
+            logits = torch.full(
+                (*input_ids.shape, 4), -torch.inf, device=input_ids.device
+            )
+            for row in range(input_ids.shape[0]):
+                position = input_ids[row].tolist().index(3)
+                logits[row, position, 1 if position == 1 else 2] = 1.0
+            return logits
+
+    model = EosModel()
+    sampler = MarlinSampler(
+        model,
+        MassShellConstraint(
+            [0.0, 12.0, 0.0, 0.0],
+            [0, 1, 0, 0],
+            [0.0, 4.0, 0.0, 0.0],
+            eos_token_id=2,
+            ppm_tolerance=10,
+        ),
+        bos_token_id=0,
+        eos_token_id=2,
+        mask_token_id=3,
+        decode_tokens=lambda ids: "".join("C" for token_id in ids if token_id == 1),
+        safe_to_smiles=lambda safe: safe or None,
+        forbidden_token_ids=(0, 3),
+        mass_shell_enabled=False,
+    )
+
+    ranked, stats = sampler.generate_beam_ranked_with_stats(
+        torch.zeros(8),
+        target_mass=100.0,
+        beam_width=1,
+        branch_factor=1,
+    )
+
+    assert [candidate.smiles for candidate in ranked] == ["C"]
+    assert model.canvases == [[0, 3, 3, 3], [0, 1, 3, 3]]
+    assert stats.eos_terminated == 1
+    assert stats.max_committed_tokens == 1
+    assert stats.completion_paths[0]["content_tokens"] == 1
+
+
+@pytest.mark.parametrize(
+    ("target_mass", "kwargs", "message"),
+    [
+        (100.0, {"temperature": float("nan")}, "temperature"),
+        (100.0, {"temperature": float("inf")}, "temperature"),
+        (0.0, {}, "target_mass"),
+        (-1.0, {}, "target_mass"),
+    ],
+)
+def test_constrained_beam_rejects_nonfinite_or_nonpositive_controls(
+    target_mass,
+    kwargs,
+    message,
+):
+    class MinimalModel(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.anchor = torch.nn.Parameter(torch.zeros(()))
+            self.config = MarlinDecoderConfig(
+                vocab_size=4,
+                hidden_size=4,
+                num_layers=1,
+                num_heads=1,
+                intermediate_size=4,
+                max_length=2,
+                block_width=1,
+                fingerprint_bits=8,
+                dropout=0.0,
+                mask_token_id=3,
+                pad_token_id=0,
+            )
+
+    sampler = MarlinSampler(
+        MinimalModel(),
+        MassShellConstraint(
+            [0.0, 12.0, 0.0, 0.0],
+            [0, 1, 0, 0],
+            [0.0, 4.0, 0.0, 0.0],
+            eos_token_id=2,
+            ppm_tolerance=10,
+        ),
+        bos_token_id=0,
+        eos_token_id=2,
+        mask_token_id=3,
+        decode_tokens=lambda ids: "",
+        safe_to_smiles=lambda safe: None,
+    )
+
+    with pytest.raises(ValueError, match=message):
+        sampler.generate_beam_ranked_with_stats(
+            torch.zeros(8),
+            target_mass=target_mass,
+            **kwargs,
+        )
+
+
 def test_canvas_sampler_fills_fixed_masked_sequence():
     class CanvasModel(torch.nn.Module):
         def __init__(self):
