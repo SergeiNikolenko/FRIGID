@@ -1651,6 +1651,72 @@ def test_constrained_beam_bounds_completed_pool():
     assert stats.pruned_hypotheses == 1
 
 
+def test_constrained_beam_considers_accepted_eos_outside_branch_factor():
+    class LowRankEosModel(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.anchor = torch.nn.Parameter(torch.zeros(()))
+            self.config = MarlinDecoderConfig(
+                vocab_size=4,
+                hidden_size=4,
+                num_layers=1,
+                num_heads=1,
+                intermediate_size=4,
+                max_length=3,
+                block_width=2,
+                fingerprint_bits=8,
+                dropout=0.0,
+                mask_token_id=3,
+                pad_token_id=0,
+            )
+
+        def forward(self, input_ids, precursor_mass, fingerprint):
+            del precursor_mass, fingerprint
+            logits = torch.full(
+                (*input_ids.shape, 4), -torch.inf, device=input_ids.device
+            )
+            for row in range(input_ids.shape[0]):
+                position = int((input_ids[row] == 3).nonzero()[0])
+                logits[row, position, 1] = 3.0
+                if position == 1:
+                    logits[row, position, 2] = 4.0
+                else:
+                    logits[row, position, 2] = 0.0
+            return logits
+
+    sampler = MarlinSampler(
+        LowRankEosModel(),
+        MassShellConstraint(
+            [0.0, 12.0, 0.0, 0.0],
+            [0, 1, 0, 0],
+            [0.0, 4.0, 0.0, 0.0],
+            eos_token_id=2,
+            ppm_tolerance=10,
+        ),
+        bos_token_id=0,
+        eos_token_id=2,
+        mask_token_id=3,
+        decode_tokens=lambda ids: "C" * ids.count(1),
+        safe_to_smiles=lambda safe: safe or None,
+        forbidden_token_ids=(0, 3),
+        mass_shell_enabled=False,
+    )
+
+    target_mass = Descriptors.ExactMolWt(Chem.MolFromSmiles("C"))
+    ranked, stats = sampler.generate_beam_ranked_with_stats(
+        torch.zeros(8),
+        target_mass,
+        beam_width=2,
+        branch_factor=1,
+    )
+
+    assert [candidate.smiles for candidate in ranked] == ["C", "CC"]
+    assert stats.completed_paths == 2
+    assert stats.eos_terminated == 2
+    assert stats.independent_eos_probes == 2
+    assert stats.expanded_tokens == 4
+
+
 def test_constrained_beam_invalid_eos_does_not_exhaust_live_frontier():
     class InvalidEosTrapModel(torch.nn.Module):
         def __init__(self):

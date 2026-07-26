@@ -88,6 +88,9 @@ def summarize_width(rows: list[dict]) -> dict[str, float | int]:
         "expanded_tokens": sum(
             int(row["search_stats"]["expanded_tokens"]) for row in rows
         ),
+        "independent_eos_probes": sum(
+            int(row["search_stats"]["independent_eos_probes"]) for row in rows
+        ),
         "completed_paths": sum(
             int(row["search_stats"]["completed_paths"]) for row in rows
         ),
@@ -174,6 +177,7 @@ def publish_clearml(task: Any | None, widths: list[dict]) -> None:
         "rows_with_mass_valid_path",
         "unique_candidates",
         "completed_paths",
+        "independent_eos_probes",
         "constraint_dead_ends",
         "eos_terminated",
         "block_terminated",

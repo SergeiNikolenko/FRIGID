@@ -45,6 +45,7 @@ class MarlinBeamSearchStats:
     max_completed_paths: int
     expanded_hypotheses: int
     expanded_tokens: int
+    independent_eos_probes: int
     completed_paths: int
     valid_paths: int
     strict_valid_paths: int
@@ -364,7 +365,10 @@ class MarlinSampler:
         This is a bounded diagnostic recovery path for models trained on the
         first unresolved token. It leaves the production greedy sampler
         unchanged and keeps the best active prefixes by cumulative log
-        probability after every committed token.
+        probability after every committed token. ``branch_factor`` bounds
+        non-EOS token expansions. A finite EOS is probed independently even
+        when it falls outside that local top-k, and never consumes live-beam
+        capacity when the resulting terminal prefix is rejected.
         """
 
         if beam_width <= 0:
@@ -404,6 +408,7 @@ class MarlinSampler:
         completions: list[_BeamCompletion] = []
         expanded_hypotheses = 0
         expanded_tokens = 0
+        independent_eos_probes = 0
         constraint_dead_ends = 0
         eos_terminated = 0
         block_terminated = 0
@@ -483,9 +488,13 @@ class MarlinSampler:
                 log_probabilities,
                 torch.full_like(log_probabilities, -torch.inf),
             )
-            selected_width = min(branch_factor, log_probabilities.shape[-1])
+            continuation_log_probabilities = log_probabilities.clone()
+            continuation_log_probabilities[:, self.eos_token_id] = -torch.inf
+            selected_width = min(
+                branch_factor, continuation_log_probabilities.shape[-1]
+            )
             ordered_ids = torch.argsort(
-                log_probabilities,
+                continuation_log_probabilities,
                 dim=-1,
                 descending=True,
                 stable=True,
@@ -499,14 +508,21 @@ class MarlinSampler:
                 .cpu()
                 .tolist()
             )
+            eos_values = log_probabilities[:, self.eos_token_id].cpu().tolist()
+            top1_ids = torch.argmax(log_probabilities, dim=-1).cpu().tolist()
 
             expanded_hypotheses += len(beams)
-            for beam, row_choices in zip(beams, packed):
+            for beam, row_choices, eos_value, top1_id in zip(
+                beams, packed, eos_values, top1_ids
+            ):
                 finite_choices = [
                     (float(value), int(token_id))
                     for value, token_id in row_choices
                     if math.isfinite(float(value))
                 ]
+                if math.isfinite(float(eos_value)):
+                    finite_choices.append((float(eos_value), self.eos_token_id))
+                    independent_eos_probes += 1
                 if not finite_choices:
                     constraint_dead_ends += 1
                     if len(dead_end_examples) < 5:
@@ -520,12 +536,14 @@ class MarlinSampler:
                         )
                     continue
 
-                for local_rank, (value, token_id) in enumerate(finite_choices):
+                for value, token_id in finite_choices:
                     expanded_tokens += 1
                     canvas = list(beam.canvas)
                     canvas[position] = token_id
                     score = beam.log_probability + value
-                    used_alternative = beam.used_alternative or local_rank > 0
+                    used_alternative = (
+                        beam.used_alternative or token_id != int(top1_id)
+                    )
                     if token_id == self.eos_token_id:
                         eos_terminated += 1
                         if production_accepts(canvas):
@@ -696,6 +714,7 @@ class MarlinSampler:
             max_completed_paths=completion_limit,
             expanded_hypotheses=expanded_hypotheses,
             expanded_tokens=expanded_tokens,
+            independent_eos_probes=independent_eos_probes,
             completed_paths=len(completions),
             valid_paths=valid_paths,
             strict_valid_paths=strict_valid_paths,
