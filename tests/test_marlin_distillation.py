@@ -121,6 +121,46 @@ def test_rollout_prefix_inputs_match_production_left_to_right_states():
     assert fair.rollout_prefix_masked.tolist() == [True]
 
 
+def test_rollout_prefix_reveal_counts_cover_every_production_action():
+    clean = torch.tensor(
+        [
+            [1, 5, 6, 5, 2],
+            [1, 5, 6, 5, 2],
+            [1, 5, 6, 5, 2],
+            [1, 5, 6, 5, 2],
+        ]
+    )
+
+    fair = build_fair_block_inputs(
+        clean,
+        block_width=4,
+        bos_token_id=1,
+        pad_token_id=0,
+        mask_token_id=4,
+        selected_blocks=torch.zeros(4, dtype=torch.long),
+        current_block_masking="continuous_time",
+        current_mask_probabilities=torch.tensor([0.99, 0.70, 0.49, 0.20]),
+        rollout_prefix_probability=1.0,
+        generator=torch.Generator().manual_seed(0),
+    )
+
+    assert fair.input_ids.tolist() == [
+        [1, 4, 4, 4, 4],
+        [1, 5, 4, 4, 4],
+        [1, 5, 6, 4, 4],
+        [1, 5, 6, 5, 4],
+    ]
+    assert fair.loss_mask.tolist() == [
+        [False, True, False, False, False],
+        [False, False, True, False, False],
+        [False, False, False, True, False],
+        [False, False, False, False, True],
+    ]
+    assert fair.loss_weights[fair.loss_mask].tolist() == [4.0] * 4
+    assert fair.rollout_prefix_masked.tolist() == [True] * 4
+    assert fair.full_block_masked.tolist() == [True, False, False, False]
+
+
 def test_empty_continuous_time_microbatch_uses_bounded_fallback_weight():
     clean = torch.tensor([[1, 5, 6, 5, 6, 0]])
     fair = build_fair_block_inputs(
@@ -697,6 +737,65 @@ def test_all_ffn_tiny_config_only_changes_capacity_and_run_identity():
     assert all_ffn.trainer == top4.trainer
     assert "diagnostic-only" in all_ffn.tracking.clearml.tags
     assert "attention-plus-all-ffn" in all_ffn.tracking.clearml.tags
+
+
+def test_action_ce_tiny_config_only_changes_objective_and_run_identity():
+    config_dir = str(Path(__file__).resolve().parents[1] / "configs")
+    with initialize_config_dir(version_base=None, config_dir=config_dir):
+        top4 = compose(config_name="marlin_frigid_distilled_tiny_overfit_c16h12o3")
+        action_ce = compose(
+            config_name=(
+                "marlin_frigid_distilled_tiny_overfit_c16h12o3_action_ce"
+            )
+        )
+
+    top4_container = OmegaConf.to_container(top4, resolve=True)
+    action_ce_container = OmegaConf.to_container(action_ce, resolve=True)
+    assert isinstance(top4_container, dict)
+    assert isinstance(action_ce_container, dict)
+
+    expected_differences = {
+        "adaptation.stage",
+        "adaptation.full_block_mask_probability",
+        "adaptation.rollout_prefix_probability",
+        "adaptation.kl_weight",
+        "output.root",
+        "output.checkpoints",
+        "tracking.clearml.task_name",
+        "tracking.clearml.tags",
+    }
+
+    def differing_paths(left, right, prefix=""):
+        if isinstance(left, dict) and isinstance(right, dict):
+            assert left.keys() == right.keys()
+            return {
+                path
+                for key in left
+                for path in differing_paths(
+                    left[key],
+                    right[key],
+                    f"{prefix}.{key}" if prefix else key,
+                )
+            }
+        return {prefix} if left != right else set()
+
+    assert differing_paths(top4_container, action_ce_container) == expected_differences
+    assert (
+        action_ce.adaptation.trainable_scope
+        == ATTENTION_PLUS_TOP4_FFN_TRAINABLE_SCOPE
+    )
+    assert action_ce.adaptation.full_block_mask_probability == 0.0
+    assert action_ce.adaptation.rollout_prefix_probability == 1.0
+    assert action_ce.adaptation.kl_weight == 0.0
+    assert action_ce.data == top4.data
+    assert action_ce.loader == top4.loader
+    assert action_ce.model == top4.model
+    assert action_ce.optim == top4.optim
+    assert action_ce.training == top4.training
+    assert action_ce.trainer == top4.trainer
+    assert "production-action-ce" in action_ce.tracking.clearml.tags
+    assert "rollout-prefix-only" in action_ce.tracking.clearml.tags
+    assert "kl-zero" in action_ce.tracking.clearml.tags
 
 
 def test_frigid_teacher_rejects_tokenizer_mismatch():

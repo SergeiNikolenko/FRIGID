@@ -359,14 +359,12 @@ def build_fair_block_inputs(
             < rollout_prefix_probability
         ) & ~full_block_masked
         current_lengths = current_content.sum(dim=1)
+        # With t ~ Uniform(0, 1], floor((1 - t) * length) uniformly selects
+        # every production prefix length from zero through length - 1. Keep
+        # zero so rollout rows include the BOS-only first-token action.
         revealed_counts = torch.floor(
             (1.0 - mask_probabilities) * current_lengths.float()
         ).long()
-        revealed_counts = torch.where(
-            current_lengths.gt(1),
-            revealed_counts.clamp_min(1),
-            torch.zeros_like(revealed_counts),
-        )
         revealed_counts = torch.minimum(
             revealed_counts,
             (current_lengths - 1).clamp_min(0),
