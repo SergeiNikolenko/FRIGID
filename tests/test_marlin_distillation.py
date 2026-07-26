@@ -7,10 +7,13 @@ import torch
 from omegaconf import OmegaConf
 
 from marlin.distillation import (
+    ATTENTION_BRIDGE_TRAINABLE_SCOPE,
+    ATTENTION_PLUS_TOP4_FFN_TRAINABLE_SCOPE,
     FRIGID_DISTILLED_MARLIN_MODE,
     FrozenFrigidTeacher,
     FrigidDistillationSettings,
     build_fair_block_inputs,
+    expected_distillation_trainable_parameters,
     frigid_distillation_loss,
 )
 from marlin.ema import AllParameterExponentialMovingAverage
@@ -171,6 +174,107 @@ def test_stage0_freezes_pretrained_student_and_omits_isotope():
     assert teacher.calls[0][1] == ["C2H4O"]
     assert torch.isfinite(loss)
     assert metrics["current_tokens"].item() == 3
+
+
+def test_block_distillation_uses_two_stream_and_exact_attention_scope():
+    class FrozenTeacher:
+        def __init__(self):
+            self.input_ids = None
+
+        @torch.no_grad()
+        def logits(self, input_ids, formulas, fingerprint):
+            del formulas, fingerprint
+            self.input_ids = input_ids.clone()
+            return torch.zeros((*input_ids.shape, 7), device=input_ids.device)
+
+    teacher = FrozenTeacher()
+    module = MarlinLightningModule(
+        _tiny_config(),
+        distillation=FrigidDistillationSettings(
+            mode=FRIGID_DISTILLED_MARLIN_MODE,
+            trainable_scope=ATTENTION_BRIDGE_TRAINABLE_SCOPE,
+            attention_mode="block",
+            block_width_override=2,
+            temperature=2.0,
+            kl_weight=0.5,
+        ),
+        frigid_teacher=teacher,
+    )
+    batch = {
+        "input_ids": torch.tensor([[1, 5, 6, 2, 0]]),
+        "fingerprint": torch.tensor(
+            [[1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0]]
+        ),
+        "precursor_mass": torch.tensor([44.0]),
+        "formula": ["C2H4O"],
+    }
+
+    with patch.object(
+        module.decoder,
+        "forward",
+        side_effect=AssertionError("block adaptation must not call forward"),
+    ), patch.object(
+        module.decoder,
+        "two_stream_logits",
+        wraps=module.decoder.two_stream_logits,
+    ) as two_stream:
+        loss, _ = module.frigid_distillation_objective(
+            batch,
+            generator=torch.Generator().manual_seed(5),
+        )
+
+    clean_ids, noised_ids = two_stream.call_args.args[:2]
+    assert torch.equal(clean_ids, batch["input_ids"])
+    assert torch.equal(noised_ids, teacher.input_ids)
+    expected = expected_distillation_trainable_parameters(
+        ATTENTION_BRIDGE_TRAINABLE_SCOPE,
+        num_layers=module.decoder.config.num_layers,
+    )
+    actual = {
+        name
+        for name, parameter in module.decoder.named_parameters()
+        if parameter.requires_grad
+    }
+    assert actual == set(expected)
+    assert torch.isfinite(loss)
+
+
+def test_curriculum_scopes_have_fail_closed_parameter_counts():
+    stage1 = expected_distillation_trainable_parameters(
+        ATTENTION_BRIDGE_TRAINABLE_SCOPE,
+        num_layers=12,
+    )
+    stage2 = expected_distillation_trainable_parameters(
+        ATTENTION_PLUS_TOP4_FFN_TRAINABLE_SCOPE,
+        num_layers=12,
+    )
+
+    assert len(stage1) == 148
+    assert len(stage2) == 172
+    assert "token_embedding.weight" not in stage1
+    assert "prediction_dense.weight" not in stage2
+    assert "layers.8.linear1.weight" in stage2
+    assert "layers.7.linear1.weight" not in stage2
+
+
+def test_block_curriculum_configs_are_conservative_and_raw_evaluated():
+    root = Path(__file__).resolve().parents[1]
+    stage1 = OmegaConf.load(root / "configs/marlin_frigid_distilled_stage1.yaml")
+    stage2 = OmegaConf.load(root / "configs/marlin_frigid_distilled_stage2.yaml")
+
+    assert stage1.adaptation.trainable_scope == ATTENTION_BRIDGE_TRAINABLE_SCOPE
+    assert stage1.adaptation.block_width_override == 32
+    assert stage1.adaptation.kl_weight == 0.5
+    assert stage1.optim.learning_rate == pytest.approx(1e-5)
+    assert stage1.training.ema_decay == pytest.approx(0.99)
+    assert stage1.training.molecular_validation_use_ema is False
+    assert (
+        stage2.adaptation.trainable_scope
+        == ATTENTION_PLUS_TOP4_FFN_TRAINABLE_SCOPE
+    )
+    assert stage2.adaptation.block_width_override == 8
+    assert stage2.adaptation.kl_weight == 0.25
+    assert stage2.optim.learning_rate == pytest.approx(5e-6)
 
 
 def test_frigid_teacher_rejects_tokenizer_mismatch():

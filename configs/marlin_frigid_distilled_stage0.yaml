@@ -8,6 +8,8 @@ frigid_warm_start_sha256: b6177c2d43448380aba80ff41c01461ea34ca2ca93b213986954c5
 
 adaptation:
   mode: frigid_distilled_marlin
+  stage: stage0-full-attention
+  trainable_scope: mass_only
   teacher_checkpoint: /mnt/netstorage/nikolenko/marlin/checkpoints/frigid/DLM.ckpt
   teacher_sha256: b6177c2d43448380aba80ff41c01461ea34ca2ca93b213986954c5afb7f0f457
   attention_mode: frigid_full

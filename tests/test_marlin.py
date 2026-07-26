@@ -1,3 +1,6 @@
+import json
+from types import SimpleNamespace
+
 import pytest
 import torch
 from rdkit import Chem
@@ -48,6 +51,33 @@ def test_two_stream_mask_exposes_only_clean_prefix_and_noisy_current_block():
     assert mask[noisy_query, 3]
     assert not mask[noisy_query, 5 + 4]
     assert mask[noisy_query, 5 + 1]
+
+
+def test_two_stream_current_logits_cannot_read_clean_current_or_future():
+    config = MarlinDecoderConfig(
+        vocab_size=7,
+        hidden_size=8,
+        num_layers=1,
+        num_heads=1,
+        intermediate_size=16,
+        max_length=6,
+        block_width=2,
+        fingerprint_bits=8,
+        dropout=0.0,
+        mask_token_id=4,
+        pad_token_id=0,
+    )
+    decoder = MarlinDecoder(config).eval()
+    clean = torch.tensor([[1, 5, 6, 5, 6, 2]])
+    changed = torch.tensor([[1, 5, 6, 6, 5, 3]])
+    noised = torch.tensor([[1, 5, 6, 4, 4, 4]])
+    mass = torch.tensor([100.0])
+    fingerprint = torch.zeros((1, 8))
+
+    first = decoder.two_stream_logits(clean, noised, mass, fingerprint)
+    second = decoder.two_stream_logits(changed, noised, mass, fingerprint)
+
+    assert torch.allclose(first[:, 3:5], second[:, 3:5], atol=1e-6)
 
 
 def test_symmetric_noise_preserves_number_of_on_bits():
@@ -185,6 +215,75 @@ def test_molecular_validation_callback_builds_bounded_oracle_set(tmp_path):
         callback.latest_output_path
         == tmp_path / "molecular_validation_latest.json"
     )
+
+
+def test_molecular_validation_can_evaluate_raw_weights_without_touching_ema(
+    tmp_path,
+):
+    class FailingEma:
+        def store(self, _parameters):
+            raise AssertionError("raw validation must not store EMA parameters")
+
+        def copy_to(self, _parameters):
+            raise AssertionError("raw validation must not copy EMA parameters")
+
+        def restore(self, _parameters):
+            raise AssertionError("raw validation must not restore EMA parameters")
+
+    class EmptySampler:
+        def generate_ranked_with_stats(self, *args, **kwargs):
+            del args, kwargs
+            return [], SimpleNamespace(
+                attempts=2,
+                valid=0,
+                mass_valid=0,
+                unique_mass_valid=0,
+                sample_terminal_safes=[],
+            )
+
+    metadata = tmp_path / "validation.csv"
+    metadata.write_text("smiles\nCCO\n")
+    tokenizer = load_safe_tokenizer(
+        "/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/data/safe-gpt/tokenizer.json"
+    )
+    callback = MarlinMolecularValidationCallback(
+        tokenizer,
+        metadata,
+        output_dir=tmp_path,
+        fingerprint_bits=16,
+        every_n_steps=10,
+        samples=1,
+        candidates=2,
+        use_ema=False,
+    )
+    callback._sampler = lambda _model: EmptySampler()
+    config = MarlinDecoderConfig(
+        vocab_size=8,
+        hidden_size=8,
+        num_layers=1,
+        num_heads=1,
+        intermediate_size=16,
+        max_length=5,
+        block_width=2,
+        fingerprint_bits=4,
+        dropout=0.0,
+        mask_token_id=3,
+        pad_token_id=0,
+    )
+    module = MarlinLightningModule(config)
+    module.ema = FailingEma()
+    module.log = lambda *args, **kwargs: None
+    trainer = SimpleNamespace(
+        global_step=10,
+        is_global_zero=True,
+        current_epoch=0,
+    )
+
+    callback.on_train_batch_end(trainer, module, None, None, 0)
+
+    result = json.loads(callback.latest_output_path.read_text())
+    assert result["weights"] == "raw"
+    assert result["metrics"]["validity"] == 0.0
 
 
 def test_molecular_validation_callback_reports_clearml_table_and_image(tmp_path):

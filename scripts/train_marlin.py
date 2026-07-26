@@ -140,6 +140,7 @@ def build_distillation(
 
     settings = FrigidDistillationSettings(
         mode=mode,
+        trainable_scope=str(config.adaptation.get("trainable_scope", "mass_only")),
         block_width_override=int(config.adaptation.block_width_override),
         attention_mode=str(config.adaptation.get("attention_mode", "frigid_full")),
         temperature=float(config.adaptation.temperature),
@@ -200,10 +201,31 @@ def write_run_manifest(config: DictConfig, tokenizer_sha256: str) -> dict:
         "kind": (
             "MARLIN clean-room decoder training"
             if strict_reproduction
-            else "FRIGID-distilled MARLIN stage-0 adaptation"
+            else (
+                "FRIGID-distilled MARLIN "
+                f"{config.adaptation.get('stage', 'unspecified-stage')} adaptation"
+            )
         ),
         "created_at_utc": datetime.now(timezone.utc).isoformat(),
         "adaptation_mode": mode,
+        "adaptation_stage": (
+            None
+            if strict_reproduction
+            else str(config.adaptation.get("stage", "unspecified-stage"))
+        ),
+        "attention_mode": (
+            None if strict_reproduction else str(config.adaptation.attention_mode)
+        ),
+        "block_width_override": (
+            None
+            if strict_reproduction
+            else int(config.adaptation.block_width_override)
+        ),
+        "trainable_scope": (
+            None
+            if strict_reproduction
+            else str(config.adaptation.get("trainable_scope", "mass_only"))
+        ),
         "strict_reproduction": strict_reproduction,
         "clean_room_reproduction": strict_reproduction,
         "author_code_available_at_start": False,
@@ -483,6 +505,9 @@ def main(config: DictConfig) -> None:
                 samples=config.training.molecular_validation_samples,
                 candidates=config.training.molecular_validation_candidates,
                 temperature=config.training.molecular_validation_temperature,
+                use_ema=bool(
+                    config.training.get("molecular_validation_use_ema", True)
+                ),
                 clearml_task=clearml_task,
             )
         )

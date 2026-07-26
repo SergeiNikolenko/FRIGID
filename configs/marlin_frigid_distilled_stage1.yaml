@@ -1,0 +1,54 @@
+# Opt-in experimental lane: adapt attention to 32-token block decoding.
+# This is FRIGID-distilled MARLIN, not a strict paper reproduction.
+defaults:
+  - marlin_frigid_distilled_stage0
+  - _self_
+
+# Supply the selected stage-0 checkpoint as a Hydra/Slurm override.
+# Weight-only loading intentionally starts a fresh optimizer for the wider scope.
+resume_weights_only_checkpoint: ???
+
+adaptation:
+  stage: stage1-block32
+  trainable_scope: attention_bridge
+  attention_mode: block
+  block_width_override: 32
+  kl_weight: 0.5
+
+model:
+  block_width: 32
+
+loader:
+  batch_size: 4
+  num_workers: 4
+
+optim:
+  learning_rate: 1.0e-5
+
+trainer:
+  max_steps: 500
+  accumulate_grad_batches: 1
+
+training:
+  ema_decay: 0.99
+  molecular_validation_interval: 250
+  molecular_validation_samples: 4
+  molecular_validation_candidates: 16
+  molecular_validation_use_ema: false
+
+output:
+  root: /mnt/netstorage/nikolenko/marlin/runs/frigid-distilled-stage1-block32
+  checkpoints: /mnt/netstorage/nikolenko/marlin/runs/frigid-distilled-stage1-block32/checkpoints
+  checkpoint_interval: 250
+
+tracking:
+  clearml:
+    task_name: frigid-distilled-marlin-stage1-block32
+    tags:
+      - FRIGID-distilled-MARLIN
+      - not-strict-reproduction
+      - stage-1
+      - block-attention-32
+      - raw-molecular-validation
+      - formula-teacher
+      - fingerprint-teacher

@@ -1,4 +1,4 @@
-"""Explicit FRIGID-distilled MARLIN stage-0 adaptation utilities."""
+"""Explicit FRIGID-distilled MARLIN adaptation utilities."""
 
 from __future__ import annotations
 
@@ -13,6 +13,74 @@ from marlin.warm_start import sha256_file
 
 
 FRIGID_DISTILLED_MARLIN_MODE = "frigid_distilled_marlin"
+MASS_ONLY_TRAINABLE_SCOPE = "mass_only"
+ATTENTION_BRIDGE_TRAINABLE_SCOPE = "attention_bridge"
+ATTENTION_PLUS_TOP4_FFN_TRAINABLE_SCOPE = "attention_plus_top4_ffn"
+TRAINABLE_SCOPES = frozenset(
+    {
+        MASS_ONLY_TRAINABLE_SCOPE,
+        ATTENTION_BRIDGE_TRAINABLE_SCOPE,
+        ATTENTION_PLUS_TOP4_FFN_TRAINABLE_SCOPE,
+    }
+)
+
+
+def expected_distillation_trainable_parameters(
+    scope: str,
+    *,
+    num_layers: int,
+) -> frozenset[str]:
+    """Return the exact, fail-closed set of trainable decoder parameters."""
+
+    if scope not in TRAINABLE_SCOPES:
+        raise ValueError(
+            f"unsupported FRIGID distillation trainable_scope: {scope!r}"
+        )
+    if num_layers <= 0:
+        raise ValueError("num_layers must be positive")
+
+    names = {
+        "conditioner.mass.projection.0.weight",
+        "conditioner.mass.projection.0.bias",
+        "conditioner.mass.projection.2.weight",
+        "conditioner.mass.projection.2.bias",
+    }
+    if scope == MASS_ONLY_TRAINABLE_SCOPE:
+        return frozenset(names)
+
+    attention_modules = (
+        "self_attention.in_proj_weight",
+        "self_attention.in_proj_bias",
+        "self_attention.out_proj.weight",
+        "self_attention.out_proj.bias",
+        "cross_attention.in_proj_weight",
+        "cross_attention.in_proj_bias",
+        "cross_attention.out_proj.weight",
+        "cross_attention.out_proj.bias",
+        "norm1.weight",
+        "norm1.bias",
+        "norm2.weight",
+        "norm2.bias",
+    )
+    for layer_index in range(num_layers):
+        names.update(
+            f"layers.{layer_index}.{suffix}" for suffix in attention_modules
+        )
+
+    if scope == ATTENTION_PLUS_TOP4_FFN_TRAINABLE_SCOPE:
+        ffn_modules = (
+            "linear1.weight",
+            "linear1.bias",
+            "linear2.weight",
+            "linear2.bias",
+            "norm3.weight",
+            "norm3.bias",
+        )
+        for layer_index in range(max(0, num_layers - 4), num_layers):
+            names.update(
+                f"layers.{layer_index}.{suffix}" for suffix in ffn_modules
+            )
+    return frozenset(names)
 
 
 @dataclass(frozen=True)
@@ -20,6 +88,7 @@ class FrigidDistillationSettings:
     """Configuration for the opt-in, non-reproduction adaptation mode."""
 
     mode: str
+    trainable_scope: str = MASS_ONLY_TRAINABLE_SCOPE
     block_width_override: int = 256
     attention_mode: str = "frigid_full"
     temperature: float = 2.0
@@ -34,16 +103,33 @@ class FrigidDistillationSettings:
             )
         if self.block_width_override <= 0:
             raise ValueError("block_width_override must be positive")
-        if self.attention_mode != "frigid_full":
+        if self.attention_mode not in {"frigid_full", "block"}:
             raise ValueError(
-                "stage-0 FRIGID distillation requires frigid_full attention"
+                "FRIGID distillation attention_mode must be 'frigid_full' or 'block'"
+            )
+        if self.trainable_scope not in TRAINABLE_SCOPES:
+            raise ValueError(
+                "unsupported FRIGID distillation trainable_scope: "
+                f"{self.trainable_scope!r}"
+            )
+        if (
+            self.trainable_scope == MASS_ONLY_TRAINABLE_SCOPE
+            and self.attention_mode != "frigid_full"
+        ):
+            raise ValueError("mass_only adaptation requires frigid_full attention")
+        if (
+            self.trainable_scope != MASS_ONLY_TRAINABLE_SCOPE
+            and self.attention_mode != "block"
+        ):
+            raise ValueError(
+                "decoder adaptation scopes require exact block attention"
             )
         if self.temperature <= 0:
             raise ValueError("distillation temperature must be positive")
         if self.kl_weight < 0:
             raise ValueError("distillation KL weight must be non-negative")
         if self.use_isotope:
-            raise ValueError("stage-0 FRIGID distillation must omit isotope conditioning")
+            raise ValueError("FRIGID distillation must omit isotope conditioning")
 
 
 @dataclass(frozen=True)

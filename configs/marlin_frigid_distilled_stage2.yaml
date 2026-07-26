@@ -1,0 +1,40 @@
+# Opt-in experimental lane: adapt the target MARLIN 8-token block decoder.
+# This is FRIGID-distilled MARLIN, not a strict paper reproduction.
+defaults:
+  - marlin_frigid_distilled_stage1
+  - _self_
+
+# Supply the selected stage-1 checkpoint as a Hydra/Slurm override.
+resume_weights_only_checkpoint: ???
+
+adaptation:
+  stage: stage2-block8
+  trainable_scope: attention_plus_top4_ffn
+  attention_mode: block
+  block_width_override: 8
+  kl_weight: 0.25
+
+model:
+  block_width: 8
+
+optim:
+  learning_rate: 5.0e-6
+
+trainer:
+  max_steps: 1000
+
+output:
+  root: /mnt/netstorage/nikolenko/marlin/runs/frigid-distilled-stage2-block8
+  checkpoints: /mnt/netstorage/nikolenko/marlin/runs/frigid-distilled-stage2-block8/checkpoints
+
+tracking:
+  clearml:
+    task_name: frigid-distilled-marlin-stage2-block8
+    tags:
+      - FRIGID-distilled-MARLIN
+      - not-strict-reproduction
+      - stage-2
+      - block-attention-8
+      - raw-molecular-validation
+      - formula-teacher
+      - fingerprint-teacher

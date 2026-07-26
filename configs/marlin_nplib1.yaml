@@ -76,6 +76,7 @@ training:
   molecular_validation_samples: 2
   molecular_validation_candidates: 4
   molecular_validation_temperature: 1.0
+  molecular_validation_use_ema: true
 
 trainer:
   # Spectrum currently exposes one A100 through Slurm.

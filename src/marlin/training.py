@@ -17,7 +17,9 @@ from rdkit.Chem import AllChem, Descriptors, Draw, rdMolDescriptors
 from dlm.utils.utils_chem import safe_to_smiles, smiles_to_safe
 from marlin.distillation import (
     FrigidDistillationSettings,
+    MASS_ONLY_TRAINABLE_SCOPE,
     build_fair_block_inputs,
+    expected_distillation_trainable_parameters,
     frigid_distillation_loss,
 )
 from marlin.ema import AllParameterExponentialMovingAverage
@@ -223,9 +225,16 @@ class MarlinLightningModule(L.LightningModule):
         self.distillation = distillation
         object.__setattr__(self, "_frigid_teacher", frigid_teacher)
         if distillation is not None:
-            self.decoder.requires_grad_(False)
-            self.decoder.conditioner.mass.requires_grad_(True)
-            self._set_stage0_training_modes()
+            if (
+                distillation.attention_mode == "block"
+                and config.block_width != distillation.block_width_override
+            ):
+                raise ValueError(
+                    "block distillation requires model.block_width to match "
+                    "adaptation.block_width_override"
+                )
+            self._configure_distillation_trainability()
+            self._set_distillation_training_modes()
         self.learning_rate = learning_rate
         self.weight_decay = weight_decay
         self.noise_probability = noise_probability
@@ -249,16 +258,47 @@ class MarlinLightningModule(L.LightningModule):
             self.decoder.parameters(), decay=self.ema_decay, use_num_updates=False
         )
 
-    def _set_stage0_training_modes(self) -> None:
-        """Keep the frozen stochastic backbone deterministic during stage-0."""
+    def _configure_distillation_trainability(self) -> None:
+        """Apply the explicit decoder parameter scope for this adaptation stage."""
 
-        self.decoder.eval()
-        self.decoder.conditioner.mass.train()
+        if self.distillation is None:
+            return
+        expected = expected_distillation_trainable_parameters(
+            self.distillation.trainable_scope,
+            num_layers=self.decoder.config.num_layers,
+        )
+        named_parameters = dict(self.decoder.named_parameters())
+        missing = expected.difference(named_parameters)
+        if missing:
+            raise RuntimeError(
+                "decoder does not expose the requested trainable parameters: "
+                + ", ".join(sorted(missing))
+            )
+        for name, parameter in named_parameters.items():
+            parameter.requires_grad_(name in expected)
+        actual = {
+            name
+            for name, parameter in named_parameters.items()
+            if parameter.requires_grad
+        }
+        if actual != set(expected):
+            raise RuntimeError("distillation trainable scope was not applied exactly")
+
+    def _set_distillation_training_modes(self) -> None:
+        """Keep frozen modules deterministic while training the selected scope."""
+
+        if self.distillation is None:
+            return
+        if self.distillation.trainable_scope == MASS_ONLY_TRAINABLE_SCOPE:
+            self.decoder.eval()
+            self.decoder.conditioner.mass.train()
+        else:
+            self.decoder.train()
 
     def train(self, mode: bool = True):
         result = super().train(mode)
         if mode and getattr(self, "distillation", None) is not None:
-            self._set_stage0_training_modes()
+            self._set_distillation_training_modes()
         return result
 
     def frigid_distillation_objective(
@@ -267,7 +307,7 @@ class MarlinLightningModule(L.LightningModule):
         *,
         generator: torch.Generator | None = None,
     ) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
-        """Compute the stage-0 student objective on one fair masked block."""
+        """Compute the distilled student objective on one fair masked block."""
 
         settings = self.distillation
         if settings is None:
@@ -294,7 +334,7 @@ class MarlinLightningModule(L.LightningModule):
             or not all(isinstance(formula, str) for formula in formulas)
         ):
             raise ValueError(
-                "stage-0 distillation requires one true molecular formula per row"
+                "FRIGID distillation requires one true molecular formula per row"
             )
 
         fair = build_fair_block_inputs(
@@ -305,14 +345,23 @@ class MarlinLightningModule(L.LightningModule):
             mask_token_id=self.decoder.config.mask_token_id,
             generator=generator,
         )
-        student_logits = self.decoder(
-            fair.input_ids,
-            precursor_mass,
-            fingerprint,
-            isotope_ratios=None,
-            attention_mode=settings.attention_mode,
-            block_width_override=settings.block_width_override,
-        )
+        if settings.attention_mode == "frigid_full":
+            student_logits = self.decoder(
+                fair.input_ids,
+                precursor_mass,
+                fingerprint,
+                isotope_ratios=None,
+                attention_mode="frigid_full",
+                block_width_override=settings.block_width_override,
+            )
+        else:
+            student_logits = self.decoder.two_stream_logits(
+                input_ids,
+                fair.input_ids,
+                precursor_mass,
+                fingerprint,
+                isotope_ratios=None,
+            )
         teacher_logits = teacher.logits(
             fair.input_ids,
             list(formulas),
@@ -483,7 +532,7 @@ class MarlinLightningModule(L.LightningModule):
             teacher = moved_teacher
         teacher.eval()
         object.__setattr__(self, "_frigid_teacher", teacher)
-        self._set_stage0_training_modes()
+        self._set_distillation_training_modes()
 
     def optimizer_step(self, *args, **kwargs) -> None:
         super().optimizer_step(*args, **kwargs)
@@ -578,6 +627,7 @@ class MarlinMolecularValidationCallback(L.Callback):
         samples: int = 2,
         candidates: int = 4,
         temperature: float = 1.0,
+        use_ema: bool = True,
         clearml_task=None,
     ) -> None:
         if every_n_steps <= 0:
@@ -625,6 +675,8 @@ class MarlinMolecularValidationCallback(L.Callback):
         self.every_n_steps = every_n_steps
         self.candidates = candidates
         self.temperature = temperature
+        self.use_ema = use_ema
+        self.weights = "ema" if use_ema else "raw"
         self.clearml_task = clearml_task
         self._last_step = -1
 
@@ -759,8 +811,9 @@ class MarlinMolecularValidationCallback(L.Callback):
 
         parameters = list(pl_module.decoder.parameters())
         was_training = pl_module.decoder.training
-        pl_module.ema.store(parameters)
-        pl_module.ema.copy_to(parameters)
+        if self.use_ema:
+            pl_module.ema.store(parameters)
+            pl_module.ema.copy_to(parameters)
         pl_module.decoder.eval()
         try:
             sampler = self._sampler(pl_module.decoder)
@@ -849,7 +902,7 @@ class MarlinMolecularValidationCallback(L.Callback):
             }
             for name, value in metrics.items():
                 pl_module.log(
-                    f"molecular_{name}",
+                    f"molecular_{self.weights}_{name}",
                     value,
                     on_step=True,
                     on_epoch=False,
@@ -860,7 +913,7 @@ class MarlinMolecularValidationCallback(L.Callback):
                 logger = self.clearml_task.get_logger()
                 for name, value in metrics.items():
                     logger.report_scalar(
-                        title="MARLIN molecular metrics",
+                        title=f"MARLIN molecular metrics ({self.weights})",
                         series=name,
                         value=float(value),
                         iteration=step,
@@ -868,6 +921,7 @@ class MarlinMolecularValidationCallback(L.Callback):
             self.output_path.parent.mkdir(parents=True, exist_ok=True)
             result = {
                 "step": step,
+                "weights": self.weights,
                 "metrics": metrics,
                 "samples": sample_rows,
             }
@@ -883,10 +937,11 @@ class MarlinMolecularValidationCallback(L.Callback):
                 sample_rows=sample_rows,
             )
         finally:
-            pl_module.ema.restore(parameters)
+            if self.use_ema:
+                pl_module.ema.restore(parameters)
             pl_module.decoder.train(was_training)
             if pl_module.distillation is not None:
-                pl_module._set_stage0_training_modes()
+                pl_module._set_distillation_training_modes()
 
 
 def _fingerprint_from_tensor(array: torch.Tensor):
