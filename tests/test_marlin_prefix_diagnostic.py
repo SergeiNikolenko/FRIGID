@@ -4,6 +4,7 @@ import torch
 from marlin.mass_shell import MassShellConstraint
 from marlin.model import MarlinDecoderConfig
 from marlin.prefix_diagnostic import (
+    build_production_prefix_actions,
     diagnose_production_prefix,
     summarize_prefix_rows,
 )
@@ -119,6 +120,35 @@ def test_prefix_diagnostic_still_scores_eos_inside_current_block():
     assert [action["target_token"] for action in result["actions"]] == [
         "C",
         "[EOS]",
+    ]
+
+
+def test_production_prefix_action_builder_snapshots_canvas_before_reveal():
+    _, sampler = make_sampler()
+
+    actions = build_production_prefix_actions(
+        sampler,
+        [1, 4, 5, 2],
+        32.026214748,
+    )
+
+    assert actions == [
+        {
+            "position": 1,
+            "block_index": 0,
+            "block_offset": 0,
+            "canvas_length": 3,
+            "canvas_ids": (1, 3, 3),
+            "target_id": 4,
+        },
+        {
+            "position": 2,
+            "block_index": 0,
+            "block_offset": 1,
+            "canvas_length": 3,
+            "canvas_ids": (1, 4, 3),
+            "target_id": 5,
+        },
     ]
 
 

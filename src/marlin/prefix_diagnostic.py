@@ -9,6 +9,70 @@ import torch
 from marlin.sampler import MarlinSampler
 
 
+def build_production_prefix_actions(
+    sampler: MarlinSampler,
+    target_token_ids: Sequence[int],
+    target_mass: float,
+) -> list[dict[str, object]]:
+    """Build the exact production canvases used to score a target sequence.
+
+    The returned canvases are snapshots taken immediately before revealing the
+    target action. This centralizes the fail-closed target validation and the
+    production block-extension semantics shared by diagnostics.
+    """
+
+    token_ids = [int(token_id) for token_id in target_token_ids]
+    if not token_ids or token_ids[0] != sampler.bos_token_id:
+        raise ValueError("target sequence must start with BOS")
+    if token_ids[-1] != sampler.eos_token_id:
+        raise ValueError("target sequence must end with EOS")
+    if sampler.eos_token_id in token_ids[1:-1]:
+        raise ValueError("target sequence contains EOS before its final token")
+    forbidden_targets = set(sampler.forbidden_token_ids) | {sampler.mask_token_id}
+    for position, token_id in enumerate(token_ids[1:-1], start=1):
+        if token_id in forbidden_targets:
+            raise ValueError(
+                f"forbidden target token ID {token_id} at position {position}"
+            )
+    if len(token_ids) > sampler.model.config.max_length:
+        raise ValueError("target sequence exceeds model max_length")
+
+    canvas = [sampler.bos_token_id]
+    actions: list[dict[str, object]] = []
+    for position, target_id in enumerate(token_ids[1:], start=1):
+        if position == len(canvas):
+            if target_id == sampler.eos_token_id:
+                safe = sampler._decode_prefix(canvas)
+                smiles = sampler.safe_to_smiles(safe)
+                if sampler.constraint.accepts_smiles(smiles, target_mass):
+                    break
+            block_width = sampler._next_block_width(len(canvas))
+            if block_width <= 0:
+                raise ValueError("production canvas ended before target EOS")
+            canvas.extend([sampler.mask_token_id] * block_width)
+        if canvas[position] != sampler.mask_token_id:
+            raise AssertionError("current production action is not unresolved")
+
+        actions.append(
+            {
+                "position": position,
+                "block_index": (
+                    (position - 1) // sampler.model.config.block_width
+                ),
+                "block_offset": (
+                    (position - 1) % sampler.model.config.block_width
+                ),
+                "canvas_length": len(canvas),
+                "canvas_ids": tuple(canvas),
+                "target_id": target_id,
+            }
+        )
+        canvas[position] = target_id
+        if target_id == sampler.eos_token_id:
+            break
+    return actions
+
+
 def _distribution_record(
     logits: torch.Tensor,
     target_id: int,
@@ -143,44 +207,22 @@ def diagnose_production_prefix(
     This continues across block boundaries through the target EOS action.
     """
 
-    token_ids = [int(token_id) for token_id in target_token_ids]
     if temperature <= 0:
         raise ValueError("temperature must be positive")
-    if not token_ids or token_ids[0] != sampler.bos_token_id:
-        raise ValueError("target sequence must start with BOS")
-    if token_ids[-1] != sampler.eos_token_id:
-        raise ValueError("target sequence must end with EOS")
-    if sampler.eos_token_id in token_ids[1:-1]:
-        raise ValueError("target sequence contains EOS before its final token")
-    forbidden_targets = set(sampler.forbidden_token_ids) | {sampler.mask_token_id}
-    for position, token_id in enumerate(token_ids[1:-1], start=1):
-        if token_id in forbidden_targets:
-            raise ValueError(
-                f"forbidden target token ID {token_id} at position {position}"
-            )
-    if len(token_ids) > sampler.model.config.max_length:
-        raise ValueError("target sequence exceeds model max_length")
 
     device = next(sampler.model.parameters()).device
     conditioned = fingerprint.to(device=device, dtype=torch.float32).reshape(1, -1)
     mass = torch.tensor([target_mass], device=device, dtype=torch.float32)
-    canvas = [sampler.bos_token_id]
     actions: list[dict[str, object]] = []
 
-    for position, target_id in enumerate(token_ids[1:], start=1):
-        if position == len(canvas):
-            if target_id == sampler.eos_token_id:
-                safe = sampler._decode_prefix(canvas)
-                smiles = sampler.safe_to_smiles(safe)
-                if sampler.constraint.accepts_smiles(smiles, target_mass):
-                    break
-            block_width = sampler._next_block_width(len(canvas))
-            if block_width <= 0:
-                raise ValueError("production canvas ended before target EOS")
-            canvas.extend([sampler.mask_token_id] * block_width)
-        if canvas[position] != sampler.mask_token_id:
-            raise AssertionError("current production action is not unresolved")
-
+    for action in build_production_prefix_actions(
+        sampler,
+        target_token_ids,
+        target_mass,
+    ):
+        position = int(action["position"])
+        target_id = int(action["target_id"])
+        canvas = list(action["canvas_ids"])
         input_ids = torch.tensor([canvas], device=device, dtype=torch.long)
         with torch.autocast(
             device_type=device.type,
@@ -203,10 +245,10 @@ def diagnose_production_prefix(
         )
         actions.append(
             {
-                "position": position,
-                "block_index": (position - 1) // sampler.model.config.block_width,
-                "block_offset": (position - 1) % sampler.model.config.block_width,
-                "canvas_length": len(canvas),
+                "position": action["position"],
+                "block_index": action["block_index"],
+                "block_offset": action["block_offset"],
+                "canvas_length": action["canvas_length"],
                 "target_id": target_id,
                 "target_token": token_string(target_id),
                 "target_allowed": bool(constrained["target_allowed"]),
@@ -214,10 +256,6 @@ def diagnose_production_prefix(
                 "constrained": constrained,
             }
         )
-        canvas[position] = target_id
-        if target_id == sampler.eos_token_id:
-            break
-
     return {
         "summary": summarize_prefix_actions(actions),
         "actions": actions,
