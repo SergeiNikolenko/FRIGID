@@ -100,6 +100,34 @@ class MarlinSampler:
             state = self.constraint.advance(state, token_id)
         return state
 
+    def constrain_action_logits(
+        self,
+        prefix_ids: Sequence[int],
+        logits: torch.Tensor,
+        target_mass: float,
+        *,
+        state: MassShellState | None = None,
+    ) -> torch.Tensor:
+        """Apply the production constraints for one proposed token action."""
+
+        constrained = logits.clone()
+        if self.mass_shell_enabled:
+            constrained = self.constraint.apply(
+                constrained,
+                state if state is not None else self._mass_state(prefix_ids),
+                target_mass,
+                allow_early_eos=self.mask_token_id in prefix_ids,
+            )
+        if self.forbidden_token_ids:
+            constrained[list(self.forbidden_token_ids)] = -torch.inf
+        if self.grammar_mask is not None:
+            constrained = self.grammar_mask(
+                prefix_ids,
+                constrained,
+                target_mass,
+            )
+        return constrained
+
     def _next_block_width(self, prefix_length: int) -> int:
         remaining = self.model.config.max_length - prefix_length
         content_length = prefix_length - 1
@@ -143,21 +171,12 @@ class MarlinSampler:
                 best_confidence = -torch.inf
                 positions = sorted(unresolved)
                 for position in positions:
-                    position_logits = logits[position] / temperature
-                    if self.mass_shell_enabled:
-                        position_logits = self.constraint.apply(
-                            position_logits,
-                            state,
-                            target_mass,
-                            allow_early_eos=self.mask_token_id
-                            in prefix[:position],
-                        )
-                    if self.forbidden_token_ids:
-                        position_logits[list(self.forbidden_token_ids)] = -torch.inf
-                    if self.grammar_mask is not None:
-                        position_logits = self.grammar_mask(
-                            prefix[:position], position_logits, target_mass
-                        )
+                    position_logits = self.constrain_action_logits(
+                        prefix[:position],
+                        logits[position] / temperature,
+                        target_mass,
+                        state=state,
+                    )
                     probabilities = position_logits.softmax(dim=-1)
                     confidence, token = probabilities.max(dim=-1)
                     if confidence > best_confidence:
@@ -365,23 +384,12 @@ class MarlinSampler:
                     best_confidence = -torch.inf
                     for relative_position in positions.tolist():
                         position = block_start + relative_position
-                        position_logits = logits[row, position] / temperature
-                        if self.mass_shell_enabled:
-                            position_logits = self.constraint.apply(
-                                position_logits,
-                                states[row],
-                                target_mass,
-                                allow_early_eos=self.mask_token_id
-                                in prefix[row, :position],
-                            )
-                        if self.forbidden_token_ids:
-                            position_logits[list(self.forbidden_token_ids)] = -torch.inf
-                        if self.grammar_mask is not None:
-                            position_logits = self.grammar_mask(
-                                prefix[row, :position].tolist(),
-                                position_logits,
-                                target_mass,
-                            )
+                        position_logits = self.constrain_action_logits(
+                            prefix[row, :position].tolist(),
+                            logits[row, position] / temperature,
+                            target_mass,
+                            state=states[row],
+                        )
                         probabilities = position_logits.softmax(dim=-1)
                         confidence = probabilities.max(dim=-1).values
                         if confidence > best_confidence:
