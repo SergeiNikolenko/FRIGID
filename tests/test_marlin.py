@@ -266,12 +266,14 @@ def test_molecular_validation_can_evaluate_raw_weights_without_touching_ema(
             return [], SimpleNamespace(
                 attempts=2,
                 valid=0,
+                strict_valid=0,
                 mass_valid=0,
                 unique_mass_valid=0,
                 constraint_dead_ends=2,
                 eos_terminated=0,
                 max_length_terminated=0,
                 sample_terminal_safes=[],
+                sample_dead_ends=[{"safe": "broken", "heavy_mass": 12.0}],
             )
 
     metadata = tmp_path / "validation.csv"
@@ -317,7 +319,9 @@ def test_molecular_validation_can_evaluate_raw_weights_without_touching_ema(
     result = json.loads(callback.latest_output_path.read_text())
     assert result["weights"] == "raw"
     assert result["metrics"]["validity"] == 0.0
+    assert result["metrics"]["strict_validity"] == 0.0
     assert result["metrics"]["constraint_dead_end_rate"] == 1.0
+    assert result["samples"][0]["dead_end_examples"][0]["safe"] == "broken"
 
 
 def test_molecular_validation_callback_reports_clearml_table_and_image(tmp_path):
@@ -996,6 +1000,7 @@ def test_batched_sampler_reports_attempt_validity_and_uniqueness():
         mask_token_id=3,
         decode_tokens=lambda _: "C",
         safe_to_smiles=lambda _: "C",
+        strict_safe_to_smiles=lambda _: None,
         forbidden_token_ids=(0, 3),
     )
     ranked, stats = sampler.generate_ranked_with_stats(
@@ -1003,6 +1008,7 @@ def test_batched_sampler_reports_attempt_validity_and_uniqueness():
     )
     assert stats.attempts == 3
     assert stats.valid == 3
+    assert stats.strict_valid == 0
     assert stats.mass_valid == 3
     assert stats.unique_mass_valid == 1
     assert len(ranked) == 1

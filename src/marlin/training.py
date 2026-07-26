@@ -16,6 +16,7 @@ from rdkit.Chem import AllChem, Descriptors, Draw, rdMolDescriptors
 
 from dlm.utils.utils_chem import safe_to_smiles, smiles_to_safe
 from marlin.distillation import (
+    FairBlockInputs,
     FrigidDistillationSettings,
     MASS_ONLY_TRAINABLE_SCOPE,
     build_fair_block_inputs,
@@ -248,6 +249,7 @@ class MarlinLightningModule(L.LightningModule):
         self.token_loss_weight_max = token_loss_weight_max
         self.full_sequence_mask_probability = full_sequence_mask_probability
         self._last_metric_step = -1
+        self._last_distillation_context_step = -1
         self.ema = AllParameterExponentialMovingAverage(
             self.decoder.parameters(), decay=ema_decay, use_num_updates=False
         )
@@ -301,11 +303,109 @@ class MarlinLightningModule(L.LightningModule):
             self._set_distillation_training_modes()
         return result
 
+    @torch.no_grad()
+    def _distillation_context_response_metrics(
+        self,
+        *,
+        input_ids: torch.Tensor,
+        fair: FairBlockInputs,
+        precursor_mass: torch.Tensor,
+        fingerprint: torch.Tensor,
+        formulas: list[str],
+    ) -> dict[str, torch.Tensor]:
+        """Measure whether revealed current-block tokens affect predictions."""
+
+        settings = self.distillation
+        teacher = object.__getattribute__(self, "_frigid_teacher")
+        if settings is None or settings.attention_mode != "block" or teacher is None:
+            return {}
+        revealed = fair.current_content_mask & fair.input_ids.ne(
+            self.decoder.config.mask_token_id
+        )
+        comparable_rows = revealed.any(dim=1) & fair.loss_mask.any(dim=1)
+        comparison_mask = fair.loss_mask & comparable_rows.reshape(-1, 1)
+        if not comparison_mask.any():
+            zero = precursor_mass.new_zeros((), dtype=torch.float32)
+            return {
+                "distillation_student_context_logit_l1": zero,
+                "distillation_teacher_context_logit_l1": zero,
+                "distillation_context_response_ratio": zero,
+                "distillation_student_context_argmax_change_fraction": zero,
+                "distillation_teacher_context_argmax_change_fraction": zero,
+                "distillation_context_tokens": zero,
+            }
+
+        fully_masked = fair.input_ids.masked_fill(
+            fair.current_content_mask,
+            self.decoder.config.mask_token_id,
+        )
+        was_training = self.decoder.training
+        self.decoder.eval()
+        try:
+            partial_student = self.decoder.two_stream_logits(
+                input_ids,
+                fair.input_ids,
+                precursor_mass,
+                fingerprint,
+                isotope_ratios=None,
+            )
+            fully_masked_student = self.decoder.two_stream_logits(
+                input_ids,
+                fully_masked,
+                precursor_mass,
+                fingerprint,
+                isotope_ratios=None,
+            )
+            partial_teacher = teacher.logits(
+                fair.input_ids,
+                formulas,
+                fingerprint,
+            )
+            fully_masked_teacher = teacher.logits(
+                fully_masked,
+                formulas,
+                fingerprint,
+            )
+        finally:
+            self.decoder.train(was_training)
+            if was_training:
+                self._set_distillation_training_modes()
+
+        student_delta = (
+            partial_student.float() - fully_masked_student.float()
+        ).abs()[comparison_mask].mean()
+        teacher_delta = (
+            partial_teacher.float() - fully_masked_teacher.float()
+        ).abs()[comparison_mask].mean()
+        student_argmax_change = (
+            partial_student.argmax(dim=-1)[comparison_mask]
+            != fully_masked_student.argmax(dim=-1)[comparison_mask]
+        ).float().mean()
+        teacher_argmax_change = (
+            partial_teacher.argmax(dim=-1)[comparison_mask]
+            != fully_masked_teacher.argmax(dim=-1)[comparison_mask]
+        ).float().mean()
+        return {
+            "distillation_student_context_logit_l1": student_delta,
+            "distillation_teacher_context_logit_l1": teacher_delta,
+            "distillation_context_response_ratio": (
+                student_delta / teacher_delta.clamp_min(1e-8)
+            ),
+            "distillation_student_context_argmax_change_fraction": (
+                student_argmax_change
+            ),
+            "distillation_teacher_context_argmax_change_fraction": (
+                teacher_argmax_change
+            ),
+            "distillation_context_tokens": comparison_mask.sum().float(),
+        }
+
     def frigid_distillation_objective(
         self,
         batch: dict[str, object],
         *,
         generator: torch.Generator | None = None,
+        collect_context_metrics: bool = False,
     ) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
         """Compute the distilled student objective on one fair masked block."""
 
@@ -374,7 +474,7 @@ class MarlinLightningModule(L.LightningModule):
             student_logits,
             teacher_logits,
             input_ids,
-            fair.current_mask,
+            fair.loss_mask,
             temperature=settings.temperature,
             kl_weight=settings.kl_weight,
             loss_weights=fair.loss_weights,
@@ -386,8 +486,8 @@ class MarlinLightningModule(L.LightningModule):
         )
         current_accuracy = (
             student_logits.detach()
-            .argmax(dim=-1)[fair.current_mask]
-            .eq(input_ids[fair.current_mask])
+            .argmax(dim=-1)[fair.loss_mask]
+            .eq(input_ids[fair.loss_mask])
             .float()
             .mean()
         )
@@ -409,11 +509,32 @@ class MarlinLightningModule(L.LightningModule):
                 fair.rollout_prefix_masked.float().mean().detach()
             ),
         }
+        if collect_context_metrics:
+            metrics.update(
+                self._distillation_context_response_metrics(
+                    input_ids=input_ids,
+                    fair=fair,
+                    precursor_mass=precursor_mass,
+                    fingerprint=fingerprint,
+                    formulas=list(formulas),
+                )
+            )
         return result.loss, metrics
 
     def training_step(self, batch: dict[str, object], batch_idx: int) -> torch.Tensor:
         if self.distillation is not None:
-            loss, distillation_metrics = self.frigid_distillation_objective(batch)
+            next_step = int(self.global_step) + 1
+            collect_context_metrics = (
+                self.distillation.attention_mode == "block"
+                and (next_step == 1 or next_step % self.metric_interval == 0)
+                and int(self.global_step) != self._last_distillation_context_step
+            )
+            loss, distillation_metrics = self.frigid_distillation_objective(
+                batch,
+                collect_context_metrics=collect_context_metrics,
+            )
+            if collect_context_metrics:
+                self._last_distillation_context_step = int(self.global_step)
             for name, value in distillation_metrics.items():
                 self.log(
                     f"train_{name}",
@@ -576,6 +697,12 @@ class ClearMLScalarCallback(L.Callback):
         "train_distillation_mask_probability",
         "train_distillation_full_block_mask_fraction",
         "train_distillation_rollout_prefix_fraction",
+        "train_distillation_student_context_logit_l1",
+        "train_distillation_teacher_context_logit_l1",
+        "train_distillation_context_response_ratio",
+        "train_distillation_student_context_argmax_change_fraction",
+        "train_distillation_teacher_context_argmax_change_fraction",
+        "train_distillation_context_tokens",
         "train_current_tokens",
         "learning_rate",
         "grad_norm",
@@ -743,6 +870,7 @@ class MarlinMolecularValidationCallback(L.Callback):
                 ids, skip_special_tokens=True
             ),
             safe_to_smiles=lambda safe: safe_to_smiles(safe, fix=True),
+            strict_safe_to_smiles=lambda safe: safe_to_smiles(safe, fix=False),
             grammar_mask=self.grammar,
             forbidden_token_ids=(
                 self.tokenizer.unk_token_id,
@@ -765,6 +893,11 @@ class MarlinMolecularValidationCallback(L.Callback):
             return
         logger = self.clearml_task.get_logger()
         table = pd.DataFrame(sample_rows)
+        for column in ("terminal_safe_examples", "dead_end_examples"):
+            if column in table:
+                table[column] = table[column].map(
+                    lambda value: json.dumps(value, sort_keys=True)
+                )
         table.insert(0, "epoch", epoch)
         table.insert(0, "step", step)
         logger.report_table(
@@ -838,7 +971,8 @@ class MarlinMolecularValidationCallback(L.Callback):
         pl_module.decoder.eval()
         try:
             sampler = self._sampler(pl_module.decoder)
-            attempts = valid = mass_valid = unique_mass_valid = returned = exact = 0
+            attempts = valid = strict_valid = 0
+            mass_valid = unique_mass_valid = returned = exact = 0
             dead_ends = eos_terminated = max_length_terminated = 0
             top1_tanimoto = []
             sample_rows = []
@@ -855,6 +989,7 @@ class MarlinMolecularValidationCallback(L.Callback):
                 )
                 attempts += stats.attempts
                 valid += stats.valid
+                strict_valid += stats.strict_valid
                 mass_valid += stats.mass_valid
                 unique_mass_valid += stats.unique_mass_valid
                 dead_ends += stats.constraint_dead_ends
@@ -912,16 +1047,22 @@ class MarlinMolecularValidationCallback(L.Callback):
                         "tanimoto": generated_tanimoto,
                         "mass_error_ppm": generated_mass_error_ppm,
                         "valid": stats.valid,
+                        "strict_valid": stats.strict_valid,
                         "mass_valid": stats.mass_valid,
                         "constraint_dead_ends": stats.constraint_dead_ends,
                         "eos_terminated": stats.eos_terminated,
                         "max_length_terminated": stats.max_length_terminated,
+                        "terminal_safe_examples": list(
+                            stats.sample_terminal_safes
+                        ),
+                        "dead_end_examples": list(stats.sample_dead_ends),
                     }
                 )
 
             count = len(self.records)
             metrics = {
                 "validity": valid / attempts,
+                "strict_validity": strict_valid / attempts,
                 "mass_validity": mass_valid / attempts,
                 "unique_mass_validity": unique_mass_valid / attempts,
                 "candidate_return_rate": returned / count,

@@ -26,6 +26,7 @@ class MarlinCandidate:
 class MarlinGenerationStats:
     attempts: int
     valid: int
+    strict_valid: int
     mass_valid: int
     unique_mass_valid: int
     constraint_dead_ends: int
@@ -46,6 +47,7 @@ class MarlinSampler:
         mask_token_id: int,
         decode_tokens: Callable[[Sequence[int]], str],
         safe_to_smiles: Callable[[str], str | None],
+        strict_safe_to_smiles: Callable[[str], str | None] | None = None,
         grammar_mask: Callable[
             [Sequence[int], torch.Tensor, float | None], torch.Tensor
         ]
@@ -63,6 +65,7 @@ class MarlinSampler:
         self.mask_token_id = mask_token_id
         self.decode_tokens = decode_tokens
         self.safe_to_smiles = safe_to_smiles
+        self.strict_safe_to_smiles = strict_safe_to_smiles or safe_to_smiles
         self.grammar_mask = grammar_mask
         self.forbidden_token_ids = tuple(forbidden_token_ids)
         self.mass_shell_enabled = mass_shell_enabled
@@ -266,6 +269,7 @@ class MarlinSampler:
         return ranked, MarlinGenerationStats(
             attempts=candidates,
             valid=valid,
+            strict_valid=int(diagnostics["strict_valid"]),
             mass_valid=mass_valid,
             unique_mass_valid=unique_mass_valid,
             constraint_dead_ends=diagnostics["constraint_dead_ends"],
@@ -308,6 +312,7 @@ class MarlinSampler:
             "constraint_dead_ends": 0,
             "eos_terminated": 0,
             "max_length_terminated": 0,
+            "strict_valid": 0,
             "sample_terminal_safes": [],
             "sample_dead_ends": [],
         }
@@ -317,6 +322,11 @@ class MarlinSampler:
             assert isinstance(examples, list)
             if len(examples) < 5:
                 examples.append(safe[:512])
+
+        def record_strict_validity(safe: str) -> None:
+            strict_smiles = self.strict_safe_to_smiles(safe)
+            if strict_smiles and Chem.MolFromSmiles(strict_smiles) is not None:
+                diagnostics["strict_valid"] += 1
 
         while prefix.shape[1] < self.model.config.max_length:
             if not active.any():
@@ -413,10 +423,12 @@ class MarlinSampler:
                 is_valid = molecule is not None
                 is_mass_valid = self.constraint.accepts_smiles(smiles, target_mass)
                 if is_mass_valid or (is_valid and not self.mass_shell_enabled):
+                    record_strict_validity(safe)
                     valid += 1
                     results[row] = (safe, smiles, is_mass_valid)
                     active[row] = False
                 elif self.eos_token_id in prefix[row, block_start:].tolist():
+                    record_strict_validity(safe)
                     diagnostics["eos_terminated"] += 1
                     record_terminal_safe(safe)
                     valid += int(is_valid)
@@ -430,6 +442,7 @@ class MarlinSampler:
             is_mass_valid = self.constraint.accepts_smiles(smiles, target_mass)
             if is_mass_valid or (is_valid and not self.mass_shell_enabled):
                 results[row] = (safe, smiles, is_mass_valid)
+            record_strict_validity(safe)
             diagnostics["max_length_terminated"] += 1
             record_terminal_safe(safe)
             valid += int(is_valid)
@@ -515,6 +528,7 @@ class MarlinSampler:
             "constraint_dead_ends": 0,
             "eos_terminated": candidates,
             "max_length_terminated": 0,
+            "strict_valid": 0,
             "sample_terminal_safes": [],
             "sample_dead_ends": [],
         }
@@ -565,6 +579,11 @@ class MarlinSampler:
             smiles = self.safe_to_smiles(safe)
             molecule = Chem.MolFromSmiles(smiles) if smiles else None
             is_valid = molecule is not None
+            strict_smiles = self.strict_safe_to_smiles(safe)
+            strict_molecule = (
+                Chem.MolFromSmiles(strict_smiles) if strict_smiles else None
+            )
+            diagnostics["strict_valid"] += int(strict_molecule is not None)
             is_mass_valid = self.constraint.accepts_smiles(smiles, target_mass)
             valid += int(is_valid)
             if len(terminal_examples) < 5:

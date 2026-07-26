@@ -54,6 +54,7 @@ def test_fair_block_inputs_keep_prefix_and_mask_current_suffix():
         [False, False, False, True, True, False, False]
     ]
     assert fair.current_content_mask.tolist() == fair.current_mask.tolist()
+    assert fair.loss_mask.tolist() == fair.current_mask.tolist()
     assert fair.selected_blocks.tolist() == [1]
     assert fair.mask_probabilities.tolist() == [1.0]
     assert fair.loss_weights.tolist() == [
@@ -82,6 +83,7 @@ def test_continuous_time_block_inputs_cover_partial_rollout_states():
     assert torch.equal(fair.input_ids[0, 5:8], torch.tensor([0, 0, 0]))
     assert fair.input_ids[0, 1:5].eq(4).any()
     assert fair.input_ids[0, 1:5].ne(4).any()
+    assert torch.equal(fair.loss_mask, fair.current_mask)
     assert fair.loss_weights[fair.current_mask].eq(2.0).all()
     assert fair.full_block_masked.tolist() == [False]
     assert fair.rollout_prefix_masked.tolist() == [False]
@@ -106,7 +108,11 @@ def test_rollout_prefix_inputs_match_production_left_to_right_states():
     assert fair.current_mask.tolist() == [
         [False, False, False, True, True, False, False]
     ]
-    assert fair.loss_weights[fair.current_mask].eq(1.0).all()
+    assert fair.loss_mask.tolist() == [
+        [False, False, False, True, False, False, False]
+    ]
+    assert fair.loss_weights[fair.loss_mask].tolist() == [4.0]
+    assert not fair.loss_weights[fair.current_mask & ~fair.loss_mask].any()
     assert fair.full_block_masked.tolist() == [False]
     assert fair.rollout_prefix_masked.tolist() == [True]
 
@@ -126,6 +132,7 @@ def test_empty_continuous_time_microbatch_uses_bounded_fallback_weight():
     )
 
     assert fair.current_mask.sum().item() == 1
+    assert torch.equal(fair.loss_mask, fair.current_mask)
     assert fair.loss_weights[fair.current_mask].tolist() == [1.0]
     assert fair.rollout_prefix_masked.tolist() == [False]
 
@@ -346,6 +353,91 @@ def test_block_distillation_uses_two_stream_and_exact_attention_scope():
     assert metrics["distillation_full_block_mask_fraction"].item() == 1.0
 
 
+def test_block_distillation_reports_deterministic_revealed_context_response():
+    class InputSensitiveTeacher:
+        def logits(self, input_ids, formulas, fingerprint):
+            del formulas, fingerprint
+            previous = torch.cat(
+                (torch.zeros_like(input_ids[:, :1]), input_ids[:, :-1]),
+                dim=1,
+            )
+            return torch.nn.functional.one_hot(previous, num_classes=7).float()
+
+    module = MarlinLightningModule(
+        _tiny_config(),
+        distillation=FrigidDistillationSettings(
+            mode=FRIGID_DISTILLED_MARLIN_MODE,
+            trainable_scope=ATTENTION_BRIDGE_TRAINABLE_SCOPE,
+            attention_mode="block",
+            block_width_override=2,
+            current_block_masking="continuous_time",
+            full_block_mask_probability=0.0,
+            rollout_prefix_probability=1.0,
+            temperature=2.0,
+            kl_weight=0.5,
+        ),
+        frigid_teacher=InputSensitiveTeacher(),
+    )
+    batch = {
+        "input_ids": torch.tensor([[1, 5, 6, 5, 6, 5, 6]]),
+        "fingerprint": torch.tensor(
+            [[1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0]]
+        ),
+        "precursor_mass": torch.tensor([44.0]),
+        "formula": ["C2H4O"],
+    }
+
+    loss, metrics = module.frigid_distillation_objective(
+        batch,
+        generator=torch.Generator().manual_seed(5),
+        collect_context_metrics=True,
+    )
+
+    assert torch.isfinite(loss)
+    assert metrics["distillation_context_tokens"].item() > 0
+    assert metrics["distillation_student_context_logit_l1"].item() > 0
+    assert metrics["distillation_teacher_context_logit_l1"].item() > 0
+    assert torch.isfinite(metrics["distillation_context_response_ratio"])
+    assert module.decoder.training
+
+
+def test_block_context_metrics_keep_keys_when_batch_has_no_revealed_tokens():
+    class ConstantTeacher:
+        def logits(self, input_ids, formulas, fingerprint):
+            del formulas, fingerprint
+            return torch.zeros((*input_ids.shape, 7), device=input_ids.device)
+
+    module = MarlinLightningModule(
+        _tiny_config(),
+        distillation=FrigidDistillationSettings(
+            mode=FRIGID_DISTILLED_MARLIN_MODE,
+            trainable_scope=ATTENTION_BRIDGE_TRAINABLE_SCOPE,
+            attention_mode="block",
+            block_width_override=2,
+            current_block_masking="continuous_time",
+            full_block_mask_probability=1.0,
+            rollout_prefix_probability=0.0,
+        ),
+        frigid_teacher=ConstantTeacher(),
+    )
+    batch = {
+        "input_ids": torch.tensor([[1, 5, 6, 5, 6]]),
+        "fingerprint": torch.zeros((1, 8)),
+        "precursor_mass": torch.tensor([44.0]),
+        "formula": ["C2H4O"],
+    }
+
+    _, metrics = module.frigid_distillation_objective(
+        batch,
+        generator=torch.Generator().manual_seed(5),
+        collect_context_metrics=True,
+    )
+
+    assert metrics["distillation_context_tokens"].item() == 0.0
+    assert metrics["distillation_context_response_ratio"].item() == 0.0
+    assert metrics["distillation_student_context_logit_l1"].item() == 0.0
+
+
 def test_curriculum_scopes_have_fail_closed_parameter_counts():
     stage1 = expected_distillation_trainable_parameters(
         ATTENTION_BRIDGE_TRAINABLE_SCOPE,
@@ -368,6 +460,7 @@ def test_block_curriculum_configs_are_conservative_and_raw_evaluated():
     root = Path(__file__).resolve().parents[1]
     stage1 = OmegaConf.load(root / "configs/marlin_frigid_distilled_stage1.yaml")
     stage2 = OmegaConf.load(root / "configs/marlin_frigid_distilled_stage2.yaml")
+    stage1b = OmegaConf.load(root / "configs/marlin_frigid_distilled_stage1b.yaml")
 
     assert stage1.adaptation.trainable_scope == ATTENTION_BRIDGE_TRAINABLE_SCOPE
     assert stage1.adaptation.block_width_override == 32
@@ -391,6 +484,10 @@ def test_block_curriculum_configs_are_conservative_and_raw_evaluated():
     assert stage2.adaptation.rollout_prefix_probability == pytest.approx(0.5)
     assert stage2.adaptation.kl_weight == 0.25
     assert stage2.optim.learning_rate == pytest.approx(5e-6)
+    assert stage1b.adaptation.trainable_scope == ATTENTION_BRIDGE_TRAINABLE_SCOPE
+    assert stage1b.adaptation.block_width_override == 32
+    assert stage1b.adaptation.rollout_prefix_probability == pytest.approx(0.5)
+    assert stage1b.optim.learning_rate == pytest.approx(1e-5)
 
 
 def test_frigid_teacher_rejects_tokenizer_mismatch():

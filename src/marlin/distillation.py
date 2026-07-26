@@ -162,6 +162,7 @@ class FrigidDistillationSettings:
 class FairBlockInputs:
     input_ids: torch.Tensor
     current_mask: torch.Tensor
+    loss_mask: torch.Tensor
     current_content_mask: torch.Tensor
     selected_blocks: torch.Tensor
     mask_probabilities: torch.Tensor
@@ -201,7 +202,10 @@ def build_fair_block_inputs(
     and masks the remainder of the current block, matching production grammar
     rollouts. Future blocks become PAD so the full-attention teacher cannot
     exploit a target-length-bearing MASK suffix that the two-stream student
-    cannot attend to. Only masked current-block tokens are scored.
+    cannot attend to. Diffusion rows score all masked current-block tokens;
+    rollout rows score only the leftmost unresolved token because that is the
+    only action admitted by the production SAFE grammar before logits are
+    recomputed.
     """
 
     if clean_ids.ndim != 2:
@@ -374,24 +378,47 @@ def build_fair_block_inputs(
         full_block_masked = (current_mask | ~current_content).all(dim=1)
         input_ids = clean_ids.masked_fill(current_mask, mask_token_id)
         input_ids = input_ids.masked_fill(suffix, pad_token_id)
+    loss_mask = current_mask.clone()
+    if rollout_prefix_masked.any():
+        first_unresolved = current_mask.float().argmax(dim=1)
+        rollout_loss_mask = torch.zeros_like(current_mask)
+        rollout_rows = torch.nonzero(
+            rollout_prefix_masked,
+            as_tuple=False,
+        ).flatten()
+        rollout_loss_mask[
+            rollout_rows,
+            first_unresolved[rollout_rows],
+        ] = True
+        loss_mask = torch.where(
+            rollout_prefix_masked.reshape(-1, 1),
+            rollout_loss_mask,
+            loss_mask,
+        )
     loss_weights = torch.zeros(
         clean_ids.shape,
         device=clean_ids.device,
         dtype=torch.float32,
     )
     inverse_probabilities = mask_probabilities.reciprocal().masked_fill(
-        rollout_prefix_masked | fallback_rows,
+        fallback_rows,
         1.0,
     )
+    inverse_probabilities = torch.where(
+        rollout_prefix_masked,
+        current_content.sum(dim=1).to(dtype=torch.float32),
+        inverse_probabilities,
+    )
     loss_weights = loss_weights.masked_scatter(
-        current_mask,
+        loss_mask,
         inverse_probabilities
         .reshape(-1, 1)
-        .expand_as(clean_ids)[current_mask],
+        .expand_as(clean_ids)[loss_mask],
     )
     return FairBlockInputs(
         input_ids=input_ids,
         current_mask=current_mask,
+        loss_mask=loss_mask,
         current_content_mask=current_content,
         selected_blocks=selected_blocks,
         mask_probabilities=mask_probabilities,
