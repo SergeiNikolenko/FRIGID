@@ -461,6 +461,7 @@ def test_block_curriculum_configs_are_conservative_and_raw_evaluated():
     stage1 = OmegaConf.load(root / "configs/marlin_frigid_distilled_stage1.yaml")
     stage2 = OmegaConf.load(root / "configs/marlin_frigid_distilled_stage2.yaml")
     stage1b = OmegaConf.load(root / "configs/marlin_frigid_distilled_stage1b.yaml")
+    stage1c = OmegaConf.load(root / "configs/marlin_frigid_distilled_stage1c.yaml")
 
     assert stage1.adaptation.trainable_scope == ATTENTION_BRIDGE_TRAINABLE_SCOPE
     assert stage1.adaptation.block_width_override == 32
@@ -488,6 +489,11 @@ def test_block_curriculum_configs_are_conservative_and_raw_evaluated():
     assert stage1b.adaptation.block_width_override == 32
     assert stage1b.adaptation.rollout_prefix_probability == pytest.approx(0.5)
     assert stage1b.optim.learning_rate == pytest.approx(1e-5)
+    assert (
+        stage1c.adaptation.trainable_scope
+        == ATTENTION_PLUS_TOP4_FFN_TRAINABLE_SCOPE
+    )
+    assert stage1c.optim.learning_rate == pytest.approx(5e-6)
 
 
 def test_frigid_teacher_rejects_tokenizer_mismatch():
