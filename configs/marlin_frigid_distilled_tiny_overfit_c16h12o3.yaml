@@ -1,0 +1,53 @@
+# Diagnostic-only capacity check on four production-aligned training isomers.
+# This is FRIGID-distilled MARLIN, not a strict paper reproduction or benchmark.
+defaults:
+  - marlin_frigid_distilled_stage1c
+  - _self_
+
+# Supply the immutable stage-0 checkpoint as a Hydra/Slurm override.
+resume_weights_only_checkpoint: ???
+
+adaptation:
+  stage: diagnostic-tiny-overfit-c16h12o3-block32-top4-ffn
+
+data:
+  metadata_csv: /mnt/netstorage/nikolenko/marlin/datasets/marlin-tiny-overfit-block32-v2/train-metadata.csv
+
+loader:
+  batch_size: 4
+  num_workers: 0
+
+optim:
+  learning_rate: 2.0e-5
+
+training:
+  metric_interval: 5
+  molecular_validation_csv: /mnt/netstorage/nikolenko/marlin/datasets/marlin-tiny-overfit-block32-v2/train-metadata.csv
+  molecular_validation_interval: 100
+  molecular_validation_samples: 4
+  molecular_validation_candidates: 1
+  molecular_validation_use_ema: false
+
+trainer:
+  max_steps: 400
+  accumulate_grad_batches: 1
+
+output:
+  root: /mnt/netstorage/nikolenko/marlin/runs/frigid-distilled-tiny-c16h12o3-top4
+  checkpoints: /mnt/netstorage/nikolenko/marlin/runs/frigid-distilled-tiny-c16h12o3-top4/checkpoints
+  checkpoint_interval: 100
+
+tracking:
+  clearml:
+    task_name: frigid-distilled-marlin-tiny-c16h12o3-top4
+    tags:
+      - FRIGID-distilled-MARLIN
+      - not-strict-reproduction
+      - diagnostic-only
+      - tiny-overfit
+      - c16h12o3-isomers
+      - block-attention-32
+      - attention-plus-top4-ffn
+      - next-token-rollout-distillation
+      - deterministic-dropout
+      - raw-molecular-validation

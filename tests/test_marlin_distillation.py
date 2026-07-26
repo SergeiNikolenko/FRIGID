@@ -541,6 +541,9 @@ def test_block_curriculum_configs_are_conservative_and_raw_evaluated():
     stage2 = OmegaConf.load(root / "configs/marlin_frigid_distilled_stage2.yaml")
     stage1b = OmegaConf.load(root / "configs/marlin_frigid_distilled_stage1b.yaml")
     stage1c = OmegaConf.load(root / "configs/marlin_frigid_distilled_stage1c.yaml")
+    tiny = OmegaConf.load(
+        root / "configs/marlin_frigid_distilled_tiny_overfit_c16h12o3.yaml"
+    )
 
     assert stage1.adaptation.trainable_scope == ATTENTION_BRIDGE_TRAINABLE_SCOPE
     assert stage1.adaptation.block_width_override == 32
@@ -572,6 +575,17 @@ def test_block_curriculum_configs_are_conservative_and_raw_evaluated():
         stage1c.adaptation.trainable_scope
         == ATTENTION_PLUS_TOP4_FFN_TRAINABLE_SCOPE
     )
+    assert tiny.adaptation.stage.startswith("diagnostic-tiny-overfit-")
+    assert tiny.data.metadata_csv.endswith(
+        "/datasets/marlin-tiny-overfit-block32-v2/train-metadata.csv"
+    )
+    assert tiny.loader.batch_size == 4
+    assert tiny.loader.num_workers == 0
+    assert tiny.optim.learning_rate == pytest.approx(2e-5)
+    assert tiny.trainer.max_steps == 400
+    assert tiny.training.molecular_validation_samples == 4
+    assert tiny.training.molecular_validation_candidates == 1
+    assert tiny.training.molecular_validation_use_ema is False
     assert stage1c.optim.learning_rate == pytest.approx(5e-6)
 
 
