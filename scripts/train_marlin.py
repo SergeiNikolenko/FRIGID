@@ -33,6 +33,7 @@ from marlin.distillation import (
 from marlin.model import MarlinDecoderConfig
 from marlin.tokenizer import load_safe_tokenizer, validate_safe_tokenizer
 from marlin.training import (
+    ClearMLScalarCallback,
     MarlinCollator,
     MarlinLightningModule,
     MarlinMolecularValidationCallback,
@@ -463,6 +464,13 @@ def main(config: DictConfig) -> None:
         save_top_k=-1,
     )
     callbacks: list[L.Callback] = [checkpoint]
+    if clearml_task is not None:
+        callbacks.append(
+            ClearMLScalarCallback(
+                clearml_task,
+                every_n_steps=config.training.metric_interval,
+            )
+        )
     molecular_validation_csv = config.training.get("molecular_validation_csv")
     if molecular_validation_csv:
         callbacks.append(

@@ -15,7 +15,7 @@ from marlin.distillation import (
 )
 from marlin.ema import AllParameterExponentialMovingAverage
 from marlin.model import MarlinDecoderConfig
-from marlin.training import MarlinLightningModule
+from marlin.training import ClearMLScalarCallback, MarlinLightningModule
 
 
 def _tiny_config() -> MarlinDecoderConfig:
@@ -285,3 +285,46 @@ def test_distilled_resume_supersedes_provenance_warmstart():
     distilled.resume_checkpoint = "/runs/stage0/checkpoints/step=100.ckpt"
     with pytest.raises(ValueError, match="choose exactly one initialization source"):
         train_marlin.initialization_source(distilled)
+
+
+def test_clearml_scalar_callback_reports_first_step_and_interval():
+    class Logger:
+        def __init__(self):
+            self.calls = []
+
+        def report_scalar(self, **kwargs):
+            self.calls.append(kwargs)
+
+    class Task:
+        def __init__(self):
+            self.logger = Logger()
+
+        def get_logger(self):
+            return self.logger
+
+    class Trainer:
+        is_global_zero = True
+        global_step = 1
+        logged_metrics = {
+            "train_loss": torch.tensor(14.5),
+            "train_distillation_kl": torch.tensor(2.25),
+            "ignored": torch.tensor(99.0),
+        }
+
+    task = Task()
+    trainer = Trainer()
+    callback = ClearMLScalarCallback(task, every_n_steps=10)
+
+    callback.on_train_batch_end(trainer, None, None, None, 0)
+    callback.on_train_batch_end(trainer, None, None, None, 0)
+    trainer.global_step = 2
+    callback.on_train_batch_end(trainer, None, None, None, 1)
+    trainer.global_step = 10
+    callback.on_train_batch_end(trainer, None, None, None, 9)
+
+    assert [(call["series"], call["iteration"]) for call in task.logger.calls] == [
+        ("train_loss", 1),
+        ("train_distillation_kl", 1),
+        ("train_loss", 10),
+        ("train_distillation_kl", 10),
+    ]

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import asdict
 import json
+import math
 from pathlib import Path
 
 import lightning as L
@@ -496,6 +497,73 @@ class MarlinLightningModule(L.LightningModule):
             self.ema.load_state_dict(checkpoint["ema"])
 
 
+class ClearMLScalarCallback(L.Callback):
+    """Publish selected training scalars directly to the active ClearML task."""
+
+    metric_names = (
+        "train_loss",
+        "train_distillation_cross_entropy",
+        "train_distillation_kl",
+        "train_distillation_student_teacher_top1_agreement",
+        "train_distillation_current_token_accuracy",
+        "train_current_tokens",
+        "learning_rate",
+        "grad_norm",
+        "micro_batch_size",
+        "fingerprint_noise_fraction",
+    )
+
+    def __init__(self, clearml_task, *, every_n_steps: int = 10) -> None:
+        if every_n_steps <= 0:
+            raise ValueError("ClearML scalar interval must be positive")
+        self.clearml_task = clearml_task
+        self.every_n_steps = every_n_steps
+        self._last_step = -1
+
+    @torch.no_grad()
+    def on_train_batch_end(
+        self,
+        trainer: L.Trainer,
+        pl_module: MarlinLightningModule,
+        outputs,
+        batch,
+        batch_idx: int,
+    ) -> None:
+        del pl_module, outputs, batch, batch_idx
+        step = int(trainer.global_step)
+        if (
+            not trainer.is_global_zero
+            or step <= 0
+            or (step != 1 and step % self.every_n_steps)
+            or step == self._last_step
+        ):
+            return
+
+        logger = self.clearml_task.get_logger()
+        reported = False
+        for name in self.metric_names:
+            value = trainer.logged_metrics.get(name)
+            if value is None:
+                continue
+            if isinstance(value, torch.Tensor):
+                if value.numel() != 1:
+                    continue
+                scalar = float(value.detach().float().cpu().item())
+            else:
+                scalar = float(value)
+            if not math.isfinite(scalar):
+                continue
+            logger.report_scalar(
+                title="MARLIN training",
+                series=name,
+                value=scalar,
+                iteration=step,
+            )
+            reported = True
+        if reported:
+            self._last_step = step
+
+
 class MarlinMolecularValidationCallback(L.Callback):
     """Log bounded oracle-conditioned molecular generation metrics during training."""
 
@@ -788,6 +856,15 @@ class MarlinMolecularValidationCallback(L.Callback):
                     logger=True,
                     sync_dist=False,
                 )
+            if self.clearml_task is not None:
+                logger = self.clearml_task.get_logger()
+                for name, value in metrics.items():
+                    logger.report_scalar(
+                        title="MARLIN molecular metrics",
+                        series=name,
+                        value=float(value),
+                        iteration=step,
+                    )
             self.output_path.parent.mkdir(parents=True, exist_ok=True)
             result = {
                 "step": step,
