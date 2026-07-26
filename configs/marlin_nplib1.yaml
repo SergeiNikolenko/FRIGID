@@ -6,6 +6,9 @@ resume_weights_only_checkpoint: null
 frigid_warm_start_checkpoint: null
 frigid_warm_start_sha256: null
 
+adaptation:
+  mode: strict_marlin
+
 data:
   dataset: datamol-io/safe-gpt
   # Inferred: the paper does not identify its molecular training corpus.

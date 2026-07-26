@@ -25,6 +25,11 @@ import torch
 from omegaconf import DictConfig, OmegaConf
 
 from marlin.dataset import verify_snapshot_manifest
+from marlin.distillation import (
+    FRIGID_DISTILLED_MARLIN_MODE,
+    FrigidDistillationSettings,
+    FrozenFrigidTeacherCheckpoint,
+)
 from marlin.model import MarlinDecoderConfig
 from marlin.tokenizer import load_safe_tokenizer, validate_safe_tokenizer
 from marlin.training import (
@@ -35,6 +40,9 @@ from marlin.training import (
     MarlinTrainingFilter,
 )
 from marlin.warm_start import load_frigid_decoder
+
+
+STRICT_MARLIN_MODE = "strict_marlin"
 
 
 def sha256_file(path: str | Path) -> str:
@@ -78,16 +86,125 @@ def package_versions(names: list[str]) -> dict[str, str | None]:
     return resolved
 
 
+def adaptation_mode(config: DictConfig) -> str:
+    """Return the explicit training lane and reject ambiguous configurations."""
+    adaptation = config.get("adaptation")
+    if adaptation is None or not adaptation.get("mode"):
+        raise ValueError("adaptation.mode must be explicit")
+    mode = str(adaptation.mode)
+    if mode not in {STRICT_MARLIN_MODE, FRIGID_DISTILLED_MARLIN_MODE}:
+        raise ValueError(f"unsupported adaptation.mode: {mode!r}")
+    if mode == STRICT_MARLIN_MODE:
+        incompatible = {
+            "adaptation.teacher_checkpoint": adaptation.get("teacher_checkpoint"),
+            "adaptation.teacher_sha256": adaptation.get("teacher_sha256"),
+        }
+        present = [name for name, value in incompatible.items() if value]
+        if present:
+            raise ValueError(
+                "strict_marlin forbids FRIGID teacher fields: "
+                + ", ".join(present)
+            )
+    return mode
+
+
+def build_distillation(
+    config: DictConfig,
+    tokenizer,
+    special_token_ids: dict[str, int],
+) -> tuple[
+    FrigidDistillationSettings | None,
+    FrozenFrigidTeacherCheckpoint | None,
+]:
+    """Build the lazy per-rank teacher specification for the opt-in lane."""
+    mode = adaptation_mode(config)
+    if mode == STRICT_MARLIN_MODE:
+        return None, None
+
+    required = {
+        "frigid_warm_start_checkpoint": config.get(
+            "frigid_warm_start_checkpoint"
+        ),
+        "frigid_warm_start_sha256": config.get("frigid_warm_start_sha256"),
+        "adaptation.teacher_checkpoint": config.adaptation.get(
+            "teacher_checkpoint"
+        ),
+        "adaptation.teacher_sha256": config.adaptation.get("teacher_sha256"),
+    }
+    missing = [name for name, value in required.items() if not value]
+    if missing:
+        raise ValueError(
+            "FRIGID-distilled MARLIN requires " + ", ".join(missing)
+        )
+
+    settings = FrigidDistillationSettings(
+        mode=mode,
+        block_width_override=int(config.adaptation.block_width_override),
+        attention_mode=str(config.adaptation.get("attention_mode", "frigid_full")),
+        temperature=float(config.adaptation.temperature),
+        kl_weight=float(config.adaptation.kl_weight),
+        use_isotope=bool(config.adaptation.get("use_isotope", False)),
+    )
+    teacher_checkpoint = FrozenFrigidTeacherCheckpoint(
+        checkpoint_path=str(config.adaptation.teacher_checkpoint),
+        expected_sha256=str(config.adaptation.teacher_sha256),
+        expected_tokenizer_vocab=dict(tokenizer.get_vocab()),
+        expected_special_token_ids={
+            name: int(token_id) for name, token_id in special_token_ids.items()
+        },
+    )
+    return settings, teacher_checkpoint
+
+
+def initialization_source(config: DictConfig) -> str | None:
+    """Resolve one effective initialization source.
+
+    The distilled lane keeps the hashed FRIGID warm-start in its configuration
+    as immutable provenance. On a full Lightning resume, however, weights and
+    optimizer state must come only from the resume checkpoint.
+    """
+    mode = adaptation_mode(config)
+    sources = {
+        "resume_checkpoint": config.get("resume_checkpoint"),
+        "resume_weights_only_checkpoint": config.get(
+            "resume_weights_only_checkpoint"
+        ),
+        "frigid_warm_start_checkpoint": config.get(
+            "frigid_warm_start_checkpoint"
+        ),
+    }
+    if mode == FRIGID_DISTILLED_MARLIN_MODE and (
+        sources["resume_checkpoint"]
+        or sources["resume_weights_only_checkpoint"]
+    ):
+        sources["frigid_warm_start_checkpoint"] = None
+    selected = [name for name, value in sources.items() if value]
+    if len(selected) > 1:
+        raise ValueError(
+            "choose exactly one initialization source; got "
+            + ", ".join(selected)
+        )
+    return selected[0] if selected else None
+
+
 def write_run_manifest(config: DictConfig, tokenizer_sha256: str) -> dict:
     """Persist the immutable training inputs and execution environment."""
     commit, dirty = git_state()
     if dirty:
         raise RuntimeError(f"refusing canonical training from dirty git state: {dirty}")
+    mode = adaptation_mode(config)
+    strict_reproduction = mode == STRICT_MARLIN_MODE
     manifest = {
         "schema_version": 1,
-        "kind": "MARLIN clean-room decoder training",
+        "kind": (
+            "MARLIN clean-room decoder training"
+            if strict_reproduction
+            else "FRIGID-distilled MARLIN stage-0 adaptation"
+        ),
         "created_at_utc": datetime.now(timezone.utc).isoformat(),
-        "clean_room_reproduction": True,
+        "adaptation_mode": mode,
+        "strict_reproduction": strict_reproduction,
+        "clean_room_reproduction": strict_reproduction,
         "author_code_available_at_start": False,
         "git_commit": commit,
         "slurm_job_id": os.environ.get("SLURM_JOB_ID"),
@@ -226,6 +343,11 @@ def main(config: DictConfig) -> None:
         raise ValueError("model MASK token ID does not match the SAFE tokenizer")
     if special_token_ids["pad"] != decoder_config.pad_token_id:
         raise ValueError("model PAD token ID does not match the SAFE tokenizer")
+    distillation, frigid_teacher = build_distillation(
+        config,
+        tokenizer,
+        special_token_ids,
+    )
     metadata_csv = config.data.get("metadata_csv")
     local_shards = None
     if metadata_csv is None:
@@ -268,19 +390,11 @@ def main(config: DictConfig) -> None:
         full_sequence_mask_probability=config.training.get(
             "full_sequence_mask_probability", 0.0
         ),
+        distillation=distillation,
+        frigid_teacher=frigid_teacher,
     )
-    initialization_sources = {
-        "resume_checkpoint": config.get("resume_checkpoint"),
-        "resume_weights_only_checkpoint": config.get("resume_weights_only_checkpoint"),
-        "frigid_warm_start_checkpoint": config.get("frigid_warm_start_checkpoint"),
-    }
-    selected_sources = [name for name, value in initialization_sources.items() if value]
-    if len(selected_sources) > 1:
-        raise ValueError(
-            "choose exactly one initialization source; got "
-            + ", ".join(selected_sources)
-        )
-    if config.get("frigid_warm_start_checkpoint"):
+    selected_source = initialization_source(config)
+    if selected_source == "frigid_warm_start_checkpoint":
         if not config.get("frigid_warm_start_sha256"):
             raise ValueError(
                 "frigid_warm_start_sha256 is required with "
@@ -296,7 +410,7 @@ def main(config: DictConfig) -> None:
         report_path = Path(config.output.root) / "warm_start.json"
         report_path.parent.mkdir(parents=True, exist_ok=True)
         report_path.write_text(json.dumps(report, indent=2) + "\n")
-    elif config.get("resume_weights_only_checkpoint"):
+    elif selected_source == "resume_weights_only_checkpoint":
         load_decoder_weights_only(module, config.resume_weights_only_checkpoint)
         report = {
             "source": str(config.resume_weights_only_checkpoint),
@@ -332,6 +446,7 @@ def main(config: DictConfig) -> None:
         max_length=decoder_config.max_length,
         fingerprint_bits=decoder_config.fingerprint_bits,
         exclude_inchikeys=config.data.exclude_inchikeys,
+        include_formula=distillation is not None,
     )
     loader = torch.utils.data.DataLoader(
         dataset,

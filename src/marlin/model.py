@@ -27,6 +27,7 @@ class MarlinDecoderConfig:
     fingerprint_layer_norm_eps: float = 1e-5
     fingerprint_self_attention_layers: int = 0
     frigid_compatible_layer_order: bool = False
+    bos_token_id: int = 1
     eos_token_id: int = 2
     mask_token_id: int = 4
     pad_token_id: int = 0
@@ -170,15 +171,33 @@ class MarlinDecoder(nn.Module):
         isotope_ratios: torch.Tensor | None = None,
         *,
         include_mass_conditioning: bool = True,
+        attention_mode: str = "block",
+        block_width_override: int | None = None,
     ) -> torch.Tensor:
         if input_ids.ndim != 2:
             raise ValueError("input_ids must have shape [batch, length]")
         if input_ids.shape[1] > self.config.max_length:
             raise ValueError("sequence exceeds max_length")
         positions = torch.arange(input_ids.shape[1], device=input_ids.device)
-        attention_mask = block_causal_attention_mask(
-            input_ids.shape[1], self.config.block_width, input_ids.device
-        )
+        if attention_mode == "block":
+            block_width = (
+                self.config.block_width
+                if block_width_override is None
+                else block_width_override
+            )
+            if block_width <= 0:
+                raise ValueError("block_width_override must be positive")
+            attention_mask = block_causal_attention_mask(
+                input_ids.shape[1], block_width, input_ids.device
+            )
+        elif attention_mode == "frigid_full":
+            attention_mask = torch.zeros(
+                (input_ids.shape[1], input_ids.shape[1]),
+                dtype=torch.bool,
+                device=input_ids.device,
+            )
+        else:
+            raise ValueError(f"unknown attention mode: {attention_mode}")
         return self._forward_with_mask(
             input_ids,
             precursor_mass,

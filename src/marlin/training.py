@@ -11,10 +11,15 @@ import numpy as np
 import pandas as pd
 import torch
 from rdkit import Chem, DataStructs
-from rdkit.Chem import AllChem, Descriptors, Draw
+from rdkit.Chem import AllChem, Descriptors, Draw, rdMolDescriptors
 
 from dlm.utils.utils_chem import safe_to_smiles, smiles_to_safe
-from dlm.utils.ema import ExponentialMovingAverage
+from marlin.distillation import (
+    FrigidDistillationSettings,
+    build_fair_block_inputs,
+    frigid_distillation_loss,
+)
+from marlin.ema import AllParameterExponentialMovingAverage
 from marlin.grammar import SafeGrammarMask
 from marlin.mass_shell import MassShellConstraint
 from marlin.model import MarlinDecoder, MarlinDecoderConfig
@@ -69,17 +74,20 @@ class MarlinCollator:
         max_length: int = 256,
         fingerprint_bits: int = 4096,
         exclude_inchikeys: str | Path | None = None,
+        include_formula: bool = False,
     ) -> None:
         self.tokenizer = tokenizer
         self.max_length = max_length
         self.fingerprint_bits = fingerprint_bits
         self.exclude = load_excluded_connectivity_keys(exclude_inchikeys)
+        self.include_formula = include_formula
 
-    def __call__(self, examples: list[dict]) -> dict[str, torch.Tensor]:
+    def __call__(self, examples: list[dict]) -> dict[str, object]:
         safes: list[str] = []
         fingerprints: list[torch.Tensor] = []
         masses: list[float] = []
         isotope_ratios: list[torch.Tensor] = []
+        formulas: list[str] = []
         for example in examples:
             safe = example.get("safe", example.get("input"))
             if not safe and example.get("smiles"):
@@ -102,6 +110,8 @@ class MarlinCollator:
             fingerprints.append(torch.from_numpy(array))
             masses.append(Descriptors.ExactMolWt(molecule))
             isotope_ratios.append(theoretical_isotope_ratios(molecule))
+            if self.include_formula:
+                formulas.append(rdMolDescriptors.CalcMolFormula(molecule))
         if len(safes) != len(examples):
             raise AssertionError("MARLIN collator changed the pre-filtered batch size")
         tokens = self.tokenizer(
@@ -117,12 +127,15 @@ class MarlinCollator:
                 f"batch_max={sequence_length}, model_max={self.max_length}; "
                 "refusing silent truncation"
             )
-        return {
+        batch: dict[str, object] = {
             "input_ids": tokens["input_ids"],
             "fingerprint": torch.stack(fingerprints),
             "precursor_mass": torch.tensor(masses, dtype=torch.float32),
             "isotope_ratios": torch.stack(isotope_ratios),
         }
+        if self.include_formula:
+            batch["formula"] = formulas
+        return batch
 
 
 class MarlinMetadataDataset(torch.utils.data.Dataset):
@@ -179,6 +192,8 @@ class MarlinLightningModule(L.LightningModule):
         balanced_token_loss_alpha: float = 0.0,
         token_loss_weight_max: float = 20.0,
         full_sequence_mask_probability: float = 0.0,
+        distillation: FrigidDistillationSettings | None = None,
+        frigid_teacher=None,
     ) -> None:
         super().__init__()
         self.save_hyperparameters(
@@ -196,9 +211,20 @@ class MarlinLightningModule(L.LightningModule):
                 "balanced_token_loss_alpha": balanced_token_loss_alpha,
                 "token_loss_weight_max": token_loss_weight_max,
                 "full_sequence_mask_probability": full_sequence_mask_probability,
+                "distillation": asdict(distillation) if distillation else None,
             }
         )
         self.decoder = MarlinDecoder(config)
+        if (distillation is None) != (frigid_teacher is None):
+            raise ValueError(
+                "distillation settings and FRIGID teacher must be provided together"
+            )
+        self.distillation = distillation
+        object.__setattr__(self, "_frigid_teacher", frigid_teacher)
+        if distillation is not None:
+            self.decoder.requires_grad_(False)
+            self.decoder.conditioner.mass.requires_grad_(True)
+            self._set_stage0_training_modes()
         self.learning_rate = learning_rate
         self.weight_decay = weight_decay
         self.noise_probability = noise_probability
@@ -212,17 +238,151 @@ class MarlinLightningModule(L.LightningModule):
         self.token_loss_weight_max = token_loss_weight_max
         self.full_sequence_mask_probability = full_sequence_mask_probability
         self._last_metric_step = -1
-        self.ema = ExponentialMovingAverage(
+        self.ema = AllParameterExponentialMovingAverage(
             self.decoder.parameters(), decay=ema_decay, use_num_updates=False
         )
 
     def reset_ema(self) -> None:
         """Reset EMA after loading warm-start weights."""
-        self.ema = ExponentialMovingAverage(
+        self.ema = AllParameterExponentialMovingAverage(
             self.decoder.parameters(), decay=self.ema_decay, use_num_updates=False
         )
 
-    def training_step(self, batch: dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:
+    def _set_stage0_training_modes(self) -> None:
+        """Keep the frozen stochastic backbone deterministic during stage-0."""
+
+        self.decoder.eval()
+        self.decoder.conditioner.mass.train()
+
+    def train(self, mode: bool = True):
+        result = super().train(mode)
+        if mode and getattr(self, "distillation", None) is not None:
+            self._set_stage0_training_modes()
+        return result
+
+    def frigid_distillation_objective(
+        self,
+        batch: dict[str, object],
+        *,
+        generator: torch.Generator | None = None,
+    ) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
+        """Compute the stage-0 student objective on one fair masked block."""
+
+        settings = self.distillation
+        if settings is None:
+            raise RuntimeError("FRIGID distillation is not enabled")
+        teacher = object.__getattribute__(self, "_frigid_teacher")
+        if teacher is None or not callable(getattr(teacher, "logits", None)):
+            raise RuntimeError(
+                "FRIGID teacher is not loaded; training must run on_train_start first"
+            )
+
+        input_ids = batch["input_ids"]
+        precursor_mass = batch["precursor_mass"]
+        fingerprint = batch["fingerprint"]
+        formulas = batch.get("formula")
+        if not isinstance(input_ids, torch.Tensor):
+            raise TypeError("input_ids must be a tensor")
+        if not isinstance(precursor_mass, torch.Tensor):
+            raise TypeError("precursor_mass must be a tensor")
+        if not isinstance(fingerprint, torch.Tensor):
+            raise TypeError("fingerprint must be a tensor")
+        if (
+            not isinstance(formulas, (list, tuple))
+            or len(formulas) != input_ids.shape[0]
+            or not all(isinstance(formula, str) for formula in formulas)
+        ):
+            raise ValueError(
+                "stage-0 distillation requires one true molecular formula per row"
+            )
+
+        fair = build_fair_block_inputs(
+            input_ids,
+            block_width=settings.block_width_override,
+            bos_token_id=getattr(self.decoder.config, "bos_token_id", 1),
+            pad_token_id=self.decoder.config.pad_token_id,
+            mask_token_id=self.decoder.config.mask_token_id,
+            generator=generator,
+        )
+        student_logits = self.decoder(
+            fair.input_ids,
+            precursor_mass,
+            fingerprint,
+            isotope_ratios=None,
+            attention_mode=settings.attention_mode,
+            block_width_override=settings.block_width_override,
+        )
+        teacher_logits = teacher.logits(
+            fair.input_ids,
+            list(formulas),
+            fingerprint,
+        )
+        result = frigid_distillation_loss(
+            student_logits,
+            teacher_logits,
+            input_ids,
+            fair.current_mask,
+            temperature=settings.temperature,
+            kl_weight=settings.kl_weight,
+        )
+        current_accuracy = (
+            student_logits.detach()
+            .argmax(dim=-1)[fair.current_mask]
+            .eq(input_ids[fair.current_mask])
+            .float()
+            .mean()
+        )
+        metrics = {
+            "distillation_cross_entropy": result.cross_entropy.detach(),
+            "distillation_kl": result.kl.detach(),
+            "distillation_student_teacher_top1_agreement": (
+                result.student_teacher_top1_agreement.detach()
+            ),
+            "distillation_current_token_accuracy": current_accuracy,
+            "current_tokens": result.current_tokens.detach(),
+        }
+        return result.loss, metrics
+
+    def training_step(self, batch: dict[str, object], batch_idx: int) -> torch.Tensor:
+        if self.distillation is not None:
+            loss, distillation_metrics = self.frigid_distillation_objective(batch)
+            for name, value in distillation_metrics.items():
+                self.log(
+                    f"train_{name}",
+                    value,
+                    on_step=True,
+                    sync_dist=True,
+                )
+            self.log(
+                "train_loss",
+                loss,
+                prog_bar=True,
+                on_step=True,
+                sync_dist=True,
+            )
+            self.log(
+                "fingerprint_noise_fraction",
+                0.0,
+                on_step=True,
+                sync_dist=True,
+            )
+            optimizer = self.optimizers()
+            self.log(
+                "learning_rate",
+                optimizer.param_groups[0]["lr"],
+                on_step=True,
+                sync_dist=True,
+            )
+            input_ids = batch["input_ids"]
+            if not isinstance(input_ids, torch.Tensor):
+                raise TypeError("input_ids must be a tensor")
+            self.log(
+                "micro_batch_size",
+                float(input_ids.shape[0]),
+                on_step=True,
+                sync_dist=True,
+            )
+            return loss
         fingerprint = symmetric_fingerprint_noise(
             batch["fingerprint"],
             corruption_probability=self.noise_probability,
@@ -289,12 +449,40 @@ class MarlinLightningModule(L.LightningModule):
             self.log("grad_norm", grad_norm, on_step=True, sync_dist=True)
 
     def configure_optimizers(self):
+        parameters = [
+            parameter
+            for parameter in self.decoder.parameters()
+            if parameter.requires_grad
+        ]
+        if not parameters:
+            raise RuntimeError("MARLIN decoder has no trainable parameters")
         return torch.optim.AdamW(
-            self.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay
+            parameters,
+            lr=self.learning_rate,
+            weight_decay=self.weight_decay,
         )
 
     def on_train_start(self) -> None:
         self.ema.move_shadow_params_to_device(self.device)
+        if self.distillation is None:
+            return
+
+        teacher = object.__getattribute__(self, "_frigid_teacher")
+        load = getattr(teacher, "load", None)
+        if callable(load):
+            teacher = load()
+        if teacher is None:
+            raise RuntimeError("FRIGID teacher loader returned no teacher")
+        move = getattr(teacher, "to", None)
+        evaluate = getattr(teacher, "eval", None)
+        if not callable(move) or not callable(evaluate):
+            raise TypeError("FRIGID teacher must provide to() and eval()")
+        moved_teacher = move(self.device)
+        if moved_teacher is not None:
+            teacher = moved_teacher
+        teacher.eval()
+        object.__setattr__(self, "_frigid_teacher", teacher)
+        self._set_stage0_training_modes()
 
     def optimizer_step(self, *args, **kwargs) -> None:
         super().optimizer_step(*args, **kwargs)
@@ -501,11 +689,7 @@ class MarlinMolecularValidationCallback(L.Callback):
             return
         self._last_step = step
 
-        parameters = [
-            parameter
-            for parameter in pl_module.decoder.parameters()
-            if parameter.requires_grad
-        ]
+        parameters = list(pl_module.decoder.parameters())
         was_training = pl_module.decoder.training
         pl_module.ema.store(parameters)
         pl_module.ema.copy_to(parameters)
@@ -624,6 +808,8 @@ class MarlinMolecularValidationCallback(L.Callback):
         finally:
             pl_module.ema.restore(parameters)
             pl_module.decoder.train(was_training)
+            if pl_module.distillation is not None:
+                pl_module._set_stage0_training_modes()
 
 
 def _fingerprint_from_tensor(array: torch.Tensor):
