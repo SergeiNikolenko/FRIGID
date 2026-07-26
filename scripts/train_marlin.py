@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
 import platform
 import subprocess
@@ -75,6 +76,18 @@ def validate_metadata_csv(config: DictConfig) -> tuple[str | None, str | None]:
             f"metadata CSV SHA-256 is {actual_sha256}; expected {expected_sha256}"
         )
     return metadata_csv, actual_sha256
+
+
+def validate_gradient_clip_val(config: DictConfig) -> float:
+    """Return a finite, non-negative Lightning gradient clipping value."""
+
+    value = config.trainer.get("gradient_clip_val")
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError("trainer.gradient_clip_val must be a finite number >= 0")
+    value = float(value)
+    if not math.isfinite(value) or value < 0:
+        raise ValueError("trainer.gradient_clip_val must be a finite number >= 0")
+    return value
 
 
 def git_state() -> tuple[str | None, list[str]]:
@@ -395,6 +408,7 @@ def load_decoder_weights_only(module: MarlinLightningModule, checkpoint_path: st
 
 @hydra.main(version_base=None, config_path="../configs", config_name="marlin_nplib1")
 def main(config: DictConfig) -> None:
+    gradient_clip_val = validate_gradient_clip_val(config)
     L.seed_everything(config.seed, workers=True)
     torch.set_float32_matmul_precision("high")
     tokenizer_sha256 = sha256_file(config.data.tokenizer_file)
@@ -574,7 +588,7 @@ def main(config: DictConfig) -> None:
         precision=config.trainer.precision,
         max_steps=config.trainer.max_steps,
         accumulate_grad_batches=config.trainer.accumulate_grad_batches,
-        gradient_clip_val=1.0,
+        gradient_clip_val=gradient_clip_val,
         log_every_n_steps=config.trainer.log_every_n_steps,
         callbacks=callbacks,
         default_root_dir=config.output.root,
