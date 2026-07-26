@@ -68,20 +68,31 @@ def test_capture_action_stages_selects_noisy_stream_positions_in_fp32():
     assert not model.layers[0].self_attention._forward_hooks
     assert not model.layers[0].cross_attention._forward_hooks
     assert not model.layers[-1]._forward_hooks
+    assert not model.prediction_dense._forward_pre_hooks
     assert not model.prediction_norm._forward_hooks
 
     full_prediction_norm = {}
+    full_pre_head = {}
 
     def save_prediction_norm(_module, _inputs, output):
         full_prediction_norm["value"] = output.detach().clone()
 
-    handle = model.prediction_norm.register_forward_hook(
-        save_prediction_norm
-    )
+    def save_pre_head(_module, inputs):
+        full_pre_head["value"] = inputs[0].detach().clone()
+
+    handles = [
+        model.prediction_dense.register_forward_pre_hook(save_pre_head),
+        model.prediction_norm.register_forward_hook(save_prediction_norm),
+    ]
     expected_logits = model.sampling_logits(inputs, masses, fingerprints)
-    handle.remove()
+    for handle in handles:
+        handle.remove()
     batch_indices = torch.arange(2)
     positions = torch.tensor([2, 3])
+    assert torch.allclose(
+        captured["residual_sum_pre_head"],
+        full_pre_head["value"][batch_indices, positions + inputs.shape[1]],
+    )
     assert torch.allclose(
         captured["prediction_norm_post_head"],
         full_prediction_norm["value"][batch_indices, positions + inputs.shape[1]],

@@ -14,7 +14,8 @@ from marlin.model import MarlinDecoder
 HIDDEN_STAGE_NAMES = (
     "first_self_attention_output",
     "first_cross_attention_output",
-    "last_decoder_layer_pre_head",
+    "last_decoder_layer_output",
+    "residual_sum_pre_head",
     "prediction_norm_post_head",
 )
 ALL_STAGE_NAMES = (*HIDDEN_STAGE_NAMES, "raw_logits")
@@ -76,6 +77,14 @@ def capture_action_stages(
 
         return hook
 
+    def save_input(stage: str):
+        def hook(_module, inputs) -> None:
+            if stage in captured:
+                raise RuntimeError(f"{stage} hook fired more than once")
+            captured[stage] = _tensor_output(inputs, stage)
+
+        return hook
+
     handles = [
         model.layers[0].self_attention.register_forward_hook(
             save("first_self_attention_output")
@@ -84,7 +93,10 @@ def capture_action_stages(
             save("first_cross_attention_output")
         ),
         model.layers[-1].register_forward_hook(
-            save("last_decoder_layer_pre_head")
+            save("last_decoder_layer_output")
+        ),
+        model.prediction_dense.register_forward_pre_hook(
+            save_input("residual_sum_pre_head")
         ),
         model.prediction_norm.register_forward_hook(
             save("prediction_norm_post_head")

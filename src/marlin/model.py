@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 
 import torch
@@ -28,10 +29,24 @@ class MarlinDecoderConfig:
     fingerprint_layer_norm_eps: float = 1e-5
     fingerprint_self_attention_layers: int = 0
     frigid_compatible_layer_order: bool = False
+    layer0_long_residual_scale: float = 0.0
     bos_token_id: int = 1
     eos_token_id: int = 2
     mask_token_id: int = 4
     pad_token_id: int = 0
+
+    def __post_init__(self) -> None:
+        if (
+            not math.isfinite(self.layer0_long_residual_scale)
+            or self.layer0_long_residual_scale < 0.0
+        ):
+            raise ValueError(
+                "layer0_long_residual_scale must be finite and non-negative"
+            )
+        if self.layer0_long_residual_scale and self.num_layers < 1:
+            raise ValueError(
+                "layer0_long_residual_scale requires at least one decoder layer"
+            )
 
 
 def _bos_aware_block_ids(
@@ -233,13 +248,23 @@ class MarlinDecoder(nn.Module):
             include_mass=include_mass_conditioning,
         )
         padding_mask = input_ids.eq(self.config.pad_token_id)
-        for layer in self.layers:
+        layer0_hidden = None
+        for layer_index, layer in enumerate(self.layers):
             hidden = layer(
                 hidden,
                 condition,
                 attention_mask=attention_mask,
                 padding_mask=padding_mask,
                 condition_padding_mask=~condition_mask,
+            )
+            if layer_index == 0:
+                layer0_hidden = hidden
+        if self.config.layer0_long_residual_scale:
+            if layer0_hidden is None:  # guarded by MarlinDecoderConfig
+                raise RuntimeError("layer0 long residual has no source layer")
+            hidden = (
+                hidden
+                + self.config.layer0_long_residual_scale * layer0_hidden
             )
         hidden = self.prediction_norm(F.gelu(self.prediction_dense(hidden)))
         return self.output(hidden) + self.output_bias

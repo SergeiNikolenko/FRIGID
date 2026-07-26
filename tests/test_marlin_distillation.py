@@ -1349,6 +1349,65 @@ def test_all_decoder_tiny_config_preserves_balanced_cyclic_gate():
     assert "full-decoder-finetune" in all_decoder.tracking.clearml.tags
 
 
+def test_layer0_residual_tiny_config_only_changes_recovery_identity():
+    config_dir = str(Path(__file__).resolve().parents[1] / "configs")
+    with initialize_config_dir(version_base=None, config_dir=config_dir):
+        all_decoder = compose(
+            config_name=(
+                "marlin_frigid_distilled_tiny_overfit_c16h12o3_"
+                "action_ce_balanced_cyclic_all_decoder"
+            )
+        )
+        residual = compose(
+            config_name=(
+                "marlin_frigid_distilled_tiny_overfit_c16h12o3_"
+                "action_ce_balanced_cyclic_all_decoder_layer0_residual"
+            )
+        )
+
+    all_decoder_container = OmegaConf.to_container(all_decoder, resolve=True)
+    residual_container = OmegaConf.to_container(residual, resolve=True)
+    assert isinstance(all_decoder_container, dict)
+    assert isinstance(residual_container, dict)
+
+    expected_differences = {
+        "adaptation.stage",
+        "model.layer0_long_residual_scale",
+        "output.root",
+        "output.checkpoints",
+        "tracking.clearml.task_name",
+        "tracking.clearml.tags",
+    }
+
+    def differing_paths(left, right, prefix=""):
+        if isinstance(left, dict) and isinstance(right, dict):
+            assert left.keys() == right.keys()
+            return {
+                path
+                for key in left
+                for path in differing_paths(
+                    left[key],
+                    right[key],
+                    f"{prefix}.{key}" if prefix else key,
+                )
+            }
+        return {prefix} if left != right else set()
+
+    assert (
+        differing_paths(all_decoder_container, residual_container)
+        == expected_differences
+    )
+    assert residual.model.layer0_long_residual_scale == pytest.approx(1.0)
+    assert residual.adaptation.trainable_scope == ALL_DECODER_TRAINABLE_SCOPE
+    assert residual.optim == all_decoder.optim
+    assert residual.data == all_decoder.data
+    assert residual.loader == all_decoder.loader
+    assert residual.training == all_decoder.training
+    assert residual.trainer == all_decoder.trainer
+    assert "architecture-recovery" in residual.tracking.clearml.tags
+    assert "layer0-long-residual" in residual.tracking.clearml.tags
+
+
 def test_frigid_teacher_rejects_tokenizer_mismatch():
     class Tokenizer:
         unk_token_id = 0

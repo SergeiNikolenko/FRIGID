@@ -53,7 +53,10 @@ def test_two_stream_mask_exposes_only_clean_prefix_and_noisy_current_block():
     assert mask[noisy_query, 5 + 1]
 
 
-def test_two_stream_current_logits_cannot_read_clean_current_or_future():
+@pytest.mark.parametrize("layer0_long_residual_scale", [0.0, 1.0])
+def test_two_stream_current_logits_cannot_read_clean_current_or_future(
+    layer0_long_residual_scale,
+):
     config = MarlinDecoderConfig(
         vocab_size=7,
         hidden_size=8,
@@ -64,6 +67,7 @@ def test_two_stream_current_logits_cannot_read_clean_current_or_future():
         block_width=2,
         fingerprint_bits=8,
         dropout=0.0,
+        layer0_long_residual_scale=layer0_long_residual_scale,
         mask_token_id=4,
         pad_token_id=0,
     )
@@ -198,6 +202,78 @@ def test_marlin_decoder_defaults_to_frigid_layer_norm_epsilon():
     assert MarlinDecoderConfig().layer_norm_eps == 1e-12
     assert MarlinDecoderConfig().cross_attention_layer_norm_eps == 1e-5
     assert MarlinDecoderConfig().fingerprint_layer_norm_eps == 1e-5
+    assert MarlinDecoderConfig().layer0_long_residual_scale == 0.0
+
+
+@pytest.mark.parametrize(
+    "scale",
+    [-1.0, float("nan"), float("inf"), -float("inf")],
+)
+def test_marlin_decoder_rejects_invalid_layer0_long_residual_scale(scale):
+    with pytest.raises(
+        ValueError,
+        match="layer0_long_residual_scale must be finite and non-negative",
+    ):
+        MarlinDecoderConfig(layer0_long_residual_scale=scale)
+
+
+def test_layer0_long_residual_is_exact_and_state_dict_compatible():
+    common = dict(
+        vocab_size=9,
+        hidden_size=8,
+        num_layers=2,
+        num_heads=1,
+        intermediate_size=16,
+        max_length=6,
+        block_width=2,
+        fingerprint_bits=8,
+        dropout=0.0,
+        mask_token_id=4,
+        pad_token_id=0,
+    )
+    baseline = MarlinDecoder(
+        MarlinDecoderConfig(**common, layer0_long_residual_scale=0.0)
+    ).eval()
+    residual = MarlinDecoder(
+        MarlinDecoderConfig(**common, layer0_long_residual_scale=1.0)
+    ).eval()
+    residual.load_state_dict(baseline.state_dict(), strict=True)
+    assert residual.state_dict().keys() == baseline.state_dict().keys()
+
+    input_ids = torch.tensor([[1, 5, 4, 4, 4, 4]])
+    mass = torch.tensor([100.0])
+    fingerprint = torch.zeros((1, 8))
+
+    def capture_head_inputs(model):
+        captured = {}
+
+        def capture_layer0(_module, _inputs, output):
+            captured["layer0"] = output.detach().clone()
+
+        def capture_pre_head(_module, inputs):
+            captured["pre_head"] = inputs[0].detach().clone()
+
+        handles = [
+            model.layers[0].register_forward_hook(capture_layer0),
+            model.prediction_dense.register_forward_pre_hook(capture_pre_head),
+        ]
+        try:
+            with torch.inference_mode():
+                model(input_ids, mass, fingerprint)
+        finally:
+            for handle in handles:
+                handle.remove()
+        return captured
+
+    baseline_inputs = capture_head_inputs(baseline)
+    residual_inputs = capture_head_inputs(residual)
+
+    assert torch.equal(residual_inputs["layer0"], baseline_inputs["layer0"])
+    assert torch.allclose(
+        residual_inputs["pre_head"],
+        baseline_inputs["pre_head"] + residual_inputs["layer0"],
+        atol=1e-6,
+    )
 
 
 def test_marlin_uses_fixed_decay_ema():

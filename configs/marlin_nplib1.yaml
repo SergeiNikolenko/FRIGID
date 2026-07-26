@@ -52,6 +52,7 @@ model:
   # Inferred from the released FRIGID warm-start checkpoint.
   fingerprint_self_attention_layers: 3
   frigid_compatible_layer_order: true
+  layer0_long_residual_scale: 0.0
   mask_token_id: 4
   pad_token_id: 3
 
