@@ -14,6 +14,7 @@ CODE="$ROOT/code"
 CHECKPOINT="${MARLIN_CHECKPOINT:?Set MARLIN_CHECKPOINT}"
 METADATA="${MARLIN_METADATA:?Set MARLIN_METADATA}"
 FINGERPRINTS="${MARLIN_FINGERPRINTS:?Set MARLIN_FINGERPRINTS}"
+FINGERPRINT_KEY="${MARLIN_FINGERPRINT_KEY:-ground_truth}"
 OUTPUT_DIR="${MARLIN_OUTPUT_DIR:?Set MARLIN_OUTPUT_DIR}"
 CANDIDATES="${MARLIN_CANDIDATES:-16}"
 MAX_SPECTRA="${MARLIN_MAX_SPECTRA:-4}"
@@ -37,7 +38,7 @@ ARGS=(
     --tokenizer "$ROOT/data/safe-gpt/tokenizer.json"
     --metadata "$METADATA"
     --fingerprints "$FINGERPRINTS"
-    --fingerprint-key oracle
+    --fingerprint-key "$FINGERPRINT_KEY"
     --lane dreams
     --output-dir "$OUTPUT_DIR"
     --candidates "$CANDIDATES"
