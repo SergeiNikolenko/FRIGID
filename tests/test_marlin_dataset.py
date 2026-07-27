@@ -4,7 +4,41 @@ from pathlib import Path
 
 import pytest
 
-from marlin.dataset import file_list_sha256, verify_snapshot_manifest
+from marlin.dataset import (
+    file_list_sha256,
+    sha256_file,
+    verify_filtered_prefix_cache,
+    verify_snapshot_manifest,
+)
+
+
+def test_verify_filtered_prefix_cache_returns_shard_and_offset(tmp_path: Path) -> None:
+    shard = tmp_path / "eligible-prefix.parquet"
+    shard.write_bytes(b"cached-safe-prefix")
+    manifest = {
+        "schema_version": 1,
+        "kind": "MARLIN filtered SAFE prefix cache",
+        "source_manifest_sha256": "source",
+        "tokenizer_sha256": "tokenizer",
+        "exclusion_sha256": "exclusions",
+        "max_length": 256,
+        "eligible_rows": 100,
+        "raw_rows_consumed": 123,
+        "shard": shard.name,
+        "shard_size_bytes": shard.stat().st_size,
+        "shard_sha256": sha256_file(shard),
+    }
+    path = tmp_path / "manifest.json"
+    path.write_text(json.dumps(manifest))
+
+    assert verify_filtered_prefix_cache(
+        path,
+        source_manifest_sha256="source",
+        tokenizer_sha256="tokenizer",
+        exclusion_sha256="exclusions",
+        max_length=256,
+        minimum_rows=100,
+    ) == (str(shard), 123)
 
 
 def test_verify_snapshot_manifest_returns_ordered_verified_shards(tmp_path: Path) -> None:

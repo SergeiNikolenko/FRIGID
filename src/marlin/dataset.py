@@ -80,3 +80,40 @@ def verify_snapshot_manifest(
                 raise ValueError(f"local training shard SHA-256 mismatch: {shard}")
         resolved.append(str(shard.resolve()))
     return resolved, sha256_file(path)
+
+
+def verify_filtered_prefix_cache(
+    manifest_path: str | Path,
+    *,
+    source_manifest_sha256: str,
+    tokenizer_sha256: str,
+    exclusion_sha256: str,
+    max_length: int,
+    minimum_rows: int,
+) -> tuple[str, int]:
+    """Verify a cached eligible prefix and return its shard and raw offset."""
+    path = Path(manifest_path)
+    manifest = json.loads(path.read_text())
+    expected = {
+        "schema_version": 1,
+        "kind": "MARLIN filtered SAFE prefix cache",
+        "source_manifest_sha256": source_manifest_sha256,
+        "tokenizer_sha256": tokenizer_sha256,
+        "exclusion_sha256": exclusion_sha256,
+        "max_length": max_length,
+    }
+    for key, value in expected.items():
+        if manifest.get(key) != value:
+            raise ValueError(f"filtered prefix cache {key} mismatch")
+    eligible_rows = int(manifest.get("eligible_rows", 0))
+    raw_rows_consumed = int(manifest.get("raw_rows_consumed", 0))
+    if eligible_rows < minimum_rows or raw_rows_consumed < eligible_rows:
+        raise ValueError("filtered prefix cache does not cover the shuffle buffer")
+    shard = (path.parent / manifest["shard"]).resolve()
+    if not shard.is_relative_to(path.parent.resolve()) or not shard.is_file():
+        raise ValueError("filtered prefix cache shard is missing or escapes its root")
+    if shard.stat().st_size != int(manifest["shard_size_bytes"]):
+        raise ValueError("filtered prefix cache shard size mismatch")
+    if sha256_file(shard) != manifest["shard_sha256"]:
+        raise ValueError("filtered prefix cache shard SHA-256 mismatch")
+    return str(shard), raw_rows_consumed

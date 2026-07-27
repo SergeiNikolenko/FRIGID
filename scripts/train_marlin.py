@@ -23,7 +23,7 @@ import lightning as L
 import torch
 from omegaconf import DictConfig, OmegaConf
 
-from marlin.dataset import verify_snapshot_manifest
+from marlin.dataset import verify_filtered_prefix_cache, verify_snapshot_manifest
 from marlin.model import MarlinDecoderConfig
 from marlin.tokenizer import load_safe_tokenizer, validate_safe_tokenizer
 from marlin.training import (
@@ -266,19 +266,39 @@ def main(config: DictConfig) -> None:
         report_path = Path(config.output.root) / "warm_start.json"
         report_path.parent.mkdir(parents=True, exist_ok=True)
         report_path.write_text(json.dumps(report, indent=2) + "\n")
-    dataset = datasets.load_dataset(
+    source_dataset = datasets.load_dataset(
         "parquet",
         data_files={"train": local_shards},
         split="train",
         streaming=True,
         cache_dir=config.data.hf_cache_dir,
-    ).filter(
-        MarlinTrainingFilter(
-            tokenizer,
-            decoder_config.max_length,
-            config.data.exclude_inchikeys,
-        ),
     )
+    training_filter = MarlinTrainingFilter(
+        tokenizer,
+        decoder_config.max_length,
+        config.data.exclude_inchikeys,
+    )
+    cache_manifest = Path(config.data.filtered_prefix_cache_manifest)
+    if cache_manifest.is_file():
+        cache_shard, raw_rows_consumed = verify_filtered_prefix_cache(
+            cache_manifest,
+            source_manifest_sha256=snapshot_manifest_sha256,
+            tokenizer_sha256=tokenizer_sha256,
+            exclusion_sha256=sha256_file(config.data.exclude_inchikeys),
+            max_length=decoder_config.max_length,
+            minimum_rows=int(config.data.shuffle_buffer),
+        )
+        cached_prefix = datasets.load_dataset(
+            "parquet",
+            data_files={"train": [cache_shard]},
+            split="train",
+            streaming=True,
+            cache_dir=config.data.hf_cache_dir,
+        )
+        filtered_tail = source_dataset.skip(raw_rows_consumed).filter(training_filter)
+        dataset = datasets.concatenate_datasets([cached_prefix, filtered_tail])
+    else:
+        dataset = source_dataset.filter(training_filter)
     dataset = dataset.shuffle(seed=config.seed, buffer_size=config.data.shuffle_buffer)
     collator = MarlinCollator(
         tokenizer,
