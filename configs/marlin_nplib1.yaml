@@ -2,7 +2,6 @@
 # max_steps and mass Fourier frequencies are explicitly inferred because the paper omits them.
 seed: 42
 resume_checkpoint: null
-resume_weights_only_checkpoint: null
 frigid_warm_start_checkpoint: /mnt/netstorage/nikolenko/marlin/checkpoints/frigid/DLM.ckpt
 frigid_warm_start_sha256: b6177c2d43448380aba80ff41c01461ea34ca2ca93b213986954c5afb7f0f457
 
@@ -63,12 +62,6 @@ training:
   noise_max_fraction: 0.3
   # Sparse reconstruction diagnostics reuse the training forward pass.
   metric_interval: 50
-  molecular_validation_csv: null
-  molecular_validation_interval: 500
-  molecular_validation_samples: 2
-  molecular_validation_candidates: 4
-  molecular_validation_temperature: 1.0
-  molecular_validation_use_ema: true
 
 trainer:
   # Spectrum currently exposes one A100 through Slurm.

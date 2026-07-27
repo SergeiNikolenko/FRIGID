@@ -83,7 +83,7 @@ def write_run_manifest(config: DictConfig, tokenizer_sha256: str) -> dict:
         "config": OmegaConf.to_container(config, resolve=True),
         "inputs": {
             "tokenizer_sha256": tokenizer_sha256,
-            "warm_start_sha256": str(config.warm_start_sha256),
+            "frigid_warm_start_sha256": str(config.frigid_warm_start_sha256),
             "nplib1_test_exclusions_sha256": sha256_file(
                 config.data.exclude_inchikeys
             ),
@@ -181,6 +181,20 @@ def initialize_clearml(config: DictConfig):
 
 @hydra.main(version_base=None, config_path="../configs", config_name="marlin_nplib1")
 def main(config: DictConfig) -> None:
+    initialization_sources = {
+        "resume_checkpoint": config.get("resume_checkpoint"),
+        "frigid_warm_start_checkpoint": config.get(
+            "frigid_warm_start_checkpoint"
+        ),
+    }
+    selected_sources = [
+        name for name, value in initialization_sources.items() if value
+    ]
+    if len(selected_sources) != 1:
+        raise ValueError(
+            "choose exactly one initialization source; got "
+            + (", ".join(selected_sources) or "none")
+        )
     L.seed_everything(config.seed, workers=True)
     torch.set_float32_matmul_precision("high")
     tokenizer_sha256 = sha256_file(config.data.tokenizer_file)
@@ -235,12 +249,13 @@ def main(config: DictConfig) -> None:
         noise_min_fraction=config.training.noise_min_fraction,
         noise_max_fraction=config.training.noise_max_fraction,
         ema_decay=config.training.ema_decay,
+        metric_interval=config.training.metric_interval,
     )
-    if config.get("warm_start_checkpoint"):
+    if config.get("frigid_warm_start_checkpoint"):
         report = load_frigid_decoder(
             module.decoder,
-            config.warm_start_checkpoint,
-            expected_sha256=config.get("warm_start_sha256"),
+            config.frigid_warm_start_checkpoint,
+            expected_sha256=config.get("frigid_warm_start_sha256"),
         )
         report["tokenizer"] = str(config.data.tokenizer_file)
         report["tokenizer_sha256"] = tokenizer_sha256
@@ -292,7 +307,7 @@ def main(config: DictConfig) -> None:
         precision=config.trainer.precision,
         max_steps=config.trainer.max_steps,
         accumulate_grad_batches=config.trainer.accumulate_grad_batches,
-        gradient_clip_val=1.0,
+        gradient_clip_val=config.trainer.gradient_clip_val,
         log_every_n_steps=config.trainer.log_every_n_steps,
         callbacks=[checkpoint],
         default_root_dir=config.output.root,

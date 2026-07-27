@@ -17,7 +17,6 @@ OUTPUT_ROOT="${MARLIN_OUTPUT_ROOT:-}"
 MAX_STEPS="${MARLIN_MAX_STEPS:-}"
 CHECKPOINT_INTERVAL="${MARLIN_CHECKPOINT_INTERVAL:-}"
 RESUME_CHECKPOINT="${MARLIN_RESUME_CHECKPOINT:-}"
-RESUME_WEIGHTS_ONLY_CHECKPOINT="${MARLIN_RESUME_WEIGHTS_ONLY_CHECKPOINT:-}"
 FRIGID_WARM_START_CHECKPOINT="${MARLIN_FRIGID_WARM_START_CHECKPOINT:-}"
 FRIGID_WARM_START_SHA256="${MARLIN_FRIGID_WARM_START_SHA256:-}"
 METRIC_INTERVAL="${MARLIN_METRIC_INTERVAL:-}"
@@ -30,11 +29,6 @@ METADATA_CSV="${MARLIN_METADATA_CSV:-}"
 METADATA_CSV_SHA256="${MARLIN_METADATA_CSV_SHA256:-}"
 METADATA_EXCLUDE_INCHIKEYS="${MARLIN_METADATA_EXCLUDE_INCHIKEYS:-}"
 LEARNING_RATE="${MARLIN_LEARNING_RATE:-}"
-MOLECULAR_VALIDATION_CSV="${MARLIN_MOLECULAR_VALIDATION_CSV:-}"
-MOLECULAR_VALIDATION_INTERVAL="${MARLIN_MOLECULAR_VALIDATION_INTERVAL:-}"
-MOLECULAR_VALIDATION_SAMPLES="${MARLIN_MOLECULAR_VALIDATION_SAMPLES:-}"
-MOLECULAR_VALIDATION_CANDIDATES="${MARLIN_MOLECULAR_VALIDATION_CANDIDATES:-}"
-MOLECULAR_VALIDATION_TEMPERATURE="${MARLIN_MOLECULAR_VALIDATION_TEMPERATURE:-}"
 export PYTHONPATH="$CODE/src:$ROOT/vendor"
 export HF_HOME="${MARLIN_HF_HOME:-$SHARED_ROOT/cache/huggingface}"
 export TOKENIZERS_PARALLELISM=false
@@ -42,10 +36,6 @@ export TOKENIZERS_PARALLELISM=false
 source "$CODE/scripts/marlin_runtime_env.sh"
 
 cd "$CODE"
-if [[ -n "$RESUME_CHECKPOINT" && -n "$RESUME_WEIGHTS_ONLY_CHECKPOINT" ]]; then
-    echo "Set only one of MARLIN_RESUME_CHECKPOINT and MARLIN_RESUME_WEIGHTS_ONLY_CHECKPOINT" >&2
-    exit 2
-fi
 TRAIN_ARGS=()
 append_override() {
     local key="$1"
@@ -61,10 +51,6 @@ append_override loader.num_workers "$NUM_WORKERS"
 append_override data.shuffle_buffer "$SHUFFLE_BUFFER"
 append_override output.checkpoint_interval "$CHECKPOINT_INTERVAL"
 append_override training.metric_interval "$METRIC_INTERVAL"
-append_override training.molecular_validation_interval "$MOLECULAR_VALIDATION_INTERVAL"
-append_override training.molecular_validation_samples "$MOLECULAR_VALIDATION_SAMPLES"
-append_override training.molecular_validation_candidates "$MOLECULAR_VALIDATION_CANDIDATES"
-append_override training.molecular_validation_temperature "$MOLECULAR_VALIDATION_TEMPERATURE"
 append_override data.verify_snapshot_hashes "$VERIFY_SNAPSHOT_HASHES"
 if [[ -n "$OUTPUT_ROOT" ]]; then
     escaped_output_root="${OUTPUT_ROOT//=/\\=}"
@@ -76,13 +62,6 @@ if [[ -n "$LEARNING_RATE" ]]; then
 fi
 if [[ -n "$RESUME_CHECKPOINT" ]]; then
     TRAIN_ARGS+=("resume_checkpoint=${RESUME_CHECKPOINT//=/\\=}")
-    TRAIN_ARGS+=("resume_weights_only_checkpoint=null")
-    TRAIN_ARGS+=("frigid_warm_start_checkpoint=null")
-    TRAIN_ARGS+=("frigid_warm_start_sha256=null")
-fi
-if [[ -n "$RESUME_WEIGHTS_ONLY_CHECKPOINT" ]]; then
-    TRAIN_ARGS+=("resume_weights_only_checkpoint=${RESUME_WEIGHTS_ONLY_CHECKPOINT//=/\\=}")
-    TRAIN_ARGS+=("resume_checkpoint=null")
     TRAIN_ARGS+=("frigid_warm_start_checkpoint=null")
     TRAIN_ARGS+=("frigid_warm_start_sha256=null")
 fi
@@ -108,8 +87,5 @@ elif [[ -n "$METADATA_CSV_SHA256" ]]; then
 fi
 if [[ -n "$METADATA_EXCLUDE_INCHIKEYS" ]]; then
     TRAIN_ARGS+=("+data.metadata_exclude_inchikeys=$METADATA_EXCLUDE_INCHIKEYS")
-fi
-if [[ -n "$MOLECULAR_VALIDATION_CSV" ]]; then
-    TRAIN_ARGS+=("training.molecular_validation_csv=$MOLECULAR_VALIDATION_CSV")
 fi
 "$PYTHON" scripts/train_marlin.py --config-name "$CONFIG_NAME" "${TRAIN_ARGS[@]}"
