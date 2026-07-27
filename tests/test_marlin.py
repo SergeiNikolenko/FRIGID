@@ -297,6 +297,7 @@ def test_diffusion_objective_reports_reconstruction_metrics():
         "masked_eos_target_probability",
         "masked_eos_target_rank",
         "mask_fraction",
+        "full_sequence_mask_fraction",
         "masked_sequence_accuracy",
     }
     assert all(torch.isfinite(value) for value in metrics.values())
