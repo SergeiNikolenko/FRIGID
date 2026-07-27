@@ -25,6 +25,7 @@ from omegaconf import DictConfig, OmegaConf
 
 from marlin.dataset import verify_filtered_prefix_cache, verify_snapshot_manifest
 from marlin.model import MarlinDecoderConfig
+from marlin.periodic_evaluation import PeriodicMolecularEvaluation
 from marlin.tokenizer import load_safe_tokenizer, validate_safe_tokenizer
 from marlin.training import (
     MarlinCollator,
@@ -320,6 +321,11 @@ def main(config: DictConfig) -> None:
         every_n_train_steps=config.output.checkpoint_interval,
         save_top_k=-1,
     )
+    molecular_evaluation = PeriodicMolecularEvaluation(
+        config,
+        project_root=PROJECT_ROOT,
+        clearml_task=clearml_task,
+    )
     trainer = L.Trainer(
         accelerator="gpu",
         devices=config.trainer.devices,
@@ -329,7 +335,7 @@ def main(config: DictConfig) -> None:
         accumulate_grad_batches=config.trainer.accumulate_grad_batches,
         gradient_clip_val=config.trainer.gradient_clip_val,
         log_every_n_steps=config.trainer.log_every_n_steps,
-        callbacks=[checkpoint],
+        callbacks=[checkpoint, molecular_evaluation],
         default_root_dir=config.output.root,
     )
     try:

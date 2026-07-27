@@ -15,7 +15,7 @@ from pathlib import Path
 import pandas as pd
 import torch
 from rdkit import Chem, DataStructs
-from rdkit.Chem import AllChem, rdMolDescriptors
+from rdkit.Chem import AllChem, Draw, rdMolDescriptors
 
 from dlm.utils.utils_chem import safe_to_smiles
 from marlin.evaluation import (
@@ -62,6 +62,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--no-ema", action="store_true")
     parser.add_argument("--clearml-project")
     parser.add_argument("--clearml-task-name")
+    parser.add_argument("--clearml-task-id")
+    parser.add_argument("--clearml-iteration", type=int)
     parser.add_argument("--clearml-tag", action="append", default=[])
     return parser.parse_args()
 
@@ -233,32 +235,30 @@ def publish_clearml_evaluation(
     metrics: dict,
     rows: list[dict],
     settings: dict,
+    task_id: str | None = None,
+    iteration: int | None = None,
 ) -> dict[str, str] | None:
     """Publish a completed evaluation only when explicitly configured."""
-    if project_name is None and task_name is None:
+    if task_id is None and project_name is None and task_name is None:
         return None
-    if not project_name or not task_name:
+    if task_id is None and (not project_name or not task_name):
         raise ValueError(
             "--clearml-project and --clearml-task-name must be provided together"
         )
 
     from clearml import Task
 
-    task = Task.init(
-        project_name=project_name,
-        task_name=task_name,
-        task_type=Task.TaskTypes.testing,
-        tags=tags,
-        reuse_last_task_id=False,
-        output_uri=False,
-        auto_connect_streams=False,
-        auto_connect_frameworks=False,
-        auto_resource_monitoring=False,
+    attached = task_id is not None
+    task = Task.get_task(task_id=task_id) if attached else Task.init(
+        project_name=project_name, task_name=task_name,
+        task_type=Task.TaskTypes.testing, tags=tags, reuse_last_task_id=False,
+        output_uri=False, auto_connect_streams=False,
+        auto_connect_frameworks=False, auto_resource_monitoring=False,
     )
     try:
         task.connect(dict(settings), name="evaluation_settings")
         logger = task.get_logger()
-        iteration = int(metrics["rows"])
+        report_iteration = int(metrics["rows"] if iteration is None else iteration)
         scalar_metrics = {
             "Exact@1": "exact_top1",
             "Exact@10": "exact_top10",
@@ -268,10 +268,14 @@ def publish_clearml_evaluation(
             "Validity": "validity",
             "Mass validity": "mass_validity",
             "Uniqueness": "uniqueness",
+            "Internal diversity": "internal_diversity",
+            "Constraint dead ends": "constraint_dead_ends_mean",
             "Tanimoto@1 (returned)": "tanimoto_top1",
             "Tanimoto@10 (returned)": "tanimoto_top10",
         }
         for series, key in scalar_metrics.items():
+            if key not in metrics:
+                continue
             value = float(metrics[key])
             if not math.isfinite(value):
                 continue
@@ -279,29 +283,53 @@ def publish_clearml_evaluation(
                 title="Molecular metrics",
                 series=series,
                 value=value,
-                iteration=iteration,
+                iteration=report_iteration,
             )
         logger.report_table(
             title="MARLIN molecular evaluation",
             series="Top candidates",
-            iteration=iteration,
+            iteration=report_iteration,
             table_plot=_clearml_candidate_table(rows),
         )
+        molecules = []
+        legends = []
+        for row in rows:
+            target = Chem.MolFromSmiles(row["target_smiles"])
+            if target is not None:
+                molecules.append(target)
+                legends.append(f"{row['spec_name']} target")
+            if row.get("candidates"):
+                candidate = Chem.MolFromSmiles(row["candidates"][0]["smiles"])
+                if candidate is not None:
+                    molecules.append(candidate)
+                    legends.append(f"{row['spec_name']} top-1")
+        if molecules and hasattr(logger, "report_image"):
+            logger.report_image(
+                title="Molecular generation",
+                series="Targets and top-1 candidates",
+                iteration=report_iteration,
+                image=Draw.MolsToGridImage(molecules, legends=legends, molsPerRow=4),
+            )
         return {
             "task_id": task.id,
             "task_name": task.name,
-            "project_name": project_name,
+            "project_name": task.get_project_name()
+            if hasattr(task, "get_project_name")
+            else project_name,
             "web_url": task.get_output_log_web_page(),
         }
     finally:
-        task.close()
+        if not attached:
+            task.close()
 
 
 def main() -> None:
     args = parse_args()
     if args.candidates <= 0:
         raise ValueError("--candidates must be positive")
-    if bool(args.clearml_project) != bool(args.clearml_task_name):
+    if args.clearml_task_id and (args.clearml_project or args.clearml_task_name):
+        raise ValueError("--clearml-task-id is mutually exclusive with project/task name")
+    if not args.clearml_task_id and bool(args.clearml_project) != bool(args.clearml_task_name):
         raise ValueError(
             "--clearml-project and --clearml-task-name must be provided together"
         )
@@ -546,6 +574,23 @@ def main() -> None:
             )
 
     rows_with_candidate = [row for row in rows if row["candidate_returned"]]
+    within_spectrum_diversities = []
+    for row in rows:
+        candidate_fingerprints = []
+        for candidate in row.get("candidates", []):
+            molecule = Chem.MolFromSmiles(candidate["smiles"])
+            if molecule is not None:
+                candidate_fingerprints.append(morgan(molecule))
+        pairwise = []
+        for left in range(len(candidate_fingerprints)):
+            for right in range(left + 1, len(candidate_fingerprints)):
+                pairwise.append(
+                    1.0 - DataStructs.TanimotoSimilarity(
+                        candidate_fingerprints[left], candidate_fingerprints[right]
+                    )
+                )
+        if pairwise:
+            within_spectrum_diversities.append(sum(pairwise) / len(pairwise))
     metrics = {
         "lane": args.lane,
         "rows": len(rows),
@@ -559,6 +604,10 @@ def main() -> None:
         "validity": mean_metric(rows, "validity"),
         "mass_validity": mean_metric(rows, "mass_validity"),
         "uniqueness": mean_metric(rows, "uniqueness"),
+        "internal_diversity": float(
+            sum(within_spectrum_diversities) / len(within_spectrum_diversities)
+        ) if within_spectrum_diversities else 0.0,
+        "constraint_dead_ends_mean": mean_metric(rows, "constraint_dead_ends"),
         "runtime_seconds_total": float(sum(row["runtime_seconds"] for row in rows)),
         "runtime_seconds_mean": mean_metric(rows, "runtime_seconds"),
         "metric_denominators": {
@@ -574,6 +623,8 @@ def main() -> None:
             "validity": "all rows",
             "mass_validity": "all rows",
             "uniqueness": "all rows",
+            "internal_diversity": "mean within-spectrum pairwise Morgan distance",
+            "constraint_dead_ends_mean": "all rows",
             "runtime_seconds_mean": "all rows",
         },
         "settings": {
@@ -616,6 +667,8 @@ def main() -> None:
         metrics=metrics,
         rows=rows,
         settings=settings,
+        task_id=args.clearml_task_id,
+        iteration=args.clearml_iteration,
     )
     if clearml_task is not None:
         clearml_task["slurm_job_id"] = os.environ.get("SLURM_JOB_ID")

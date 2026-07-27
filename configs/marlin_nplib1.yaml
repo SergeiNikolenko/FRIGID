@@ -64,6 +64,22 @@ training:
   # Sparse reconstruction diagnostics reuse the training forward pass.
   metric_interval: 50
 
+evaluation:
+  enabled: true
+  # Bounded validation-oracle lane: a decoder health gate, not a spectrum lane
+  # and not the locked NPLIB1 test result. Full test evaluation stays separate.
+  interval_steps: 5000
+  metadata: /home/nikolenko/work/Projects/MARLIN_reproduction_20260717/data/processed/val/metadata.csv
+  fingerprints: /home/nikolenko/work/Projects/MARLIN_reproduction_20260717/data/processed/val/fingerprints.npz
+  fingerprint_key: ground_truth
+  lane: dreams
+  max_spectra: 4
+  candidates: 16
+  diversity_dropout: 0.3
+  temperature: 1.0
+  ppm_tolerance: 10.0
+  seed: 42
+
 trainer:
   # Spectrum currently exposes one A100 through Slurm.
   devices: 1
