@@ -2,7 +2,7 @@
 #SBATCH --job-name=marlin-cache
 #SBATCH --partition=gpu
 #SBATCH --cpus-per-task=10
-#SBATCH --mem=64G
+#SBATCH --mem=24G
 #SBATCH --time=04:00:00
 #SBATCH --output=/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/logs/cache-%j.out
 
