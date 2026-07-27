@@ -23,6 +23,7 @@ TEMPERATURE="${MARLIN_TEMPERATURE:-1.0}"
 NO_EMA="${MARLIN_NO_EMA:-0}"
 DISABLE_GRAMMAR="${MARLIN_DISABLE_GRAMMAR:-0}"
 DISABLE_MASS_SHELL="${MARLIN_DISABLE_MASS_SHELL:-0}"
+FIX_SAFE_DECODE="${MARLIN_FIX_SAFE_DECODE:-0}"
 GENERATION_MODE="${MARLIN_GENERATION_MODE:-block}"
 CLEARML_PROJECT="${MARLIN_CLEARML_PROJECT:-}"
 CLEARML_TASK_NAME="${MARLIN_CLEARML_TASK_NAME:-}"
@@ -46,8 +47,10 @@ ARGS=(
     --diversity-dropout "$DIVERSITY_DROPOUT"
     --temperature "$TEMPERATURE"
     --generation-mode "$GENERATION_MODE"
-    --fix-safe-decode
 )
+if [[ "$FIX_SAFE_DECODE" == "1" ]]; then
+    ARGS+=(--fix-safe-decode)
+fi
 if [[ "$NO_EMA" == "1" ]]; then
     ARGS+=(--no-ema)
 fi
