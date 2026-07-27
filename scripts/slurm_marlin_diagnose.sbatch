@@ -16,13 +16,14 @@ OUTPUT="${MARLIN_OUTPUT:-$ROOT/runs/evaluation/diagnostics/teacher_forced_rows0_
 ROWS="${MARLIN_ROWS:-32}"
 ROW="${MARLIN_ROW:-0}"
 NO_EMA="${MARLIN_NO_EMA:-0}"
+METADATA="${MARLIN_METADATA:-$ROOT/data/processed/val/metadata.csv}"
 export PYTHONPATH="$CODE/src:$ROOT/vendor"
 cd "$CODE"
 
 ARGS=(
   --checkpoint "$CHECKPOINT"
   --tokenizer "$ROOT/data/safe-gpt/tokenizer.json"
-  --metadata "$ROOT/data/processed/test/metadata.csv"
+  --metadata "$METADATA"
   --output "$OUTPUT"
   --row "$ROW"
   --rows "$ROWS"
