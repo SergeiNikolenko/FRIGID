@@ -4,13 +4,11 @@
 
 from __future__ import annotations
 
-import hashlib
-import json
-import math
 import os
+import sys
+import json
 import platform
 import subprocess
-import sys
 from datetime import datetime, timezone
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
@@ -26,68 +24,14 @@ import torch
 from omegaconf import DictConfig, OmegaConf
 
 from marlin.dataset import verify_snapshot_manifest
-from marlin.distillation import (
-    FRIGID_DISTILLED_MARLIN_MODE,
-    FrigidDistillationSettings,
-    FrozenFrigidTeacherCheckpoint,
-)
 from marlin.model import MarlinDecoderConfig
 from marlin.tokenizer import load_safe_tokenizer, validate_safe_tokenizer
 from marlin.training import (
-    ClearMLScalarCallback,
     MarlinCollator,
     MarlinLightningModule,
-    MarlinMolecularValidationCallback,
-    MarlinMetadataDataset,
     MarlinTrainingFilter,
 )
-from marlin.warm_start import load_frigid_decoder
-
-
-STRICT_MARLIN_MODE = "strict_marlin"
-
-
-def sha256_file(path: str | Path) -> str:
-    digest = hashlib.sha256()
-    with Path(path).open("rb") as handle:
-        for chunk in iter(lambda: handle.read(8 * 1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
-def validate_metadata_csv(config: DictConfig) -> tuple[str | None, str | None]:
-    """Resolve and verify an optional finite metadata training table."""
-
-    metadata_csv = config.data.get("metadata_csv")
-    expected_sha256 = config.data.get("metadata_csv_sha256")
-    if metadata_csv is None:
-        if expected_sha256:
-            raise ValueError(
-                "data.metadata_csv is required with data.metadata_csv_sha256"
-            )
-        return None, None
-    if not expected_sha256:
-        raise ValueError("data.metadata_csv_sha256 is required with data.metadata_csv")
-
-    metadata_csv = str(metadata_csv)
-    actual_sha256 = sha256_file(metadata_csv)
-    if actual_sha256 != str(expected_sha256):
-        raise ValueError(
-            f"metadata CSV SHA-256 is {actual_sha256}; expected {expected_sha256}"
-        )
-    return metadata_csv, actual_sha256
-
-
-def validate_gradient_clip_val(config: DictConfig) -> float:
-    """Return a finite, non-negative Lightning gradient clipping value."""
-
-    value = config.trainer.get("gradient_clip_val")
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        raise ValueError("trainer.gradient_clip_val must be a finite number >= 0")
-    value = float(value)
-    if not math.isfinite(value) or value < 0:
-        raise ValueError("trainer.gradient_clip_val must be a finite number >= 0")
-    return value
+from marlin.warm_start import load_frigid_decoder, sha256_file
 
 
 def git_state() -> tuple[str | None, list[str]]:
@@ -123,180 +67,23 @@ def package_versions(names: list[str]) -> dict[str, str | None]:
     return resolved
 
 
-def adaptation_mode(config: DictConfig) -> str:
-    """Return the explicit training lane and reject ambiguous configurations."""
-    adaptation = config.get("adaptation")
-    if adaptation is None or not adaptation.get("mode"):
-        raise ValueError("adaptation.mode must be explicit")
-    mode = str(adaptation.mode)
-    if mode not in {STRICT_MARLIN_MODE, FRIGID_DISTILLED_MARLIN_MODE}:
-        raise ValueError(f"unsupported adaptation.mode: {mode!r}")
-    if mode == STRICT_MARLIN_MODE:
-        incompatible = {
-            "adaptation.teacher_checkpoint": adaptation.get("teacher_checkpoint"),
-            "adaptation.teacher_sha256": adaptation.get("teacher_sha256"),
-        }
-        present = [name for name, value in incompatible.items() if value]
-        if present:
-            raise ValueError(
-                "strict_marlin forbids FRIGID teacher fields: "
-                + ", ".join(present)
-            )
-    return mode
-
-
-def build_distillation(
-    config: DictConfig,
-    tokenizer,
-    special_token_ids: dict[str, int],
-) -> tuple[
-    FrigidDistillationSettings | None,
-    FrozenFrigidTeacherCheckpoint | None,
-]:
-    """Build the lazy per-rank teacher specification for the opt-in lane."""
-    mode = adaptation_mode(config)
-    if mode == STRICT_MARLIN_MODE:
-        return None, None
-
-    required = {
-        "frigid_warm_start_checkpoint": config.get(
-            "frigid_warm_start_checkpoint"
-        ),
-        "frigid_warm_start_sha256": config.get("frigid_warm_start_sha256"),
-        "adaptation.teacher_checkpoint": config.adaptation.get(
-            "teacher_checkpoint"
-        ),
-        "adaptation.teacher_sha256": config.adaptation.get("teacher_sha256"),
-    }
-    missing = [name for name, value in required.items() if not value]
-    if missing:
-        raise ValueError(
-            "FRIGID-distilled MARLIN requires " + ", ".join(missing)
-        )
-
-    settings = FrigidDistillationSettings(
-        mode=mode,
-        trainable_scope=str(config.adaptation.get("trainable_scope", "mass_only")),
-        block_width_override=int(config.adaptation.block_width_override),
-        attention_mode=str(config.adaptation.get("attention_mode", "frigid_full")),
-        current_block_masking=str(
-            config.adaptation.get("current_block_masking", "full")
-        ),
-        full_block_mask_probability=float(
-            config.adaptation.get("full_block_mask_probability", 0.0)
-        ),
-        rollout_prefix_probability=float(
-            config.adaptation.get("rollout_prefix_probability", 0.0)
-        ),
-        rollout_prefix_schedule=str(
-            config.adaptation.get("rollout_prefix_schedule", "random")
-        ),
-        temperature=float(config.adaptation.temperature),
-        kl_weight=float(config.adaptation.kl_weight),
-        use_isotope=bool(config.adaptation.get("use_isotope", False)),
-    )
-    teacher_checkpoint = FrozenFrigidTeacherCheckpoint(
-        checkpoint_path=str(config.adaptation.teacher_checkpoint),
-        expected_sha256=str(config.adaptation.teacher_sha256),
-        expected_tokenizer_vocab=dict(tokenizer.get_vocab()),
-        expected_special_token_ids={
-            name: int(token_id) for name, token_id in special_token_ids.items()
-        },
-    )
-    return settings, teacher_checkpoint
-
-
-def initialization_source(config: DictConfig) -> str | None:
-    """Resolve one effective initialization source.
-
-    The distilled lane keeps the hashed FRIGID warm-start in its configuration
-    as immutable provenance. On a full Lightning resume, however, weights and
-    optimizer state must come only from the resume checkpoint.
-    """
-    mode = adaptation_mode(config)
-    sources = {
-        "resume_checkpoint": config.get("resume_checkpoint"),
-        "resume_weights_only_checkpoint": config.get(
-            "resume_weights_only_checkpoint"
-        ),
-        "frigid_warm_start_checkpoint": config.get(
-            "frigid_warm_start_checkpoint"
-        ),
-    }
-    if mode == FRIGID_DISTILLED_MARLIN_MODE and (
-        sources["resume_checkpoint"]
-        or sources["resume_weights_only_checkpoint"]
-    ):
-        sources["frigid_warm_start_checkpoint"] = None
-    selected = [name for name, value in sources.items() if value]
-    if len(selected) > 1:
-        raise ValueError(
-            "choose exactly one initialization source; got "
-            + ", ".join(selected)
-        )
-    return selected[0] if selected else None
-
-
-def write_run_manifest(
-    config: DictConfig,
-    tokenizer_sha256: str,
-    *,
-    metadata_csv_sha256: str | None = None,
-) -> dict:
+def write_run_manifest(config: DictConfig, tokenizer_sha256: str) -> dict:
     """Persist the immutable training inputs and execution environment."""
     commit, dirty = git_state()
     if dirty:
         raise RuntimeError(f"refusing canonical training from dirty git state: {dirty}")
-    mode = adaptation_mode(config)
-    strict_reproduction = mode == STRICT_MARLIN_MODE
-    metadata_csv = config.data.get("metadata_csv")
-    if metadata_csv is not None:
-        expected_metadata_sha256 = config.data.get("metadata_csv_sha256")
-        if metadata_csv_sha256 is None or metadata_csv_sha256 != str(
-            expected_metadata_sha256
-        ):
-            raise ValueError("run manifest requires the verified metadata CSV SHA-256")
-    elif metadata_csv_sha256 is not None:
-        raise ValueError("metadata CSV SHA-256 provided without a metadata CSV")
-
     manifest = {
         "schema_version": 1,
-        "kind": (
-            "MARLIN clean-room decoder training"
-            if strict_reproduction
-            else (
-                "FRIGID-distilled MARLIN "
-                f"{config.adaptation.get('stage', 'unspecified-stage')} adaptation"
-            )
-        ),
+        "kind": "MARLIN clean-room decoder training",
         "created_at_utc": datetime.now(timezone.utc).isoformat(),
-        "adaptation_mode": mode,
-        "adaptation_stage": (
-            None
-            if strict_reproduction
-            else str(config.adaptation.get("stage", "unspecified-stage"))
-        ),
-        "attention_mode": (
-            None if strict_reproduction else str(config.adaptation.attention_mode)
-        ),
-        "block_width_override": (
-            None
-            if strict_reproduction
-            else int(config.adaptation.block_width_override)
-        ),
-        "trainable_scope": (
-            None
-            if strict_reproduction
-            else str(config.adaptation.get("trainable_scope", "mass_only"))
-        ),
-        "strict_reproduction": strict_reproduction,
-        "clean_room_reproduction": strict_reproduction,
+        "clean_room_reproduction": True,
         "author_code_available_at_start": False,
         "git_commit": commit,
         "slurm_job_id": os.environ.get("SLURM_JOB_ID"),
         "config": OmegaConf.to_container(config, resolve=True),
         "inputs": {
             "tokenizer_sha256": tokenizer_sha256,
+            "warm_start_sha256": str(config.warm_start_sha256),
             "nplib1_test_exclusions_sha256": sha256_file(
                 config.data.exclude_inchikeys
             ),
@@ -342,11 +129,6 @@ def write_run_manifest(
             "data-loader and GPU execution settings",
         ],
     }
-    if metadata_csv is not None:
-        manifest["inputs"].update(
-            metadata_csv=str(metadata_csv),
-            metadata_csv_sha256=metadata_csv_sha256,
-        )
     output = Path(config.output.root) / "run_manifest.json"
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
@@ -397,21 +179,8 @@ def initialize_clearml(config: DictConfig):
     return task
 
 
-def load_decoder_weights_only(module: MarlinLightningModule, checkpoint_path: str | Path) -> None:
-    """Load decoder weights from a Lightning checkpoint without optimizer state."""
-    checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
-    decoder_state = {
-        key.removeprefix("decoder."): value
-        for key, value in checkpoint["state_dict"].items()
-        if key.startswith("decoder.")
-    }
-    module.decoder.load_state_dict(decoder_state, strict=True)
-    module.reset_ema()
-
-
 @hydra.main(version_base=None, config_path="../configs", config_name="marlin_nplib1")
 def main(config: DictConfig) -> None:
-    gradient_clip_val = validate_gradient_clip_val(config)
     L.seed_everything(config.seed, workers=True)
     torch.set_float32_matmul_precision("high")
     tokenizer_sha256 = sha256_file(config.data.tokenizer_file)
@@ -435,41 +204,29 @@ def main(config: DictConfig) -> None:
         raise ValueError("model MASK token ID does not match the SAFE tokenizer")
     if special_token_ids["pad"] != decoder_config.pad_token_id:
         raise ValueError("model PAD token ID does not match the SAFE tokenizer")
-    distillation, frigid_teacher = build_distillation(
-        config,
-        tokenizer,
-        special_token_ids,
+    length_audit = json.loads(Path(config.data.length_audit_manifest).read_text())
+    if sha256_file(config.data.length_audit_manifest) != config.data.length_audit_sha256:
+        raise ValueError("training length audit manifest hash mismatch")
+    if length_audit["dataset_revision"] != str(config.data.revision):
+        raise ValueError("training length audit dataset revision mismatch")
+    if length_audit["maximum_allowed_length"] != decoder_config.max_length:
+        raise ValueError("training length audit decoder context mismatch")
+    if not length_audit.get("strict_safe_decode", False):
+        raise ValueError("training audit did not use strict SAFE decoding")
+    if length_audit.get("exclusion_sha256") != sha256_file(
+        config.data.exclude_inchikeys
+    ):
+        raise ValueError("training audit exclusion hash mismatch")
+    local_shards, snapshot_manifest_sha256 = verify_snapshot_manifest(
+        config.data.snapshot_manifest,
+        expected_dataset=str(config.data.dataset),
+        expected_revision=str(config.data.revision),
+        expected_file_list_sha256=str(config.data.snapshot_file_list_sha256),
+        verify_hashes=bool(config.data.get("verify_snapshot_hashes", True)),
     )
-    metadata_csv, metadata_csv_sha256 = validate_metadata_csv(config)
-    local_shards = None
-    if metadata_csv is None:
-        length_audit = json.loads(Path(config.data.length_audit_manifest).read_text())
-        if sha256_file(config.data.length_audit_manifest) != config.data.length_audit_sha256:
-            raise ValueError("training length audit manifest hash mismatch")
-        if length_audit["dataset_revision"] != str(config.data.revision):
-            raise ValueError("training length audit dataset revision mismatch")
-        if length_audit["maximum_allowed_length"] != decoder_config.max_length:
-            raise ValueError("training length audit decoder context mismatch")
-        if not length_audit.get("strict_safe_decode", False):
-            raise ValueError("training audit did not use strict SAFE decoding")
-        if length_audit.get("exclusion_sha256") != sha256_file(
-            config.data.exclude_inchikeys
-        ):
-            raise ValueError("training audit exclusion hash mismatch")
-        local_shards, snapshot_manifest_sha256 = verify_snapshot_manifest(
-            config.data.snapshot_manifest,
-            expected_dataset=str(config.data.dataset),
-            expected_revision=str(config.data.revision),
-            expected_file_list_sha256=str(config.data.snapshot_file_list_sha256),
-            verify_hashes=bool(config.data.get("verify_snapshot_hashes", True)),
-        )
-        if snapshot_manifest_sha256 != sha256_file(config.data.snapshot_manifest):
-            raise ValueError("training snapshot manifest changed during verification")
-    write_run_manifest(
-        config,
-        tokenizer_sha256,
-        metadata_csv_sha256=metadata_csv_sha256,
-    )
+    if snapshot_manifest_sha256 != sha256_file(config.data.snapshot_manifest):
+        raise ValueError("training snapshot manifest changed during verification")
+    write_run_manifest(config, tokenizer_sha256)
     module = MarlinLightningModule(
         decoder_config,
         learning_rate=config.optim.learning_rate,
@@ -478,71 +235,41 @@ def main(config: DictConfig) -> None:
         noise_min_fraction=config.training.noise_min_fraction,
         noise_max_fraction=config.training.noise_max_fraction,
         ema_decay=config.training.ema_decay,
-        metric_interval=config.training.metric_interval,
-        eos_loss_weight=config.training.get("eos_loss_weight", 1.0),
-        eos_mask_probability=config.training.get("eos_mask_probability", 0.0),
-        balanced_token_loss_alpha=config.training.get("balanced_token_loss_alpha", 0.0),
-        token_loss_weight_max=config.training.get("token_loss_weight_max", 20.0),
-        full_sequence_mask_probability=config.training.get(
-            "full_sequence_mask_probability", 0.0
-        ),
-        distillation=distillation,
-        frigid_teacher=frigid_teacher,
     )
-    selected_source = initialization_source(config)
-    if selected_source == "frigid_warm_start_checkpoint":
-        if not config.get("frigid_warm_start_sha256"):
-            raise ValueError(
-                "frigid_warm_start_sha256 is required with "
-                "frigid_warm_start_checkpoint"
-            )
+    if config.get("warm_start_checkpoint"):
         report = load_frigid_decoder(
             module.decoder,
-            config.frigid_warm_start_checkpoint,
-            expected_sha256=config.get("frigid_warm_start_sha256"),
+            config.warm_start_checkpoint,
+            expected_sha256=config.get("warm_start_sha256"),
         )
+        report["tokenizer"] = str(config.data.tokenizer_file)
+        report["tokenizer_sha256"] = tokenizer_sha256
+        report["special_token_ids"] = special_token_ids
+        report["dataset"] = str(config.data.dataset)
+        report["dataset_revision"] = str(config.data.revision)
         module.reset_ema()
-        report["mode"] = "frigid_architecture_compatible"
         report_path = Path(config.output.root) / "warm_start.json"
         report_path.parent.mkdir(parents=True, exist_ok=True)
         report_path.write_text(json.dumps(report, indent=2) + "\n")
-    elif selected_source == "resume_weights_only_checkpoint":
-        load_decoder_weights_only(module, config.resume_weights_only_checkpoint)
-        report = {
-            "source": str(config.resume_weights_only_checkpoint),
-            "mode": "lightning_decoder_weights_only",
-        }
-        report_path = Path(config.output.root) / "warm_start.json"
-        report_path.parent.mkdir(parents=True, exist_ok=True)
-        report_path.write_text(json.dumps(report, indent=2) + "\n")
-    if metadata_csv is None:
-        dataset = datasets.load_dataset(
-            "parquet",
-            data_files={"train": local_shards},
-            split="train",
-            streaming=True,
-            cache_dir=config.data.hf_cache_dir,
-        ).filter(
-            MarlinTrainingFilter(
-                tokenizer,
-                decoder_config.max_length,
-                config.data.exclude_inchikeys,
-            ),
-        )
-        dataset = dataset.shuffle(seed=config.seed, buffer_size=config.data.shuffle_buffer)
-    else:
-        dataset = MarlinMetadataDataset(
-            metadata_csv,
+    dataset = datasets.load_dataset(
+        "parquet",
+        data_files={"train": local_shards},
+        split="train",
+        streaming=True,
+        cache_dir=config.data.hf_cache_dir,
+    ).filter(
+        MarlinTrainingFilter(
             tokenizer,
-            max_length=decoder_config.max_length,
-            exclude_inchikeys=config.data.get("metadata_exclude_inchikeys"),
-        )
+            decoder_config.max_length,
+            config.data.exclude_inchikeys,
+        ),
+    )
+    dataset = dataset.shuffle(seed=config.seed, buffer_size=config.data.shuffle_buffer)
     collator = MarlinCollator(
         tokenizer,
         max_length=decoder_config.max_length,
         fingerprint_bits=decoder_config.fingerprint_bits,
         exclude_inchikeys=config.data.exclude_inchikeys,
-        include_formula=distillation is not None,
     )
     loader = torch.utils.data.DataLoader(
         dataset,
@@ -558,32 +285,6 @@ def main(config: DictConfig) -> None:
         every_n_train_steps=config.output.checkpoint_interval,
         save_top_k=-1,
     )
-    callbacks: list[L.Callback] = [checkpoint]
-    if clearml_task is not None:
-        callbacks.append(
-            ClearMLScalarCallback(
-                clearml_task,
-                every_n_steps=config.training.metric_interval,
-            )
-        )
-    molecular_validation_csv = config.training.get("molecular_validation_csv")
-    if molecular_validation_csv:
-        callbacks.append(
-            MarlinMolecularValidationCallback(
-                tokenizer,
-                molecular_validation_csv,
-                output_dir=config.output.root,
-                fingerprint_bits=decoder_config.fingerprint_bits,
-                every_n_steps=config.training.molecular_validation_interval,
-                samples=config.training.molecular_validation_samples,
-                candidates=config.training.molecular_validation_candidates,
-                temperature=config.training.molecular_validation_temperature,
-                use_ema=bool(
-                    config.training.get("molecular_validation_use_ema", True)
-                ),
-                clearml_task=clearml_task,
-            )
-        )
     trainer = L.Trainer(
         accelerator="gpu",
         devices=config.trainer.devices,
@@ -591,9 +292,9 @@ def main(config: DictConfig) -> None:
         precision=config.trainer.precision,
         max_steps=config.trainer.max_steps,
         accumulate_grad_batches=config.trainer.accumulate_grad_batches,
-        gradient_clip_val=gradient_clip_val,
+        gradient_clip_val=1.0,
         log_every_n_steps=config.trainer.log_every_n_steps,
-        callbacks=callbacks,
+        callbacks=[checkpoint],
         default_root_dir=config.output.root,
     )
     try:

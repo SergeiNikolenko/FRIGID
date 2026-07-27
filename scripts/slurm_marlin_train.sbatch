@@ -21,11 +21,6 @@ RESUME_WEIGHTS_ONLY_CHECKPOINT="${MARLIN_RESUME_WEIGHTS_ONLY_CHECKPOINT:-}"
 FRIGID_WARM_START_CHECKPOINT="${MARLIN_FRIGID_WARM_START_CHECKPOINT:-}"
 FRIGID_WARM_START_SHA256="${MARLIN_FRIGID_WARM_START_SHA256:-}"
 METRIC_INTERVAL="${MARLIN_METRIC_INTERVAL:-}"
-EOS_LOSS_WEIGHT="${MARLIN_EOS_LOSS_WEIGHT:-}"
-EOS_MASK_PROBABILITY="${MARLIN_EOS_MASK_PROBABILITY:-}"
-BALANCED_TOKEN_LOSS_ALPHA="${MARLIN_BALANCED_TOKEN_LOSS_ALPHA:-}"
-TOKEN_LOSS_WEIGHT_MAX="${MARLIN_TOKEN_LOSS_WEIGHT_MAX:-}"
-FULL_SEQUENCE_MASK_PROBABILITY="${MARLIN_FULL_SEQUENCE_MASK_PROBABILITY:-}"
 VERIFY_SNAPSHOT_HASHES="${MARLIN_VERIFY_SNAPSHOT_HASHES:-}"
 BATCH_SIZE="${MARLIN_BATCH_SIZE:-}"
 NUM_WORKERS="${MARLIN_NUM_WORKERS:-}"
@@ -66,11 +61,6 @@ append_override loader.num_workers "$NUM_WORKERS"
 append_override data.shuffle_buffer "$SHUFFLE_BUFFER"
 append_override output.checkpoint_interval "$CHECKPOINT_INTERVAL"
 append_override training.metric_interval "$METRIC_INTERVAL"
-append_override training.eos_loss_weight "$EOS_LOSS_WEIGHT"
-append_override training.eos_mask_probability "$EOS_MASK_PROBABILITY"
-append_override training.balanced_token_loss_alpha "$BALANCED_TOKEN_LOSS_ALPHA"
-append_override training.token_loss_weight_max "$TOKEN_LOSS_WEIGHT_MAX"
-append_override training.full_sequence_mask_probability "$FULL_SEQUENCE_MASK_PROBABILITY"
 append_override training.molecular_validation_interval "$MOLECULAR_VALIDATION_INTERVAL"
 append_override training.molecular_validation_samples "$MOLECULAR_VALIDATION_SAMPLES"
 append_override training.molecular_validation_candidates "$MOLECULAR_VALIDATION_CANDIDATES"
@@ -87,10 +77,14 @@ fi
 if [[ -n "$RESUME_CHECKPOINT" ]]; then
     TRAIN_ARGS+=("resume_checkpoint=${RESUME_CHECKPOINT//=/\\=}")
     TRAIN_ARGS+=("resume_weights_only_checkpoint=null")
+    TRAIN_ARGS+=("frigid_warm_start_checkpoint=null")
+    TRAIN_ARGS+=("frigid_warm_start_sha256=null")
 fi
 if [[ -n "$RESUME_WEIGHTS_ONLY_CHECKPOINT" ]]; then
     TRAIN_ARGS+=("resume_weights_only_checkpoint=${RESUME_WEIGHTS_ONLY_CHECKPOINT//=/\\=}")
     TRAIN_ARGS+=("resume_checkpoint=null")
+    TRAIN_ARGS+=("frigid_warm_start_checkpoint=null")
+    TRAIN_ARGS+=("frigid_warm_start_sha256=null")
 fi
 if [[ -n "$FRIGID_WARM_START_CHECKPOINT" ]]; then
     if [[ -z "$FRIGID_WARM_START_SHA256" ]]; then

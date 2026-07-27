@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import math
 from dataclasses import dataclass
 
 import torch
@@ -10,7 +9,6 @@ from torch import nn
 from torch.nn import functional as F
 
 from marlin.conditioning import MarlinConditioner
-from marlin.losses import balanced_token_target_weights
 
 
 @dataclass(frozen=True)
@@ -24,29 +22,9 @@ class MarlinDecoderConfig:
     block_width: int = 8
     fingerprint_bits: int = 4096
     dropout: float = 0.1
-    layer_norm_eps: float = 1e-12
-    cross_attention_layer_norm_eps: float = 1e-5
-    fingerprint_layer_norm_eps: float = 1e-5
-    fingerprint_self_attention_layers: int = 0
-    frigid_compatible_layer_order: bool = False
-    layer0_long_residual_scale: float = 0.0
-    bos_token_id: int = 1
     eos_token_id: int = 2
     mask_token_id: int = 4
     pad_token_id: int = 0
-
-    def __post_init__(self) -> None:
-        if (
-            not math.isfinite(self.layer0_long_residual_scale)
-            or self.layer0_long_residual_scale < 0.0
-        ):
-            raise ValueError(
-                "layer0_long_residual_scale must be finite and non-negative"
-            )
-        if self.layer0_long_residual_scale and self.num_layers < 1:
-            raise ValueError(
-                "layer0_long_residual_scale requires at least one decoder layer"
-            )
 
 
 def _bos_aware_block_ids(
@@ -98,13 +76,10 @@ class MarlinDecoderLayer(nn.Module):
         )
         self.linear1 = nn.Linear(config.hidden_size, config.intermediate_size)
         self.linear2 = nn.Linear(config.intermediate_size, config.hidden_size)
-        self.norm1 = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
-        self.norm2 = nn.LayerNorm(
-            config.hidden_size, eps=config.cross_attention_layer_norm_eps
-        )
-        self.norm3 = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
+        self.norm1 = nn.LayerNorm(config.hidden_size)
+        self.norm2 = nn.LayerNorm(config.hidden_size)
+        self.norm3 = nn.LayerNorm(config.hidden_size)
         self.dropout = nn.Dropout(config.dropout)
-        self.frigid_compatible_layer_order = config.frigid_compatible_layer_order
 
     def forward(
         self,
@@ -124,17 +99,6 @@ class MarlinDecoderLayer(nn.Module):
             need_weights=False,
         )
         hidden = self.norm1(hidden + self.dropout(update))
-        if self.frigid_compatible_layer_order:
-            update = self.linear2(self.dropout(F.gelu(self.linear1(hidden))))
-            hidden = self.norm3(hidden + self.dropout(update))
-            update, _ = self.cross_attention(
-                hidden,
-                condition,
-                condition,
-                key_padding_mask=condition_padding_mask,
-                need_weights=False,
-            )
-            return self.norm2(hidden + self.dropout(update))
         update, _ = self.cross_attention(
             hidden,
             condition,
@@ -153,28 +117,10 @@ class MarlinDecoder(nn.Module):
         self.config = config
         self.token_embedding = nn.Embedding(config.vocab_size, config.hidden_size)
         self.position_embedding = nn.Embedding(config.max_length, config.hidden_size)
-        if config.frigid_compatible_layer_order:
-            self.token_type_embedding = nn.Embedding(2, config.hidden_size)
-            self.embedding_norm = nn.LayerNorm(
-                config.hidden_size, eps=config.layer_norm_eps
-            )
-        else:
-            self.token_type_embedding = None
-            self.embedding_norm = nn.Identity()
-        self.embedding_dropout = nn.Dropout(config.dropout)
-        self.conditioner = MarlinConditioner(
-            config.hidden_size,
-            config.fingerprint_bits,
-            num_heads=config.num_heads,
-            fingerprint_self_attention_layers=config.fingerprint_self_attention_layers,
-            dropout=config.dropout,
-            layer_norm_eps=config.fingerprint_layer_norm_eps,
-        )
+        self.conditioner = MarlinConditioner(config.hidden_size, config.fingerprint_bits)
         self.layers = nn.ModuleList(MarlinDecoderLayer(config) for _ in range(config.num_layers))
         self.prediction_dense = nn.Linear(config.hidden_size, config.hidden_size)
-        self.prediction_norm = nn.LayerNorm(
-            config.hidden_size, eps=config.layer_norm_eps
-        )
+        self.prediction_norm = nn.LayerNorm(config.hidden_size)
         self.output = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
         self.output_bias = nn.Parameter(torch.zeros(config.vocab_size))
         self.output.weight = self.token_embedding.weight
@@ -187,33 +133,15 @@ class MarlinDecoder(nn.Module):
         isotope_ratios: torch.Tensor | None = None,
         *,
         include_mass_conditioning: bool = True,
-        attention_mode: str = "block",
-        block_width_override: int | None = None,
     ) -> torch.Tensor:
         if input_ids.ndim != 2:
             raise ValueError("input_ids must have shape [batch, length]")
         if input_ids.shape[1] > self.config.max_length:
             raise ValueError("sequence exceeds max_length")
         positions = torch.arange(input_ids.shape[1], device=input_ids.device)
-        if attention_mode == "block":
-            block_width = (
-                self.config.block_width
-                if block_width_override is None
-                else block_width_override
-            )
-            if block_width <= 0:
-                raise ValueError("block_width_override must be positive")
-            attention_mask = block_causal_attention_mask(
-                input_ids.shape[1], block_width, input_ids.device
-            )
-        elif attention_mode == "frigid_full":
-            attention_mask = torch.zeros(
-                (input_ids.shape[1], input_ids.shape[1]),
-                dtype=torch.bool,
-                device=input_ids.device,
-            )
-        else:
-            raise ValueError(f"unknown attention mode: {attention_mode}")
+        attention_mask = block_causal_attention_mask(
+            input_ids.shape[1], self.config.block_width, input_ids.device
+        )
         return self._forward_with_mask(
             input_ids,
             precursor_mass,
@@ -235,12 +163,7 @@ class MarlinDecoder(nn.Module):
         include_mass_conditioning: bool,
         attention_mask: torch.Tensor,
     ) -> torch.Tensor:
-        hidden = self.token_embedding(input_ids) + self.position_embedding(
-            positions
-        ).unsqueeze(0)
-        if self.token_type_embedding is not None:
-            hidden = hidden + self.token_type_embedding(torch.zeros_like(input_ids))
-            hidden = self.embedding_dropout(self.embedding_norm(hidden))
+        hidden = self.token_embedding(input_ids) + self.position_embedding(positions).unsqueeze(0)
         condition, condition_mask = self.conditioner(
             precursor_mass,
             fingerprint,
@@ -248,23 +171,13 @@ class MarlinDecoder(nn.Module):
             include_mass=include_mass_conditioning,
         )
         padding_mask = input_ids.eq(self.config.pad_token_id)
-        layer0_hidden = None
-        for layer_index, layer in enumerate(self.layers):
+        for layer in self.layers:
             hidden = layer(
                 hidden,
                 condition,
                 attention_mask=attention_mask,
                 padding_mask=padding_mask,
                 condition_padding_mask=~condition_mask,
-            )
-            if layer_index == 0:
-                layer0_hidden = hidden
-        if self.config.layer0_long_residual_scale:
-            if layer0_hidden is None:  # guarded by MarlinDecoderConfig
-                raise RuntimeError("layer0 long residual has no source layer")
-            hidden = (
-                hidden
-                + self.config.layer0_long_residual_scale * layer0_hidden
             )
         hidden = self.prediction_norm(F.gelu(self.prediction_dense(hidden)))
         return self.output(hidden) + self.output_bias
@@ -324,11 +237,6 @@ class MarlinDecoder(nn.Module):
         *,
         isotope_ratios: torch.Tensor | None = None,
         generator: torch.Generator | None = None,
-        eos_loss_weight: float = 1.0,
-        eos_mask_probability: float = 0.0,
-        balanced_token_loss_alpha: float = 0.0,
-        token_loss_weight_max: float = 20.0,
-        full_sequence_mask_probability: float = 0.0,
     ) -> torch.Tensor:
         """Continuous-time absorbing NELBO, sampled independently per block."""
         loss, _ = self.diffusion_objective(
@@ -337,11 +245,6 @@ class MarlinDecoder(nn.Module):
             fingerprint,
             isotope_ratios=isotope_ratios,
             generator=generator,
-            eos_loss_weight=eos_loss_weight,
-            eos_mask_probability=eos_mask_probability,
-            balanced_token_loss_alpha=balanced_token_loss_alpha,
-            token_loss_weight_max=token_loss_weight_max,
-            full_sequence_mask_probability=full_sequence_mask_probability,
             collect_metrics=False,
         )
         return loss
@@ -354,20 +257,9 @@ class MarlinDecoder(nn.Module):
         *,
         isotope_ratios: torch.Tensor | None = None,
         generator: torch.Generator | None = None,
-        eos_loss_weight: float = 1.0,
-        eos_mask_probability: float = 0.0,
-        balanced_token_loss_alpha: float = 0.0,
-        token_loss_weight_max: float = 20.0,
-        full_sequence_mask_probability: float = 0.0,
         collect_metrics: bool = False,
     ) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
         """Return the NELBO and optional reconstruction diagnostics."""
-        if eos_loss_weight <= 0:
-            raise ValueError("eos_loss_weight must be positive")
-        if not 0.0 <= eos_mask_probability <= 1.0:
-            raise ValueError("eos_mask_probability must be in [0, 1]")
-        if not 0.0 <= full_sequence_mask_probability <= 1.0:
-            raise ValueError("full_sequence_mask_probability must be in [0, 1]")
         valid = clean_ids.ne(self.config.pad_token_id)
         valid[:, 0] = False
         batch, length = clean_ids.shape
@@ -379,24 +271,6 @@ class MarlinDecoder(nn.Module):
         times = torch.rand((batch, block_count), device=clean_ids.device, generator=generator).clamp_min(1e-4)
         probabilities = times[:, block_ids]
         masked = (torch.rand(clean_ids.shape, device=clean_ids.device, generator=generator) < probabilities) & valid
-        full_sequence_masked = torch.zeros((batch,), dtype=torch.bool, device=clean_ids.device)
-        if full_sequence_mask_probability:
-            full_sequence_masked = (
-                torch.rand((batch,), device=clean_ids.device, generator=generator)
-                < full_sequence_mask_probability
-            )
-            masked = masked | (full_sequence_masked.unsqueeze(1) & valid)
-        loss_probabilities = probabilities.masked_fill(
-            full_sequence_masked.unsqueeze(1) & valid,
-            1.0,
-        )
-        eos_targets = valid & clean_ids.eq(self.config.eos_token_id)
-        if eos_mask_probability:
-            eos_masked = (
-                torch.rand(clean_ids.shape, device=clean_ids.device, generator=generator)
-                < eos_mask_probability
-            ) & eos_targets
-            masked = masked | eos_masked
         noised = clean_ids.masked_fill(masked, self.config.mask_token_id)
         logits = self.two_stream_logits(
             clean_ids,
@@ -407,22 +281,12 @@ class MarlinDecoder(nn.Module):
             include_mass_conditioning=True,
         )
         losses = F.cross_entropy(logits.transpose(1, 2), clean_ids, reduction="none")
-        target_weights = balanced_token_target_weights(
-            clean_ids,
-            valid,
-            vocab_size=self.config.vocab_size,
-            eos_token_id=self.config.eos_token_id,
-            alpha=balanced_token_loss_alpha,
-            weight_max=token_loss_weight_max,
-        ).to(dtype=losses.dtype)
-        if eos_loss_weight != 1.0:
-            target_weights = target_weights.masked_fill(eos_targets, eos_loss_weight)
-        weights = loss_probabilities.reciprocal()
+        weights = probabilities.reciprocal()
         valid_block_counts = valid.sum(dim=1).add(self.config.block_width - 1).div(
             self.config.block_width,
             rounding_mode="floor",
         ).clamp_min(1)
-        per_example = (losses * target_weights * weights * masked).sum(dim=1) / valid_block_counts
+        per_example = (losses * weights * masked).sum(dim=1) / valid_block_counts
         loss = per_example.mean()
         if not collect_metrics:
             return loss, {}
@@ -440,17 +304,17 @@ class MarlinDecoder(nn.Module):
         masked_probabilities = probabilities[masked]
         masked_entropy = -(masked_probabilities * log_probabilities[masked]).sum(dim=-1).mean()
         masked_top1_confidence = masked_probabilities.max(dim=-1).values.mean()
-        masked_eos_targets = masked & eos_targets
-        eos_target_count = masked_eos_targets.sum()
+        eos_targets = masked & clean_ids.eq(self.config.eos_token_id)
+        eos_target_count = eos_targets.sum()
         eos_target_probability = torch.where(
             eos_target_count > 0,
-            target_probabilities[masked_eos_targets].mean(),
+            target_probabilities[eos_targets].mean(),
             target_probabilities.new_tensor(0.0),
         )
         eos_logits = logits[..., self.config.eos_token_id]
         eos_target_rank = torch.where(
             eos_target_count > 0,
-            (logits[masked_eos_targets] > eos_logits[masked_eos_targets].unsqueeze(-1))
+            (logits[eos_targets] > eos_logits[eos_targets].unsqueeze(-1))
             .sum(dim=-1)
             .add(1)
             .float()
@@ -474,7 +338,6 @@ class MarlinDecoder(nn.Module):
             "masked_eos_target_probability": eos_target_probability,
             "masked_eos_target_rank": eos_target_rank,
             "mask_fraction": masked.sum() / valid.sum().clamp_min(1),
-            "full_sequence_mask_fraction": full_sequence_masked.float().mean(),
             "masked_sequence_accuracy": (
                 (correct | ~masked).all(dim=1) & masked.any(dim=1)
             ).float().sum()

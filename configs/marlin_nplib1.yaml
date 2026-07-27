@@ -3,11 +3,8 @@
 seed: 42
 resume_checkpoint: null
 resume_weights_only_checkpoint: null
-frigid_warm_start_checkpoint: null
-frigid_warm_start_sha256: null
-
-adaptation:
-  mode: strict_marlin
+frigid_warm_start_checkpoint: /mnt/netstorage/nikolenko/marlin/checkpoints/frigid/DLM.ckpt
+frigid_warm_start_sha256: b6177c2d43448380aba80ff41c01461ea34ca2ca93b213986954c5afb7f0f457
 
 data:
   dataset: datamol-io/safe-gpt
@@ -52,7 +49,6 @@ model:
   # Inferred from the released FRIGID warm-start checkpoint.
   fingerprint_self_attention_layers: 3
   frigid_compatible_layer_order: true
-  layer0_long_residual_scale: 0.0
   mask_token_id: 4
   pad_token_id: 3
 
@@ -67,11 +63,6 @@ training:
   noise_max_fraction: 0.3
   # Sparse reconstruction diagnostics reuse the training forward pass.
   metric_interval: 50
-  eos_loss_weight: 1.0
-  eos_mask_probability: 0.0
-  balanced_token_loss_alpha: 0.0
-  token_loss_weight_max: 20.0
-  full_sequence_mask_probability: 0.0
   molecular_validation_csv: null
   molecular_validation_interval: 500
   molecular_validation_samples: 2
