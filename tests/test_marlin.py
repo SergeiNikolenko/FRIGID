@@ -177,6 +177,24 @@ def test_training_accepts_optional_eos_recovery_controls():
     assert module.hparams["full_sequence_mask_probability"] == 0.25
 
 
+def test_fingerprint_layer_norm_can_be_disabled_for_legacy_checkpoints():
+    config = MarlinDecoderConfig(
+        vocab_size=32,
+        hidden_size=16,
+        num_layers=1,
+        num_heads=4,
+        intermediate_size=32,
+        max_length=16,
+        block_width=4,
+        fingerprint_bits=32,
+        fingerprint_layer_norm=False,
+    )
+
+    model = MarlinDecoder(config)
+
+    assert isinstance(model.conditioner.fingerprint.layer_norm, torch.nn.Identity)
+
+
 def test_theoretical_isotope_ratios_include_m_plus_one_and_two():
     ratios = theoretical_isotope_ratios(Chem.MolFromSmiles("CCl"))
     assert ratios.shape == (2,)

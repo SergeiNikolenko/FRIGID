@@ -89,8 +89,13 @@ def is_balanced_token_recovery(config: DictConfig) -> bool:
 
 
 def is_architecture_recovery(config: DictConfig) -> bool:
-    """Return whether an opt-in residual changes the paper architecture."""
-    return float(config.model.get("layer0_long_residual_scale", 0.0)) != 0.0
+    """Return whether an opt-in setting changes the canonical architecture."""
+    return (
+        float(config.model.get("layer0_long_residual_scale", 0.0)) != 0.0
+        or not bool(config.model.get("fingerprint_layer_norm", True))
+        or not bool(config.model.get("frigid_compatible_layer_order", True))
+        or int(config.model.get("fingerprint_self_attention_layers", 3)) != 3
+    )
 
 
 def is_cached_prefix_replay(config: DictConfig) -> bool:
@@ -112,7 +117,7 @@ def training_variant(config: DictConfig) -> str:
     if is_balanced_token_recovery(config):
         variants.append("balanced-token recovery")
     if is_architecture_recovery(config):
-        variants.append("layer-0 residual recovery")
+        variants.append("architecture recovery")
     if is_cached_prefix_replay(config):
         variants.append("cached-prefix replay")
     if is_weights_only_continuation(config):
@@ -221,7 +226,7 @@ def initialize_clearml(config: DictConfig):
         )
     if architecture_recovery:
         tags.extend(
-            ["experimental", "layer0-residual", "non-paper-architecture"]
+            ["experimental", "architecture-recovery", "non-paper-architecture"]
         )
     if cached_prefix_replay:
         tags.extend(
@@ -239,7 +244,7 @@ def initialize_clearml(config: DictConfig):
     if balanced_token_recovery:
         suffixes.append("balanced-token")
     if architecture_recovery:
-        suffixes.append("layer0-residual")
+        suffixes.append("architecture-recovery")
     if cached_prefix_replay:
         suffixes.append("cached-prefix-replay")
     if weights_only_continuation:

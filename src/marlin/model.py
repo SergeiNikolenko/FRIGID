@@ -26,6 +26,7 @@ class MarlinDecoderConfig:
     layer_norm_eps: float = 1e-12
     cross_attention_layer_norm_eps: float = 1e-5
     fingerprint_layer_norm_eps: float = 1e-5
+    fingerprint_layer_norm: bool = True
     fingerprint_self_attention_layers: int = 0
     frigid_compatible_layer_order: bool = False
     layer0_long_residual_scale: float = 0.0
@@ -167,6 +168,7 @@ class MarlinDecoder(nn.Module):
             fingerprint_self_attention_layers=config.fingerprint_self_attention_layers,
             dropout=config.dropout,
             layer_norm_eps=config.fingerprint_layer_norm_eps,
+            fingerprint_layer_norm=config.fingerprint_layer_norm,
         )
         self.layers = nn.ModuleList(MarlinDecoderLayer(config) for _ in range(config.num_layers))
         self.prediction_dense = nn.Linear(config.hidden_size, config.hidden_size)

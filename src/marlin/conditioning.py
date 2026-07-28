@@ -45,11 +45,16 @@ class SparseFingerprintEncoder(nn.Module):
         num_self_attention_layers: int = 0,
         dropout: float = 0.0,
         layer_norm_eps: float = 1e-12,
+        use_layer_norm: bool = True,
     ) -> None:
         super().__init__()
         self.bits = bits
         self.embedding = nn.Embedding(bits, hidden_size)
-        self.layer_norm = nn.LayerNorm(hidden_size, eps=layer_norm_eps)
+        self.layer_norm = (
+            nn.LayerNorm(hidden_size, eps=layer_norm_eps)
+            if use_layer_norm
+            else nn.Identity()
+        )
         self.dropout = nn.Dropout(dropout)
         self.self_attention_layers = nn.ModuleList(
             FingerprintSetAttentionLayer(
@@ -131,6 +136,7 @@ class MarlinConditioner(nn.Module):
         fingerprint_self_attention_layers: int = 0,
         dropout: float = 0.0,
         layer_norm_eps: float = 1e-12,
+        fingerprint_layer_norm: bool = True,
     ) -> None:
         super().__init__()
         self.mass = FourierMassEncoder(hidden_size, num_mass_frequencies)
@@ -142,6 +148,7 @@ class MarlinConditioner(nn.Module):
             num_self_attention_layers=fingerprint_self_attention_layers,
             dropout=dropout,
             layer_norm_eps=layer_norm_eps,
+            use_layer_norm=fingerprint_layer_norm,
         )
 
     def forward(

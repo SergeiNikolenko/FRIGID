@@ -21,6 +21,9 @@ def test_training_config_matches_paper_recipe():
     assert config.model.hidden_size == 896
     assert config.model.num_layers == 12
     assert config.model.num_heads == 14
+    assert config.model.fingerprint_layer_norm
+    assert config.model.frigid_compatible_layer_order
+    assert config.model.fingerprint_self_attention_layers == 3
     assert config.training.noise_probability == 0.5
     assert config.training.noise_min_fraction == 0.1
     assert config.training.noise_max_fraction == 0.3

@@ -91,6 +91,12 @@ def load_decoder(
 ) -> MarlinDecoder:
     checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
     config = MarlinDecoderConfig(**checkpoint["hyper_parameters"]["config"])
+    checkpoint_state = checkpoint["state_dict"]
+    if (
+        "decoder.conditioner.fingerprint.layer_norm.weight"
+        not in checkpoint_state
+    ):
+        config = replace(config, fingerprint_layer_norm=False)
     if layer0_long_residual_scale is not None:
         config = replace(
             config,
@@ -99,7 +105,7 @@ def load_decoder(
     model = MarlinDecoder(config)
     state = {
         key.removeprefix("decoder."): value
-        for key, value in checkpoint["state_dict"].items()
+        for key, value in checkpoint_state.items()
         if key.startswith("decoder.")
     }
     model.load_state_dict(state, strict=True)
