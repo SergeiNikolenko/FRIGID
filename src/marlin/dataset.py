@@ -25,9 +25,9 @@ def streaming_loader_workers(requested: int, *, uses_filtered_prefix: bool) -> i
     """Choose a worker count compatible with the composed streaming pipeline."""
     if requested < 0:
         raise ValueError("data loader worker count must be non-negative")
-    if uses_filtered_prefix and requested > 0:
+    if uses_filtered_prefix:
         # Hugging Face SkipExamplesIterable cannot shard the uncached tail.
-        return 1
+        return 0
     return requested
 
 

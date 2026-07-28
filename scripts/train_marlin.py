@@ -343,7 +343,7 @@ def main(config: DictConfig) -> None:
     if loader_workers != int(config.loader.num_workers):
         print(
             "Filtered-prefix cache uses an unshardable SkipExamplesIterable tail; "
-            f"using {loader_workers} DataLoader worker instead of "
+            f"using {loader_workers} DataLoader workers instead of "
             f"{config.loader.num_workers}.",
             flush=True,
         )

@@ -2,7 +2,9 @@ import hashlib
 import json
 from pathlib import Path
 
+import datasets
 import pytest
+import torch
 
 from marlin.dataset import (
     file_list_sha256,
@@ -13,10 +15,25 @@ from marlin.dataset import (
 )
 
 
-def test_filtered_prefix_stream_uses_one_worker_for_unshardable_tail() -> None:
-    assert streaming_loader_workers(8, uses_filtered_prefix=True) == 1
+def test_filtered_prefix_stream_disables_workers_for_unshardable_tail() -> None:
+    assert streaming_loader_workers(8, uses_filtered_prefix=True) == 0
     assert streaming_loader_workers(0, uses_filtered_prefix=True) == 0
     assert streaming_loader_workers(8, uses_filtered_prefix=False) == 8
+
+
+def test_filtered_prefix_and_skipped_tail_iterate_with_selected_workers() -> None:
+    prefix = datasets.Dataset.from_dict({"safe": ["cached"]}).to_iterable_dataset()
+    source = datasets.Dataset.from_dict(
+        {"safe": ["raw-prefix", "tail"]}
+    ).to_iterable_dataset()
+    stream = datasets.concatenate_datasets([prefix, source.skip(1)])
+    loader = torch.utils.data.DataLoader(
+        stream,
+        batch_size=1,
+        num_workers=streaming_loader_workers(8, uses_filtered_prefix=True),
+    )
+
+    assert [batch["safe"][0] for batch in loader] == ["cached", "tail"]
 
 
 def test_verify_filtered_prefix_cache_returns_shard_and_offset(tmp_path: Path) -> None:
