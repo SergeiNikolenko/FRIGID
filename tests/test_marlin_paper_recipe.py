@@ -45,3 +45,9 @@ def test_inference_defaults_match_paper_recipe():
 
     assert parameters["candidates"].default == 384
     assert parameters["diversity_dropout"].default == 0.3
+
+
+def test_sampler_defaults_to_deterministic_token_selection():
+    parameters = signature(MarlinSampler.__init__).parameters
+
+    assert parameters["sample_tokens"].default is False

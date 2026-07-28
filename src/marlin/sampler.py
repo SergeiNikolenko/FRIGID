@@ -53,6 +53,7 @@ class MarlinSampler:
         forbidden_token_ids: Sequence[int] = (),
         mass_shell_enabled: bool = True,
         generation_mode: str = "block",
+        sample_tokens: bool = False,
     ) -> None:
         if generation_mode not in {"block", "canvas"}:
             raise ValueError("generation_mode must be 'block' or 'canvas'")
@@ -67,6 +68,7 @@ class MarlinSampler:
         self.forbidden_token_ids = tuple(forbidden_token_ids)
         self.mass_shell_enabled = mass_shell_enabled
         self.generation_mode = generation_mode
+        self.sample_tokens = sample_tokens
 
     def _sampling_logits(
         self,
@@ -377,7 +379,15 @@ class MarlinSampler:
                         if confidence > best_confidence:
                             best_confidence = confidence
                             best_position = relative_position
-                            best_token = int(probabilities.argmax().item())
+                            best_token = int(
+                                torch.multinomial(
+                                    probabilities,
+                                    num_samples=1,
+                                    generator=generator,
+                                ).item()
+                                if self.sample_tokens
+                                else probabilities.argmax().item()
+                            )
                     if best_position is None or not torch.isfinite(best_confidence):
                         diagnostics["constraint_dead_ends"] += 1
                         dead_ends = diagnostics["sample_dead_ends"]
@@ -552,7 +562,16 @@ class MarlinSampler:
                     continue
                 selected_index = int(confidence_tensor.argmax().item())
                 selected_position = int(positions[selected_index].item())
-                token = int(probabilities_by_position[selected_index].argmax().item())
+                selected_probabilities = probabilities_by_position[selected_index]
+                token = int(
+                    torch.multinomial(
+                        selected_probabilities,
+                        num_samples=1,
+                        generator=generator,
+                    ).item()
+                    if self.sample_tokens
+                    else selected_probabilities.argmax().item()
+                )
                 canvas[row, selected_position] = token
                 unresolved[row, selected_position] = False
 

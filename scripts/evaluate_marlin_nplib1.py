@@ -59,6 +59,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--disable-grammar-mask", action="store_true")
     parser.add_argument("--disable-mass-shell", action="store_true")
+    parser.add_argument("--sample-tokens", action="store_true")
     parser.add_argument("--fix-safe-decode", action="store_true")
     parser.add_argument("--no-ema", action="store_true")
     parser.add_argument("--layer0-long-residual-scale", type=float)
@@ -435,6 +436,7 @@ def main() -> None:
         ),
         mass_shell_enabled=not args.disable_mass_shell,
         generation_mode=args.generation_mode,
+        sample_tokens=args.sample_tokens,
     )
 
     settings = {
@@ -455,6 +457,7 @@ def main() -> None:
         "grammar_mask": not args.disable_grammar_mask,
         "mass_shell_constraint": not args.disable_mass_shell,
         "safe_decode_fix": args.fix_safe_decode,
+        "token_selection": "multinomial" if args.sample_tokens else "argmax",
         "seed": args.seed,
         "max_spectra": args.max_spectra,
     }
