@@ -100,6 +100,48 @@ def test_marlin_uses_fixed_decay_ema():
     assert module.ema.num_updates is None
 
 
+def test_layer0_residual_defaults_off_and_rejects_invalid_scales():
+    assert MarlinDecoderConfig().layer0_long_residual_scale == 0.0
+    for scale in (-1.0, float("nan"), float("inf"), -float("inf")):
+        with pytest.raises(
+            ValueError,
+            match="layer0_long_residual_scale must be finite and non-negative",
+        ):
+            MarlinDecoderConfig(layer0_long_residual_scale=scale)
+
+
+def test_layer0_residual_preserves_checkpoint_compatibility():
+    common = dict(
+        vocab_size=9,
+        hidden_size=8,
+        num_layers=2,
+        num_heads=1,
+        intermediate_size=16,
+        max_length=6,
+        block_width=2,
+        fingerprint_bits=8,
+        dropout=0.0,
+        mask_token_id=4,
+        pad_token_id=0,
+    )
+    baseline = MarlinDecoder(
+        MarlinDecoderConfig(**common, layer0_long_residual_scale=0.0)
+    ).eval()
+    residual = MarlinDecoder(
+        MarlinDecoderConfig(**common, layer0_long_residual_scale=1.0)
+    ).eval()
+    residual.load_state_dict(baseline.state_dict(), strict=True)
+
+    assert residual.state_dict().keys() == baseline.state_dict().keys()
+    input_ids = torch.tensor([[1, 5, 4, 4, 4, 4]])
+    mass = torch.tensor([100.0])
+    fingerprint = torch.zeros((1, 8))
+    with torch.inference_mode():
+        baseline_logits = baseline(input_ids, mass, fingerprint)
+        residual_logits = residual(input_ids, mass, fingerprint)
+    assert not torch.equal(residual_logits, baseline_logits)
+
+
 def test_training_accepts_optional_eos_recovery_controls():
     config = MarlinDecoderConfig(
         vocab_size=8,

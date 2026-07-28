@@ -80,6 +80,20 @@ def is_eos_recovery(config: DictConfig) -> bool:
     )
 
 
+def is_architecture_recovery(config: DictConfig) -> bool:
+    """Return whether an opt-in residual changes the paper architecture."""
+    return float(config.model.get("layer0_long_residual_scale", 0.0)) != 0.0
+
+
+def training_variant(config: DictConfig) -> str:
+    variants = []
+    if is_eos_recovery(config):
+        variants.append("EOS recovery")
+    if is_architecture_recovery(config):
+        variants.append("layer-0 residual recovery")
+    return "experimental " + " + ".join(variants) if variants else "paper recipe"
+
+
 def write_run_manifest(config: DictConfig, tokenizer_sha256: str) -> dict:
     """Persist the immutable training inputs and execution environment."""
     commit, dirty = git_state()
@@ -90,12 +104,10 @@ def write_run_manifest(config: DictConfig, tokenizer_sha256: str) -> dict:
         "kind": "MARLIN clean-room decoder training",
         "created_at_utc": datetime.now(timezone.utc).isoformat(),
         "clean_room_reproduction": True,
-        "paper_training_recipe": not is_eos_recovery(config),
-        "training_variant": (
-            "experimental EOS recovery"
-            if is_eos_recovery(config)
-            else "paper recipe"
+        "paper_training_recipe": not (
+            is_eos_recovery(config) or is_architecture_recovery(config)
         ),
+        "training_variant": training_variant(config),
         "author_code_available_at_start": False,
         "git_commit": commit,
         "slurm_job_id": os.environ.get("SLURM_JOB_ID"),
@@ -162,14 +174,25 @@ def initialize_clearml(config: DictConfig):
 
     job_id = os.environ.get("SLURM_JOB_ID", "local")
     recovery = is_eos_recovery(config)
+    architecture_recovery = is_architecture_recovery(config)
     tags = list(config.tracking.clearml.tags)
     if recovery:
         tags.extend(["experimental", "eos-recovery", "non-paper-objective"])
+    if architecture_recovery:
+        tags.extend(
+            ["experimental", "layer0-residual", "non-paper-architecture"]
+        )
+    suffixes = []
+    if recovery:
+        suffixes.append("eos-recovery")
+    if architecture_recovery:
+        suffixes.append("layer0-residual")
+    task_suffix = "-".join(suffixes)
     task = Task.init(
         project_name=config.tracking.clearml.project_name,
         task_name=(
-            f"{config.tracking.clearml.task_name}-eos-recovery-{job_id}"
-            if recovery
+            f"{config.tracking.clearml.task_name}-{task_suffix}-{job_id}"
+            if task_suffix
             else f"{config.tracking.clearml.task_name}-{job_id}"
         ),
         tags=tags,

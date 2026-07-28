@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+from dataclasses import replace
 import hashlib
 import json
 import math
@@ -60,6 +61,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--disable-mass-shell", action="store_true")
     parser.add_argument("--fix-safe-decode", action="store_true")
     parser.add_argument("--no-ema", action="store_true")
+    parser.add_argument("--layer0-long-residual-scale", type=float)
     parser.add_argument("--clearml-project")
     parser.add_argument("--clearml-task-name")
     parser.add_argument("--clearml-task-id")
@@ -85,9 +87,15 @@ def load_decoder(
     device: torch.device,
     *,
     use_ema: bool = True,
+    layer0_long_residual_scale: float | None = None,
 ) -> MarlinDecoder:
     checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
     config = MarlinDecoderConfig(**checkpoint["hyper_parameters"]["config"])
+    if layer0_long_residual_scale is not None:
+        config = replace(
+            config,
+            layer0_long_residual_scale=layer0_long_residual_scale,
+        )
     model = MarlinDecoder(config)
     state = {
         key.removeprefix("decoder."): value
@@ -369,7 +377,12 @@ def main() -> None:
         allow_leading_subset=args.max_spectra is not None,
     )
     device = torch.device(args.device)
-    model = load_decoder(args.checkpoint, device, use_ema=not args.no_ema)
+    model = load_decoder(
+        args.checkpoint,
+        device,
+        use_ema=not args.no_ema,
+        layer0_long_residual_scale=args.layer0_long_residual_scale,
+    )
     tokenizer = load_safe_tokenizer(args.tokenizer)
     special_ids = {
         tokenizer.bos_token_id,
@@ -430,6 +443,7 @@ def main() -> None:
         "valence_slack": args.valence_slack,
         "eos_boost": args.eos_boost,
         "block_width": model.config.block_width,
+        "layer0_long_residual_scale": model.config.layer0_long_residual_scale,
         "ema": not args.no_ema,
         "weights": "ema" if not args.no_ema else "raw",
         "grammar_mask": not args.disable_grammar_mask,
