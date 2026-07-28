@@ -1,0 +1,495 @@
+{
+  "counts": {
+    "excluded_specs": 1288,
+    "macro_candidate_molecules": 1464,
+    "micro_candidate_rows": 15794,
+    "population_rows": 17082,
+    "population_unique_molecules": 2905
+  },
+  "distribution_checks": {
+    "macro64_vs_unique_molecule_population": {
+      "absolute_standardized_mean_difference": {
+        "formula_heavy_atoms": 0.009141940216365522,
+        "mist_active_bits": 0.015190678495384234,
+        "parentmass": 0.011222012533737615,
+        "peak_count": 0.09625458708868953,
+        "replicate_count": 0.11562691819513507,
+        "spectral_entropy": 0.02058242041660263
+      },
+      "max_absolute_category_share_difference": 0.008293889845094715,
+      "max_absolute_smd": 0.11562691819513507,
+      "max_categorical_share_difference": {
+        "instrument_group": 0.008293889845094715,
+        "ionization_group": 0.0009143717728055112
+      }
+    },
+    "micro128_vs_population": {
+      "absolute_standardized_mean_difference": {
+        "formula_heavy_atoms": 0.02295157430623257,
+        "mist_active_bits": 0.0527669326503525,
+        "parentmass": 0.024580314982699858,
+        "peak_count": 0.055213692727973294,
+        "replicate_count": 0.053948852136355745,
+        "spectral_entropy": 0.015532469696284577
+      },
+      "max_absolute_category_share_difference": 0.0022702991452991927,
+      "max_absolute_smd": 0.055213692727973294,
+      "max_categorical_share_difference": {
+        "instrument_group": 0.000505832162510246,
+        "ionization_group": 0.0022702991452991927
+      }
+    },
+    "micro256_vs_population": {
+      "absolute_standardized_mean_difference": {
+        "formula_heavy_atoms": 0.03130998178015199,
+        "mist_active_bits": 0.03491545990995172,
+        "parentmass": 0.03719494084696628,
+        "peak_count": 0.014674443699015022,
+        "replicate_count": 0.08876832037567611,
+        "spectral_entropy": 0.008451732007706858
+      },
+      "max_absolute_category_share_difference": 0.0016359508547008628,
+      "max_absolute_smd": 0.08876832037567611,
+      "max_categorical_share_difference": {
+        "instrument_group": 0.000505832162510246,
+        "ionization_group": 0.0016359508547008628
+      }
+    },
+    "micro512_vs_population": {
+      "absolute_standardized_mean_difference": {
+        "formula_heavy_atoms": 0.03130998178015199,
+        "mist_active_bits": 0.008789085743010999,
+        "parentmass": 0.036938402274192816,
+        "peak_count": 0.009631744155606643,
+        "replicate_count": 0.09677800708003367,
+        "spectral_entropy": 0.015061167214895397
+      },
+      "max_absolute_category_share_difference": 0.000505832162510246,
+      "max_absolute_smd": 0.09677800708003367,
+      "max_categorical_share_difference": {
+        "instrument_group": 0.000505832162510246,
+        "ionization_group": 0.00031717414529919274
+      }
+    }
+  },
+  "inputs": {
+    "exclusion_manifests": [
+      {
+        "path": "/home/nikolenko/work/Projects/FRIGID_compact_c1e66ad/configs/benchmarks/msg_diverse_dev64_v1.tsv",
+        "sha256": "768181faa930889c9e29c9e9d4321777c61eb48c474ad1eb042eeea0ee681f44"
+      },
+      {
+        "path": "/home/nikolenko/work/Projects/FRIGID_compact_c1e66ad/configs/benchmarks/msg_diverse_confirm200_v1.tsv",
+        "sha256": "e462ff4fc544a200a73383c901607f57dcfc7a6b75f64fc4e2bd4ac10fe829ae"
+      },
+      {
+        "path": "/home/nikolenko/work/Projects/FRIGID_compact_c1e66ad/configs/benchmarks/msg_diverse_gate1024_v1.tsv",
+        "sha256": "f7355e92b7eee6d2c748fa4f1ba259af357e7cc69a85eb794439fe73b720dcc5"
+      }
+    ],
+    "fingerprints_npz": {
+      "path": "/home/nikolenko/work/Projects/FRIGID_retrieval_295a0b4/runs/retrieval/msg_full_test_v1_20260711/mist_export/fingerprints.npz",
+      "sha256": "98c9f31ef3add24ac4af154458608ffc0de1da7368ec2128f28e676d664ccbc0"
+    },
+    "labels_tsv": {
+      "path": "/home/nikolenko/work/Projects/FRIGID_shared_data/msg/labels.tsv",
+      "sha256": "feb8c9c58be5ced28c2e370f196638610c013cc656d77eebfbe5d42d215ae8fb"
+    },
+    "metadata_csv": {
+      "path": "/home/nikolenko/work/Projects/FRIGID_retrieval_295a0b4/runs/retrieval/msg_full_test_v1_20260711/mist_export/metadata.csv",
+      "sha256": "7d929a21e845c34275226ea5ed92293f8f41a7478d5c54de8078dd3fbe5a9bd8"
+    },
+    "spectrum_dir": "/home/nikolenko/work/Projects/FRIGID_shared_data/msg/spec_files"
+  },
+  "outputs": {
+    "msg_compact_macro64_v1": {
+      "ordered_spec_names_sha256": "812ed721e09dbd15b04aba13f339569a9abd5f6093dc26b4b4c8a55fd613a2e9",
+      "path": "/home/nikolenko/work/Projects/FRIGID_compact_c1e66ad/runs/benchmarks/msg_compact_v1c_20260712/msg_compact_macro64_v1.tsv",
+      "rows": 64,
+      "sha256": "70ec7a7e8344f2b118abea1057a42e37d872b5ec5334bd87923ddceffd3ac458"
+    },
+    "msg_compact_micro128_v1": {
+      "ordered_spec_names_sha256": "5f9b99a5c8f3843717717ad8017db756780d139163d1fdb8ad9e1c981d77b47f",
+      "path": "/home/nikolenko/work/Projects/FRIGID_compact_c1e66ad/runs/benchmarks/msg_compact_v1c_20260712/msg_compact_micro128_v1.tsv",
+      "rows": 128,
+      "sha256": "40012b2534eeb8b12c6c752ef630707dbfff61236f44270db8a0eba6a583973c"
+    },
+    "msg_compact_micro256_v1": {
+      "ordered_spec_names_sha256": "6f2f9700fbea7ecc6431a223020cd849b388e65d3a4477ab81ed98ea8397db84",
+      "path": "/home/nikolenko/work/Projects/FRIGID_compact_c1e66ad/runs/benchmarks/msg_compact_v1c_20260712/msg_compact_micro256_v1.tsv",
+      "rows": 256,
+      "sha256": "aa8fed6ed186c3158aa7e51b9890cdaed61252db3222e4a9165fce22f9c9f0ef"
+    },
+    "msg_compact_micro512_v1": {
+      "ordered_spec_names_sha256": "28a17be1f9556b12a416351310634385b2d18ca1cb89afd07bfefc75582ddafb",
+      "path": "/home/nikolenko/work/Projects/FRIGID_compact_c1e66ad/runs/benchmarks/msg_compact_v1c_20260712/msg_compact_micro512_v1.tsv",
+      "rows": 512,
+      "sha256": "cb90a309a1baf0719b4fbd31123fbbfbb2e7792a6eb68d8dd8044d4c76efe124"
+    }
+  },
+  "profiles": {
+    "macro64": {
+      "categorical": {
+        "instrument_group": {
+          "Orbitrap": 0.84375,
+          "QTOF": 0.125,
+          "unknown": 0.03125
+        },
+        "ionization_group": {
+          "[M+H]+": 0.90625,
+          "[M+Na]+": 0.09375
+        }
+      },
+      "continuous": {
+        "formula_heavy_atoms": {
+          "mean": 33.625,
+          "q10": 22.3,
+          "q50": 31.0,
+          "q90": 49.80000000000001
+        },
+        "mist_active_bits": {
+          "mean": 54.359375,
+          "q10": 35.0,
+          "q50": 50.5,
+          "q90": 79.7
+        },
+        "parentmass": {
+          "mean": 476.588867713424,
+          "q10": 324.344619,
+          "q50": 430.7069,
+          "q90": 698.1308970000002
+        },
+        "peak_count": {
+          "mean": 46.640625,
+          "q10": 4.600000000000001,
+          "q50": 20.5,
+          "q90": 124.00000000000003
+        },
+        "replicate_count": {
+          "mean": 4.3125,
+          "q10": 1.0,
+          "q50": 3.0,
+          "q90": 7.400000000000006
+        },
+        "spectral_entropy": {
+          "mean": 1.8977812378840628,
+          "q10": 0.6260805153103989,
+          "q50": 1.6969166147741075,
+          "q90": 3.493493731658213
+        }
+      },
+      "rows": 64,
+      "unique_molecules": 64,
+      "unique_specs": 64
+    },
+    "micro128": {
+      "categorical": {
+        "instrument_group": {
+          "Orbitrap": 0.8359375,
+          "QTOF": 0.140625,
+          "unknown": 0.0234375
+        },
+        "ionization_group": {
+          "[M+H]+": 0.796875,
+          "[M+Na]+": 0.203125
+        }
+      },
+      "continuous": {
+        "formula_heavy_atoms": {
+          "mean": 38.109375,
+          "q10": 25.0,
+          "q50": 36.0,
+          "q90": 54.0
+        },
+        "mist_active_bits": {
+          "mean": 63.3046875,
+          "q10": 38.0,
+          "q50": 58.5,
+          "q90": 92.0
+        },
+        "parentmass": {
+          "mean": 541.9331250441167,
+          "q10": 353.541209,
+          "q50": 503.782425,
+          "q90": 767.366499
+        },
+        "peak_count": {
+          "mean": 29.6015625,
+          "q10": 3.0,
+          "q50": 16.0,
+          "q90": 61.89999999999999
+        },
+        "replicate_count": {
+          "mean": 33.65625,
+          "q10": 3.0,
+          "q50": 14.0,
+          "q90": 97.49999999999999
+        },
+        "spectral_entropy": {
+          "mean": 1.7302305238585072,
+          "q10": 0.6106001004315945,
+          "q50": 1.6212394517657336,
+          "q90": 2.985685350243741
+        }
+      },
+      "rows": 128,
+      "unique_molecules": 115,
+      "unique_specs": 128
+    },
+    "micro256": {
+      "categorical": {
+        "instrument_group": {
+          "Orbitrap": 0.8359375,
+          "QTOF": 0.140625,
+          "unknown": 0.0234375
+        },
+        "ionization_group": {
+          "[M+H]+": 0.80078125,
+          "[M+Na]+": 0.19921875
+        }
+      },
+      "continuous": {
+        "formula_heavy_atoms": {
+          "mean": 38.01171875,
+          "q10": 25.0,
+          "q50": 35.0,
+          "q90": 54.0
+        },
+        "mist_active_bits": {
+          "mean": 62.9296875,
+          "q10": 39.0,
+          "q50": 58.5,
+          "q90": 92.5
+        },
+        "parentmass": {
+          "mean": 539.8129502795974,
+          "q10": 353.64824999999996,
+          "q50": 504.6704743186,
+          "q90": 766.2966349999999
+        },
+        "peak_count": {
+          "mean": 31.42578125,
+          "q10": 3.0,
+          "q50": 16.0,
+          "q90": 69.0
+        },
+        "replicate_count": {
+          "mean": 31.40625,
+          "q10": 3.0,
+          "q50": 12.5,
+          "q90": 90.0
+        },
+        "spectral_entropy": {
+          "mean": 1.7534789078331046,
+          "q10": 0.6070866476032704,
+          "q50": 1.610679174746197,
+          "q90": 3.103391922199327
+        }
+      },
+      "rows": 256,
+      "unique_molecules": 198,
+      "unique_specs": 256
+    },
+    "micro512": {
+      "categorical": {
+        "instrument_group": {
+          "Orbitrap": 0.8359375,
+          "QTOF": 0.140625,
+          "unknown": 0.0234375
+        },
+        "ionization_group": {
+          "[M+H]+": 0.798828125,
+          "[M+Na]+": 0.201171875
+        }
+      },
+      "continuous": {
+        "formula_heavy_atoms": {
+          "mean": 38.01171875,
+          "q10": 25.0,
+          "q50": 35.0,
+          "q90": 54.0
+        },
+        "mist_active_bits": {
+          "mean": 62.380859375,
+          "q10": 38.0,
+          "q50": 58.0,
+          "q90": 92.0
+        },
+        "parentmass": {
+          "mean": 539.8560674210785,
+          "q10": 353.2428404121094,
+          "q50": 503.10515,
+          "q90": 764.4791
+        },
+        "peak_count": {
+          "mean": 32.51953125,
+          "q10": 3.0,
+          "q50": 16.0,
+          "q90": 68.90000000000003
+        },
+        "replicate_count": {
+          "mean": 30.888671875,
+          "q10": 3.0,
+          "q50": 12.0,
+          "q90": 90.0
+        },
+        "spectral_entropy": {
+          "mean": 1.7306873671252019,
+          "q10": 0.5389522476325681,
+          "q50": 1.6280169448100779,
+          "q90": 3.036446072661709
+        }
+      },
+      "rows": 512,
+      "unique_molecules": 348,
+      "unique_specs": 512
+    },
+    "population_macro": {
+      "categorical": {
+        "instrument_group": {
+          "Orbitrap": 0.8354561101549053,
+          "QTOF": 0.12667814113597245,
+          "unknown": 0.0378657487091222
+        },
+        "ionization_group": {
+          "[M+H]+": 0.9053356282271945,
+          "[M+Na]+": 0.09466437177280551
+        }
+      },
+      "continuous": {
+        "formula_heavy_atoms": {
+          "mean": 33.533562822719446,
+          "q10": 23.0,
+          "q50": 31.0,
+          "q90": 48.0
+        },
+        "mist_active_bits": {
+          "mean": 54.08743545611016,
+          "q10": 34.0,
+          "q50": 51.0,
+          "q90": 79.0
+        },
+        "parentmass": {
+          "mean": 475.00121880975166,
+          "q10": 331.180962,
+          "q50": 439.14345,
+          "q90": 680.405806
+        },
+        "peak_count": {
+          "mean": 41.769363166953525,
+          "q10": 5.0,
+          "q50": 23.0,
+          "q90": 100.0
+        },
+        "replicate_count": {
+          "mean": 5.880206540447504,
+          "q10": 1.0,
+          "q50": 3.0,
+          "q90": 10.0
+        },
+        "spectral_entropy": {
+          "mean": 1.876975521156777,
+          "q10": 0.6272323593737997,
+          "q50": 1.7589222531600865,
+          "q90": 3.273743307944507
+        }
+      },
+      "rows": 2905,
+      "unique_molecules": 2905,
+      "unique_specs": 2905
+    },
+    "population_micro": {
+      "categorical": {
+        "instrument_group": {
+          "Orbitrap": 0.8356164383561644,
+          "QTOF": 0.14044022948132537,
+          "unknown": 0.023943332162510246
+        },
+        "ionization_group": {
+          "[M+H]+": 0.7991452991452992,
+          "[M+Na]+": 0.20085470085470086
+        }
+      },
+      "continuous": {
+        "formula_heavy_atoms": {
+          "mean": 38.377531904929164,
+          "q10": 25.0,
+          "q50": 35.0,
+          "q90": 55.0
+        },
+        "mist_active_bits": {
+          "mean": 62.19622994965461,
+          "q10": 37.0,
+          "q50": 58.0,
+          "q90": 92.0
+        },
+        "parentmass": {
+          "mean": 546.064405994579,
+          "q10": 349.122752,
+          "q50": 502.21728,
+          "q90": 793.47
+        },
+        "peak_count": {
+          "mean": 32.08611403816883,
+          "q10": 3.0,
+          "q50": 16.0,
+          "q90": 78.0
+        },
+        "replicate_count": {
+          "mean": 37.14237208757757,
+          "q10": 3.0,
+          "q50": 13.0,
+          "q90": 96.0
+        },
+        "spectral_entropy": {
+          "mean": 1.7452864687688157,
+          "q10": 0.5791760259762727,
+          "q50": 1.624202708543842,
+          "q90": 3.1114491336792374
+        }
+      },
+      "rows": 17082,
+      "unique_molecules": 2905,
+      "unique_specs": 17082
+    }
+  },
+  "quality_checks": {
+    "all_panels_accepted": true,
+    "distribution_acceptance": {
+      "macro64": {
+        "accepted": true,
+        "max_category_share_difference": 0.05,
+        "max_smd": 0.15,
+        "threshold_configured": true
+      },
+      "micro128": {
+        "accepted": true,
+        "max_category_share_difference": 0.03,
+        "max_smd": 0.15,
+        "threshold_configured": true
+      },
+      "micro256": {
+        "accepted": true,
+        "max_category_share_difference": 0.03,
+        "max_smd": 0.1,
+        "threshold_configured": true
+      },
+      "micro512": {
+        "accepted": true,
+        "max_category_share_difference": 0.03,
+        "max_smd": 0.1,
+        "threshold_configured": true
+      }
+    },
+    "fingerprint_alignment": true,
+    "labels_join_coverage": 1.0,
+    "macro_prior_or_micro_molecule_overlap": 0,
+    "micro_macro_spec_overlap": 0,
+    "micro_panels_nested": true,
+    "population_spec_unique": true,
+    "spectrum_file_coverage": 1.0,
+    "target_fields_used_for_model_scoring": []
+  },
+  "schema_version": 1,
+  "selection_namespace": "frigid-msg-compact-v1"
+}
