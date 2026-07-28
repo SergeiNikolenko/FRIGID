@@ -21,7 +21,11 @@ class PeriodicMolecularEvaluation(L.Callback):
         self.project_root = project_root
         self.clearml_task = clearml_task
         self._completed_steps: set[int] = set()
-        if int(config.evaluation.interval_steps) != int(config.output.checkpoint_interval):
+        if (
+            bool(config.evaluation.enabled)
+            and int(config.evaluation.interval_steps)
+            != int(config.output.checkpoint_interval)
+        ):
             raise ValueError(
                 "evaluation.interval_steps must equal output.checkpoint_interval"
             )

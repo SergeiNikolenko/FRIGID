@@ -30,3 +30,20 @@ def test_periodic_evaluation_waits_for_current_run_checkpoint(tmp_path: Path) ->
     checkpoint.touch()
     callback.on_train_batch_end(trainer, None, None, None, 0)
     assert calls == [20000]
+
+
+def test_disabled_periodic_evaluation_allows_different_checkpoint_interval(
+    tmp_path: Path,
+) -> None:
+    config = OmegaConf.create(
+        {
+            "evaluation": {"enabled": False, "interval_steps": 5000},
+            "output": {
+                "root": str(tmp_path),
+                "checkpoints": str(tmp_path / "checkpoints"),
+                "checkpoint_interval": 200,
+            },
+        }
+    )
+
+    PeriodicMolecularEvaluation(config, project_root=tmp_path)
