@@ -17,6 +17,7 @@ OUTPUT_ROOT="${MARLIN_OUTPUT_ROOT:-}"
 MAX_STEPS="${MARLIN_MAX_STEPS:-}"
 CHECKPOINT_INTERVAL="${MARLIN_CHECKPOINT_INTERVAL:-}"
 RESUME_CHECKPOINT="${MARLIN_RESUME_CHECKPOINT:-}"
+INITIAL_WEIGHTS_CHECKPOINT="${MARLIN_INITIAL_WEIGHTS_CHECKPOINT:-}"
 FRIGID_WARM_START_CHECKPOINT="${MARLIN_FRIGID_WARM_START_CHECKPOINT:-}"
 FRIGID_WARM_START_SHA256="${MARLIN_FRIGID_WARM_START_SHA256:-}"
 METRIC_INTERVAL="${MARLIN_METRIC_INTERVAL:-}"
@@ -82,6 +83,14 @@ if [[ -n "$LEARNING_RATE" ]]; then
 fi
 if [[ -n "$RESUME_CHECKPOINT" ]]; then
     TRAIN_ARGS+=("resume_checkpoint=${RESUME_CHECKPOINT//=/\\=}")
+    TRAIN_ARGS+=("frigid_warm_start_checkpoint=null")
+    TRAIN_ARGS+=("frigid_warm_start_sha256=null")
+fi
+if [[ -n "$INITIAL_WEIGHTS_CHECKPOINT" ]]; then
+    TRAIN_ARGS+=(
+        "+initial_weights_checkpoint=${INITIAL_WEIGHTS_CHECKPOINT//=/\\=}"
+    )
+    TRAIN_ARGS+=("resume_checkpoint=null")
     TRAIN_ARGS+=("frigid_warm_start_checkpoint=null")
     TRAIN_ARGS+=("frigid_warm_start_sha256=null")
 fi

@@ -90,6 +90,11 @@ def is_cached_prefix_replay(config: DictConfig) -> bool:
     return bool(config.data.get("filtered_prefix_only", False))
 
 
+def is_weights_only_continuation(config: DictConfig) -> bool:
+    """Return whether optimizer and loop state are intentionally reset."""
+    return bool(config.get("initial_weights_checkpoint"))
+
+
 def training_variant(config: DictConfig) -> str:
     variants = []
     if is_eos_recovery(config):
@@ -98,6 +103,8 @@ def training_variant(config: DictConfig) -> str:
         variants.append("layer-0 residual recovery")
     if is_cached_prefix_replay(config):
         variants.append("cached-prefix replay")
+    if is_weights_only_continuation(config):
+        variants.append("weights-only continuation")
     return "experimental " + " + ".join(variants) if variants else "paper recipe"
 
 
@@ -115,6 +122,7 @@ def write_run_manifest(config: DictConfig, tokenizer_sha256: str) -> dict:
             is_eos_recovery(config)
             or is_architecture_recovery(config)
             or is_cached_prefix_replay(config)
+            or is_weights_only_continuation(config)
         ),
         "training_variant": training_variant(config),
         "author_code_available_at_start": False,
@@ -185,6 +193,7 @@ def initialize_clearml(config: DictConfig):
     recovery = is_eos_recovery(config)
     architecture_recovery = is_architecture_recovery(config)
     cached_prefix_replay = is_cached_prefix_replay(config)
+    weights_only_continuation = is_weights_only_continuation(config)
     tags = list(config.tracking.clearml.tags)
     if recovery:
         tags.extend(["experimental", "eos-recovery", "non-paper-objective"])
@@ -196,6 +205,10 @@ def initialize_clearml(config: DictConfig):
         tags.extend(
             ["experimental", "cached-prefix-replay", "non-paper-data-order"]
         )
+    if weights_only_continuation:
+        tags.extend(
+            ["experimental", "weights-only-continuation", "optimizer-reset"]
+        )
     suffixes = []
     if recovery:
         suffixes.append("eos-recovery")
@@ -203,6 +216,8 @@ def initialize_clearml(config: DictConfig):
         suffixes.append("layer0-residual")
     if cached_prefix_replay:
         suffixes.append("cached-prefix-replay")
+    if weights_only_continuation:
+        suffixes.append("weights-only")
     task_suffix = "-".join(suffixes)
     task = Task.init(
         project_name=config.tracking.clearml.project_name,
@@ -249,6 +264,7 @@ def initialize_clearml(config: DictConfig):
 def main(config: DictConfig) -> None:
     initialization_sources = {
         "resume_checkpoint": config.get("resume_checkpoint"),
+        "initial_weights_checkpoint": config.get("initial_weights_checkpoint"),
         "frigid_warm_start_checkpoint": config.get(
             "frigid_warm_start_checkpoint"
         ),
@@ -334,6 +350,36 @@ def main(config: DictConfig) -> None:
         report_path = Path(config.output.root) / "warm_start.json"
         report_path.parent.mkdir(parents=True, exist_ok=True)
         report_path.write_text(json.dumps(report, indent=2) + "\n")
+    elif config.get("initial_weights_checkpoint"):
+        checkpoint_path = Path(config.initial_weights_checkpoint)
+        checkpoint = torch.load(
+            checkpoint_path,
+            map_location="cpu",
+            weights_only=False,
+        )
+        decoder_state = {
+            key.removeprefix("decoder."): value
+            for key, value in checkpoint["state_dict"].items()
+            if key.startswith("decoder.")
+        }
+        module.decoder.load_state_dict(decoder_state, strict=True)
+        if "ema" in checkpoint:
+            module.ema.load_state_dict(checkpoint["ema"])
+        report_path = Path(config.output.root) / "weights_only_start.json"
+        report_path.parent.mkdir(parents=True, exist_ok=True)
+        report_path.write_text(
+            json.dumps(
+                {
+                    "checkpoint": str(checkpoint_path),
+                    "source_global_step": int(checkpoint.get("global_step", -1)),
+                    "optimizer_state_restored": False,
+                    "trainer_loop_state_restored": False,
+                    "ema_state_restored": "ema" in checkpoint,
+                },
+                indent=2,
+            )
+            + "\n"
+        )
     source_dataset = datasets.load_dataset(
         "parquet",
         data_files={"train": local_shards},
