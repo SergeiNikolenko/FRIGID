@@ -1,4 +1,4 @@
-# FRIGID: отчёт по моделям и метрикам
+#
 
 В FRIGID есть цепочка:
 
@@ -538,8 +538,8 @@ ensemble и нового reranker.
 - Tanimoto top-1: `+0.0204`, 95% CI `[+0.0077, +0.0353]`;
 - Tanimoto top-10: `+0.0325`, 95% CI `[+0.0150, +0.0539]`.
 
-Результат повторно воспроизведён paired bootstrap; ranking не использует
-правильный ответ.
+Результат повторно воспроизведён стандартным CLI и paired bootstrap в commit
+`9a822ee`; ranking не использует правильный ответ.
 
 Вывод:
 
@@ -765,23 +765,134 @@ Union улучшает и replicate-frequency выборку micro256,
 
 ```text
 Locked 1,024 gate подтверждён: все четыре целевые метрики улучшились.
-Frozen full-gate на 17,082 spectra разрешён.
+SPA-153 закрыта в Linear. Запущен frozen full-gate на 17,082 spectra.
 ```
+
+**Эксперимент 24: полный frozen union, в работе**
+
+Запущены только уже подтверждённые источники, без подстройки по test labels:
+
+- DLM control, 100 attempts: Kolmogorovsky GPU4;
+- DLM temperature 0.8, 200 attempts: Kolmogorovsky GPU3, уже обработано `3,750 / 17,082`;
+- MolForge 0.172: Spectrum GPU0, первые `30 / 17,082`;
+- train-only retrieval: готовый candidate table.
+
+После завершения источников будет собран target-blind union и выполнен paired
+bootstrap на всей выборке. Рабочая задача: `SPA-155`.
+
+**Эксперимент 25: parallel full-run orchestration**
+
+Один DLM full-run оказался слишком медленным: примерно `10-14 s/spectrum`.
+Не меняя frozen модель, seed или параметры генерации, запустили точные чанки
+по индексам locked test split:
+
+- control: `[1000,5000)`, `[5000,9000)`, `[9000,13000)`, `[13000,17082)`;
+- temperature 0.8: `[4000,7000)`, `[7000,10000)`, `[10000,13000)`, `[13000,17082)`;
+- исходные unsharded control и temperature runs сохранены как audit/fallback.
+
+Каждый chunk получил отдельный run directory, GPU, session и manifest. Перед
+fusion проверим отсутствие пересечений по `spec_name`, полное покрытие 17,082
+строк и совпадение commit/checkpoint/seed/settings. Это только ускорение
+получения того же evidence, не новый quality claim.
+
+**Следующая гипотеза после full-gate**
+
+Параллельно зарегистрирована `SPA-156`: query-local selective TTT по train-only
+MIST-соседям. Сейчас это только `prepared`: neighbor builder и safeguards есть,
+но adapter execution ещё не реализован. Кандидат не будет допущен к compact
+quality gate без 16-32 smoke, зафиксированного бюджета и согласованного
+micro256 + macro64 результата против frozen four-source union.
+
+Второй sidecar-аудит выбрал следующую более близкую к запуску гипотезу:
+
+- `SPA-157`: ICEBERG-guided refinement/union-extension;
+- текущий статус: `prepared`, quality claim отсутствует;
+- обязательный порядок: target-safe smoke -> micro128 futility -> micro256 +
+  macro64 paired gate -> только затем 1024/full.
+
+ICEBERG рассматривается только как дополнительный источник кандидатов. Его
+нельзя использовать для замены подтверждённого frozen union до paired evidence.
+
+**Эксперимент 26: ICEBERG fixed-manifest smoke preflight**
+
+Проверили target-safe путь на 16 заранее выбранных molecule-diverse queries.
+Подготовка прошла успешно:
+
+- `16` predeclared queries;
+- `2,215` union-extension candidates;
+- query selection без target SMILES/InChIKey/fingerprint;
+- условия formula/ionization/instrument прочитаны из observed `.ms`.
+
+Scoring остановился до получения predictions из-за окружения: исходный
+попытался импортировать отсутствующий Lightning, после исправления выявился
+CPU-only DGL на GPU path (`Device API cuda is not enabled`). Это технический
+no-go smoke, не rejection модели. Добавлен CPU fallback и environment
+diagnostics; paired quality gate не запускался.
+
+**Эксперимент 27: перенос full orchestration на Spectrum Slurm**
+
+По рабочему правилу FRIGID теперь считается только на `spectrum`. Все DLM
+full/shard jobs на Kolmogorovsky остановлены; их частичные каталоги сохранены
+исключительно как historical audit и не будут использованы как full evidence.
+
+Для Spectrum добавлен `scripts/submit_msg_full_shard.sbatch`:
+
+- `gpu`: одна full-GPU job;
+- `gpu-shared`: пять jobs с `shard:1`;
+- каждый shard получает непересекающийся `start-index/max-spectra`, отдельный
+  `RUN_MANIFEST.json` и одинаковые checkpoint/seed/settings.
+
+Новый full run будет считаться только после проверки покрытия всех `17,082`
+`spec_name` и paired bootstrap. Это изменение orchestration, не quality claim.
+
+**Эксперимент 28: Spectrum-only full control на целой A100**
+
+Пробный запуск пяти одновременных `gpu-shared` shard jobs показал, что они
+делят одну A100: каждый процесс обрабатывал примерно `3-4 spectra / 10 min`.
+Это неприемлемо для полного прогона, поэтому эти задачи остановлены и
+сохранены только как технический audit.
+
+Запущен новый контрольный прогон на Spectrum Slurm с `gres/gpu=1`:
+
+- job `60`, partition `gpu`, диапазон `[0,17082)`, `softmax_temp=1.0`;
+- frozen DLM/MIST checkpoints, seed `42`, `100 attempts`, threshold `0.187`;
+- GPU utilization при старте `100%`.
+
+Job `60` был отменён через `3:20` и не создал quality artifact. Активного full
+прогона сейчас нет. ICEBERG smoke сохранён только как диагностический artifact
+и пока не является quality evidence.
+
+**Эксперимент 29: ускорение DLM inference на Spectrum**
+
+Проверили два варианта на фиксированных первых `8` test spectra, `batch=64`,
+`100 attempts`, seed `42`:
+
+- `bfloat16` (job `62`) отклонён: categorical sampler получил invalid
+  probabilities на каждом generation batch, кандидаты не были построены;
+- float32 conditioning cache (job `63`, commit `45aea1c`) сохранил proposal,
+  число генераций, formula matches и tanimoto идентичными control; время
+  сократилось с `4:54` до `4:40` (`~4.8%`).
+
+Кэш разрешён для следующих Spectrum full runs как техническое ускорение, но
+это не quality improvement и не меняет frozen ranking protocol.
 
 **Будущая основная гипотеза: contrastive spectrum-molecule reranker**
 
-Идея: оставить frozen four-source candidate union и обучить dual encoder с
-symmetric InfoNCE, используя train-only hard negatives с той же формулой,
-близкой массой и похожим Morgan/scaffold. На inference модель rerank только
-top-50/100 кандидатов. Ветка проверена в экспериментах 25-26 ниже: direct
-ranker и residual fusion не прошли locked gates, поэтому unchanged вариант
-закрыт.
+Зарегистрирована `SPA-159`. Идея: оставить frozen four-source candidate union
+и обучить dual encoder с symmetric InfoNCE, используя train-only hard negatives
+с той же формулой/массой и близким Morgan/scaffold. На inference rerank только
+top-50/100 кандидатов. Gate: `16-32` smoke -> development panel -> `micro128`
+futility -> concordant molecule-cluster `micro256` + molecule-disjoint `macro64`
+-> locked `1,024` -> full. При положительном результате следующий этап —
+top-32/64 cross-encoder. Ветка была реализована и проверена в экспериментах
+31-32 ниже. Прямой ranker и residual fusion не прошли locked gates, поэтому
+unchanged вариант закрыт.
 
-**Эксперимент 24: constrained STONED-SELFIES expansion**
+**Эксперимент 30: constrained STONED-SELFIES expansion**
 
-Проверили target-blind расширение frozen four-source union на фиксированных 16
-сложных спектрах. Это диагностическая target-absent панель, поэтому она может
-остановить слабую ветку, но не подтвердить улучшение.
+На Spectrum проверили target-blind расширение frozen four-source union на
+фиксированных 16 сложных спектрах. Это диагностическая target-absent панель,
+поэтому она может остановить слабую ветку, но не подтвердить улучшение.
 
 | Вариант | Delta best-candidate Tanimoto | 95% CI | Новые targets | MIST Tanimoto@10 |
 | --- | ---: | ---: | ---: | ---: |
@@ -797,28 +908,46 @@ Insertion/deletion дали только `4.86%` exact-formula survival и бы�
 использовать spectrum-aware selection/reranking, а не увеличивать число слепых
 SELFIES-мутаций.
 
+Доказательства на `spectrum`:
+
+- replacement-only: `stoned_fixed16_replacement_v4_clean`, commit `6024fe6`,
+  manifest SHA-256 `b0884d6a7fae59c769abf8ef1fc42cc0896182c653916e31d82d49925a9c70a7`;
+- paired swap: `stoned_fixed16_paired_swap_v1`, commit `94ce6cc`, manifest
+  SHA-256 `74703c99bc9e4e4604a604afd4968026db895270e21ce63a28019c46cb0b5321`;
+- insertion/deletion: `stoned_fixed16_allops_ablation_v1`, commit `6024fe6`,
+  manifest SHA-256 `921210b88ea4f954c34f77596c59ca1f94fe57e7763f5806e800ae6e81360adf`.
+
 **Зафиксированный исследовательский приоритет на 2026 год**
 
 Диагноз после candidate-union и STONED экспериментов: основной управляемый
-bottleneck находится в spectrum-aware ranking близких formula-matched
-кандидатов, а не в количестве слепых генераций. Следующая materially different
-гипотеза должна менять hard-negative corpus или совместную spectrum-molecule
-архитектуру, а не снова подбирать fusion alpha.
+bottleneck сейчас находится в spectrum-aware ranking близких formula-matched
+кандидатов, а не в количестве слепых генераций. Обзор MSAlign, SECS, FlowMS,
+MARLIN, scaffold/template-guided generation, forward consistency и uncertainty
+methods вместе с caveats по splits/formula/oracle conditions записан в
+`docs/FRIGID_2026_RESEARCH_PRIORITIES.md`.
 
-**Эксперимент 25: первый RankLoop dual-encoder smoke**
+Принятый порядок: завершить full frozen union -> dual-encoder contrastive
+reranker (`SPA-159`) -> при положительном compact gate cross-encoder -> отдельно
+проверить forward-consistency ensemble. Новую генерацию добавлять только для
+заранее определённых low-recall queries.
+
+**Эксперимент 31: первый RankLoop dual-encoder smoke**
 
 Реализованы train-only corpus builder, frozen MIST/ChemBERTa exports,
 candidate-list + symmetric InfoNCE training и target-blind reranking. Первый
-запуск признан невалидным: molecular encoder использовал случайную входную
-матрицу вместо pretrained token embeddings и не входит в результаты.
+ChemBERTa запуск `81-82` признан невалидным: `AutoModel` не подхватил tied MLM
+token embeddings и создал случайную входную матрицу.
 
-После исправления loader smoke повторён корректно:
+После исправления loader полный smoke повторён на Spectrum:
 
-| Параметр | Результат |
+| Артефакт | Результат |
 | --- | --- |
+| Commit | `147660d5326a1880d54c6fae21a62d27f8144386` |
+| Slurm | jobs `83`, `84`, `85`, все `COMPLETED` |
 | Данные | `32` train-only spectra, `1,056` кандидатов |
 | Encoders | frozen MIST `640d` + frozen ChemBERTa `768d` |
-| Candidate pool | До и после reranking одинаковый |
+| Checkpoint | SHA-256 `57c47c6a85d33ae90b3e790939b23ca9b31fa6d5054d1b75a077992393dc71d0` |
+| Candidate identity | SHA-256 `fe3ea27363ff15c93ab88b8ea91e0faf6b7a4e38bd87c8d5a13be3eafa380bbf`, до и после одинаковый |
 | Top-1 | train `20/20`; internal development `1/12` |
 
 Вывод:
@@ -829,7 +958,14 @@ candidate-list + symmetric InfoNCE training и target-blind reranking. Перв�
 production-shaped train corpus и paired reranking frozen development union.
 ```
 
-**Эксперимент 26: RankLoop MIST/DreaMS на frozen four-source union**
+Доказательства:
+
+- `/home/nikolenko/work/Projects/FRIGID_rankloop_runs/chemberta_embeddings_smoke32_147660d`;
+- `/home/nikolenko/work/Projects/FRIGID_rankloop_runs/dual_chemberta_smoke32_147660d`;
+- `/home/nikolenko/work/Projects/FRIGID_rankloop_runs/rerank_smoke32_147660d`;
+- Linear: `SPA-159`, `SPA-165`.
+
+**Эксперимент 32: RankLoop MIST/DreaMS на frozen four-source union**
 
 Собрали train-only корпус из `4,096` spectra и `4,096` molecules: `64`
 negatives на query, train/development разделены по scaffold/connectivity без
@@ -863,7 +999,18 @@ Candidate pool во всех paired сравнениях оставался не
 forward consistency, а не новый подбор fusion alpha.
 ```
 
-**Эксперимент 27: ICEBERG forward consistency reranker**
+Основные доказательства на `spectrum`:
+
+- commit `68c716e1e64c16067c8efbb7baf07dd0e07b25cf`;
+- RankLoop checkpoint `d16101fbdac34d961ebd34664bf5efa2adfd21797023c7d1f51be635e0670a7b`;
+- `/home/nikolenko/work/Projects/FRIGID_rankloop_runs/evaluation_micro128_a44d172`;
+- `/home/nikolenko/work/Projects/FRIGID_rankloop_runs/evaluation_dreams_dev64_68c716e`;
+- `/home/nikolenko/work/Projects/FRIGID_rankloop_runs/evaluation_dreams_micro128_68c716e`;
+- `/home/nikolenko/work/Projects/FRIGID_rankloop_runs/evaluation_dreams_micro256_68c716e`;
+- `/home/nikolenko/work/Projects/FRIGID_rankloop_runs/evaluation_dreams_macro64_68c716e`;
+- Linear: `SPA-159`, `SPA-165`, следующий `SPA-169`.
+
+**Эксперимент 33: ICEBERG forward consistency reranker**
 
 Для top-10 frozen four-source union рассчитали predicted MS/MS официальным
 ICEBERG и смешали forward cosine с исходным MIST score. Target labels не
@@ -883,7 +1030,46 @@ finite, `33` missing, полностью недегенеративны `102/128
 futility rule не пройден, поэтому ветка закрыта без `micro256`, `macro64`,
 `1,024` и full. Compact alpha не перенастраивался.
 
-**Эксперимент 28: conformal candidate sets и abstention**
+Доказательства:
+
+- `spectrum`, jobs `127`, `129`, `130`, `131`;
+- commits `2d09853aa71f134cf9df2787aedfddccc161e4ca`,
+  `da705b2d6fcd0c978e27b40ca408d6f170aafd25`, `62558f1cc8272d7bc324d8f2a956d81f57c66c63`;
+- `/home/nikolenko/work/Projects/FRIGID_forward_runs/iceberg_forward_dev64_2d09853`;
+- `/home/nikolenko/work/Projects/FRIGID_forward_runs/forward_fusion_dev64_da705b2`;
+- `/home/nikolenko/work/Projects/FRIGID_forward_runs/iceberg_forward_micro128_520231f`;
+- `/home/nikolenko/work/Projects/FRIGID_forward_runs/forward_fusion_micro128_62558f1`;
+- Linear: `SPA-169`.
+
+**Эксперимент 34: запуск full 17,082 frozen reference**
+
+Аудит показал, что старые full-артефакты нельзя объединять: завершённый DLM
+использовал NGBoost, no-NGBoost был отменён без пригодного результата, а
+MolForge содержит только `7,613/17,082`. Полной retrieval-таблицы также нет.
+
+На `spectrum` создан чистый worktree и проверен реальный порядок benchmark:
+
+- commit `e1b18a9d7a68d2244a981b36c0b4bc261db78223`;
+- manifest `17,082/17,082`, SHA-256
+  `5fdb73ae3a5ea5ef5dc13b0eaa0a138e9871a099b03eecc0c6af8d802949e69e`;
+- MIST checkpoint `09b4e93e...`, DLM checkpoint `b6177c2d...`;
+- preflight job `132`: `COMPLETED`, `2/2` spectra, все outputs захэшированы;
+- control jobs `133-150`: temperature `1.0`, `100` attempts;
+- complementary jobs `151-168`: temperature `0.8`, `200` attempts;
+- каждый job использует полную A100, batch `16`, float32, seed `42`, без
+  NGBoost; диапазоны непересекающиеся, последний shard содержит `82` spectra.
+
+Run root:
+`/home/nikolenko/work/Projects/FRIGID_full_runs/four_source_full_e1b18a9_20260713`.
+Submission manifest SHA-256:
+`1ec9e607bcbe18ee177f76fc082523450ccd07d330a79c9e9d5476652ac2c906`.
+
+Состояние: `running`, job `133` уже считает первый control shard. Следующий
+валидный результат — merge каждого DLM source при точном покрытии
+`17,082/17,082`; затем нужно завершить отсутствующие MolForge/retrieval ranges
+и выполнить frozen target-blind fusion. Linear: `SPA-155`.
+
+**Эксперимент 35: conformal candidate sets и abstention**
 
 На `dev64` раздельно и детерминированно обучены temperature `0.01` и
 conformal quantiles. Ranking и candidate pool не менялись. Locked labels
@@ -910,23 +1096,77 @@ micro256/macro64, однако low-margin subgroup на micro256 получил 
 подтверждены. Без перенастройки на locked panels ветка не идёт в 1,024/full.
 ```
 
-**Текущий full benchmark**
+Доказательства на `spectrum`:
 
-Frozen four-source union считается на полном наборе из `17,082` spectra без
-изменения источников, generation budget или ranking policy. Частичные shards
-не используются как метрика и не влияют на настройки модели.
+- code/config commit `d936d86fa4aa5f02f89abbe75b743e9dbeb4f3ad`;
+- micro128 run manifest SHA-256
+  `a9bdaaa29bdc48c8c78d80bca400a3c1279600bae905ee49dca3981a1c7e5ef0`;
+- micro256 run manifest SHA-256
+  `cd4736df4f5040e63505eaa45da7fa96385ff4e5fa55ef9253b57214b2764155`;
+- macro64 run manifest SHA-256
+  `cdb51c1477aef78647bb8ddf7e842a78d231dfdec693268be0b707a785d8e753`;
+- `/home/nikolenko/work/Projects/FRIGID_conformal_runs/`;
+- Linear: `SPA-172`.
 
-После полного покрытия будут опубликованы только итоговые model-quality
-результаты:
+**Эксперимент 36: подготовка full train-only retrieval**
 
-- Exact match top-1 и top-10;
-- Tanimoto top-1 и top-10;
-- MCES top-1 и top-10;
-- candidate recall;
-- вклад каждого источника через source-only и leave-one-out сравнения;
-- paired molecule-cluster confidence intervals против DLM control.
+Старый full MIST fingerprint export удалён; в compact report сохранились только
+его hashes. Legacy retrieval также непригоден для full: он выполняет Python
+loop по `17,082 x 22,746` парам query/train molecule.
 
-```text
-Full benchmark ещё не завершён, поэтому новой full-метрики пока нет.
-Текущий подтверждённый лидер остаётся four-source union на locked 1,024.
-```
+Реализован exact matrix backend, который пакетно считает Morgan-4096 Tanimoto,
+но сохраняет прежние formula-first ranking и stable tie order. Synthetic
+legacy-vs-matrix тесты дают идентичные candidates, ranks и scores. Train/test
+molecule overlap в MSG равен `0`.
+
+На `spectrum` поставлен job `169`:
+
+- clean commit `733c588e547c57c024db60e6f7266c686c6d9388`;
+- состояние `PENDING (Dependency)`;
+- dependency: все DLM jobs `133-168`, поэтому job не конкурирует за A100;
+- сначала MIST export для ordered `17,082`, затем exact train-only retrieval;
+- обязательный результат: `17,082` queries и `170,820` candidate rows;
+- run directory:
+  `/home/nikolenko/work/Projects/FRIGID_full_runs/four_source_full_e1b18a9_20260713/sources/train_only_retrieval_full_733c588`.
+
+Это orchestration/preparation, а не новый quality claim. Источник войдёт в
+full union только после hash/coverage validation и воспроизведения frozen
+compact retrieval policy. Linear: `SPA-155`.
+
+**Эксперимент 37: сохранение и продолжение full MolForge**
+
+Аудит обнаружил, что старый full MolForge продолжал считать напрямую на
+`cuda:0` вне Slurm и конкурировал с DLM job `133`. Процесс остановлен через
+`SIGINT`; файл закрылся корректно и сохранил точный prefix полного manifest:
+
+- `8,630/17,082` spectra, остаток `8,452`;
+- последний сохранённый spectrum: `MassSpecGymID0219269`;
+- predictions SHA-256:
+  `2b67438042922592e900a5264acb49ab686308d1db52aeda658a15153eca47c7`;
+- порядок prefix полностью совпадает с locked manifest;
+- после остановки на A100 остался только Slurm DLM process.
+
+В `convert_molforge_predictions.py` добавлено безопасное объединение нескольких
+JSONL parts: результат принимается только при точном совпадении полного
+`spec_name` order. Добавлен Slurm resume с отдельными suffix labels/split,
+проверкой обоих checkpoint hashes и target-blind conversion.
+
+Spectrum preflight прошёл на реальных данных:
+
+- FRIGID clean worktree commit
+  `ad8cf6aca26c9785752660aa11bc8be2187364c4`;
+- MolForge clean worktree commit
+  `2e5f37cef6edb47991f94f03ba2552833ef3e225`;
+- suffix range `[8,630, 17,082)`, ровно `8,452` spectra;
+- suffix manifest SHA-256
+  `97a35e9e3946bb0ff5f99945f49cbec5a594fe1455c2c83983e886ee25684c5e`;
+- five focused converter tests passed.
+
+Job `170` поставлен в `PENDING (Dependency)` с `afterany:169`, partition
+`gpu`, `gres/gpu:1`. Поэтому MolForge не конкурирует ни с jobs `133-168`, ни с
+full retrieval job `169`. Run directory:
+`/home/nikolenko/work/Projects/FRIGID_full_runs/four_source_full_e1b18a9_20260713/sources/molforge_full_resume_ad8cf6a`.
+
+Это исправление orchestration, а не новая метрика качества. Следующий валидный
+результат MolForge: suffix `8,452/8,452`, затем общий candidate source с exact
+coverage `17,082/17,082`. Linear: `SPA-155`.
