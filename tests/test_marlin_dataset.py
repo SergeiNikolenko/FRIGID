@@ -7,9 +7,16 @@ import pytest
 from marlin.dataset import (
     file_list_sha256,
     sha256_file,
+    streaming_loader_workers,
     verify_filtered_prefix_cache,
     verify_snapshot_manifest,
 )
+
+
+def test_filtered_prefix_stream_uses_one_worker_for_unshardable_tail() -> None:
+    assert streaming_loader_workers(8, uses_filtered_prefix=True) == 1
+    assert streaming_loader_workers(0, uses_filtered_prefix=True) == 0
+    assert streaming_loader_workers(8, uses_filtered_prefix=False) == 8
 
 
 def test_verify_filtered_prefix_cache_returns_shard_and_offset(tmp_path: Path) -> None:

@@ -21,6 +21,16 @@ def file_list_sha256(files: list[dict[str, object]]) -> str:
     return hashlib.sha256(payload).hexdigest()
 
 
+def streaming_loader_workers(requested: int, *, uses_filtered_prefix: bool) -> int:
+    """Choose a worker count compatible with the composed streaming pipeline."""
+    if requested < 0:
+        raise ValueError("data loader worker count must be non-negative")
+    if uses_filtered_prefix and requested > 0:
+        # Hugging Face SkipExamplesIterable cannot shard the uncached tail.
+        return 1
+    return requested
+
+
 def verify_snapshot_manifest(
     manifest_path: str | Path,
     *,

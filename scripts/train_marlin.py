@@ -23,7 +23,11 @@ import lightning as L
 import torch
 from omegaconf import DictConfig, OmegaConf
 
-from marlin.dataset import verify_filtered_prefix_cache, verify_snapshot_manifest
+from marlin.dataset import (
+    streaming_loader_workers,
+    verify_filtered_prefix_cache,
+    verify_snapshot_manifest,
+)
 from marlin.model import MarlinDecoderConfig
 from marlin.periodic_evaluation import PeriodicMolecularEvaluation
 from marlin.tokenizer import load_safe_tokenizer, validate_safe_tokenizer
@@ -304,7 +308,8 @@ def main(config: DictConfig) -> None:
         config.data.exclude_inchikeys,
     )
     cache_manifest = Path(config.data.filtered_prefix_cache_manifest)
-    if cache_manifest.is_file():
+    uses_filtered_prefix = cache_manifest.is_file()
+    if uses_filtered_prefix:
         cache_shard, raw_rows_consumed = verify_filtered_prefix_cache(
             cache_manifest,
             source_manifest_sha256=snapshot_manifest_sha256,
@@ -331,10 +336,21 @@ def main(config: DictConfig) -> None:
         fingerprint_bits=decoder_config.fingerprint_bits,
         exclude_inchikeys=config.data.exclude_inchikeys,
     )
+    loader_workers = streaming_loader_workers(
+        int(config.loader.num_workers),
+        uses_filtered_prefix=uses_filtered_prefix,
+    )
+    if loader_workers != int(config.loader.num_workers):
+        print(
+            "Filtered-prefix cache uses an unshardable SkipExamplesIterable tail; "
+            f"using {loader_workers} DataLoader worker instead of "
+            f"{config.loader.num_workers}.",
+            flush=True,
+        )
     loader = torch.utils.data.DataLoader(
         dataset,
         batch_size=config.loader.batch_size,
-        num_workers=config.loader.num_workers,
+        num_workers=loader_workers,
         pin_memory=True,
         collate_fn=collator,
     )
