@@ -29,6 +29,7 @@ VERIFY_SNAPSHOT_HASHES="${MARLIN_VERIFY_SNAPSHOT_HASHES:-}"
 BATCH_SIZE="${MARLIN_BATCH_SIZE:-}"
 NUM_WORKERS="${MARLIN_NUM_WORKERS:-}"
 SHUFFLE_BUFFER="${MARLIN_SHUFFLE_BUFFER:-}"
+FILTERED_PREFIX_ONLY="${MARLIN_FILTERED_PREFIX_ONLY:-}"
 ACCUMULATE_GRAD_BATCHES="${MARLIN_ACCUMULATE_GRAD_BATCHES:-}"
 METADATA_CSV="${MARLIN_METADATA_CSV:-}"
 METADATA_CSV_SHA256="${MARLIN_METADATA_CSV_SHA256:-}"
@@ -54,6 +55,9 @@ append_override trainer.accumulate_grad_batches "$ACCUMULATE_GRAD_BATCHES"
 append_override loader.batch_size "$BATCH_SIZE"
 append_override loader.num_workers "$NUM_WORKERS"
 append_override data.shuffle_buffer "$SHUFFLE_BUFFER"
+if [[ -n "$FILTERED_PREFIX_ONLY" ]]; then
+    TRAIN_ARGS+=("+data.filtered_prefix_only=$FILTERED_PREFIX_ONLY")
+fi
 append_override output.checkpoint_interval "$CHECKPOINT_INTERVAL"
 append_override training.metric_interval "$METRIC_INTERVAL"
 if [[ -n "$EOS_LOSS_WEIGHT" ]]; then

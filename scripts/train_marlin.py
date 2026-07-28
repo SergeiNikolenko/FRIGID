@@ -85,12 +85,19 @@ def is_architecture_recovery(config: DictConfig) -> bool:
     return float(config.model.get("layer0_long_residual_scale", 0.0)) != 0.0
 
 
+def is_cached_prefix_replay(config: DictConfig) -> bool:
+    """Return whether training intentionally replays the finite cached prefix."""
+    return bool(config.data.get("filtered_prefix_only", False))
+
+
 def training_variant(config: DictConfig) -> str:
     variants = []
     if is_eos_recovery(config):
         variants.append("EOS recovery")
     if is_architecture_recovery(config):
         variants.append("layer-0 residual recovery")
+    if is_cached_prefix_replay(config):
+        variants.append("cached-prefix replay")
     return "experimental " + " + ".join(variants) if variants else "paper recipe"
 
 
@@ -105,7 +112,9 @@ def write_run_manifest(config: DictConfig, tokenizer_sha256: str) -> dict:
         "created_at_utc": datetime.now(timezone.utc).isoformat(),
         "clean_room_reproduction": True,
         "paper_training_recipe": not (
-            is_eos_recovery(config) or is_architecture_recovery(config)
+            is_eos_recovery(config)
+            or is_architecture_recovery(config)
+            or is_cached_prefix_replay(config)
         ),
         "training_variant": training_variant(config),
         "author_code_available_at_start": False,
@@ -175,6 +184,7 @@ def initialize_clearml(config: DictConfig):
     job_id = os.environ.get("SLURM_JOB_ID", "local")
     recovery = is_eos_recovery(config)
     architecture_recovery = is_architecture_recovery(config)
+    cached_prefix_replay = is_cached_prefix_replay(config)
     tags = list(config.tracking.clearml.tags)
     if recovery:
         tags.extend(["experimental", "eos-recovery", "non-paper-objective"])
@@ -182,11 +192,17 @@ def initialize_clearml(config: DictConfig):
         tags.extend(
             ["experimental", "layer0-residual", "non-paper-architecture"]
         )
+    if cached_prefix_replay:
+        tags.extend(
+            ["experimental", "cached-prefix-replay", "non-paper-data-order"]
+        )
     suffixes = []
     if recovery:
         suffixes.append("eos-recovery")
     if architecture_recovery:
         suffixes.append("layer0-residual")
+    if cached_prefix_replay:
+        suffixes.append("cached-prefix-replay")
     task_suffix = "-".join(suffixes)
     task = Task.init(
         project_name=config.tracking.clearml.project_name,
@@ -341,18 +357,30 @@ def main(config: DictConfig) -> None:
             max_length=decoder_config.max_length,
             minimum_rows=int(config.data.shuffle_buffer),
         )
+        cached_prefix_replay = is_cached_prefix_replay(config)
         cached_prefix = datasets.load_dataset(
             "parquet",
             data_files={"train": [cache_shard]},
             split="train",
-            streaming=True,
+            streaming=not cached_prefix_replay,
             cache_dir=config.data.hf_cache_dir,
         )
-        filtered_tail = source_dataset.skip(raw_rows_consumed).filter(training_filter)
-        dataset = datasets.concatenate_datasets([cached_prefix, filtered_tail])
+        if cached_prefix_replay:
+            dataset = cached_prefix
+        else:
+            filtered_tail = source_dataset.skip(raw_rows_consumed).filter(
+                training_filter
+            )
+            dataset = datasets.concatenate_datasets([cached_prefix, filtered_tail])
     else:
         dataset = source_dataset.filter(training_filter)
-    dataset = dataset.shuffle(seed=config.seed, buffer_size=config.data.shuffle_buffer)
+    if is_cached_prefix_replay(config):
+        dataset = dataset.shuffle(seed=config.seed)
+    else:
+        dataset = dataset.shuffle(
+            seed=config.seed,
+            buffer_size=config.data.shuffle_buffer,
+        )
     collator = MarlinCollator(
         tokenizer,
         max_length=decoder_config.max_length,
@@ -361,7 +389,9 @@ def main(config: DictConfig) -> None:
     )
     loader_workers = streaming_loader_workers(
         int(config.loader.num_workers),
-        uses_filtered_prefix=uses_filtered_prefix,
+        uses_filtered_prefix=(
+            uses_filtered_prefix and not is_cached_prefix_replay(config)
+        ),
     )
     if loader_workers != int(config.loader.num_workers):
         print(

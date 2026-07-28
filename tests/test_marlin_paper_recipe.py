@@ -28,6 +28,7 @@ def test_training_config_matches_paper_recipe():
     assert config.training.ema_decay == 0.9999
     assert config.loader.batch_size * config.trainer.accumulate_grad_batches == 256
     assert "resume_weights_only_checkpoint" not in config
+    assert "filtered_prefix_only" not in config.data
 
     assert "adaptation" not in config
     assert "layer0_long_residual_scale" not in config.model
