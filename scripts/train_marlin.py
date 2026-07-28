@@ -68,6 +68,14 @@ def package_versions(names: list[str]) -> dict[str, str | None]:
     return resolved
 
 
+def is_eos_recovery(config: DictConfig) -> bool:
+    """Return whether this run intentionally departs from the paper NELBO."""
+    return (
+        float(config.training.get("eos_loss_weight", 1.0)) != 1.0
+        or float(config.training.get("eos_mask_probability", 0.0)) != 0.0
+    )
+
+
 def write_run_manifest(config: DictConfig, tokenizer_sha256: str) -> dict:
     """Persist the immutable training inputs and execution environment."""
     commit, dirty = git_state()
@@ -78,6 +86,12 @@ def write_run_manifest(config: DictConfig, tokenizer_sha256: str) -> dict:
         "kind": "MARLIN clean-room decoder training",
         "created_at_utc": datetime.now(timezone.utc).isoformat(),
         "clean_room_reproduction": True,
+        "paper_training_recipe": not is_eos_recovery(config),
+        "training_variant": (
+            "experimental EOS recovery"
+            if is_eos_recovery(config)
+            else "paper recipe"
+        ),
         "author_code_available_at_start": False,
         "git_commit": commit,
         "slurm_job_id": os.environ.get("SLURM_JOB_ID"),
@@ -143,10 +157,18 @@ def initialize_clearml(config: DictConfig):
     from clearml import Task
 
     job_id = os.environ.get("SLURM_JOB_ID", "local")
+    recovery = is_eos_recovery(config)
+    tags = list(config.tracking.clearml.tags)
+    if recovery:
+        tags.extend(["experimental", "eos-recovery", "non-paper-objective"])
     task = Task.init(
         project_name=config.tracking.clearml.project_name,
-        task_name=f"{config.tracking.clearml.task_name}-{job_id}",
-        tags=list(config.tracking.clearml.tags),
+        task_name=(
+            f"{config.tracking.clearml.task_name}-eos-recovery-{job_id}"
+            if recovery
+            else f"{config.tracking.clearml.task_name}-{job_id}"
+        ),
+        tags=tags,
         reuse_last_task_id=False,
         output_uri=False,
         auto_connect_streams=False,
