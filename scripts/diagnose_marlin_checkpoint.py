@@ -29,13 +29,19 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--rows", type=int, default=1)
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--no-ema", action="store_true")
+    parser.add_argument("--layer0-long-residual-scale", type=float)
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
     device = torch.device(args.device)
-    model = load_decoder(args.checkpoint, device, use_ema=not args.no_ema)
+    model = load_decoder(
+        args.checkpoint,
+        device,
+        use_ema=not args.no_ema,
+        layer0_long_residual_scale=args.layer0_long_residual_scale,
+    )
     tokenizer = load_safe_tokenizer(args.tokenizer)
     metadata = pd.read_csv(args.metadata).iloc[args.row : args.row + args.rows]
     if metadata.empty:
