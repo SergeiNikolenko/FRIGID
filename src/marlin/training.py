@@ -168,6 +168,9 @@ class MarlinLightningModule(L.LightningModule):
         metric_interval: int = 50,
         eos_loss_weight: float = 1.0,
         eos_mask_probability: float = 0.0,
+        balanced_token_loss_alpha: float = 0.0,
+        token_loss_weight_max: float = 20.0,
+        full_sequence_mask_probability: float = 0.0,
     ) -> None:
         super().__init__()
         self.save_hyperparameters(
@@ -182,6 +185,9 @@ class MarlinLightningModule(L.LightningModule):
                 "metric_interval": metric_interval,
                 "eos_loss_weight": eos_loss_weight,
                 "eos_mask_probability": eos_mask_probability,
+                "balanced_token_loss_alpha": balanced_token_loss_alpha,
+                "token_loss_weight_max": token_loss_weight_max,
+                "full_sequence_mask_probability": full_sequence_mask_probability,
             }
         )
         self.decoder = MarlinDecoder(config)
@@ -194,6 +200,9 @@ class MarlinLightningModule(L.LightningModule):
         self.metric_interval = metric_interval
         self.eos_loss_weight = eos_loss_weight
         self.eos_mask_probability = eos_mask_probability
+        self.balanced_token_loss_alpha = balanced_token_loss_alpha
+        self.token_loss_weight_max = token_loss_weight_max
+        self.full_sequence_mask_probability = full_sequence_mask_probability
         self._last_metric_step = -1
         self.ema = ExponentialMovingAverage(
             self.decoder.parameters(), decay=ema_decay, use_num_updates=False
@@ -223,6 +232,9 @@ class MarlinLightningModule(L.LightningModule):
             isotope_ratios=batch["isotope_ratios"],
             eos_loss_weight=self.eos_loss_weight,
             eos_mask_probability=self.eos_mask_probability,
+            balanced_token_loss_alpha=self.balanced_token_loss_alpha,
+            token_loss_weight_max=self.token_loss_weight_max,
+            full_sequence_mask_probability=self.full_sequence_mask_probability,
             collect_metrics=collect_metrics,
         )
         if collect_metrics:

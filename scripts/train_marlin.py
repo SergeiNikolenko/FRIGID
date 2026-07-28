@@ -80,6 +80,14 @@ def is_eos_recovery(config: DictConfig) -> bool:
     )
 
 
+def is_full_mask_recovery(config: DictConfig) -> bool:
+    return float(config.training.get("full_sequence_mask_probability", 0.0)) != 0.0
+
+
+def is_balanced_token_recovery(config: DictConfig) -> bool:
+    return float(config.training.get("balanced_token_loss_alpha", 0.0)) != 0.0
+
+
 def is_architecture_recovery(config: DictConfig) -> bool:
     """Return whether an opt-in residual changes the paper architecture."""
     return float(config.model.get("layer0_long_residual_scale", 0.0)) != 0.0
@@ -99,6 +107,10 @@ def training_variant(config: DictConfig) -> str:
     variants = []
     if is_eos_recovery(config):
         variants.append("EOS recovery")
+    if is_full_mask_recovery(config):
+        variants.append("full-mask recovery")
+    if is_balanced_token_recovery(config):
+        variants.append("balanced-token recovery")
     if is_architecture_recovery(config):
         variants.append("layer-0 residual recovery")
     if is_cached_prefix_replay(config):
@@ -120,6 +132,8 @@ def write_run_manifest(config: DictConfig, tokenizer_sha256: str) -> dict:
         "clean_room_reproduction": True,
         "paper_training_recipe": not (
             is_eos_recovery(config)
+            or is_full_mask_recovery(config)
+            or is_balanced_token_recovery(config)
             or is_architecture_recovery(config)
             or is_cached_prefix_replay(config)
             or is_weights_only_continuation(config)
@@ -191,12 +205,20 @@ def initialize_clearml(config: DictConfig):
 
     job_id = os.environ.get("SLURM_JOB_ID", "local")
     recovery = is_eos_recovery(config)
+    full_mask_recovery = is_full_mask_recovery(config)
+    balanced_token_recovery = is_balanced_token_recovery(config)
     architecture_recovery = is_architecture_recovery(config)
     cached_prefix_replay = is_cached_prefix_replay(config)
     weights_only_continuation = is_weights_only_continuation(config)
     tags = list(config.tracking.clearml.tags)
     if recovery:
         tags.extend(["experimental", "eos-recovery", "non-paper-objective"])
+    if full_mask_recovery:
+        tags.extend(["experimental", "full-mask-recovery", "non-paper-objective"])
+    if balanced_token_recovery:
+        tags.extend(
+            ["experimental", "balanced-token-recovery", "non-paper-objective"]
+        )
     if architecture_recovery:
         tags.extend(
             ["experimental", "layer0-residual", "non-paper-architecture"]
@@ -212,6 +234,10 @@ def initialize_clearml(config: DictConfig):
     suffixes = []
     if recovery:
         suffixes.append("eos-recovery")
+    if full_mask_recovery:
+        suffixes.append("full-mask")
+    if balanced_token_recovery:
+        suffixes.append("balanced-token")
     if architecture_recovery:
         suffixes.append("layer0-residual")
     if cached_prefix_replay:
@@ -334,6 +360,13 @@ def main(config: DictConfig) -> None:
         metric_interval=config.training.metric_interval,
         eos_loss_weight=config.training.get("eos_loss_weight", 1.0),
         eos_mask_probability=config.training.get("eos_mask_probability", 0.0),
+        balanced_token_loss_alpha=config.training.get(
+            "balanced_token_loss_alpha", 0.0
+        ),
+        token_loss_weight_max=config.training.get("token_loss_weight_max", 20.0),
+        full_sequence_mask_probability=config.training.get(
+            "full_sequence_mask_probability", 0.0
+        ),
     )
     if config.get("frigid_warm_start_checkpoint"):
         report = load_frigid_decoder(

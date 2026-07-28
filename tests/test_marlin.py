@@ -160,12 +160,21 @@ def test_training_accepts_optional_eos_recovery_controls():
         config,
         eos_loss_weight=5.0,
         eos_mask_probability=1.0,
+        balanced_token_loss_alpha=0.5,
+        token_loss_weight_max=10.0,
+        full_sequence_mask_probability=0.25,
     )
 
     assert module.eos_loss_weight == 5.0
     assert module.eos_mask_probability == 1.0
     assert module.hparams["eos_loss_weight"] == 5.0
     assert module.hparams["eos_mask_probability"] == 1.0
+    assert module.balanced_token_loss_alpha == 0.5
+    assert module.token_loss_weight_max == 10.0
+    assert module.full_sequence_mask_probability == 0.25
+    assert module.hparams["balanced_token_loss_alpha"] == 0.5
+    assert module.hparams["token_loss_weight_max"] == 10.0
+    assert module.hparams["full_sequence_mask_probability"] == 0.25
 
 
 def test_theoretical_isotope_ratios_include_m_plus_one_and_two():
