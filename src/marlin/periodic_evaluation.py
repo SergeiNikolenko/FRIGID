@@ -79,8 +79,7 @@ class PeriodicMolecularEvaluation(L.Callback):
             torch.cuda.empty_cache()
         subprocess.run(command, cwd=self.project_root, check=True)
 
-    def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx) -> None:
-        del pl_module, outputs, batch, batch_idx
+    def _maybe_run(self, trainer) -> None:
         evaluation = self.config.get("evaluation")
         if not trainer.is_global_zero or not evaluation or not bool(evaluation.enabled):
             return
@@ -97,3 +96,13 @@ class PeriodicMolecularEvaluation(L.Callback):
             self._completed_steps.add(step)
         except Exception as error:  # evaluation must never destroy a training run
             self._report_failure(step, error)
+
+    def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx) -> None:
+        del pl_module, outputs, batch, batch_idx
+        self._maybe_run(trainer)
+
+    def on_train_end(self, trainer, pl_module) -> None:
+        del pl_module
+        # ModelCheckpoint may write the final checkpoint after this callback's
+        # last on_train_batch_end hook. Retry once after all training batches.
+        self._maybe_run(trainer)
