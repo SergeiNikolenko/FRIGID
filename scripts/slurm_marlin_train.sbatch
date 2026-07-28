@@ -20,6 +20,8 @@ RESUME_CHECKPOINT="${MARLIN_RESUME_CHECKPOINT:-}"
 FRIGID_WARM_START_CHECKPOINT="${MARLIN_FRIGID_WARM_START_CHECKPOINT:-}"
 FRIGID_WARM_START_SHA256="${MARLIN_FRIGID_WARM_START_SHA256:-}"
 METRIC_INTERVAL="${MARLIN_METRIC_INTERVAL:-}"
+EOS_LOSS_WEIGHT="${MARLIN_EOS_LOSS_WEIGHT:-}"
+EOS_MASK_PROBABILITY="${MARLIN_EOS_MASK_PROBABILITY:-}"
 MOLECULAR_EVAL_ENABLED="${MARLIN_MOLECULAR_EVAL_ENABLED:-}"
 MOLECULAR_EVAL_INTERVAL="${MARLIN_MOLECULAR_EVAL_INTERVAL:-}"
 VERIFY_SNAPSHOT_HASHES="${MARLIN_VERIFY_SNAPSHOT_HASHES:-}"
@@ -53,6 +55,12 @@ append_override loader.num_workers "$NUM_WORKERS"
 append_override data.shuffle_buffer "$SHUFFLE_BUFFER"
 append_override output.checkpoint_interval "$CHECKPOINT_INTERVAL"
 append_override training.metric_interval "$METRIC_INTERVAL"
+if [[ -n "$EOS_LOSS_WEIGHT" ]]; then
+    TRAIN_ARGS+=("+training.eos_loss_weight=$EOS_LOSS_WEIGHT")
+fi
+if [[ -n "$EOS_MASK_PROBABILITY" ]]; then
+    TRAIN_ARGS+=("+training.eos_mask_probability=$EOS_MASK_PROBABILITY")
+fi
 append_override evaluation.enabled "$MOLECULAR_EVAL_ENABLED"
 append_override evaluation.interval_steps "$MOLECULAR_EVAL_INTERVAL"
 append_override data.verify_snapshot_hashes "$VERIFY_SNAPSHOT_HASHES"

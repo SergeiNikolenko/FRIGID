@@ -100,6 +100,32 @@ def test_marlin_uses_fixed_decay_ema():
     assert module.ema.num_updates is None
 
 
+def test_training_accepts_optional_eos_recovery_controls():
+    config = MarlinDecoderConfig(
+        vocab_size=8,
+        hidden_size=8,
+        num_layers=1,
+        num_heads=1,
+        intermediate_size=16,
+        max_length=5,
+        block_width=2,
+        fingerprint_bits=4,
+        dropout=0.0,
+        mask_token_id=3,
+        pad_token_id=0,
+    )
+    module = MarlinLightningModule(
+        config,
+        eos_loss_weight=5.0,
+        eos_mask_probability=1.0,
+    )
+
+    assert module.eos_loss_weight == 5.0
+    assert module.eos_mask_probability == 1.0
+    assert module.hparams["eos_loss_weight"] == 5.0
+    assert module.hparams["eos_mask_probability"] == 1.0
+
+
 def test_theoretical_isotope_ratios_include_m_plus_one_and_two():
     ratios = theoretical_isotope_ratios(Chem.MolFromSmiles("CCl"))
     assert ratios.shape == (2,)

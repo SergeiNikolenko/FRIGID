@@ -251,6 +251,8 @@ def main(config: DictConfig) -> None:
         noise_max_fraction=config.training.noise_max_fraction,
         ema_decay=config.training.ema_decay,
         metric_interval=config.training.metric_interval,
+        eos_loss_weight=config.training.get("eos_loss_weight", 1.0),
+        eos_mask_probability=config.training.get("eos_mask_probability", 0.0),
     )
     if config.get("frigid_warm_start_checkpoint"):
         report = load_frigid_decoder(
