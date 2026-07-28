@@ -84,6 +84,10 @@ class PeriodicMolecularEvaluation(L.Callback):
         interval = int(evaluation.interval_steps)
         if step <= 0 or step % interval or step in self._completed_steps:
             return
+        # A resumed run initially reports the source global step before its
+        # first optimizer update, but that checkpoint belongs to another root.
+        if not self._checkpoint(step).is_file():
+            return
         try:
             self._run(step)
             self._completed_steps.add(step)
