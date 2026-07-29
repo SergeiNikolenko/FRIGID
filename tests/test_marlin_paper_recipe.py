@@ -99,3 +99,5 @@ def test_faro_evaluation_isolated_from_training_process():
     assert "python -X faulthandler scripts/evaluate_marlin_nplib1.py" in script
     assert '--clearml-task-id "$TASK_ID"' in script
     assert "MARLIN_EVAL_CHECKPOINT" in script
+    assert "MARLIN_EVAL_DISABLE_GRAMMAR_MASK" in script
+    assert "MARLIN_EVAL_DISABLE_MASS_SHELL" in script

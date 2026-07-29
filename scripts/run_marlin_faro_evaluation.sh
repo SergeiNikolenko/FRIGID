@@ -18,6 +18,14 @@ python scripts/materialize_marlin_runtime_inputs.py
 test -f "$CHECKPOINT"
 test ! -e "$OUTPUT_ROOT"
 
+EXTRA_ARGS=()
+if [[ "${MARLIN_EVAL_DISABLE_GRAMMAR_MASK:-0}" == "1" ]]; then
+  EXTRA_ARGS+=(--disable-grammar-mask)
+fi
+if [[ "${MARLIN_EVAL_DISABLE_MASS_SHELL:-0}" == "1" ]]; then
+  EXTRA_ARGS+=(--disable-mass-shell)
+fi
+
 python -X faulthandler scripts/evaluate_marlin_nplib1.py \
   --checkpoint "$CHECKPOINT" \
   --tokenizer "$RUNTIME_ROOT/tokenizer.json" \
@@ -34,4 +42,5 @@ python -X faulthandler scripts/evaluate_marlin_nplib1.py \
   --ppm-tolerance 10.0 \
   --seed 42 \
   --clearml-iteration "$SOURCE_STEP" \
-  --clearml-task-id "$TASK_ID"
+  --clearml-task-id "$TASK_ID" \
+  "${EXTRA_ARGS[@]}"
