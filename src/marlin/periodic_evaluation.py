@@ -95,17 +95,19 @@ class PeriodicMolecularEvaluation(L.Callback):
             return
         step = int(trainer.global_step)
         interval = int(evaluation.interval_steps)
-        if step <= 0 or step % interval or step in self._completed_steps:
+        checkpoint_step = step - step % interval
+        if checkpoint_step <= 0 or checkpoint_step in self._completed_steps:
             return
         # A resumed run initially reports the source global step before its
         # first optimizer update, but that checkpoint belongs to another root.
-        if not self._checkpoint(step).is_file():
+        if not self._checkpoint(checkpoint_step).is_file():
             return
         try:
-            self._run(step)
-            self._completed_steps.add(step)
+            self._run(checkpoint_step)
         except Exception as error:  # evaluation must never destroy a training run
-            self._report_failure(step, error)
+            self._report_failure(checkpoint_step, error)
+        finally:
+            self._completed_steps.add(checkpoint_step)
 
     def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx) -> None:
         del pl_module, outputs, batch, batch_idx
