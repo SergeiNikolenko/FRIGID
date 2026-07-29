@@ -89,3 +89,13 @@ def test_faro_requirements_pin_legacy_resolver_conflicts():
     assert "fsspec==2024.2.0" in requirements
     assert "dill==0.3.8" in requirements
     assert "multiprocess==0.70.16" in requirements
+
+
+def test_faro_evaluation_isolated_from_training_process():
+    script = (
+        PROJECT_ROOT / "scripts/run_marlin_faro_evaluation.sh"
+    ).read_text()
+
+    assert "python -X faulthandler scripts/evaluate_marlin_nplib1.py" in script
+    assert '--clearml-task-id "$TASK_ID"' in script
+    assert "MARLIN_EVAL_CHECKPOINT" in script

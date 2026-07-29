@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import traceback
@@ -56,6 +57,8 @@ class PeriodicMolecularEvaluation(L.Callback):
             return
         command = [
             sys.executable,
+            "-X",
+            "faulthandler",
             str(self.project_root / "scripts" / "evaluate_marlin_nplib1.py"),
             "--checkpoint", str(checkpoint),
             "--tokenizer", str(self.config.data.tokenizer_file),
@@ -87,7 +90,14 @@ class PeriodicMolecularEvaluation(L.Callback):
             command.extend(["--clearml-task-id", self.clearml_task.id])
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
-        subprocess.run(command, cwd=self.project_root, check=True)
+        environment = dict(os.environ)
+        environment["PYTHONFAULTHANDLER"] = "1"
+        subprocess.run(
+            command,
+            cwd=self.project_root,
+            check=True,
+            env=environment,
+        )
 
     def _maybe_run(self, trainer) -> None:
         evaluation = self.config.get("evaluation")

@@ -30,6 +30,7 @@ from marlin.dataset import (
 )
 from marlin.model import MarlinDecoderConfig
 from marlin.periodic_evaluation import PeriodicMolecularEvaluation
+from marlin.clearml_metrics import ClearMLTrainingMetrics
 from marlin.tokenizer import load_safe_tokenizer, validate_safe_tokenizer
 from marlin.training import (
     MarlinCollator,
@@ -518,6 +519,7 @@ def main(config: DictConfig) -> None:
         project_root=PROJECT_ROOT,
         clearml_task=clearml_task,
     )
+    clearml_training_metrics = ClearMLTrainingMetrics(clearml_task)
     trainer = L.Trainer(
         accelerator="gpu",
         devices=config.trainer.devices,
@@ -527,7 +529,7 @@ def main(config: DictConfig) -> None:
         accumulate_grad_batches=config.trainer.accumulate_grad_batches,
         gradient_clip_val=config.trainer.gradient_clip_val,
         log_every_n_steps=config.trainer.log_every_n_steps,
-        callbacks=[checkpoint, molecular_evaluation],
+        callbacks=[checkpoint, molecular_evaluation, clearml_training_metrics],
         default_root_dir=config.output.root,
     )
     try:
