@@ -511,7 +511,7 @@ def main(config: DictConfig) -> None:
         dirpath=config.output.checkpoints,
         filename="{step}",
         every_n_train_steps=config.output.checkpoint_interval,
-        save_top_k=-1,
+        save_top_k=1,
     )
     molecular_evaluation = PeriodicMolecularEvaluation(
         config,
