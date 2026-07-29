@@ -25,6 +25,7 @@ EVALUATION_ENABLED="${EXPANDING_EVALUATION_ENABLED:-}"
 EVALUATION_INTERVAL="${EXPANDING_EVALUATION_INTERVAL:-$CHECKPOINT_INTERVAL}"
 FLOW_MODULES_ONLY_STEPS="${EXPANDING_FLOW_MODULES_ONLY_STEPS:-}"
 WARMUP_STEPS="${EXPANDING_WARMUP_STEPS:-}"
+BACKBONE_LEARNING_RATE="${EXPANDING_BACKBONE_LEARNING_RATE:-}"
 ALLOW_DIRTY="${EXPANDING_ALLOW_DIRTY_WORKTREE:-false}"
 export PYTHONPATH="$CODE/src:$ROOT/vendor"
 export HF_HOME="${MARLIN_HF_HOME:-$SHARED_ROOT/cache/huggingface}"
@@ -55,6 +56,7 @@ append_override evaluation.enabled "$EVALUATION_ENABLED"
 append_override evaluation.interval_steps "$EVALUATION_INTERVAL"
 append_override training.flow_modules_only_steps "$FLOW_MODULES_ONLY_STEPS"
 append_override optim.warmup_steps "$WARMUP_STEPS"
+append_override optim.backbone_learning_rate "$BACKBONE_LEARNING_RATE"
 if [[ -n "$RESUME_CHECKPOINT" ]]; then
     ARGS+=("resume_checkpoint=${RESUME_CHECKPOINT//=/\\=}")
     ARGS+=("frigid_warm_start_checkpoint=null")

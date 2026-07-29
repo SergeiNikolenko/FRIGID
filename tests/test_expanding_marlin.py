@@ -172,6 +172,26 @@ def test_eflow_staged_adaptation_preserves_ema_parameter_order():
     module.ema.update(module.model.parameters())
 
 
+def test_eflow_uses_separate_flow_and_backbone_learning_rates():
+    decoder, flow = tiny_configs()
+    module = ExpandingMarlinLightningModule(
+        decoder,
+        flow,
+        learning_rate=3e-4,
+        backbone_learning_rate=5e-5,
+    )
+
+    configured = module.configure_optimizers()
+    optimizer = configured["optimizer"]
+    scheduler = configured["lr_scheduler"]["scheduler"]
+    rates = {
+        group["name"]: rate
+        for group, rate in zip(optimizer.param_groups, scheduler.base_lrs)
+    }
+
+    assert rates == {"backbone": 5e-5, "flow": 3e-4}
+
+
 def test_efm_diagonal_and_semigroup_objectives_are_finite():
     decoder, diagonal_flow = tiny_configs(diagonal_probability=1.0)
     teacher = ExpandingMarlinModel(decoder, diagonal_flow).eval()
@@ -345,6 +365,7 @@ def test_expanding_config_is_separate_from_strict_marlin_recipe():
 
     assert config.architecture == "expanding"
     assert config.training.flow_modules_only_steps == 500
+    assert config.optim.backbone_learning_rate == 5e-5
     assert config.stage == "eflow"
     assert config.flow.prior_scale == 1.25
     assert config.flow.insertion_cutoff == 0.5

@@ -326,6 +326,7 @@ def main(config: DictConfig) -> None:
         flow_config,
         stage=stage,
         learning_rate=float(config.optim.learning_rate),
+        backbone_learning_rate=float(config.optim.backbone_learning_rate),
         weight_decay=float(config.optim.weight_decay),
         warmup_steps=int(config.optim.warmup_steps),
         noise_probability=float(config.training.noise_probability),

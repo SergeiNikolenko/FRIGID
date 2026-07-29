@@ -39,7 +39,9 @@ and insertion modules are randomly initialized. The default experimental
 adaptation freezes the backbone for 500 optimizer steps while learning the new
 flow-time, modulation, boundary, and insertion modules, then unfreezes the full
 network. The insertion head remains detached from the backbone for the first
-2,000 steps. EMA tracks every parameter in stable order across both stages.
+2,000 steps. New flow modules use the paper learning rate `3e-4`, while the
+pretrained backbone is capped at the MARLIN fine-tuning rate `5e-5`. EMA tracks
+every parameter in stable order across both stages.
 
 ```bash
 sbatch scripts/slurm_expanding_marlin_train.sbatch

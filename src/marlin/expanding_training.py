@@ -28,6 +28,7 @@ class ExpandingMarlinLightningModule(L.LightningModule):
         *,
         stage: str = "eflow",
         learning_rate: float = 3e-4,
+        backbone_learning_rate: float | None = None,
         weight_decay: float = 0.0,
         warmup_steps: int = 2500,
         noise_probability: float = 0.5,
@@ -42,6 +43,8 @@ class ExpandingMarlinLightningModule(L.LightningModule):
             raise ValueError("stage must be 'eflow' or 'efm'")
         if learning_rate <= 0:
             raise ValueError("learning_rate must be positive")
+        if backbone_learning_rate is not None and backbone_learning_rate <= 0:
+            raise ValueError("backbone_learning_rate must be positive")
         if weight_decay < 0:
             raise ValueError("weight_decay must be non-negative")
         if warmup_steps < 0:
@@ -54,6 +57,7 @@ class ExpandingMarlinLightningModule(L.LightningModule):
                 "flow_config": asdict(flow_config),
                 "stage": stage,
                 "learning_rate": learning_rate,
+                "backbone_learning_rate": backbone_learning_rate,
                 "weight_decay": weight_decay,
                 "warmup_steps": warmup_steps,
                 "noise_probability": noise_probability,
@@ -67,6 +71,11 @@ class ExpandingMarlinLightningModule(L.LightningModule):
         self.model = ExpandingMarlinModel(decoder_config, flow_config)
         self.stage = stage
         self.learning_rate = learning_rate
+        self.backbone_learning_rate = (
+            learning_rate
+            if backbone_learning_rate is None
+            else backbone_learning_rate
+        )
         self.weight_decay = weight_decay
         self.warmup_steps = warmup_steps
         self.noise_probability = noise_probability
@@ -212,18 +221,45 @@ class ExpandingMarlinLightningModule(L.LightningModule):
             sync_dist=True,
         )
         optimizer = self.optimizers()
+        learning_rates = {
+            group.get("name", f"group_{index}"): group["lr"]
+            for index, group in enumerate(optimizer.param_groups)
+        }
         self.log(
             "learning_rate",
-            optimizer.param_groups[0]["lr"],
+            learning_rates["flow"],
+            on_step=True,
+            sync_dist=True,
+        )
+        self.log(
+            "backbone_learning_rate",
+            learning_rates["backbone"],
             on_step=True,
             sync_dist=True,
         )
         return loss
 
     def configure_optimizers(self):
+        backbone_parameters = []
+        flow_parameters = []
+        for name, parameter in self.model.named_parameters():
+            if name.startswith("backbone."):
+                backbone_parameters.append(parameter)
+            else:
+                flow_parameters.append(parameter)
         optimizer = torch.optim.AdamW(
-            self.model.parameters(),
-            lr=self.learning_rate,
+            [
+                {
+                    "params": backbone_parameters,
+                    "lr": self.backbone_learning_rate,
+                    "name": "backbone",
+                },
+                {
+                    "params": flow_parameters,
+                    "lr": self.learning_rate,
+                    "name": "flow",
+                },
+            ],
             weight_decay=self.weight_decay,
             betas=(0.9, 0.999),
             eps=1e-8,
