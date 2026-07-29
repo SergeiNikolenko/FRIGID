@@ -18,6 +18,7 @@ if [[ -n "$HOST_MOUNT_ROOT" ]]; then
         candidate="$HOST_MOUNT_ROOT/$relative_path"
         if [[ -e "$candidate" ]]; then
             printf 'host_storage_candidate=present path=%s\n' "$candidate"
+            df -Pk "$candidate" | tail -n 1 | sed 's/^/host_storage_filesystem=/'
         else
             printf 'host_storage_candidate=absent path=%s\n' "$candidate"
         fi
