@@ -62,6 +62,40 @@ The independent three-seed 4 × 16 baseline has score 0.046994, candidate return
 variance is high, which is why a one-seed architecture screen cannot promote a
 checkpoint.
 
+### FRIGID parity and staged adaptation
+
+The official FRIGID warm start is pinned by SHA-256
+`b6177c2d43448380aba80ff41c01461ea34ca2ca93b213986954c5afb7f0f457`.
+The parity audit at commit `4701a8a` matched the released fingerprint token
+sets within `3.73e-8` and final logits within `1.15e-5`; its machine-readable
+artifact is
+`/mnt/netstorage/nikolenko/marlin/runs/autoresearch/parity/frigid-parity-4701a8a.json`.
+
+The strict adaptation schedule trains conditioning-only parameters through
+step 100, cross-attention and conditioning through step 400, then the full
+172M-parameter decoder. At step 1000, teacher-forced evaluation on four held-out
+rows produced token Top-1 `0.252874`, Top-10 `0.856322`, and a correct-versus-
+shuffled fingerprint NLL gain of `0.4594`. This verifies that the block-causal
+path and molecular conditioning are active; it does not establish successful
+free generation.
+
+The step-1000 molecular gate (four spectra, 16 candidates, seed 42, EMA,
+block decoding, strict SAFE and mass shell) produced validity `0.046875`,
+candidate return `0`, mass validity `0`, and uniqueness `0`. Slurm job 603
+therefore continues the same exact checkpoint and optimizer state to a bounded
+step-5000 ceiling, with molecular gates every 1000 steps. Its ClearML task is
+`e2689343ba8f40a5b158c866d12e0cb5`; the run root is
+`/mnt/netstorage/nikolenko/marlin/runs/autoresearch/candidates/frigid-staged-dc76457-step5000`.
+The locked 803-spectrum test remains forbidden until candidate return and mass
+validity are non-zero and survive the three-seed confirmation gate.
+
+FARO capacity is a separate execution concern. Its `/mnt/netstorage` is a
+worker-local disk, not the Spectrum NFS. Commit `34eb50a` adds a resumable,
+hash-verifying cache bootstrap. ClearML task
+`6287d3ded9e2470993d4e467a93d7920` materializes the official Zenodo FRIGID
+archive and the pinned 94-file SAFE-GPT snapshot before any FARO training task
+is allowed to start.
+
 ## Decisions and next experiments
 
 The short architecture upgrades are not promoted. Their lower training losses
@@ -80,7 +114,9 @@ The next model campaign should:
 6. run the locked 803-spectrum DreaMS and MIST lanes exactly once after the
    held-out confirmation gate passes.
 
-The current blocker is model quality, not infrastructure: Slurm, checkpointing,
+The primary scientific blocker is model quality: local Slurm, checkpointing,
 detached execution, immutable evaluation, resumable prediction JSONL, scorer
 cache, strict SAFE decoding, and mass-shell candidate filtering all completed
-successfully.
+successfully. FARO is optional additional capacity and remains gated on its
+independent pinned cache bootstrap; it is not required for the active local
+continuation.

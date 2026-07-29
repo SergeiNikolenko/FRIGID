@@ -17,6 +17,15 @@
   failing.
 - Treat shared-storage paths as durable user data. Never delete or overwrite
   them without resolving the exact target and obtaining explicit authorization.
+- On Spectrum, `/mnt/netstorage/nikolenko/marlin` is the canonical NFS-backed
+  root. On the ClearML FARO workers, `/mnt/netstorage` is worker-local storage,
+  not the Spectrum filesystem. Never assume files written on one host are
+  visible on the other.
+- A FARO task may use its local `/mnt/netstorage/nikolenko/marlin` cache only
+  after `scripts/materialize_marlin_worker_cache.py` has completed and
+  `worker_cache_ready.json` matches the pinned checkpoint and dataset hashes.
+  Keep FARO cache bootstrap tasks resumable and record their task ID and exact
+  Git commit.
 
 ## MARLIN scope
 
