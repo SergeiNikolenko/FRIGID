@@ -53,3 +53,12 @@ def test_sampler_defaults_to_deterministic_token_selection():
     parameters = signature(MarlinSampler.__init__).parameters
 
     assert parameters["sample_tokens"].default is False
+
+
+def test_oracle_slurm_forwards_eos_boost():
+    script = (
+        PROJECT_ROOT / "scripts/slurm_marlin_oracle_eval.sbatch"
+    ).read_text()
+
+    assert 'EOS_BOOST="${MARLIN_EOS_BOOST:-1.0}"' in script
+    assert '--eos-boost "$EOS_BOOST"' in script
