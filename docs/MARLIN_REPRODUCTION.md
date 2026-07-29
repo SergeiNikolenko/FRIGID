@@ -5,6 +5,10 @@ authors' implementation and trained weights were not public when this work
 started. Results from this branch must not be described as bitwise-identical,
 author-verified, or produced by the authors' code.
 
+The bounded held-out search protocol, immutable evaluator contract, and current
+architecture/inference results are recorded in
+[`MARLIN_AUTORESEARCH.md`](MARLIN_AUTORESEARCH.md).
+
 The arXiv v1 source archive contains the main manuscript, bibliography, class
 file, and figures. It does not contain a separate supplementary manuscript or
 appendix. Consequently, the method specification available for reproduction is
