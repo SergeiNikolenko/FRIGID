@@ -13,7 +13,7 @@ from rdkit import Chem, DataStructs
 from rdkit.Chem import AllChem, Descriptors
 
 from dlm.utils.utils_chem import safe_to_smiles, smiles_to_safe
-from dlm.utils.ema import ExponentialMovingAverage
+from marlin.ema import AllParameterExponentialMovingAverage
 from marlin.model import MarlinDecoder, MarlinDecoderConfig
 from marlin.noise import symmetric_fingerprint_noise
 from marlin.isotopes import theoretical_isotope_ratios
@@ -171,8 +171,12 @@ class MarlinLightningModule(L.LightningModule):
         balanced_token_loss_alpha: float = 0.0,
         token_loss_weight_max: float = 20.0,
         full_sequence_mask_probability: float = 0.0,
+        conditioning_only_steps: int = 0,
+        cross_attention_only_steps: int = 0,
     ) -> None:
         super().__init__()
+        if conditioning_only_steps < 0 or cross_attention_only_steps < 0:
+            raise ValueError("adaptation stage durations must be non-negative")
         self.save_hyperparameters(
             {
                 "config": asdict(config),
@@ -188,6 +192,8 @@ class MarlinLightningModule(L.LightningModule):
                 "balanced_token_loss_alpha": balanced_token_loss_alpha,
                 "token_loss_weight_max": token_loss_weight_max,
                 "full_sequence_mask_probability": full_sequence_mask_probability,
+                "conditioning_only_steps": conditioning_only_steps,
+                "cross_attention_only_steps": cross_attention_only_steps,
             }
         )
         self.decoder = MarlinDecoder(config)
@@ -203,16 +209,82 @@ class MarlinLightningModule(L.LightningModule):
         self.balanced_token_loss_alpha = balanced_token_loss_alpha
         self.token_loss_weight_max = token_loss_weight_max
         self.full_sequence_mask_probability = full_sequence_mask_probability
+        self.conditioning_only_steps = conditioning_only_steps
+        self.cross_attention_only_steps = cross_attention_only_steps
         self._last_metric_step = -1
-        self.ema = ExponentialMovingAverage(
+        self._active_adaptation_stage: str | None = None
+        self._trainable_parameter_fraction = 1.0
+        self.ema = AllParameterExponentialMovingAverage(
             self.decoder.parameters(), decay=ema_decay, use_num_updates=False
         )
 
     def reset_ema(self) -> None:
         """Reset EMA after loading warm-start weights."""
-        self.ema = ExponentialMovingAverage(
+        self.ema = AllParameterExponentialMovingAverage(
             self.decoder.parameters(), decay=self.ema_decay, use_num_updates=False
         )
+
+    def adaptation_stage(self, step: int) -> str:
+        """Return the staged FRIGID adaptation phase for an optimizer step."""
+        if step < self.conditioning_only_steps:
+            return "conditioning"
+        if step < (
+            self.conditioning_only_steps + self.cross_attention_only_steps
+        ):
+            return "cross_attention"
+        return "full"
+
+    @staticmethod
+    def _stage_parameter_is_trainable(name: str, stage: str) -> bool:
+        conditioning = (
+            name.startswith("conditioner.mass.")
+            or name.startswith("conditioner.isotope.")
+        )
+        if stage == "conditioning":
+            return conditioning
+        if stage == "cross_attention":
+            return (
+                conditioning
+                or ".cross_attention." in name
+                or ".norm2." in name
+            )
+        if stage == "full":
+            return True
+        raise ValueError(f"unknown adaptation stage: {stage}")
+
+    def apply_adaptation_stage(self, step: int) -> str:
+        """Freeze or unfreeze decoder parameters without changing EMA order."""
+        stage = self.adaptation_stage(step)
+        if stage == self._active_adaptation_stage:
+            return stage
+        trainable = 0
+        total = 0
+        for name, parameter in self.decoder.named_parameters():
+            parameter.requires_grad_(
+                self._stage_parameter_is_trainable(name, stage)
+            )
+            count = parameter.numel()
+            total += count
+            if parameter.requires_grad:
+                trainable += count
+        self._active_adaptation_stage = stage
+        self._trainable_parameter_fraction = trainable / total
+        print(
+            "MARLIN adaptation stage "
+            f"{stage!r} at step {step}: "
+            f"{trainable}/{total} trainable parameters "
+            f"({self._trainable_parameter_fraction:.6f})",
+            flush=True,
+        )
+        return stage
+
+    def on_train_batch_start(
+        self,
+        batch: dict[str, torch.Tensor],
+        batch_idx: int,
+    ) -> None:
+        del batch, batch_idx
+        self.apply_adaptation_stage(int(self.global_step))
 
     def training_step(self, batch: dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:
         fingerprint = symmetric_fingerprint_noise(
@@ -239,6 +311,26 @@ class MarlinLightningModule(L.LightningModule):
         )
         if collect_metrics:
             self._last_metric_step = self.global_step
+            stage_codes = {
+                "conditioning": 0.0,
+                "cross_attention": 1.0,
+                "full": 2.0,
+            }
+            stage = self._active_adaptation_stage or self.adaptation_stage(
+                int(self.global_step)
+            )
+            self.log(
+                "adaptation_stage",
+                stage_codes[stage],
+                on_step=True,
+                sync_dist=True,
+            )
+            self.log(
+                "trainable_parameter_fraction",
+                self._trainable_parameter_fraction,
+                on_step=True,
+                sync_dist=True,
+            )
             for name, value in reconstruction_metrics.items():
                 self.log(
                     f"train_{name}",
@@ -286,6 +378,7 @@ class MarlinLightningModule(L.LightningModule):
         )
 
     def on_train_start(self) -> None:
+        self.apply_adaptation_stage(int(self.global_step))
         self.ema.move_shadow_params_to_device(self.device)
 
     def optimizer_step(self, *args, **kwargs) -> None:

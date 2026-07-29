@@ -100,6 +100,78 @@ def test_marlin_uses_fixed_decay_ema():
     assert module.ema.num_updates is None
 
 
+def test_staged_adaptation_preserves_ema_parameter_order():
+    config = MarlinDecoderConfig(
+        vocab_size=8,
+        hidden_size=8,
+        num_layers=1,
+        num_heads=1,
+        intermediate_size=16,
+        max_length=5,
+        block_width=2,
+        fingerprint_bits=4,
+        dropout=0.0,
+        mask_token_id=3,
+        pad_token_id=0,
+    )
+    module = MarlinLightningModule(
+        config,
+        conditioning_only_steps=2,
+        cross_attention_only_steps=3,
+    )
+    parameter_count = len(list(module.decoder.parameters()))
+
+    assert module.apply_adaptation_stage(0) == "conditioning"
+    assert len(module.ema.shadow_params) == parameter_count
+    assert {
+        name
+        for name, parameter in module.decoder.named_parameters()
+        if parameter.requires_grad
+    } == {
+        name
+        for name, _ in module.decoder.named_parameters()
+        if name.startswith(("conditioner.mass.", "conditioner.isotope."))
+    }
+
+    assert module.apply_adaptation_stage(2) == "cross_attention"
+    assert any(
+        parameter.requires_grad
+        for name, parameter in module.decoder.named_parameters()
+        if ".cross_attention." in name
+    )
+    assert not module.decoder.layers[0].self_attention.in_proj_weight.requires_grad
+
+    assert module.apply_adaptation_stage(5) == "full"
+    assert all(parameter.requires_grad for parameter in module.decoder.parameters())
+    module.ema.update(module.decoder.parameters())
+    assert len(module.ema.shadow_params) == parameter_count
+
+
+@pytest.mark.parametrize(
+    ("conditioning_steps", "cross_attention_steps"),
+    ((-1, 0), (0, -1)),
+)
+def test_staged_adaptation_rejects_negative_durations(
+    conditioning_steps,
+    cross_attention_steps,
+):
+    with pytest.raises(ValueError, match="stage durations"):
+        MarlinLightningModule(
+            MarlinDecoderConfig(
+                vocab_size=8,
+                hidden_size=8,
+                num_layers=1,
+                num_heads=1,
+                intermediate_size=16,
+                max_length=5,
+                block_width=2,
+                fingerprint_bits=4,
+            ),
+            conditioning_only_steps=conditioning_steps,
+            cross_attention_only_steps=cross_attention_steps,
+        )
+
+
 def test_layer0_residual_defaults_off_and_rejects_invalid_scales():
     assert MarlinDecoderConfig().layer0_long_residual_scale == 0.0
     for scale in (-1.0, float("nan"), float("inf"), -float("inf")):

@@ -38,6 +38,8 @@ def test_training_config_matches_paper_recipe():
     assert "eos_loss_weight" not in config.training
     assert "balanced_token_loss_alpha" not in config.training
     assert "full_sequence_mask_probability" not in config.training
+    assert "conditioning_only_steps" not in config.training
+    assert "cross_attention_only_steps" not in config.training
 
 
 def test_inference_defaults_match_paper_recipe():

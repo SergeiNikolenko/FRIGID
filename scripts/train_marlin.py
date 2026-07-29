@@ -112,6 +112,14 @@ def is_weights_only_continuation(config: DictConfig) -> bool:
     return bool(config.get("initial_weights_checkpoint"))
 
 
+def is_staged_adaptation(config: DictConfig) -> bool:
+    """Return whether the optimizer uses the inferred FRIGID adaptation schedule."""
+    return (
+        int(config.training.get("conditioning_only_steps", 0)) > 0
+        or int(config.training.get("cross_attention_only_steps", 0)) > 0
+    )
+
+
 def training_variant(config: DictConfig) -> str:
     variants = []
     if is_eos_recovery(config):
@@ -126,6 +134,8 @@ def training_variant(config: DictConfig) -> str:
         variants.append("cached-prefix replay")
     if is_weights_only_continuation(config):
         variants.append("weights-only continuation")
+    if is_staged_adaptation(config):
+        variants.append("staged FRIGID adaptation")
     return "experimental " + " + ".join(variants) if variants else "paper recipe"
 
 
@@ -146,6 +156,7 @@ def write_run_manifest(config: DictConfig, tokenizer_sha256: str) -> dict:
             or is_architecture_recovery(config)
             or is_cached_prefix_replay(config)
             or is_weights_only_continuation(config)
+            or is_staged_adaptation(config)
         ),
         "training_variant": training_variant(config),
         "author_code_available_at_start": False,
@@ -195,6 +206,7 @@ def write_run_manifest(config: DictConfig, tokenizer_sha256: str) -> dict:
             "exclude complete SAFE targets longer than 256 tokens",
             "FFN width, dropout, gradient clipping, and weight decay",
             "absence of a learning-rate schedule and warmup",
+            "optional staged FRIGID freeze/unfreeze schedule",
             "64 mass Fourier frequencies from 1e-3 to 1.0",
             "theoretical isotope-envelope calculation",
             "data-loader and GPU execution settings",
@@ -219,6 +231,7 @@ def initialize_clearml(config: DictConfig):
     architecture_recovery = is_architecture_recovery(config)
     cached_prefix_replay = is_cached_prefix_replay(config)
     weights_only_continuation = is_weights_only_continuation(config)
+    staged_adaptation = is_staged_adaptation(config)
     tags = list(config.tracking.clearml.tags)
     if recovery:
         tags.extend(["experimental", "eos-recovery", "non-paper-objective"])
@@ -240,6 +253,10 @@ def initialize_clearml(config: DictConfig):
         tags.extend(
             ["experimental", "weights-only-continuation", "optimizer-reset"]
         )
+    if staged_adaptation:
+        tags.extend(
+            ["experimental", "staged-frigid-adaptation", "inferred-optimizer-schedule"]
+        )
     suffixes = []
     if recovery:
         suffixes.append("eos-recovery")
@@ -253,6 +270,8 @@ def initialize_clearml(config: DictConfig):
         suffixes.append("cached-prefix-replay")
     if weights_only_continuation:
         suffixes.append("weights-only")
+    if staged_adaptation:
+        suffixes.append("staged-adaptation")
     task_suffix = "-".join(suffixes)
     task = Task.init(
         project_name=config.tracking.clearml.project_name,
@@ -375,6 +394,12 @@ def main(config: DictConfig) -> None:
         token_loss_weight_max=config.training.get("token_loss_weight_max", 20.0),
         full_sequence_mask_probability=config.training.get(
             "full_sequence_mask_probability", 0.0
+        ),
+        conditioning_only_steps=config.training.get(
+            "conditioning_only_steps", 0
+        ),
+        cross_attention_only_steps=config.training.get(
+            "cross_attention_only_steps", 0
         ),
     )
     if config.get("frigid_warm_start_checkpoint"):
