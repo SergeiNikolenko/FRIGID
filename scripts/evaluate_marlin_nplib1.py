@@ -253,6 +253,31 @@ def _clearml_candidate_table(
     return pd.DataFrame(table_rows, columns=columns)
 
 
+def _clearml_decoding_diagnostic_table(rows: list[dict]) -> pd.DataFrame:
+    """Return bounded terminal decoder evidence for each evaluated spectrum."""
+    records = []
+    for row in rows:
+        records.append(
+            {
+                "spec_name": row.get("spec_name"),
+                "attempts": row.get("attempts", 0),
+                "valid": row.get("valid", 0),
+                "mass_valid": row.get("mass_valid", 0),
+                "constraint_dead_ends": row.get("constraint_dead_ends", 0),
+                "eos_terminated": row.get("eos_terminated", 0),
+                "max_length_terminated": row.get("max_length_terminated", 0),
+                "sample_terminal_safes": "\n".join(
+                    row.get("sample_terminal_safes", [])[:5]
+                ),
+                "sample_dead_ends": json.dumps(
+                    row.get("sample_dead_ends", [])[:5],
+                    sort_keys=True,
+                ),
+            }
+        )
+    return pd.DataFrame.from_records(records)
+
+
 def publish_clearml_evaluation(
     *,
     project_name: str | None,
@@ -300,6 +325,8 @@ def publish_clearml_evaluation(
             "Uniqueness": "uniqueness",
             "Internal diversity": "internal_diversity",
             "Constraint dead ends": "constraint_dead_ends_mean",
+            "EOS terminated": "eos_terminated_mean",
+            "Max-length terminated": "max_length_terminated_mean",
             "Tanimoto@1 (returned)": "tanimoto_top1",
             "Tanimoto@10 (returned)": "tanimoto_top10",
         }
@@ -320,6 +347,12 @@ def publish_clearml_evaluation(
             series="Top candidates",
             iteration=report_iteration,
             table_plot=_clearml_candidate_table(rows),
+        )
+        logger.report_table(
+            title="MARLIN decoding diagnostics",
+            series="Terminal samples",
+            iteration=report_iteration,
+            table_plot=_clearml_decoding_diagnostic_table(rows),
         )
         molecules = []
         legends = []
@@ -699,6 +732,10 @@ def main() -> None:
             sum(within_spectrum_diversities) / len(within_spectrum_diversities)
         ) if within_spectrum_diversities else 0.0,
         "constraint_dead_ends_mean": mean_metric(rows, "constraint_dead_ends"),
+        "eos_terminated_mean": mean_metric(rows, "eos_terminated"),
+        "max_length_terminated_mean": mean_metric(
+            rows, "max_length_terminated"
+        ),
         "runtime_seconds_total": float(sum(row["runtime_seconds"] for row in rows)),
         "runtime_seconds_mean": mean_metric(rows, "runtime_seconds"),
         "metric_denominators": {
@@ -716,6 +753,8 @@ def main() -> None:
             "uniqueness": "all rows",
             "internal_diversity": "mean within-spectrum pairwise Morgan distance",
             "constraint_dead_ends_mean": "all rows",
+            "eos_terminated_mean": "all rows",
+            "max_length_terminated_mean": "all rows",
             "runtime_seconds_mean": "all rows",
         },
         "settings": {

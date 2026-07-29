@@ -1,9 +1,11 @@
+import json
 from pathlib import Path
 import sys
 from types import SimpleNamespace
 
 from scripts.evaluate_marlin_nplib1 import (
     _clearml_candidate_table,
+    _clearml_decoding_diagnostic_table,
     add_formula_metrics,
     formula_metric_summary,
     publish_clearml_evaluation,
@@ -81,6 +83,36 @@ def test_clearml_candidate_table_represents_spectrum_without_candidates():
     ]
 
 
+def test_clearml_decoding_diagnostic_table_bounds_terminal_samples():
+    table = _clearml_decoding_diagnostic_table(
+        [
+            {
+                "spec_name": "spectrum-1",
+                "attempts": 16,
+                "valid": 1,
+                "mass_valid": 0,
+                "constraint_dead_ends": 2,
+                "eos_terminated": 3,
+                "max_length_terminated": 11,
+                "sample_terminal_safes": [f"safe-{index}" for index in range(7)],
+                "sample_dead_ends": [
+                    {"position": index} for index in range(7)
+                ],
+            }
+        ]
+    )
+
+    record = table.to_dict("records")[0]
+    assert record["sample_terminal_safes"].splitlines() == [
+        f"safe-{index}" for index in range(5)
+    ]
+    assert json.loads(record["sample_dead_ends"]) == [
+        {"position": index} for index in range(5)
+    ]
+    assert record["eos_terminated"] == 3
+    assert record["max_length_terminated"] == 11
+
+
 def test_publish_clearml_evaluation_is_disabled_without_explicit_configuration(
     monkeypatch,
 ):
@@ -140,6 +172,8 @@ def test_publish_clearml_evaluation_reports_molecular_scalars_and_table(
         "validity": 0.75,
         "mass_validity": 0.5,
         "uniqueness": 0.25,
+        "eos_terminated_mean": 0.75,
+        "max_length_terminated_mean": 15.25,
         "tanimoto_top1": 0.4,
         "tanimoto_top10": float("nan"),
     }
@@ -190,6 +224,8 @@ def test_publish_clearml_evaluation_reports_molecular_scalars_and_table(
         "Validity": 0.75,
         "Mass validity": 0.5,
         "Uniqueness": 0.25,
+        "EOS terminated": 0.75,
+        "Max-length terminated": 15.25,
         "Tanimoto@1 (returned)": 0.4,
     }
     assert table_calls[0]["title"] == "MARLIN molecular evaluation"
@@ -215,6 +251,10 @@ def test_publish_clearml_evaluation_reports_molecular_scalars_and_table(
             "mass_error_ppm": 0.1,
         },
     ]
+    assert table_calls[1]["title"] == "MARLIN decoding diagnostics"
+    assert table_calls[1]["table_plot"].to_dict("records")[0][
+        "spec_name"
+    ] == "spectrum-1"
     assert connected == [("evaluation_settings", {"lane": "dreams"})]
     assert closed == [True]
 
