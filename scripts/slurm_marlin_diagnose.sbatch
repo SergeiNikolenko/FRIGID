@@ -10,7 +10,7 @@
 set -euo pipefail
 
 ROOT=/home/nikolenko/work/Projects/MARLIN_reproduction_20260717
-CODE="$ROOT/code"
+CODE="${MARLIN_CODE_ROOT:-$ROOT/code}"
 CHECKPOINT="${MARLIN_CHECKPOINT:-$ROOT/runs/decoder/checkpoints/step=100000.ckpt}"
 OUTPUT="${MARLIN_OUTPUT:-$ROOT/runs/evaluation/diagnostics/teacher_forced_rows0_31.json}"
 ROWS="${MARLIN_ROWS:-32}"

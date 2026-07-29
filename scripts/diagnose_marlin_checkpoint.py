@@ -15,7 +15,7 @@ from rdkit import Chem, DataStructs
 from rdkit.Chem import AllChem, Descriptors
 
 from dlm.utils.utils_chem import smiles_to_safe
-from evaluate_marlin_nplib1 import load_decoder
+from evaluate_marlin_nplib1 import git_commit, load_decoder, sha256
 from marlin.tokenizer import load_safe_tokenizer
 
 
@@ -247,6 +247,8 @@ def main() -> None:
         }
     result = {
         "checkpoint": str(args.checkpoint),
+        "checkpoint_sha256": sha256(args.checkpoint),
+        "git_commit": git_commit(),
         "ema": not args.no_ema,
         "block_width": model.config.block_width,
         "row_start": args.row,
