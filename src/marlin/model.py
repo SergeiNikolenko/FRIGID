@@ -455,6 +455,9 @@ class MarlinDecoder(nn.Module):
             eos_logits.new_tensor(0.0),
         )
         masked_nll = (losses * masked).sum() / masked_count
+        first_block_masked = masked & block_ids.eq(0).unsqueeze(0)
+        first_block_masked_count = first_block_masked.sum()
+        first_block_denominator = first_block_masked_count.clamp_min(1)
         metrics = {
             "masked_token_accuracy_top1": correct.sum() / masked_count,
             "masked_token_accuracy_top10": (top10 & masked).sum() / masked_count,
@@ -476,5 +479,25 @@ class MarlinDecoder(nn.Module):
                 (correct | ~masked).all(dim=1) & masked.any(dim=1)
             ).float().sum()
             / masked.any(dim=1).sum().clamp_min(1),
+            # The first content block sees BOS plus mass/fingerprint/isotope
+            # conditioning, but no clean molecular prefix. These metrics
+            # therefore separate conditioning progress from easy continuation.
+            "first_block_masked_count": first_block_masked_count.float(),
+            "first_block_masked_token_accuracy_top1": (
+                correct & first_block_masked
+            ).sum()
+            / first_block_denominator,
+            "first_block_masked_token_accuracy_top10": (
+                top10 & first_block_masked
+            ).sum()
+            / first_block_denominator,
+            "first_block_masked_target_probability": (
+                target_probabilities * first_block_masked
+            ).sum()
+            / first_block_denominator,
+            "first_block_masked_token_nll": (
+                losses * first_block_masked
+            ).sum()
+            / first_block_denominator,
         }
         return loss, metrics

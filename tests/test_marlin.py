@@ -466,6 +466,11 @@ def test_diffusion_objective_reports_reconstruction_metrics():
         "mask_fraction",
         "full_sequence_mask_fraction",
         "masked_sequence_accuracy",
+        "first_block_masked_count",
+        "first_block_masked_token_accuracy_top1",
+        "first_block_masked_token_accuracy_top10",
+        "first_block_masked_target_probability",
+        "first_block_masked_token_nll",
     }
     assert all(torch.isfinite(value) for value in metrics.values())
     assert 0 <= metrics["masked_token_accuracy_top1"] <= 1
@@ -474,6 +479,11 @@ def test_diffusion_objective_reports_reconstruction_metrics():
     assert 0 <= metrics["masked_top1_confidence"] <= 1
     assert 0 <= metrics["masked_argmax_eos_fraction"] <= 1
     assert metrics["masked_eos_target_count"] >= 0
+    assert metrics["first_block_masked_count"] >= 0
+    assert (
+        metrics["first_block_masked_token_accuracy_top10"]
+        >= metrics["first_block_masked_token_accuracy_top1"]
+    )
 
 
 def test_diffusion_keeps_bos_clean():
