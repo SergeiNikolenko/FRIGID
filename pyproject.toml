@@ -79,3 +79,6 @@ namespaces = true
 
 [tool.setuptools.dynamic]
 version = { file = "VERSION" }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
