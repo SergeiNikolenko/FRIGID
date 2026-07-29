@@ -44,6 +44,8 @@ class ExpandingFlowConfig:
     insertion_detach_steps: int = 2000
     sampling_time_floor: float = 1e-3
     eflow_early_time_probability: float = 0.5
+    prior_type: str = "gaussian"
+    time_warp_type: str = "vocabulary_error"
 
     def __post_init__(self) -> None:
         if self.prior_scale <= 0:
@@ -70,6 +72,12 @@ class ExpandingFlowConfig:
             raise ValueError("sampling_time_floor must be in (0, 1)")
         if not 0 < self.eflow_early_time_probability < 1:
             raise ValueError("eflow_early_time_probability must be in (0, 1)")
+        if self.prior_type not in {"gaussian", "mask"}:
+            raise ValueError("prior_type must be 'gaussian' or 'mask'")
+        if self.time_warp_type not in {"vocabulary_error", "identity"}:
+            raise ValueError(
+                "time_warp_type must be 'vocabulary_error' or 'identity'"
+            )
 
 
 class CosineInsertionSchedule:
@@ -203,6 +211,16 @@ class VocabularyTimeWarp(nn.Module):
         )
 
 
+class IdentityTimeWarp(nn.Module):
+    """Identity schedule for categorical masked-token priors."""
+
+    def forward(self, time: torch.Tensor) -> torch.Tensor:
+        return time.clamp(0.0, 1.0)
+
+    def inverse(self, tau: torch.Tensor) -> torch.Tensor:
+        return tau.clamp(0.0, 1.0)
+
+
 class FourierTimeEmbedding(nn.Module):
     def __init__(self, fourier_dim: int, hidden_size: int) -> None:
         super().__init__()
@@ -241,10 +259,14 @@ class ExpandingMarlinModel(nn.Module):
         self.decoder_config = decoder_config
         self.flow_config = flow_config
         self.backbone = MarlinDecoder(decoder_config)
-        self.time_warp = VocabularyTimeWarp(
-            decoder_config.vocab_size,
-            points=flow_config.time_warp_points,
-            quadrature=flow_config.time_warp_quadrature,
+        self.time_warp = (
+            VocabularyTimeWarp(
+                decoder_config.vocab_size,
+                points=flow_config.time_warp_points,
+                quadrature=flow_config.time_warp_quadrature,
+            )
+            if flow_config.time_warp_type == "vocabulary_error"
+            else IdentityTimeWarp()
         )
         hidden = decoder_config.hidden_size
         self.source_time = FourierTimeEmbedding(
@@ -449,6 +471,28 @@ def _randn(
     return torch.randn(shape, device=device, dtype=dtype, generator=generator)
 
 
+def _sample_prior(
+    count: int,
+    config: MarlinDecoderConfig,
+    flow_config: ExpandingFlowConfig,
+    *,
+    device: torch.device,
+    dtype: torch.dtype,
+    generator: torch.Generator | None,
+) -> torch.Tensor:
+    if flow_config.prior_type == "mask":
+        ids = torch.full(
+            (count,), config.mask_token_id, device=device, dtype=torch.long
+        )
+        return F.one_hot(ids, num_classes=config.vocab_size).to(dtype)
+    return _randn(
+        (count, config.vocab_size),
+        device=device,
+        dtype=dtype,
+        generator=generator,
+    ).mul(flow_config.prior_scale)
+
+
 def _special_masks(
     clean_ids: torch.Tensor, config: MarlinDecoderConfig
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
@@ -513,12 +557,14 @@ def _compact_batch(
         count = original.numel()
         ids = clean_ids[row, original]
         local = source_local[row, original]
-        noise = _randn(
-            (count, vocabulary),
+        noise = _sample_prior(
+            count,
+            config,
+            flow_config,
             device=device,
             dtype=latent.dtype,
             generator=generator,
-        ).mul(flow_config.prior_scale)
+        )
         one_hot = F.one_hot(ids, num_classes=vocabulary).to(latent.dtype)
         mixed = (1.0 - local.unsqueeze(1)) * noise + local.unsqueeze(1) * one_hot
         latent[row, :count] = mixed
@@ -1156,12 +1202,14 @@ class ExpandingMarlinSampler:
         times = []
         for index in range(state.latent.shape[0]):
             if index < len(counts) and counts[index]:
-                noise = _randn(
-                    (counts[index], state.latent.shape[1]),
+                noise = _sample_prior(
+                    counts[index],
+                    self.model.decoder_config,
+                    self.model.flow_config,
                     device=state.latent.device,
                     dtype=state.latent.dtype,
                     generator=generator,
-                ).mul(self.model.flow_config.prior_scale)
+                )
                 pieces.append(noise)
                 times.append(
                     torch.full(

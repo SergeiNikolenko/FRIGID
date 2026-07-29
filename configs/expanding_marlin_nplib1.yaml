@@ -11,6 +11,8 @@ allow_dirty_worktree: false
 
 flow:
   prior_scale: 1.25
+  prior_type: gaussian
+  time_warp_type: vocabulary_error
   insertion_cutoff: 0.5
   insertion_loss_weight: 1.0
   time_embedding_size: 128

@@ -11,6 +11,7 @@ from marlin.expanding import (
     ExpandingMarlinModel,
     ExpandingMarlinSampler,
     ExpandingModelOutput,
+    IdentityTimeWarp,
     VocabularyTimeWarp,
     eflow_objective,
     efm_objective,
@@ -75,6 +76,14 @@ def test_vocabulary_time_warp_is_monotone_and_round_trips():
     assert time[-1] == 1
 
 
+def test_identity_time_warp_round_trips():
+    warp = IdentityTimeWarp()
+    time = torch.linspace(0, 1, 21)
+
+    assert torch.equal(warp(time), time)
+    assert torch.equal(warp.inverse(time), time)
+
+
 def test_eflow_batch_compacts_active_tokens_and_preserves_anchors():
     decoder, flow = tiny_configs()
     model = ExpandingMarlinModel(decoder, flow)
@@ -105,6 +114,39 @@ def test_eflow_batch_compacts_active_tokens_and_preserves_anchors():
     assert sampled.gap_targets.sum() >= 0
     assert torch.isfinite(sampled.sample_weights).all()
     assert (sampled.sample_weights > 0).all()
+
+
+def test_mask_prior_uses_the_frigid_corruption_token():
+    decoder, flow = tiny_configs(
+        prior_type="mask",
+        time_warp_type="identity",
+    )
+    model = ExpandingMarlinModel(decoder, flow)
+    sampler = ExpandingMarlinSampler(
+        model,
+        MassShellConstraint(
+            [0.0] * decoder.vocab_size,
+            eos_token_id=decoder.eos_token_id,
+        ),
+        stage="eflow",
+        bos_token_id=1,
+        eos_token_id=2,
+        decode_tokens=lambda ids: "",
+        safe_to_smiles=lambda safe: None,
+        steps=2,
+    )
+    state = sampler._initial_state(torch.device("cpu"), torch.float32)
+    expanded = sampler._insert(
+        state,
+        [0, 2, 0],
+        0.0,
+        generator=torch.Generator().manual_seed(3),
+    )
+
+    assert isinstance(model.time_warp, IdentityTimeWarp)
+    assert expanded.latent.shape == (4, decoder.vocab_size)
+    assert expanded.latent[1:3, decoder.mask_token_id].eq(1).all()
+    assert expanded.latent[1:3].sum(dim=1).eq(1).all()
 
 
 def test_eflow_stratifies_the_sparse_insertion_window():

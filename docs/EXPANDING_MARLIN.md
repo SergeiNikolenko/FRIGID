@@ -59,6 +59,13 @@ apply exact importance weights to both objectives. This preserves the
 paper's uniform-warped-time target while avoiding insertion batches containing
 only zero targets.
 
+For short FRIGID adaptation experiments, the same expanding architecture can
+instead use `flow.prior_type=mask` with `flow.time_warp_type=identity`. Newly
+inserted coordinates then start at the FRIGID mask-token prior, so the warm
+start sees the corruption family it was pretrained on. This is an explicitly
+MARLIN-specific prior ablation; the Gaussian plus vocabulary-error-warp
+configuration remains the paper-faithful EFlow lane.
+
 ### 2. EFM student
 
 The student and frozen teacher must have exactly matching decoder and flow
