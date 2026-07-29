@@ -123,7 +123,7 @@ if [[ -n "$RESUME_CHECKPOINT" ]]; then
 fi
 if [[ -n "$INITIAL_WEIGHTS_CHECKPOINT" ]]; then
     TRAIN_ARGS+=(
-        "+initial_weights_checkpoint=${INITIAL_WEIGHTS_CHECKPOINT//=/\\=}"
+        "initial_weights_checkpoint=${INITIAL_WEIGHTS_CHECKPOINT//=/\\=}"
     )
     TRAIN_ARGS+=("resume_checkpoint=null")
     TRAIN_ARGS+=("frigid_warm_start_checkpoint=null")
