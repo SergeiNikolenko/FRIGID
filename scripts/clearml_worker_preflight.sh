@@ -6,6 +6,7 @@ SHARED_ROOT="${MARLIN_SHARED_ROOT:-/mnt/netstorage/nikolenko/marlin}"
 FRIGID_CHECKPOINT="$SHARED_ROOT/checkpoints/frigid/DLM.ckpt"
 SNAPSHOT_MANIFEST="$SHARED_ROOT/safe-gpt-16d0be9ad6177ae683a32a86204530e8ee624a0f/manifest.json"
 HOST_MOUNT_ROOT="${MARLIN_HOST_MOUNT_ROOT:-}"
+DISCOVER_STORAGE="${MARLIN_DISCOVER_STORAGE:-false}"
 
 printf 'git_commit=%s\n' "$(git rev-parse HEAD)"
 printf 'hostname=%s\n' "$(hostname)"
@@ -21,6 +22,11 @@ if [[ -n "$HOST_MOUNT_ROOT" ]]; then
             printf 'host_storage_candidate=absent path=%s\n' "$candidate"
         fi
     done
+
+    if [[ "$DISCOVER_STORAGE" == "true" && -d "$HOST_MOUNT_ROOT/netstorage" ]]; then
+        find "$HOST_MOUNT_ROOT/netstorage" -mindepth 1 -maxdepth 2 -type d \
+            -printf 'host_storage_directory=%p\n' | sort | head -n 100
+    fi
 fi
 
 for path in "$SHARED_ROOT" "$FRIGID_CHECKPOINT" "$SNAPSHOT_MANIFEST"; do
