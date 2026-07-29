@@ -8,12 +8,56 @@ import torch
 
 import marlin.dataset as dataset_module
 from marlin.dataset import (
+    RankShardedIterableDataset,
     file_list_sha256,
+    resolve_stream_offset_examples,
     sha256_file,
     streaming_loader_workers,
     verify_filtered_prefix_cache,
     verify_snapshot_manifest,
 )
+
+
+def test_rank_sharded_iterable_dataset_is_disjoint_and_complete() -> None:
+    source = list(range(12))
+    rank_zero = list(
+        RankShardedIterableDataset(source, rank=0, world_size=2)
+    )
+    rank_one = list(
+        RankShardedIterableDataset(source, rank=1, world_size=2)
+    )
+
+    assert rank_zero == list(range(0, 12, 2))
+    assert rank_one == list(range(1, 12, 2))
+    assert sorted(rank_zero + rank_one) == source
+    assert set(rank_zero).isdisjoint(rank_one)
+
+
+def test_stream_offset_is_derived_from_canonical_checkpoint_step() -> None:
+    assert resolve_stream_offset_examples(
+        resume_checkpoint="/runs/checkpoints/step=500.ckpt",
+        batch_size=8,
+        devices=2,
+        accumulate_grad_batches=16,
+    ) == 128_000
+
+
+def test_stream_offset_requires_explicit_value_for_noncanonical_checkpoint() -> None:
+    with pytest.raises(ValueError, match="non-canonical checkpoint"):
+        resolve_stream_offset_examples(
+            resume_checkpoint="/runs/checkpoints/last.ckpt",
+            batch_size=8,
+            devices=2,
+            accumulate_grad_batches=16,
+        )
+
+    assert resolve_stream_offset_examples(
+        resume_checkpoint="/runs/checkpoints/last.ckpt",
+        batch_size=8,
+        devices=2,
+        accumulate_grad_batches=16,
+        explicit_offset=12_345,
+    ) == 12_345
 
 
 def test_filtered_prefix_stream_disables_workers_for_unshardable_tail() -> None:

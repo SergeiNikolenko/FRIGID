@@ -31,6 +31,9 @@ data:
   length_audit_sha256: c6267bfcffe51b42fa82d3514cb148ba15fa9e7c0141119682aa12c64413b0fd
   shuffle_buffer: 100000
   filtered_prefix_cache_manifest: /mnt/netstorage/nikolenko/marlin/cache/filtered-safe-prefix-v1/manifest.json
+  # Derived from canonical step=N checkpoints on exact resume. Set explicitly
+  # only when importing a checkpoint whose prior stream position is known.
+  stream_offset_examples: null
 
 loader:
   batch_size: 8

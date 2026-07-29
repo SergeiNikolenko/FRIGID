@@ -3,10 +3,77 @@
 from __future__ import annotations
 
 import hashlib
+import itertools
 import json
 import re
 import tempfile
 from pathlib import Path, PurePosixPath
+
+import torch
+
+
+class RankShardedIterableDataset(torch.utils.data.IterableDataset):
+    """Give every distributed rank a disjoint slice of one deterministic stream.
+
+    Lightning intentionally does not inject a ``DistributedSampler`` for
+    iterable datasets. Without this wrapper, every DDP rank iterates the same
+    Hugging Face stream and the declared global batch size is overstated.
+    """
+
+    def __init__(
+        self,
+        dataset,
+        *,
+        rank: int | None = None,
+        world_size: int | None = None,
+    ) -> None:
+        super().__init__()
+        if (rank is None) != (world_size is None):
+            raise ValueError("rank and world_size must be provided together")
+        if world_size is not None and (world_size <= 0 or not 0 <= rank < world_size):
+            raise ValueError("invalid distributed rank/world size")
+        self.dataset = dataset
+        self.rank = rank
+        self.world_size = world_size
+
+    def _distributed_position(self) -> tuple[int, int]:
+        if self.rank is not None and self.world_size is not None:
+            return self.rank, self.world_size
+        if torch.distributed.is_available() and torch.distributed.is_initialized():
+            return torch.distributed.get_rank(), torch.distributed.get_world_size()
+        return 0, 1
+
+    def __iter__(self):
+        rank, world_size = self._distributed_position()
+        return itertools.islice(iter(self.dataset), rank, None, world_size)
+
+
+def resolve_stream_offset_examples(
+    *,
+    resume_checkpoint: str | Path | None,
+    batch_size: int,
+    devices: int,
+    accumulate_grad_batches: int,
+    explicit_offset: int | None = None,
+) -> int:
+    """Resolve the deterministic global-stream offset for an exact resume."""
+
+    if min(batch_size, devices, accumulate_grad_batches) <= 0:
+        raise ValueError("global batch components must be positive")
+    if explicit_offset is not None:
+        if explicit_offset < 0:
+            raise ValueError("stream offset must be non-negative")
+        return explicit_offset
+    if resume_checkpoint is None:
+        return 0
+    match = re.fullmatch(r"step=(\d+)\.ckpt", Path(resume_checkpoint).name)
+    if match is None:
+        raise ValueError(
+            "cannot infer stream offset from a non-canonical checkpoint name; "
+            "set data.stream_offset_examples explicitly"
+        )
+    global_step = int(match.group(1))
+    return global_step * batch_size * devices * accumulate_grad_batches
 
 
 def sha256_file(path: Path) -> str:

@@ -24,6 +24,8 @@ import torch
 from omegaconf import DictConfig, OmegaConf
 
 from marlin.dataset import (
+    RankShardedIterableDataset,
+    resolve_stream_offset_examples,
     streaming_loader_workers,
     verify_filtered_prefix_cache,
     verify_snapshot_manifest,
@@ -340,6 +342,14 @@ def main(config: DictConfig) -> None:
             "choose exactly one initialization source; got "
             + (", ".join(selected_sources) or "none")
         )
+    stream_offset_examples = resolve_stream_offset_examples(
+        resume_checkpoint=config.get("resume_checkpoint"),
+        batch_size=int(config.loader.batch_size),
+        devices=int(config.trainer.devices),
+        accumulate_grad_batches=int(config.trainer.accumulate_grad_batches),
+        explicit_offset=config.data.get("stream_offset_examples"),
+    )
+    config.data.stream_offset_examples = stream_offset_examples
     L.seed_everything(config.seed, workers=True)
     torch.set_float32_matmul_precision("high")
     tokenizer_sha256 = sha256_file(config.data.tokenizer_file)
@@ -489,6 +499,15 @@ def main(config: DictConfig) -> None:
             seed=config.seed,
             buffer_size=config.data.shuffle_buffer,
         )
+    if stream_offset_examples:
+        dataset = dataset.skip(stream_offset_examples)
+    dataset = RankShardedIterableDataset(dataset)
+    print(
+        "MARLIN deterministic training stream: "
+        f"global_offset={stream_offset_examples}, "
+        "DDP rank sharding enabled",
+        flush=True,
+    )
     collator = MarlinCollator(
         tokenizer,
         max_length=decoder_config.max_length,

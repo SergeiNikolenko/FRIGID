@@ -30,6 +30,7 @@ def test_training_config_matches_paper_recipe():
     assert config.optim.learning_rate == 5e-5
     assert config.training.ema_decay == 0.9999
     assert config.loader.batch_size * config.trainer.accumulate_grad_batches == 256
+    assert config.data.stream_offset_examples is None
     assert "resume_weights_only_checkpoint" not in config
     assert "filtered_prefix_only" not in config.data
 
