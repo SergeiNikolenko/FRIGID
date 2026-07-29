@@ -62,3 +62,17 @@ def test_oracle_slurm_forwards_eos_boost():
 
     assert 'EOS_BOOST="${MARLIN_EOS_BOOST:-1.0}"' in script
     assert '--eos-boost "$EOS_BOOST"' in script
+
+
+def test_faro_gate_keeps_the_paper_batch_and_fresh_frigid_start():
+    script = (
+        PROJECT_ROOT / "scripts/run_marlin_faro_paper_gate.sh"
+    ).read_text()
+
+    assert "trainer.devices=2" in script
+    assert "trainer.accumulate_grad_batches=16" in script
+    assert "resume_checkpoint=" not in script
+    assert "frigid_warm_start_checkpoint=" not in script
+    assert "conditioning_only_steps=" not in script
+    assert "cross_attention_only_steps=" not in script
+    assert "evaluation.interval_steps=" in script

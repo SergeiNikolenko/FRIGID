@@ -35,6 +35,8 @@ dependencies = [
     'omegaconf==2.3.0',
     'transformers==4.32.0',
     'safe-mol==0.1.13',
+    # safe-mol imports wandb 0.13.5, which still imports pkg_resources.
+    'setuptools<81',
     'easydict==1.13',
     'openbabel-wheel==3.1.1.22',
     'Cython<3',
