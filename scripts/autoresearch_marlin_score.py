@@ -16,7 +16,12 @@ from typing import Any
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-REPRO_ROOT = PROJECT_ROOT.parent
+REPRO_ROOT = Path(
+    os.environ.get(
+        "MARLIN_REPRO_ROOT",
+        "/home/nikolenko/work/Projects/MARLIN_reproduction_20260717",
+    )
+)
 DEFAULT_SHARED_ROOT = Path("/mnt/netstorage/nikolenko/marlin")
 DEFAULT_METADATA = REPRO_ROOT / "data/processed/val/metadata.csv"
 DEFAULT_FINGERPRINTS = REPRO_ROOT / "data/processed/val/fingerprints.npz"

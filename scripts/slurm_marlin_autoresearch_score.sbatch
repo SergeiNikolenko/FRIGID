@@ -10,8 +10,9 @@
 set -euo pipefail
 
 ROOT=/home/nikolenko/work/Projects/MARLIN_reproduction_20260717
-CODE="$ROOT/code"
+CODE="${MARLIN_CODE_ROOT:-$ROOT/code}"
 PYTHON="$ROOT/.venv/bin/python"
+export MARLIN_REPRO_ROOT="${MARLIN_REPRO_ROOT:-$ROOT}"
 export PYTHONPATH="$CODE/src:$ROOT/vendor"
 export HF_HOME=/mnt/netstorage/nikolenko/marlin/cache/huggingface
 export TOKENIZERS_PARALLELISM=false
