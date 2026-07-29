@@ -19,6 +19,8 @@ from rdkit import Chem, DataStructs
 from rdkit.Chem import AllChem, Draw, rdMolDescriptors
 
 from dlm.utils.utils_chem import safe_to_smiles
+from marlin.expanding import ExpandingMarlinSampler
+from marlin.expanding_checkpoint import expanding_model_from_checkpoint
 from marlin.evaluation import (
     load_fingerprints,
     mass_bin_metrics,
@@ -51,6 +53,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--diversity-dropout", type=float, default=0.3)
     parser.add_argument("--temperature", type=float, default=1.0)
     parser.add_argument("--generation-mode", choices=("block", "canvas"), default="block")
+    parser.add_argument(
+        "--architecture",
+        choices=("marlin", "expanding"),
+        default="marlin",
+    )
+    parser.add_argument("--expanding-steps", type=int, default=32)
     parser.add_argument("--ppm-tolerance", type=float, default=10.0)
     parser.add_argument("--valence-slack", type=float, default=4.0)
     parser.add_argument("--eos-boost", type=float, default=1.0)
@@ -389,7 +397,18 @@ def main() -> None:
         device,
         use_ema=not args.no_ema,
         layer0_long_residual_scale=args.layer0_long_residual_scale,
-    )
+    ) if args.architecture == "marlin" else None
+    expanding_stage = None
+    if args.architecture == "expanding":
+        if args.layer0_long_residual_scale is not None:
+            raise ValueError(
+                "--layer0-long-residual-scale is only valid for MARLIN checkpoints"
+            )
+        model, expanding_stage = expanding_model_from_checkpoint(
+            args.checkpoint,
+            device=device,
+            use_ema=not args.no_ema,
+        )
     tokenizer = load_safe_tokenizer(args.tokenizer)
     special_ids = {
         tokenizer.bos_token_id,
@@ -409,35 +428,66 @@ def main() -> None:
         eos_boost=args.eos_boost,
         eos_token_id=tokenizer.eos_token_id,
     )
-    sampler = MarlinSampler(
-        model,
-        constraint,
-        bos_token_id=tokenizer.bos_token_id,
-        eos_token_id=tokenizer.eos_token_id,
-        mask_token_id=tokenizer.mask_token_id,
-        decode_tokens=lambda ids: tokenizer.decode(ids, skip_special_tokens=True),
-        safe_to_smiles=lambda safe: safe_to_smiles(safe, fix=args.fix_safe_decode),
-        grammar_mask=None
-        if args.disable_grammar_mask
-        else SafeGrammarMask(
-            [tokenizer.convert_ids_to_tokens(index) for index in range(len(tokenizer))],
-            lambda ids: tokenizer.decode(ids, skip_special_tokens=True),
+    forbidden_token_ids = (
+        tokenizer.unk_token_id,
+        tokenizer.bos_token_id,
+        tokenizer.eos_token_id,
+        tokenizer.mask_token_id,
+        tokenizer.pad_token_id,
+    )
+    if args.architecture == "expanding":
+        sampler = ExpandingMarlinSampler(
+            model,
+            constraint,
+            stage=expanding_stage,
+            bos_token_id=tokenizer.bos_token_id,
+            eos_token_id=tokenizer.eos_token_id,
+            decode_tokens=lambda ids: tokenizer.decode(
+                ids, skip_special_tokens=True
+            ),
+            safe_to_smiles=lambda safe: safe_to_smiles(
+                safe, fix=args.fix_safe_decode
+            ),
+            forbidden_token_ids=forbidden_token_ids,
+            mass_shell_enabled=not args.disable_mass_shell,
+            steps=args.expanding_steps,
+        )
+    else:
+        sampler = MarlinSampler(
+            model,
+            constraint,
+            bos_token_id=tokenizer.bos_token_id,
             eos_token_id=tokenizer.eos_token_id,
             mask_token_id=tokenizer.mask_token_id,
-            special_token_ids=tuple(special_ids) + (tokenizer.unk_token_id,),
-            ppm_tolerance=args.ppm_tolerance,
-            valence_slack=args.valence_slack,
-        ),
-        forbidden_token_ids=(
-            tokenizer.unk_token_id,
-            tokenizer.bos_token_id,
-            tokenizer.mask_token_id,
-            tokenizer.pad_token_id,
-        ),
-        mass_shell_enabled=not args.disable_mass_shell,
-        generation_mode=args.generation_mode,
-        sample_tokens=args.sample_tokens,
-    )
+            decode_tokens=lambda ids: tokenizer.decode(
+                ids, skip_special_tokens=True
+            ),
+            safe_to_smiles=lambda safe: safe_to_smiles(
+                safe, fix=args.fix_safe_decode
+            ),
+            grammar_mask=None
+            if args.disable_grammar_mask
+            else SafeGrammarMask(
+                [
+                    tokenizer.convert_ids_to_tokens(index)
+                    for index in range(len(tokenizer))
+                ],
+                lambda ids: tokenizer.decode(ids, skip_special_tokens=True),
+                eos_token_id=tokenizer.eos_token_id,
+                mask_token_id=tokenizer.mask_token_id,
+                special_token_ids=tuple(special_ids) + (tokenizer.unk_token_id,),
+                ppm_tolerance=args.ppm_tolerance,
+                valence_slack=args.valence_slack,
+            ),
+            forbidden_token_ids=tuple(
+                token_id
+                for token_id in forbidden_token_ids
+                if token_id != tokenizer.eos_token_id
+            ),
+            mass_shell_enabled=not args.disable_mass_shell,
+            generation_mode=args.generation_mode,
+            sample_tokens=args.sample_tokens,
+        )
 
     settings = {
         "lane": args.lane,
@@ -447,6 +497,11 @@ def main() -> None:
         "diversity_dropout": args.diversity_dropout,
         "temperature": args.temperature,
         "generation_mode": args.generation_mode,
+        "architecture": args.architecture,
+        "expanding_stage": expanding_stage,
+        "expanding_steps": (
+            args.expanding_steps if args.architecture == "expanding" else None
+        ),
         "ppm_tolerance": args.ppm_tolerance,
         "valence_slack": args.valence_slack,
         "eos_boost": args.eos_boost,
@@ -454,7 +509,11 @@ def main() -> None:
         "layer0_long_residual_scale": model.config.layer0_long_residual_scale,
         "ema": not args.no_ema,
         "weights": "ema" if not args.no_ema else "raw",
-        "grammar_mask": not args.disable_grammar_mask,
+        "grammar_mask": (
+            not args.disable_grammar_mask
+            if args.architecture == "marlin"
+            else False
+        ),
         "mass_shell_constraint": not args.disable_mass_shell,
         "safe_decode_fix": args.fix_safe_decode,
         "token_selection": "multinomial" if args.sample_tokens else "argmax",

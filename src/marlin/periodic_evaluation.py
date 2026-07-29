@@ -73,6 +73,16 @@ class PeriodicMolecularEvaluation(L.Callback):
             "--seed", str(evaluation.seed),
             "--clearml-iteration", str(step),
         ]
+        if str(self.config.get("architecture", "marlin")) == "expanding":
+            command.extend(
+                [
+                    "--architecture",
+                    "expanding",
+                    "--expanding-steps",
+                    str(evaluation.get("expanding_steps", 32)),
+                    "--disable-grammar-mask",
+                ]
+            )
         if self.clearml_task is not None:
             command.extend(["--clearml-task-id", self.clearml_task.id])
         if torch.cuda.is_available():

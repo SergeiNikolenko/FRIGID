@@ -166,6 +166,10 @@ For stable project-facing commands, prefer the `frigid` CLI described in
 `docs/FRIGID_OPERATIONAL_USAGE.md`. The older scripts below remain available as
 lower-level research entrypoints.
 
+The experimental variable-length conditional EFlow/EFM adaptation is documented
+separately in [`docs/EXPANDING_MARLIN.md`](docs/EXPANDING_MARLIN.md). It is not
+the strict MARLIN reproduction lane.
+
 ### Quick Prediction CLI
 
 ```bash

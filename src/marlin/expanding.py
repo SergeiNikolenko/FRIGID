@@ -277,19 +277,31 @@ class ExpandingMarlinModel(nn.Module):
         if detach_backbone:
             hidden = hidden.detach()
         batch, width, feature_size = hidden.shape
-        left = hidden.new_empty((batch, width + 1, feature_size))
-        right = hidden.new_empty((batch, width + 1, feature_size))
-        left[:, 0] = self.left_boundary
-        left[:, 1:] = hidden
-        right[:, :-1] = hidden
-        right[:, -1] = self.right_boundary
+        positions = torch.arange(width + 1, device=hidden.device).unsqueeze(0)
+        left_indices = (positions - 1).clamp(0, width - 1)
+        right_indices = positions.clamp(0, width - 1)
+        left = hidden.gather(
+            1, left_indices.unsqueeze(-1).expand(batch, -1, feature_size)
+        )
+        right = hidden.gather(
+            1, right_indices.unsqueeze(-1).expand(batch, -1, feature_size)
+        )
+        left = torch.where(
+            positions.unsqueeze(-1).eq(0),
+            self.left_boundary.reshape(1, 1, -1),
+            left,
+        )
+        right = torch.where(
+            positions.unsqueeze(-1).ge(lengths.reshape(-1, 1, 1)),
+            self.right_boundary.reshape(1, 1, -1),
+            right,
+        )
         gap_hidden = (
             self.gap_left(left)
             + self.gap_right(right)
             + self.gap_time(time_condition).unsqueeze(1)
         )
         means = F.softplus(self.insertion_output(gap_hidden).squeeze(-1)) + 1e-6
-        positions = torch.arange(width + 1, device=hidden.device).unsqueeze(0)
         mask = positions <= lengths.unsqueeze(1)
         means = means.masked_fill(~mask, 0.0)
         return means, mask
@@ -1146,13 +1158,29 @@ class ExpandingMarlinSampler:
                 )
             states = expanded_states
             packed, local_source, padding = self._pack(states, source)
+            denoiser_source_tensor = source_tensor
+            if self.stage == "efm" and self.steps == 1 and step == 0:
+                # App. C.5: condition the one-step full-noise sequence at a
+                # small positive denoising time while retaining the true
+                # insertion interval for the expansion head.
+                denoising_floor = self.model.flow_config.sampling_time_floor
+                denoiser_source_tensor = torch.full(
+                    (candidates,), denoising_floor, device=device
+                )
+                non_anchor = ~padding
+                non_anchor[:, 0] = False
+                for row, state in enumerate(states):
+                    non_anchor[row, state.latent.shape[0] - 1] = False
+                local_source = local_source.masked_fill(
+                    non_anchor, denoising_floor
+                )
             denoised = self.model(
                 packed,
                 local_source,
                 padding,
                 masses,
                 conditioned,
-                source_time=source_tensor,
+                source_time=denoiser_source_tensor,
                 target_time=(
                     target_tensor if self.stage == "efm" else source_tensor
                 ),

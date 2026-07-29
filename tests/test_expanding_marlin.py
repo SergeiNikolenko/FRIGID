@@ -1,4 +1,7 @@
+from pathlib import Path
+
 import torch
+from omegaconf import OmegaConf
 from rdkit import Chem
 from rdkit.Chem import Descriptors
 
@@ -13,6 +16,8 @@ from marlin.expanding import (
     efm_objective,
     sample_eflow_batch,
 )
+from marlin.expanding_checkpoint import expanding_model_from_checkpoint
+from marlin.expanding_training import ExpandingMarlinLightningModule
 from marlin.mass_shell import MassShellConstraint
 from marlin.model import MarlinDecoderConfig
 
@@ -286,3 +291,45 @@ def test_expanding_sampler_grows_and_returns_a_mass_valid_molecule():
     assert stats.valid == 2
     assert stats.mass_valid == 2
     assert [candidate.smiles for candidate in ranked] == ["C"]
+
+
+def test_expanding_checkpoint_round_trip_with_ema(tmp_path):
+    decoder, flow = tiny_configs()
+    module = ExpandingMarlinLightningModule(
+        decoder,
+        flow,
+        stage="eflow",
+        warmup_steps=0,
+    )
+    checkpoint = {
+        "hyper_parameters": dict(module.hparams),
+        "state_dict": module.state_dict(),
+        "ema": module.ema.state_dict(),
+    }
+    path = tmp_path / "eflow.ckpt"
+    torch.save(checkpoint, path)
+
+    restored, stage = expanding_model_from_checkpoint(path, use_ema=True)
+
+    assert stage == "eflow"
+    assert restored.decoder_config == decoder
+    assert restored.flow_config == flow
+    assert all(
+        torch.equal(left, right)
+        for left, right in zip(module.model.parameters(), restored.parameters())
+    )
+
+
+def test_expanding_config_is_separate_from_strict_marlin_recipe():
+    root = Path(__file__).resolve().parents[1]
+    config = OmegaConf.load(root / "configs/expanding_marlin_nplib1.yaml")
+
+    assert config.architecture == "expanding"
+    assert config.stage == "eflow"
+    assert config.flow.prior_scale == 1.25
+    assert config.flow.insertion_cutoff == 0.5
+    assert config.flow.diagonal_probability == 0.75
+    assert config.optim.learning_rate == 3e-4
+    assert config.optim.warmup_steps == 2500
+    assert config.trainer.max_steps == 200000
+    assert "non-paper-architecture" in config.tracking.clearml.tags

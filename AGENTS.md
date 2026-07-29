@@ -25,7 +25,10 @@
   checkpoint as a teacher. Label every such run `FRIGID-distilled MARLIN`,
   record checkpoint hashes and provenance, and never present it as the strict
   paper reproduction.
+- The user-authorized Expanding MARLIN lane may adapt EFlow/EFM from
+  arXiv:2607.21585. Label every run `EFM-inspired MARLIN`, tag it
+  `non-paper-architecture`, and keep its configs and checkpoints separate from
+  the strict MARLIN reproduction.
 - Judge progress with molecular generation metrics (validity, uniqueness,
   candidate return rate, mass validity, and structure similarity), not loss
   alone.
-
