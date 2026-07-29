@@ -91,6 +91,7 @@ def test_faro_requirements_pin_legacy_resolver_conflicts():
     assert "fsspec==2024.2.0" in requirements
     assert "dill==0.3.8" in requirements
     assert "multiprocess==0.70.16" in requirements
+    assert "bionemo-moco==0.0.2.1" in requirements
 
 
 def test_faro_evaluation_isolated_from_training_process():

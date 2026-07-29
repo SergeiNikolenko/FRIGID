@@ -1,6 +1,7 @@
 # ClearML FARO runtime for scripts/run_marlin_faro_paper_gate.sh.
 # Transitive pins are intentional: the worker uses pip's legacy resolver.
 setuptools<81
+bionemo-moco==0.0.2.1
 clearml==2.1.9
 datamol==0.12.5
 datasets==2.18.0
