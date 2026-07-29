@@ -5,11 +5,23 @@ set -euo pipefail
 SHARED_ROOT="${MARLIN_SHARED_ROOT:-/mnt/netstorage/nikolenko/marlin}"
 FRIGID_CHECKPOINT="$SHARED_ROOT/checkpoints/frigid/DLM.ckpt"
 SNAPSHOT_MANIFEST="$SHARED_ROOT/safe-gpt-16d0be9ad6177ae683a32a86204530e8ee624a0f/manifest.json"
+HOST_MOUNT_ROOT="${MARLIN_HOST_MOUNT_ROOT:-}"
 
 printf 'git_commit=%s\n' "$(git rev-parse HEAD)"
 printf 'hostname=%s\n' "$(hostname)"
 nvidia-smi --query-gpu=index,name,memory.used,memory.total,utilization.gpu \
     --format=csv,noheader
+
+if [[ -n "$HOST_MOUNT_ROOT" ]]; then
+    for relative_path in netstorage ligandpro/shared_storage shared_storage; do
+        candidate="$HOST_MOUNT_ROOT/$relative_path"
+        if [[ -e "$candidate" ]]; then
+            printf 'host_storage_candidate=present path=%s\n' "$candidate"
+        else
+            printf 'host_storage_candidate=absent path=%s\n' "$candidate"
+        fi
+    done
+fi
 
 for path in "$SHARED_ROOT" "$FRIGID_CHECKPOINT" "$SNAPSHOT_MANIFEST"; do
     if [[ ! -r "$path" ]]; then
