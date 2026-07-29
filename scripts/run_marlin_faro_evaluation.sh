@@ -38,7 +38,7 @@ python -X faulthandler scripts/evaluate_marlin_nplib1.py \
   --max-spectra "${MARLIN_EVAL_MAX_SPECTRA:-4}" \
   --diversity-dropout 0.3 \
   --temperature 1.0 \
-  --generation-mode block \
+  --generation-mode "${MARLIN_EVAL_GENERATION_MODE:-block}" \
   --ppm-tolerance 10.0 \
   --seed 42 \
   --clearml-iteration "$SOURCE_STEP" \
