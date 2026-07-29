@@ -248,7 +248,10 @@ class ExpandingMarlinModel(nn.Module):
             nn.Sequential(nn.SiLU(), nn.Linear(hidden, 2 * hidden))
             for _ in range(decoder_config.num_layers)
         )
-        for modulation in self.layer_modulation:
+        self.output_modulation = nn.Sequential(
+            nn.SiLU(), nn.Linear(hidden, 2 * hidden)
+        )
+        for modulation in (*self.layer_modulation, self.output_modulation):
             nn.init.zeros_(modulation[-1].weight)
             nn.init.zeros_(modulation[-1].bias)
         self.left_boundary = nn.Parameter(torch.zeros(hidden))
@@ -356,6 +359,8 @@ class ExpandingMarlinModel(nn.Module):
         for layer_index, (layer, modulation) in enumerate(
             zip(self.backbone.layers, self.layer_modulation)
         ):
+            shift, scale = modulation(time_condition).chunk(2, dim=-1)
+            hidden = hidden * (1.0 + scale) + shift
             hidden = layer(
                 hidden,
                 condition,
@@ -363,8 +368,6 @@ class ExpandingMarlinModel(nn.Module):
                 padding_mask=padding_mask,
                 condition_padding_mask=~condition_mask,
             )
-            shift, scale = modulation(time_condition).chunk(2, dim=-1)
-            hidden = hidden * (1.0 + scale) + shift
             if layer_index == 0:
                 layer0_hidden = hidden
         if self.decoder_config.layer0_long_residual_scale:
@@ -374,6 +377,10 @@ class ExpandingMarlinModel(nn.Module):
                 hidden
                 + self.decoder_config.layer0_long_residual_scale * layer0_hidden
             )
+        output_shift, output_scale = self.output_modulation(
+            time_condition
+        ).chunk(2, dim=-1)
+        hidden = hidden * (1.0 + output_scale) + output_shift
         prediction_hidden = self.backbone.prediction_norm(
             F.gelu(self.backbone.prediction_dense(hidden))
         )
