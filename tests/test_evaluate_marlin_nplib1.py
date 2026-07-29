@@ -207,3 +207,53 @@ def test_publish_clearml_evaluation_reports_molecular_scalars_and_table(
     ]
     assert connected == [("evaluation_settings", {"lane": "dreams"})]
     assert closed == [True]
+
+
+def test_publish_clearml_evaluation_attaches_without_editing_completed_task(
+    monkeypatch,
+):
+    scalar_calls = []
+    connected = []
+    closed = []
+
+    class FakeLogger:
+        def report_scalar(self, **kwargs):
+            scalar_calls.append(kwargs)
+
+        def report_table(self, **kwargs):
+            pass
+
+    attached_task = SimpleNamespace(
+        id="completed-task-id",
+        name="completed-training",
+        get_logger=lambda: FakeLogger(),
+        connect=lambda value, name: connected.append((name, value)),
+        get_output_log_web_page=lambda: "https://clearml.example/completed-task-id",
+        close=lambda: closed.append(True),
+    )
+
+    class FakeTask:
+        TaskTypes = SimpleNamespace(testing="testing")
+
+        @staticmethod
+        def get_task(*, task_id):
+            assert task_id == "completed-task-id"
+            return attached_task
+
+    monkeypatch.setitem(sys.modules, "clearml", SimpleNamespace(Task=FakeTask))
+
+    result = publish_clearml_evaluation(
+        project_name=None,
+        task_name=None,
+        tags=[],
+        metrics={"rows": 1, "validity": 1.0},
+        rows=[],
+        settings={"lane": "dreams"},
+        task_id="completed-task-id",
+        iteration=1,
+    )
+
+    assert result["task_id"] == "completed-task-id"
+    assert scalar_calls[0]["series"] == "Validity"
+    assert connected == []
+    assert closed == []

@@ -27,6 +27,7 @@ checkpoints/*
 results/*
 logs/*
 outputs/*
+.autoresearch/
 spec2mol/*
 mist-main_v2/*
 scale/*

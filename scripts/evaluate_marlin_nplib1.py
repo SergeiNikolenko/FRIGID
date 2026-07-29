@@ -279,7 +279,11 @@ def publish_clearml_evaluation(
         auto_connect_frameworks=False, auto_resource_monitoring=False,
     )
     try:
-        task.connect(dict(settings), name="evaluation_settings")
+        # Existing training tasks can already be completed when a deferred
+        # evaluation attaches to them. ClearML rejects hyperparameter edits on
+        # completed tasks, while scalar/table events remain valid.
+        if not attached:
+            task.connect(dict(settings), name="evaluation_settings")
         logger = task.get_logger()
         report_iteration = int(metrics["rows"] if iteration is None else iteration)
         scalar_metrics = {

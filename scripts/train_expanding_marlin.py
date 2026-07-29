@@ -142,7 +142,10 @@ def initialize_clearml(config: DictConfig):
         reuse_last_task_id=False,
         output_uri=False,
         auto_connect_streams=False,
-        auto_connect_frameworks={"pytorch": True, "tensorboard": True},
+        # Checkpoints stay in canonical shared storage. Auto-connecting
+        # PyTorch makes ClearML duplicate each multi-GB checkpoint in /tmp
+        # even with output_uri disabled.
+        auto_connect_frameworks={"pytorch": False, "tensorboard": True},
         auto_resource_monitoring={
             "report_frequency_sec": 5.0,
             "first_report_sec": 5.0,
@@ -388,7 +391,7 @@ def main(config: DictConfig) -> None:
         filename="{step}",
         every_n_train_steps=int(config.output.checkpoint_interval),
         save_top_k=-1,
-        save_last=True,
+        save_last="link",
     )
     molecular_evaluation = PeriodicMolecularEvaluation(
         config,
