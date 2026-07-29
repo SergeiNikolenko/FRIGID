@@ -294,7 +294,15 @@ def initialize_clearml(config: DictConfig):
         },
     )
     resolved_config = OmegaConf.to_container(config, resolve=True)
-    task.connect(resolved_config, name="resolved_config")
+    # A remotely executed clone already contains the source task's
+    # hyperparameters. Those values describe the parent run, not the command
+    # currently being executed, so never let them override or misreport the
+    # fully resolved Hydra configuration for this run.
+    task.connect(
+        resolved_config,
+        name="resolved_config",
+        ignore_remote_overrides=True,
+    )
     commit, _ = git_state()
     tracking_path = Path(config.output.root) / "clearml_task.json"
     tracking_path.parent.mkdir(parents=True, exist_ok=True)
