@@ -471,6 +471,10 @@ def test_diffusion_objective_reports_reconstruction_metrics():
         "first_block_masked_token_accuracy_top10",
         "first_block_masked_target_probability",
         "first_block_masked_token_nll",
+        "first_block_conditioning_nll_gain",
+        "first_block_conditioning_target_probability_gain",
+        "first_block_conditioning_token_accuracy_top1_gain",
+        "first_block_conditioning_token_accuracy_top10_gain",
     }
     assert all(torch.isfinite(value) for value in metrics.values())
     assert 0 <= metrics["masked_token_accuracy_top1"] <= 1

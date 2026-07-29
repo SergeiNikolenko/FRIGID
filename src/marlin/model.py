@@ -458,6 +458,100 @@ class MarlinDecoder(nn.Module):
         first_block_masked = masked & block_ids.eq(0).unsqueeze(0)
         first_block_masked_count = first_block_masked.sum()
         first_block_denominator = first_block_masked_count.clamp_min(1)
+        conditioning_metrics = {
+            "first_block_conditioning_nll_gain": losses.new_tensor(0.0),
+            "first_block_conditioning_target_probability_gain": losses.new_tensor(
+                0.0
+            ),
+            "first_block_conditioning_token_accuracy_top1_gain": losses.new_tensor(
+                0.0
+            ),
+            "first_block_conditioning_token_accuracy_top10_gain": losses.new_tensor(
+                0.0
+            ),
+        }
+        if batch > 1 and first_block_masked_count > 0:
+            # Compare matched and cyclically shuffled molecular conditions on
+            # the exact same noised tokens. Eval mode removes dropout as a
+            # source of variance; no gradients or RNG state affect training.
+            was_training = self.training
+            self.eval()
+            try:
+                with torch.no_grad():
+                    matched_logits = self.two_stream_logits(
+                        clean_ids,
+                        noised,
+                        precursor_mass,
+                        fingerprint,
+                        isotope_ratios,
+                        include_mass_conditioning=True,
+                    )
+                    shuffled_logits = self.two_stream_logits(
+                        clean_ids,
+                        noised,
+                        precursor_mass.roll(1, dims=0),
+                        fingerprint.roll(1, dims=0),
+                        (
+                            isotope_ratios.roll(1, dims=0)
+                            if isotope_ratios is not None
+                            else None
+                        ),
+                        include_mass_conditioning=True,
+                    )
+            finally:
+                self.train(was_training)
+
+            matched_log_probabilities = matched_logits.float().log_softmax(dim=-1)
+            shuffled_log_probabilities = shuffled_logits.float().log_softmax(dim=-1)
+            matched_target_probabilities = matched_log_probabilities.gather(
+                -1, clean_ids.unsqueeze(-1)
+            ).squeeze(-1).exp()
+            shuffled_target_probabilities = shuffled_log_probabilities.gather(
+                -1, clean_ids.unsqueeze(-1)
+            ).squeeze(-1).exp()
+            matched_losses = F.cross_entropy(
+                matched_logits.transpose(1, 2),
+                clean_ids,
+                reduction="none",
+            )
+            shuffled_losses = F.cross_entropy(
+                shuffled_logits.transpose(1, 2),
+                clean_ids,
+                reduction="none",
+            )
+            matched_top1 = matched_logits.argmax(dim=-1).eq(clean_ids)
+            shuffled_top1 = shuffled_logits.argmax(dim=-1).eq(clean_ids)
+            matched_top10 = (
+                matched_logits.topk(top_k, dim=-1)
+                .indices.eq(clean_ids.unsqueeze(-1))
+                .any(dim=-1)
+            )
+            shuffled_top10 = (
+                shuffled_logits.topk(top_k, dim=-1)
+                .indices.eq(clean_ids.unsqueeze(-1))
+                .any(dim=-1)
+            )
+            conditioning_metrics = {
+                "first_block_conditioning_nll_gain": (
+                    (shuffled_losses - matched_losses) * first_block_masked
+                ).sum()
+                / first_block_denominator,
+                "first_block_conditioning_target_probability_gain": (
+                    (matched_target_probabilities - shuffled_target_probabilities)
+                    * first_block_masked
+                ).sum()
+                / first_block_denominator,
+                "first_block_conditioning_token_accuracy_top1_gain": (
+                    (matched_top1.float() - shuffled_top1.float())
+                    * first_block_masked
+                ).sum()
+                / first_block_denominator,
+                "first_block_conditioning_token_accuracy_top10_gain": (
+                    (matched_top10.float() - shuffled_top10.float())
+                    * first_block_masked
+                ).sum()
+                / first_block_denominator,
+            }
         metrics = {
             "masked_token_accuracy_top1": correct.sum() / masked_count,
             "masked_token_accuracy_top10": (top10 & masked).sum() / masked_count,
@@ -499,5 +593,6 @@ class MarlinDecoder(nn.Module):
                 losses * first_block_masked
             ).sum()
             / first_block_denominator,
+            **conditioning_metrics,
         }
         return loss, metrics
