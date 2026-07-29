@@ -9,6 +9,7 @@ FILE_LIST_SHA256=ca5356076d4e6e4920a019d55af0a769b0984d736f3feb9799045f3c49244e6
 FRIGID_SHA256=b6177c2d43448380aba80ff41c01461ea34ca2ca93b213986954c5afb7f0f457
 MAX_STEPS="${MARLIN_MAX_STEPS:-100}"
 GATE_INTERVAL="${MARLIN_GATE_INTERVAL:-100}"
+RESUME_CHECKPOINT="${MARLIN_RESUME_CHECKPOINT:-}"
 TASK_SUFFIX="${CLEARML_TASK_ID:-manual}"
 RUN_ROOT="$SHARED_ROOT/runs/faro-paper-gate-$TASK_SUFFIX"
 CACHE_ROOT="$SHARED_ROOT/cache/filtered-safe-prefix-v1"
@@ -53,6 +54,16 @@ fi
 
 test ! -e "$RUN_ROOT"
 
+INITIALIZATION_ARGS=()
+if [[ -n "$RESUME_CHECKPOINT" ]]; then
+  test -f "$RESUME_CHECKPOINT"
+  INITIALIZATION_ARGS+=(
+    "resume_checkpoint=${RESUME_CHECKPOINT//=/\\=}"
+    "frigid_warm_start_checkpoint=null"
+    "frigid_warm_start_sha256=null"
+  )
+fi
+
 python scripts/train_marlin.py \
   data.tokenizer_file="$RUNTIME_ROOT/tokenizer.json" \
   data.exclude_inchikeys="$RUNTIME_ROOT/nplib1_test_inchikeys.csv" \
@@ -69,4 +80,5 @@ python scripts/train_marlin.py \
   output.root="$RUN_ROOT" \
   output.checkpoints="$RUN_ROOT/checkpoints" \
   output.checkpoint_interval="$GATE_INTERVAL" \
-  tracking.clearml.task_name=marlin-faro-paper-gate
+  tracking.clearml.task_name=marlin-faro-paper-gate \
+  "${INITIALIZATION_ARGS[@]}"
