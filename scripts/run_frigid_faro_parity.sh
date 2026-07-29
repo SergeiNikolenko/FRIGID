@@ -28,6 +28,8 @@ python -X faulthandler scripts/evaluate_frigid_parity.py \
   --max-spectra "${FRIGID_PARITY_MAX_SPECTRA:-4}" \
   --temperature "${FRIGID_PARITY_TEMPERATURE:-0.8}" \
   --randomness "${FRIGID_PARITY_RANDOMNESS:-0.5}" \
+  --conditioning "${FRIGID_PARITY_CONDITIONING:-fingerprint}" \
   --ppm-tolerance 10.0 \
   --seed 42 \
-  --clearml-task-id "$TASK_ID"
+  --clearml-task-id "$TASK_ID" \
+  ${FRIGID_PARITY_ORACLE_TARGET_LENGTH:+--oracle-target-length}

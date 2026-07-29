@@ -115,5 +115,7 @@ def test_faro_frigid_parity_uses_official_sampler_recipe():
     assert "scripts/evaluate_frigid_parity.py" in script
     assert '--temperature "${FRIGID_PARITY_TEMPERATURE:-0.8}"' in script
     assert '--randomness "${FRIGID_PARITY_RANDOMNESS:-0.5}"' in script
+    assert '--conditioning "${FRIGID_PARITY_CONDITIONING:-fingerprint}"' in script
+    assert "FRIGID_PARITY_ORACLE_TARGET_LENGTH" in script
     assert '--fingerprint-key ground_truth' in script
     assert '--clearml-task-id "$TASK_ID"' in script

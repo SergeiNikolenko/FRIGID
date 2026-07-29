@@ -13,6 +13,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import safe as sf
 import torch
 
 # The official sampler imports SAFE before RDKit drawing libraries.
@@ -42,6 +43,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-spectra", type=int, default=4)
     parser.add_argument("--temperature", type=float, default=0.8)
     parser.add_argument("--randomness", type=float, default=0.5)
+    parser.add_argument(
+        "--conditioning",
+        choices=("fingerprint", "formula-fingerprint"),
+        default="fingerprint",
+    )
+    parser.add_argument("--oracle-target-length", action="store_true")
     parser.add_argument("--ppm-tolerance", type=float, default=10.0)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--clearml-task-id")
@@ -113,6 +120,8 @@ def main() -> None:
         "max_spectra": args.max_spectra,
         "temperature": args.temperature,
         "randomness": args.randomness,
+        "conditioning": args.conditioning,
+        "oracle_target_length": args.oracle_target_length,
         "ppm_tolerance": args.ppm_tolerance,
         "seed": args.seed,
         "length_source": "official sampler data/len.pk or its 20..99 fallback",
@@ -134,6 +143,12 @@ def main() -> None:
     )
 
     sampler = Sampler(str(args.checkpoint))
+    lane = (
+        "target-formula-and-length-oracle"
+        if args.conditioning == "formula-fingerprint"
+        and args.oracle_target_length
+        else args.conditioning
+    )
     rows: list[dict] = []
     predictions_path = args.output_dir / "predictions.jsonl"
     with predictions_path.open("w") as output:
@@ -145,20 +160,42 @@ def main() -> None:
             if torch.cuda.is_available():
                 torch.cuda.manual_seed_all(sample_seed)
                 torch.cuda.synchronize()
+            target_molecule = Chem.MolFromSmiles(record["smiles"])
+            if target_molecule is None:
+                raise ValueError(f"invalid target SMILES: {record['smiles']}")
+            target_formula = rdMolDescriptors.CalcMolFormula(target_molecule)
+            target_lengths = None
+            if args.oracle_target_length:
+                target_safe = sf.SAFEConverter(
+                    slicer=sampler.slicer,
+                    ignore_stereo=True,
+                ).encoder(record["smiles"], allow_empty=True)
+                target_length = len(
+                    sampler.model.tokenizer(target_safe)["input_ids"]
+                )
+                target_lengths = [target_length] * args.candidates
             started = time.perf_counter()
-            generated = sampler.fingerprint_conditioned_generation(
-                fingerprints[position],
-                num_samples=args.candidates,
-                softmax_temp=args.temperature,
-                randomness=args.randomness,
-            )
+            if args.conditioning == "formula-fingerprint":
+                generated = sampler.formula_and_fingerprint_conditioned_generation(
+                    target_formula,
+                    fingerprints[position],
+                    num_samples=args.candidates,
+                    softmax_temp=args.temperature,
+                    randomness=args.randomness,
+                    sequence_lengths=target_lengths,
+                )
+            else:
+                generated = sampler.fingerprint_conditioned_generation(
+                    fingerprints[position],
+                    num_samples=args.candidates,
+                    softmax_temp=args.temperature,
+                    randomness=args.randomness,
+                    target_lengths=target_lengths,
+                )
             if torch.cuda.is_available():
                 torch.cuda.synchronize()
             elapsed = time.perf_counter() - started
 
-            target_molecule = Chem.MolFromSmiles(record["smiles"])
-            if target_molecule is None:
-                raise ValueError(f"invalid target SMILES: {record['smiles']}")
             target_fingerprint = morgan(target_molecule)
             predicted_fingerprint = explicit_fingerprint(fingerprints[position])
             target_connectivity = str(record["inchikey_first_block"])
@@ -215,7 +252,7 @@ def main() -> None:
             top_ten = ranked[:10]
             result = {
                 "spec_name": str(record["spec_name"]),
-                "lane": "dreams-ground-truth-fingerprint",
+                "lane": lane,
                 "target_smiles": record["smiles"],
                 "target_inchikey_first_block": target_connectivity,
                 "neutral_mass": neutral_mass,
@@ -259,7 +296,7 @@ def main() -> None:
             }
             add_formula_metrics(
                 result,
-                target_formula=rdMolDescriptors.CalcMolFormula(target_molecule),
+                target_formula=target_formula,
             )
             output.write(json.dumps(result, sort_keys=True) + "\n")
             output.flush()
@@ -278,7 +315,7 @@ def main() -> None:
         if (value := internal_diversity(row["candidates"])) is not None
     ]
     metrics = {
-        "lane": "dreams-ground-truth-fingerprint",
+        "lane": lane,
         "rows": len(rows),
         "exact_top1": mean_metric(rows, "exact_top1"),
         "exact_top10": mean_metric(rows, "exact_top10"),
