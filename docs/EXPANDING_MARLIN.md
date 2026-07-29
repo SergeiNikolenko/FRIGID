@@ -35,8 +35,11 @@ regressor and makes output length part of the learned generative process.
 ### 1. EFlow teacher
 
 The EFlow denoising backbone starts from the pinned FRIGID checkpoint. New time
-and insertion modules are randomly initialized. The insertion head is detached
-from the backbone for the first 2,000 steps.
+and insertion modules are randomly initialized. The default experimental
+adaptation freezes the backbone for 500 optimizer steps while learning the new
+flow-time, modulation, boundary, and insertion modules, then unfreezes the full
+network. The insertion head remains detached from the backbone for the first
+2,000 steps. EMA tracks every parameter in stable order across both stages.
 
 ```bash
 sbatch scripts/slurm_expanding_marlin_train.sbatch

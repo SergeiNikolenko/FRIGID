@@ -333,6 +333,9 @@ def main(config: DictConfig) -> None:
         noise_max_fraction=float(config.training.noise_max_fraction),
         ema_decay=float(config.training.ema_decay),
         metric_interval=int(config.training.metric_interval),
+        flow_modules_only_steps=int(
+            config.training.get("flow_modules_only_steps", 0)
+        ),
     )
     if stage == "eflow" and config.get("frigid_warm_start_checkpoint"):
         report = load_frigid_decoder(

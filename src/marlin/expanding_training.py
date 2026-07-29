@@ -7,7 +7,7 @@ from dataclasses import asdict
 import lightning as L
 import torch
 
-from dlm.utils.ema import ExponentialMovingAverage
+from marlin.ema import AllParameterExponentialMovingAverage
 from marlin.expanding import (
     ExpandingFlowConfig,
     ExpandingMarlinModel,
@@ -35,6 +35,7 @@ class ExpandingMarlinLightningModule(L.LightningModule):
         noise_max_fraction: float = 0.3,
         ema_decay: float = 0.9999,
         metric_interval: int = 50,
+        flow_modules_only_steps: int = 0,
     ) -> None:
         super().__init__()
         if stage not in {"eflow", "efm"}:
@@ -45,6 +46,8 @@ class ExpandingMarlinLightningModule(L.LightningModule):
             raise ValueError("weight_decay must be non-negative")
         if warmup_steps < 0:
             raise ValueError("warmup_steps must be non-negative")
+        if flow_modules_only_steps < 0:
+            raise ValueError("flow_modules_only_steps must be non-negative")
         self.save_hyperparameters(
             {
                 "decoder_config": asdict(decoder_config),
@@ -58,6 +61,7 @@ class ExpandingMarlinLightningModule(L.LightningModule):
                 "noise_max_fraction": noise_max_fraction,
                 "ema_decay": ema_decay,
                 "metric_interval": metric_interval,
+                "flow_modules_only_steps": flow_modules_only_steps,
             }
         )
         self.model = ExpandingMarlinModel(decoder_config, flow_config)
@@ -70,9 +74,12 @@ class ExpandingMarlinLightningModule(L.LightningModule):
         self.noise_max_fraction = noise_max_fraction
         self.ema_decay = ema_decay
         self.metric_interval = metric_interval
+        self.flow_modules_only_steps = flow_modules_only_steps
         self._last_metric_step = -1
+        self._active_adaptation_stage: str | None = None
+        self._trainable_parameter_fraction = 1.0
         self.__dict__["_teacher"] = None
-        self.ema = ExponentialMovingAverage(
+        self.ema = AllParameterExponentialMovingAverage(
             self.model.parameters(), decay=ema_decay, use_num_updates=False
         )
 
@@ -87,9 +94,48 @@ class ExpandingMarlinLightningModule(L.LightningModule):
         self.__dict__["_teacher"] = teacher
 
     def reset_ema(self) -> None:
-        self.ema = ExponentialMovingAverage(
+        self.ema = AllParameterExponentialMovingAverage(
             self.model.parameters(), decay=self.ema_decay, use_num_updates=False
         )
+
+    def adaptation_stage(self, step: int) -> str:
+        if self.stage == "eflow" and step < self.flow_modules_only_steps:
+            return "flow_modules"
+        return "full"
+
+    def apply_adaptation_stage(self, step: int) -> str:
+        """Warm up new EFlow modules without perturbing the FRIGID backbone."""
+        stage = self.adaptation_stage(step)
+        if stage == self._active_adaptation_stage:
+            return stage
+        trainable = 0
+        total = 0
+        for name, parameter in self.model.named_parameters():
+            parameter.requires_grad_(
+                stage == "full" or not name.startswith("backbone.")
+            )
+            count = parameter.numel()
+            total += count
+            if parameter.requires_grad:
+                trainable += count
+        self._active_adaptation_stage = stage
+        self._trainable_parameter_fraction = trainable / total
+        print(
+            "Expanding MARLIN adaptation stage "
+            f"{stage!r} at step {step}: "
+            f"{trainable}/{total} trainable parameters "
+            f"({self._trainable_parameter_fraction:.6f})",
+            flush=True,
+        )
+        return stage
+
+    def on_train_batch_start(
+        self,
+        batch: dict[str, torch.Tensor],
+        batch_idx: int,
+    ) -> None:
+        del batch, batch_idx
+        self.apply_adaptation_stage(int(self.global_step))
 
     def training_step(
         self, batch: dict[str, torch.Tensor], batch_idx: int
@@ -132,6 +178,19 @@ class ExpandingMarlinLightningModule(L.LightningModule):
         )
         if collect_metrics:
             self._last_metric_step = self.global_step
+            stage = self.adaptation_stage(int(self.global_step))
+            self.log(
+                "adaptation_stage",
+                {"flow_modules": 0.0, "full": 1.0}[stage],
+                on_step=True,
+                sync_dist=True,
+            )
+            self.log(
+                "trainable_parameter_fraction",
+                self._trainable_parameter_fraction,
+                on_step=True,
+                sync_dist=True,
+            )
             for name, value in metrics.items():
                 self.log(
                     f"train_{name}",

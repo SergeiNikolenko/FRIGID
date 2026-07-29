@@ -29,6 +29,10 @@ optim:
   weight_decay: 0.0
   warmup_steps: 2500
 
+training:
+  # Experimental FRIGID adaptation for newly introduced flow modules.
+  flow_modules_only_steps: 500
+
 loader:
   batch_size: 8
   num_workers: 8

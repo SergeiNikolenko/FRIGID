@@ -153,6 +153,25 @@ def test_eflow_objective_is_finite_and_updates_new_heads():
     assert model.source_time.projection[0].weight.grad is not None
 
 
+def test_eflow_staged_adaptation_preserves_ema_parameter_order():
+    decoder, flow = tiny_configs()
+    module = ExpandingMarlinLightningModule(
+        decoder,
+        flow,
+        flow_modules_only_steps=2,
+    )
+
+    assert module.apply_adaptation_stage(0) == "flow_modules"
+    assert not module.model.backbone.token_embedding.weight.requires_grad
+    assert module.model.source_time.projection[0].weight.requires_grad
+    assert len(module.ema.shadow_params) == len(list(module.model.parameters()))
+    module.ema.update(module.model.parameters())
+
+    assert module.apply_adaptation_stage(2) == "full"
+    assert all(parameter.requires_grad for parameter in module.model.parameters())
+    module.ema.update(module.model.parameters())
+
+
 def test_efm_diagonal_and_semigroup_objectives_are_finite():
     decoder, diagonal_flow = tiny_configs(diagonal_probability=1.0)
     teacher = ExpandingMarlinModel(decoder, diagonal_flow).eval()
@@ -325,6 +344,7 @@ def test_expanding_config_is_separate_from_strict_marlin_recipe():
     config = OmegaConf.load(root / "configs/expanding_marlin_nplib1.yaml")
 
     assert config.architecture == "expanding"
+    assert config.training.flow_modules_only_steps == 500
     assert config.stage == "eflow"
     assert config.flow.prior_scale == 1.25
     assert config.flow.insertion_cutoff == 0.5

@@ -10,7 +10,7 @@
 set -euo pipefail
 
 ROOT=/home/nikolenko/work/Projects/MARLIN_reproduction_20260717
-CODE="$ROOT/code"
+CODE="${MARLIN_CODE_ROOT:-$ROOT/code}"
 SHARED_ROOT="${MARLIN_SHARED_ROOT:-/mnt/netstorage/nikolenko/marlin}"
 STAGE="${EXPANDING_STAGE:-eflow}"
 OUTPUT_ROOT="${EXPANDING_OUTPUT_ROOT:-$SHARED_ROOT/runs/expanding/$STAGE-$SLURM_JOB_ID}"
@@ -22,6 +22,9 @@ BATCH_SIZE="${EXPANDING_BATCH_SIZE:-}"
 ACCUMULATE="${EXPANDING_ACCUMULATE_GRAD_BATCHES:-}"
 NUM_WORKERS="${EXPANDING_NUM_WORKERS:-}"
 EVALUATION_ENABLED="${EXPANDING_EVALUATION_ENABLED:-}"
+EVALUATION_INTERVAL="${EXPANDING_EVALUATION_INTERVAL:-$CHECKPOINT_INTERVAL}"
+FLOW_MODULES_ONLY_STEPS="${EXPANDING_FLOW_MODULES_ONLY_STEPS:-}"
+WARMUP_STEPS="${EXPANDING_WARMUP_STEPS:-}"
 ALLOW_DIRTY="${EXPANDING_ALLOW_DIRTY_WORKTREE:-false}"
 export PYTHONPATH="$CODE/src:$ROOT/vendor"
 export HF_HOME="${MARLIN_HF_HOME:-$SHARED_ROOT/cache/huggingface}"
@@ -45,11 +48,13 @@ append_override() {
 }
 append_override trainer.max_steps "$MAX_STEPS"
 append_override output.checkpoint_interval "$CHECKPOINT_INTERVAL"
-append_override evaluation.interval_steps "$CHECKPOINT_INTERVAL"
 append_override loader.batch_size "$BATCH_SIZE"
 append_override loader.num_workers "$NUM_WORKERS"
 append_override trainer.accumulate_grad_batches "$ACCUMULATE"
 append_override evaluation.enabled "$EVALUATION_ENABLED"
+append_override evaluation.interval_steps "$EVALUATION_INTERVAL"
+append_override training.flow_modules_only_steps "$FLOW_MODULES_ONLY_STEPS"
+append_override optim.warmup_steps "$WARMUP_STEPS"
 if [[ -n "$RESUME_CHECKPOINT" ]]; then
     ARGS+=("resume_checkpoint=${RESUME_CHECKPOINT//=/\\=}")
     ARGS+=("frigid_warm_start_checkpoint=null")
