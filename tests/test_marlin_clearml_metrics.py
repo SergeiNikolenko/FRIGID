@@ -70,3 +70,32 @@ def test_clearml_training_metrics_only_reports_global_zero_finite_scalars() -> N
             "iteration": 2,
         }
     ]
+
+
+def test_clearml_training_metrics_does_not_repeat_sparse_metrics() -> None:
+    reporter, logger = _reporter()
+    trainer = SimpleNamespace(
+        is_global_zero=True,
+        global_step=51,
+        callback_metrics={
+            "train_loss": torch.tensor(2.0),
+            "train_masked_token_accuracy_top1": torch.tensor(0.4),
+        },
+        logged_metrics={},
+    )
+    module = SimpleNamespace(_last_metric_step=50)
+
+    reporter.on_train_batch_end(trainer, module, None, None, 0)
+
+    assert [(call["series"], call["iteration"]) for call in logger.calls] == [
+        ("train_loss", 51)
+    ]
+
+    trainer.global_step = 100
+    module._last_metric_step = 100
+    reporter.on_train_batch_end(trainer, module, None, None, 1)
+
+    assert [(call["series"], call["iteration"]) for call in logger.calls[-2:]] == [
+        ("train_loss", 100),
+        ("train_masked_token_accuracy_top1", 100),
+    ]

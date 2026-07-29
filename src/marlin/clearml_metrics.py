@@ -18,6 +18,11 @@ _TRAINING_METRICS = {
     "train_loss",
     "trainable_parameter_fraction",
 }
+_SPARSE_TRAINING_METRICS = {
+    "adaptation_stage",
+    "grad_norm",
+    "trainable_parameter_fraction",
+}
 
 
 def _metric_name(name: str) -> str | None:
@@ -61,7 +66,7 @@ class ClearMLTrainingMetrics(L.Callback):
         batch,
         batch_idx,
     ) -> None:
-        del pl_module, outputs, batch, batch_idx
+        del outputs, batch, batch_idx
         if self.logger is None or not trainer.is_global_zero:
             return
         step = int(trainer.global_step)
@@ -76,6 +81,16 @@ class ClearMLTrainingMetrics(L.Callback):
             name = _metric_name(str(raw_name))
             value = _scalar(raw_value)
             if name is None or value is None or name in reported:
+                continue
+            is_sparse = (
+                name in _SPARSE_TRAINING_METRICS
+                or (name.startswith("train_") and name != "train_loss")
+            )
+            if (
+                is_sparse
+                and pl_module is not None
+                and int(getattr(pl_module, "_last_metric_step", -1)) != step
+            ):
                 continue
             self.logger.report_scalar(
                 title="Training metrics",
