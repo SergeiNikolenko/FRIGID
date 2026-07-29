@@ -42,7 +42,9 @@ flow-time, modulation, boundary, and insertion modules, then unfreezes the full
 network. The insertion head remains detached from the backbone for the first
 2,000 steps. New flow modules use the paper learning rate `3e-4`, while the
 pretrained backbone is capped at the MARLIN fine-tuning rate `5e-5`. EMA tracks
-every parameter in stable order across both stages.
+every parameter in stable order across both stages and uses the same
+update-count warm start as the FRIGID EMA implementation before converging to
+the configured `0.9999` decay.
 
 ```bash
 sbatch scripts/slurm_expanding_marlin_train.sbatch

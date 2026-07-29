@@ -89,7 +89,7 @@ class ExpandingMarlinLightningModule(L.LightningModule):
         self._trainable_parameter_fraction = 1.0
         self.__dict__["_teacher"] = None
         self.ema = AllParameterExponentialMovingAverage(
-            self.model.parameters(), decay=ema_decay, use_num_updates=False
+            self.model.parameters(), decay=ema_decay, use_num_updates=True
         )
 
     @property
@@ -104,7 +104,7 @@ class ExpandingMarlinLightningModule(L.LightningModule):
 
     def reset_ema(self) -> None:
         self.ema = AllParameterExponentialMovingAverage(
-            self.model.parameters(), decay=self.ema_decay, use_num_updates=False
+            self.model.parameters(), decay=self.ema_decay, use_num_updates=True
         )
 
     def adaptation_stage(self, step: int) -> str:

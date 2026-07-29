@@ -191,7 +191,9 @@ def test_eflow_staged_adaptation_preserves_ema_parameter_order():
     assert not module.model.backbone.token_embedding.weight.requires_grad
     assert module.model.source_time.projection[0].weight.requires_grad
     assert len(module.ema.shadow_params) == len(list(module.model.parameters()))
+    assert module.ema.num_updates == 0
     module.ema.update(module.model.parameters())
+    assert module.ema.num_updates == 1
 
     assert module.apply_adaptation_stage(2) == "full"
     assert all(parameter.requires_grad for parameter in module.model.parameters())
