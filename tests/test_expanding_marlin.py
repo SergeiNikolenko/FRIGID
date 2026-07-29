@@ -60,6 +60,8 @@ def test_cosine_insertion_schedule_is_invertible_and_bounded():
     assert time.max() <= 0.5
     assert schedule.alpha(torch.tensor([0.75])).item() == 1.0
     assert schedule.derivative(torch.tensor([0.75])).item() == 0.0
+    assert schedule.hazard(torch.tensor([0.25])).item() > 0
+    assert schedule.hazard(torch.tensor([0.75])).item() == 0.0
 
 
 def test_vocabulary_time_warp_is_monotone_and_round_trips():
@@ -101,6 +103,30 @@ def test_eflow_batch_compacts_active_tokens_and_preserves_anchors():
         torch.arange(2), lengths - 1
     ].any()
     assert sampled.gap_targets.sum() >= 0
+    assert torch.isfinite(sampled.sample_weights).all()
+    assert (sampled.sample_weights > 0).all()
+
+
+def test_eflow_stratifies_the_sparse_insertion_window():
+    decoder, flow = tiny_configs(eflow_early_time_probability=0.5)
+    model = ExpandingMarlinModel(decoder, flow)
+    clean = torch.tensor([[1, 4, 5, 6, 2, 0]]).repeat(1024, 1)
+    sampled = sample_eflow_batch(
+        clean,
+        decoder,
+        flow,
+        CosineInsertionSchedule(flow.insertion_cutoff),
+        model.time_warp,
+        generator=torch.Generator().manual_seed(7),
+    )
+
+    early_fraction = (
+        sampled.source_time < flow.insertion_cutoff
+    ).float().mean()
+    assert 0.4 < early_fraction < 0.6
+    assert torch.isclose(
+        sampled.sample_weights.mean(), torch.tensor(1.0), atol=0.08
+    )
 
 
 def test_expanding_model_outputs_token_and_gap_predictions():

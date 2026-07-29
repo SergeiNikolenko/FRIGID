@@ -23,6 +23,9 @@ flow:
   adaptive_loss_r: 0.5
   insertion_detach_steps: 2000
   sampling_time_floor: 1.0e-3
+  # Unbiased stratification: half of each small batch covers the insertion
+  # window and exact importance weights recover the paper's uniform-tau loss.
+  eflow_early_time_probability: 0.5
 
 optim:
   learning_rate: 3.0e-4

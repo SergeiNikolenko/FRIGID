@@ -16,6 +16,7 @@ The implementation uses:
   fingerprint/mass/isotope conditioner, and tied output projection;
 - Gaussian latent token vectors in the full SAFE vocabulary space;
 - a cosine per-token insertion schedule with a configurable insertion cutoff;
+- the paper's hazard-weighted diagonal insertion objective;
 - per-token local denoising times;
 - the large-vocabulary decoding-error time warp evaluated by Gauss-Hermite
   quadrature;
@@ -50,6 +51,11 @@ sbatch scripts/slurm_expanding_marlin_train.sbatch
 The default configuration follows the sequence experiment in the EFM paper:
 Gaussian scale 1.25, insertion cutoff 0.5, learning rate `3e-4`, 2,500 warmup
 steps, EMA 0.9999, global batch 512, and 200,000 optimizer steps.
+Because the SAFE vocabulary time warp places only about 1% of uniform samples
+before cutoff 0.5, small-batch runs stratify early and late times 50/50 and
+apply exact importance weights to both objectives. This preserves the
+paper's uniform-warped-time target while avoiding insertion batches containing
+only zero targets.
 
 ### 2. EFM student
 

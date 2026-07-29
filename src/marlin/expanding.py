@@ -43,6 +43,7 @@ class ExpandingFlowConfig:
     adaptive_loss_r: float = 0.5
     insertion_detach_steps: int = 2000
     sampling_time_floor: float = 1e-3
+    eflow_early_time_probability: float = 0.5
 
     def __post_init__(self) -> None:
         if self.prior_scale <= 0:
@@ -67,6 +68,8 @@ class ExpandingFlowConfig:
             raise ValueError("insertion_detach_steps must be non-negative")
         if not 0 < self.sampling_time_floor < 1:
             raise ValueError("sampling_time_floor must be in (0, 1)")
+        if not 0 < self.eflow_early_time_probability < 1:
+            raise ValueError("eflow_early_time_probability must be in (0, 1)")
 
 
 class CosineInsertionSchedule:
@@ -98,6 +101,16 @@ class CosineInsertionSchedule:
             * 2.0
             / math.pi
             * torch.acos((1.0 - probability).clamp(-1.0, 1.0))
+        )
+
+    def hazard(self, time: torch.Tensor) -> torch.Tensor:
+        """Instantaneous insertion hazard alpha'(t) / (1 - alpha(t))."""
+        denominator = 1.0 - self.alpha(time)
+        active = time < self.cutoff
+        return torch.where(
+            active,
+            self.derivative(time) / denominator.clamp_min(1e-6),
+            torch.zeros_like(time),
         )
 
     def interval_fraction(
@@ -414,6 +427,7 @@ class ExpandingBatch:
     gap_mask: torch.Tensor
     source_time: torch.Tensor
     target_time: torch.Tensor
+    sample_weights: torch.Tensor
 
 
 def _rand(
@@ -469,6 +483,7 @@ def _compact_batch(
     flow_config: ExpandingFlowConfig,
     *,
     generator: torch.Generator | None,
+    sample_weights: torch.Tensor | None = None,
 ) -> ExpandingBatch:
     device = clean_ids.device
     batch = clean_ids.shape[0]
@@ -529,6 +544,11 @@ def _compact_batch(
         gap_mask=gap_mask,
         source_time=source_time,
         target_time=target_time,
+        sample_weights=(
+            torch.ones_like(source_time)
+            if sample_weights is None
+            else sample_weights
+        ),
     )
 
 
@@ -544,7 +564,27 @@ def sample_eflow_batch(
     """Sample Algorithm 1's expanding interpolant for SAFE sequences."""
     device = clean_ids.device
     batch = clean_ids.shape[0]
-    tau = _rand((batch,), device=device, generator=generator)
+    # The vocabulary time warp places only a tiny fraction of uniform tau
+    # samples before the insertion cutoff (about 1% for the SAFE vocabulary).
+    # Stratify both regions and attach exact importance weights so small-batch
+    # training remains unbiased while seeing useful insertion examples.
+    early_probability = flow_config.eflow_early_time_probability
+    cutoff_tau = warp(
+        torch.tensor(flow_config.insertion_cutoff, device=device)
+    ).clamp(1e-6, 1.0 - 1e-6)
+    region_draw = _rand((batch,), device=device, generator=generator)
+    within_region = _rand((batch,), device=device, generator=generator)
+    early = region_draw < early_probability
+    tau = torch.where(
+        early,
+        within_region * cutoff_tau,
+        cutoff_tau + within_region * (1.0 - cutoff_tau),
+    )
+    sample_weights = torch.where(
+        early,
+        cutoff_tau / early_probability,
+        (1.0 - cutoff_tau) / (1.0 - early_probability),
+    )
     global_time = warp.inverse(tau).clamp_min(flow_config.sampling_time_floor)
     insertion_times = schedule.inverse(
         _rand(clean_ids.shape, device=device, generator=generator)
@@ -562,6 +602,7 @@ def sample_eflow_batch(
         config,
         flow_config,
         generator=generator,
+        sample_weights=sample_weights,
     )
 
 
@@ -573,12 +614,25 @@ def _masked_soft_cross_entropy(
 
 
 def _masked_hard_cross_entropy(
-    logits: torch.Tensor, target_ids: torch.Tensor, mask: torch.Tensor
+    logits: torch.Tensor,
+    target_ids: torch.Tensor,
+    mask: torch.Tensor,
+    sample_weights: torch.Tensor | None = None,
 ) -> torch.Tensor:
     losses = F.cross_entropy(
         logits.transpose(1, 2), target_ids, reduction="none"
     )
-    return (losses * mask).sum() / mask.sum().clamp_min(1)
+    weights = (
+        torch.ones(
+            (logits.shape[0], 1),
+            device=logits.device,
+            dtype=losses.dtype,
+        )
+        if sample_weights is None
+        else sample_weights.unsqueeze(1)
+    )
+    weighted_mask = mask * weights
+    return (losses * weighted_mask).sum() / weighted_mask.sum().clamp_min(1)
 
 
 def _poisson_loss(
@@ -588,6 +642,22 @@ def _poisson_loss(
         targets + 1.0
     )
     return (losses * mask).sum() / mask.sum().clamp_min(1)
+
+
+def _hazard_weighted_poisson_loss(
+    means: torch.Tensor,
+    targets: torch.Tensor,
+    mask: torch.Tensor,
+    hazard: torch.Tensor,
+    sample_weights: torch.Tensor,
+) -> torch.Tensor:
+    """Paper Eq. 26 diagonal insertion loss with importance weighting."""
+    losses = means - targets * means.clamp_min(1e-8).log() + torch.lgamma(
+        targets + 1.0
+    )
+    row_losses = (losses * mask).sum(dim=1) / mask.sum(dim=1).clamp_min(1)
+    weights = hazard * sample_weights
+    return (row_losses * weights).sum() / weights.sum().clamp_min(1e-8)
 
 
 def eflow_objective(
@@ -621,11 +691,19 @@ def eflow_objective(
         detach_insertion_backbone=detach_insertion_backbone,
     )
     token_loss = _masked_hard_cross_entropy(
-        output.logits, batch.target_ids, batch.token_loss_mask
+        output.logits,
+        batch.target_ids,
+        batch.token_loss_mask,
+        batch.sample_weights,
     )
     insertion_mask = batch.gap_mask & output.insertion_mask
-    insertion_loss = _poisson_loss(
-        output.insertion_means, batch.gap_targets, insertion_mask
+    insertion_hazard = schedule.hazard(batch.source_time)
+    insertion_loss = _hazard_weighted_poisson_loss(
+        output.insertion_means,
+        batch.gap_targets,
+        insertion_mask,
+        insertion_hazard,
+        batch.sample_weights,
     )
     loss = token_loss + model.flow_config.insertion_loss_weight * insertion_loss
     with torch.no_grad():
@@ -647,6 +725,14 @@ def eflow_objective(
         / clean_ids.ne(model.decoder_config.pad_token_id).sum().clamp_min(1),
         "remaining_length_mae": length_mae.detach(),
         "source_time": batch.source_time.mean().detach(),
+        "insertion_hazard": insertion_hazard.mean().detach(),
+        "early_time_fraction": (
+            batch.source_time < model.flow_config.insertion_cutoff
+        )
+        .float()
+        .mean()
+        .detach(),
+        "importance_weight": batch.sample_weights.mean().detach(),
     }
 
 
