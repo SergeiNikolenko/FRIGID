@@ -88,14 +88,31 @@ def test_clearml_training_metrics_does_not_repeat_sparse_metrics() -> None:
     reporter.on_train_batch_end(trainer, module, None, None, 0)
 
     assert [(call["series"], call["iteration"]) for call in logger.calls] == [
-        ("train_loss", 51)
+        ("train_loss", 51),
+        ("train_masked_token_accuracy_top1", 50),
+    ]
+
+    trainer.global_step = 52
+    reporter.on_train_batch_end(trainer, module, None, None, 1)
+
+    assert [(call["series"], call["iteration"]) for call in logger.calls[-1:]] == [
+        ("train_loss", 52)
     ]
 
     trainer.global_step = 100
     module._last_metric_step = 100
-    reporter.on_train_batch_end(trainer, module, None, None, 1)
+    reporter.on_train_batch_end(trainer, module, None, None, 2)
 
     assert [(call["series"], call["iteration"]) for call in logger.calls[-2:]] == [
         ("train_loss", 100),
         ("train_masked_token_accuracy_top1", 100),
+    ]
+
+    trainer.global_step = 151
+    module._last_metric_step = 150
+    reporter.on_train_batch_end(trainer, module, None, None, 3)
+
+    assert [(call["series"], call["iteration"]) for call in logger.calls[-2:]] == [
+        ("train_loss", 151),
+        ("train_masked_token_accuracy_top1", 150),
     ]

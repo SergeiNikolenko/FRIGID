@@ -86,16 +86,20 @@ class ClearMLTrainingMetrics(L.Callback):
                 name in _SPARSE_TRAINING_METRICS
                 or (name.startswith("train_") and name != "train_loss")
             )
-            if (
-                is_sparse
-                and pl_module is not None
-                and int(getattr(pl_module, "_last_metric_step", -1)) != step
-            ):
-                continue
+            report_step = step
+            if is_sparse and pl_module is not None:
+                metric_step = int(getattr(pl_module, "_last_metric_step", -1))
+                # With gradient accumulation, Lightning can increment
+                # ``global_step`` before this callback sees freshly collected
+                # reconstruction metrics. Attribute them to the forward pass
+                # that actually computed them.
+                if metric_step not in {step - 1, step}:
+                    continue
+                report_step = metric_step
             self.logger.report_scalar(
                 title="Training metrics",
                 series=name,
                 value=value,
-                iteration=step,
+                iteration=report_step,
             )
             reported.add(name)
