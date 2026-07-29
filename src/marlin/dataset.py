@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import tempfile
 from pathlib import Path, PurePosixPath
 
 
@@ -31,6 +32,58 @@ def streaming_loader_workers(requested: int, *, uses_filtered_prefix: bool) -> i
     return requested
 
 
+def _snapshot_verification_cache_path(manifest_path: Path) -> Path:
+    return manifest_path.with_name(
+        f".{manifest_path.name}.sha256-cache-v1.json"
+    )
+
+
+def _sample_sha256(path: Path, size_bytes: int) -> str:
+    block_size = 64 * 1024
+    offsets = sorted(
+        {
+            0,
+            max(0, size_bytes // 2 - block_size // 2),
+            max(0, size_bytes - block_size),
+        }
+    )
+    digest = hashlib.sha256()
+    digest.update(str(size_bytes).encode())
+    with path.open("rb") as handle:
+        for offset in offsets:
+            handle.seek(offset)
+            digest.update(str(offset).encode())
+            digest.update(handle.read(block_size))
+    return digest.hexdigest()
+
+
+def _shard_identity(shard: Path, root: Path) -> dict[str, int | str]:
+    stat = shard.stat()
+    return {
+        "path": shard.relative_to(root).as_posix(),
+        "size_bytes": stat.st_size,
+        "mtime_ns": stat.st_mtime_ns,
+        "ctime_ns": stat.st_ctime_ns,
+        "inode": stat.st_ino,
+        "device": stat.st_dev,
+        "sample_sha256": _sample_sha256(shard, stat.st_size),
+    }
+
+
+def _write_json_atomic(path: Path, payload: dict[str, object]) -> None:
+    with tempfile.NamedTemporaryFile(
+        mode="w",
+        dir=path.parent,
+        prefix=f".{path.name}.",
+        suffix=".tmp",
+        delete=False,
+    ) as handle:
+        json.dump(payload, handle, indent=2, sort_keys=True)
+        handle.write("\n")
+        temporary = Path(handle.name)
+    temporary.replace(path)
+
+
 def verify_snapshot_manifest(
     manifest_path: str | Path,
     *,
@@ -41,7 +94,9 @@ def verify_snapshot_manifest(
 ) -> tuple[list[str], str]:
     """Verify local shards against the pinned repository manifest."""
     path = Path(manifest_path)
-    manifest = json.loads(path.read_text())
+    manifest_bytes = path.read_bytes()
+    manifest_sha256 = hashlib.sha256(manifest_bytes).hexdigest()
+    manifest = json.loads(manifest_bytes)
     if manifest.get("schema_version") != 1:
         raise ValueError("local training snapshot schema mismatch")
     if manifest.get("kind") != "MARLIN offline SAFE-GPT training snapshot":
@@ -69,6 +124,7 @@ def verify_snapshot_manifest(
     if observed_list_sha256 != expected_file_list_sha256:
         raise ValueError("local training snapshot canonical file-list digest mismatch")
     resolved = []
+    identities = []
     for entry in files:
         relative = PurePosixPath(entry["path"])
         if (
@@ -82,14 +138,48 @@ def verify_snapshot_manifest(
             raise ValueError(f"local training shard escapes snapshot root: {shard}")
         if not shard.is_file():
             raise FileNotFoundError(f"missing local training shard {shard}")
-        if shard.stat().st_size != entry["size_bytes"]:
+        identity = _shard_identity(shard, root)
+        if identity["size_bytes"] != entry["size_bytes"]:
             raise ValueError(f"local training shard size mismatch: {shard}")
-        if verify_hashes:
+        identities.append(identity)
+        resolved.append(str(shard.resolve()))
+
+    cache_path = _snapshot_verification_cache_path(path)
+    cache_hit = False
+    if verify_hashes and cache_path.is_file():
+        try:
+            cache = json.loads(cache_path.read_text())
+        except (OSError, json.JSONDecodeError):
+            cache = {}
+        cache_hit = cache == {
+            "schema_version": 1,
+            "kind": "MARLIN snapshot SHA-256 verification cache",
+            "manifest_sha256": manifest_sha256,
+            "file_list_sha256": expected_file_list_sha256,
+            "files": identities,
+        }
+
+    if verify_hashes and not cache_hit:
+        for entry, shard_text in zip(files, resolved):
+            shard = Path(shard_text)
             observed = sha256_file(shard)
             if observed != entry["sha256"]:
                 raise ValueError(f"local training shard SHA-256 mismatch: {shard}")
-        resolved.append(str(shard.resolve()))
-    return resolved, sha256_file(path)
+        try:
+            _write_json_atomic(
+                cache_path,
+                {
+                    "schema_version": 1,
+                    "kind": "MARLIN snapshot SHA-256 verification cache",
+                    "manifest_sha256": manifest_sha256,
+                    "file_list_sha256": expected_file_list_sha256,
+                    "files": identities,
+                },
+            )
+        except OSError:
+            # A read-only snapshot remains usable after full verification.
+            pass
+    return resolved, manifest_sha256
 
 
 def verify_filtered_prefix_cache(
