@@ -11,6 +11,10 @@
   manifests needed to reproduce shared-storage artifacts.
 - Slurm jobs must write new checkpoints and run artifacts to the shared storage
   root unless a smoke test explicitly requires a temporary local output.
+- Treat live Slurm jobs from this checkout as shared campaign state. Do not
+  cancel, hold, release, or replace another MARLIN job merely to acquire the
+  GPU; let Slurm serialize them unless the owning run is demonstrably stale or
+  failing.
 - Treat shared-storage paths as durable user data. Never delete or overwrite
   them without resolving the exact target and obtaining explicit authorization.
 
