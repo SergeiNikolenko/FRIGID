@@ -104,3 +104,15 @@ def test_faro_evaluation_isolated_from_training_process():
     assert '--generation-mode "${MARLIN_EVAL_GENERATION_MODE:-block}"' in script
     assert "MARLIN_EVAL_DISABLE_GRAMMAR_MASK" in script
     assert "MARLIN_EVAL_DISABLE_MASS_SHELL" in script
+
+
+def test_faro_frigid_parity_uses_official_sampler_recipe():
+    script = (
+        PROJECT_ROOT / "scripts/run_frigid_faro_parity.sh"
+    ).read_text()
+
+    assert "scripts/evaluate_frigid_parity.py" in script
+    assert '--temperature "${FRIGID_PARITY_TEMPERATURE:-0.8}"' in script
+    assert '--randomness "${FRIGID_PARITY_RANDOMNESS:-0.5}"' in script
+    assert '--fingerprint-key ground_truth' in script
+    assert '--clearml-task-id "$TASK_ID"' in script

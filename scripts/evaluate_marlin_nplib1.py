@@ -288,6 +288,7 @@ def publish_clearml_evaluation(
     settings: dict,
     task_id: str | None = None,
     iteration: int | None = None,
+    evaluation_label: str = "MARLIN",
 ) -> dict[str, str] | None:
     """Publish a completed evaluation only when explicitly configured."""
     if task_id is None and project_name is None and task_name is None:
@@ -343,13 +344,13 @@ def publish_clearml_evaluation(
                 iteration=report_iteration,
             )
         logger.report_table(
-            title="MARLIN molecular evaluation",
+            title=f"{evaluation_label} molecular evaluation",
             series="Top candidates",
             iteration=report_iteration,
             table_plot=_clearml_candidate_table(rows),
         )
         logger.report_table(
-            title="MARLIN decoding diagnostics",
+            title=f"{evaluation_label} decoding diagnostics",
             series="Terminal samples",
             iteration=report_iteration,
             table_plot=_clearml_decoding_diagnostic_table(rows),
