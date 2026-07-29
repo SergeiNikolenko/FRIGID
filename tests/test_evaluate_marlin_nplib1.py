@@ -1,3 +1,4 @@
+from pathlib import Path
 import sys
 from types import SimpleNamespace
 
@@ -7,6 +8,15 @@ from scripts.evaluate_marlin_nplib1 import (
     formula_metric_summary,
     publish_clearml_evaluation,
 )
+
+
+def test_safe_import_precedes_rdkit_draw_on_faro() -> None:
+    source = Path("scripts/evaluate_marlin_nplib1.py").read_text()
+
+    assert source.index(
+        "from dlm.utils.utils_chem import safe_to_smiles"
+    ) < source.index("from rdkit import Chem, DataStructs")
+    assert "from rdkit.Chem import AllChem, Draw, rdMolDescriptors" not in source
 
 
 def test_add_formula_metrics_checks_first_ten_candidates():

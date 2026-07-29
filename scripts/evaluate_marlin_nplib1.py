@@ -15,10 +15,13 @@ from pathlib import Path
 
 import pandas as pd
 import torch
-from rdkit import Chem, DataStructs
-from rdkit.Chem import AllChem, Draw, rdMolDescriptors
 
+# Import SAFE before RDKit drawing libraries.  The FARO conda image otherwise
+# resolves incompatible native expat symbols while SAFE imports wandb/IPython.
 from dlm.utils.utils_chem import safe_to_smiles
+from rdkit import Chem, DataStructs
+from rdkit.Chem import AllChem, rdMolDescriptors
+
 from marlin.expanding import ExpandingMarlinSampler
 from marlin.expanding_checkpoint import expanding_model_from_checkpoint
 from marlin.evaluation import (
@@ -331,6 +334,8 @@ def publish_clearml_evaluation(
                     molecules.append(candidate)
                     legends.append(f"{row['spec_name']} top-1")
         if molecules and hasattr(logger, "report_image"):
+            from rdkit.Chem import Draw
+
             logger.report_image(
                 title="Molecular generation",
                 series="Targets and top-1 candidates",
