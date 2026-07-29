@@ -52,6 +52,8 @@ append_override trainer.accumulate_grad_batches "$ACCUMULATE"
 append_override evaluation.enabled "$EVALUATION_ENABLED"
 if [[ -n "$RESUME_CHECKPOINT" ]]; then
     ARGS+=("resume_checkpoint=${RESUME_CHECKPOINT//=/\\=}")
+    ARGS+=("frigid_warm_start_checkpoint=null")
+    ARGS+=("frigid_warm_start_sha256=null")
 fi
 if [[ "$STAGE" == "efm" ]]; then
     if [[ -z "$TEACHER_CHECKPOINT" ]]; then

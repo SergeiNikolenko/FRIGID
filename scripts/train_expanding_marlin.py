@@ -248,11 +248,23 @@ def main(config: DictConfig) -> None:
     stage = str(config.stage)
     if stage not in {"eflow", "efm"}:
         raise ValueError("stage must be eflow or efm")
-    if stage == "eflow" and not (
-        config.get("frigid_warm_start_checkpoint")
-        or config.get("resume_checkpoint")
-    ):
-        raise ValueError("EFlow requires FRIGID warm start or resume checkpoint")
+    if stage == "eflow":
+        sources = [
+            name
+            for name, value in (
+                (
+                    "frigid_warm_start_checkpoint",
+                    config.get("frigid_warm_start_checkpoint"),
+                ),
+                ("resume_checkpoint", config.get("resume_checkpoint")),
+            )
+            if value
+        ]
+        if len(sources) != 1:
+            raise ValueError(
+                "EFlow requires exactly one initialization source; got "
+                + (", ".join(sources) or "none")
+            )
     if stage == "efm" and not config.get("teacher_checkpoint"):
         raise ValueError("EFM requires teacher_checkpoint")
     if stage == "efm" and config.get("frigid_warm_start_checkpoint"):
@@ -281,6 +293,24 @@ def main(config: DictConfig) -> None:
     )
     if special_ids["eos"] != decoder_config.eos_token_id:
         raise ValueError("model EOS token ID does not match tokenizer")
+    length_audit = json.loads(
+        Path(config.data.length_audit_manifest).read_text()
+    )
+    if (
+        sha256_file(config.data.length_audit_manifest)
+        != str(config.data.length_audit_sha256)
+    ):
+        raise ValueError("training length audit manifest hash mismatch")
+    if length_audit["dataset_revision"] != str(config.data.revision):
+        raise ValueError("training length audit dataset revision mismatch")
+    if length_audit["maximum_allowed_length"] != decoder_config.max_length:
+        raise ValueError("training length audit decoder context mismatch")
+    if not length_audit.get("strict_safe_decode", False):
+        raise ValueError("training audit did not use strict SAFE decoding")
+    if length_audit.get("exclusion_sha256") != sha256_file(
+        config.data.exclude_inchikeys
+    ):
+        raise ValueError("training audit exclusion hash mismatch")
     local_shards, snapshot_manifest_sha256 = verify_snapshot_manifest(
         config.data.snapshot_manifest,
         expected_dataset=str(config.data.dataset),
