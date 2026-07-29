@@ -27,6 +27,8 @@ DISABLE_MASS_SHELL="${MARLIN_DISABLE_MASS_SHELL:-0}"
 FIX_SAFE_DECODE="${MARLIN_FIX_SAFE_DECODE:-0}"
 SAMPLE_TOKENS="${MARLIN_SAMPLE_TOKENS:-0}"
 GENERATION_MODE="${MARLIN_GENERATION_MODE:-block}"
+ARCHITECTURE="${MARLIN_ARCHITECTURE:-marlin}"
+EXPANDING_STEPS="${MARLIN_EXPANDING_STEPS:-32}"
 CLEARML_PROJECT="${MARLIN_CLEARML_PROJECT:-}"
 CLEARML_TASK_NAME="${MARLIN_CLEARML_TASK_NAME:-}"
 CLEARML_TAGS="${MARLIN_CLEARML_TAGS:-marlin,evaluation,oracle}"
@@ -67,6 +69,15 @@ if [[ "$DISABLE_GRAMMAR" == "1" ]]; then
 fi
 if [[ "$DISABLE_MASS_SHELL" == "1" ]]; then
     ARGS+=(--disable-mass-shell)
+fi
+if [[ "$ARCHITECTURE" == "expanding" ]]; then
+    ARGS+=(
+        --architecture expanding
+        --expanding-steps "$EXPANDING_STEPS"
+    )
+elif [[ "$ARCHITECTURE" != "marlin" ]]; then
+    echo "Unsupported MARLIN_ARCHITECTURE: $ARCHITECTURE" >&2
+    exit 2
 fi
 if [[ -n "$CLEARML_PROJECT" || -n "$CLEARML_TASK_NAME" ]]; then
     : "${CLEARML_PROJECT:?Set MARLIN_CLEARML_PROJECT when enabling ClearML}"
