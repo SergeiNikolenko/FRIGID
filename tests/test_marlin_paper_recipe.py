@@ -76,3 +76,16 @@ def test_faro_gate_keeps_the_paper_batch_and_fresh_frigid_start():
     assert "conditioning_only_steps=" not in script
     assert "cross_attention_only_steps=" not in script
     assert "evaluation.interval_steps=" in script
+
+
+def test_faro_requirements_pin_legacy_resolver_conflicts():
+    requirements = (
+        PROJECT_ROOT / "requirements/faro-paper-gate.txt"
+    ).read_text()
+
+    assert "setuptools<81" in requirements
+    assert "huggingface-hub==0.36.2" in requirements
+    assert "tokenizers==0.13.3" in requirements
+    assert "fsspec==2024.2.0" in requirements
+    assert "dill==0.3.8" in requirements
+    assert "multiprocess==0.70.16" in requirements
