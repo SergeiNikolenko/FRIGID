@@ -31,6 +31,13 @@ SCORE_WEIGHTS = {
     "validity": 0.05,
     "uniqueness": 0.05,
 }
+PROTECTED_EVALUATOR_PATHS = (
+    "scripts/autoresearch_marlin_score.py",
+    "scripts/run_marlin_autoresearch_score.sh",
+    "scripts/slurm_marlin_autoresearch_score.sbatch",
+    "scripts/evaluate_marlin_nplib1.py",
+    "src/marlin/evaluation.py",
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -105,8 +112,23 @@ def write_json_atomic(path: Path, payload: dict[str, Any]) -> None:
     temporary.replace(path)
 
 
+def require_clean_evaluator() -> None:
+    status = subprocess.run(
+        ["git", "status", "--porcelain", "--", *PROTECTED_EVALUATOR_PATHS],
+        cwd=PROJECT_ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    if status:
+        raise RuntimeError(
+            "refusing to score with a modified evaluator contract:\n" + status
+        )
+
+
 def main() -> None:
     args = parse_args()
+    require_clean_evaluator()
     seeds = tuple(int(seed.strip()) for seed in args.seeds.split(",") if seed.strip())
     if not seeds:
         raise ValueError("--seeds must contain at least one integer")
