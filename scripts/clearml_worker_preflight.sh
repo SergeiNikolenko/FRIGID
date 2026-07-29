@@ -1,0 +1,35 @@
+#!/bin/bash
+
+set -euo pipefail
+
+SHARED_ROOT="${MARLIN_SHARED_ROOT:-/mnt/netstorage/nikolenko/marlin}"
+FRIGID_CHECKPOINT="$SHARED_ROOT/checkpoints/frigid/DLM.ckpt"
+SNAPSHOT_MANIFEST="$SHARED_ROOT/safe-gpt-16d0be9ad6177ae683a32a86204530e8ee624a0f/manifest.json"
+
+printf 'git_commit=%s\n' "$(git rev-parse HEAD)"
+printf 'hostname=%s\n' "$(hostname)"
+nvidia-smi --query-gpu=index,name,memory.used,memory.total,utilization.gpu \
+    --format=csv,noheader
+
+for path in "$SHARED_ROOT" "$FRIGID_CHECKPOINT" "$SNAPSHOT_MANIFEST"; do
+    if [[ ! -r "$path" ]]; then
+        printf 'required_path_unreadable=%s\n' "$path" >&2
+        exit 2
+    fi
+    stat --printf='readable_path=%n bytes=%s\n' "$path"
+done
+
+if [[ -d /mnt/ligandpro/shared_storage ]]; then
+    printf 'ligandpro_shared_storage=present\n'
+else
+    printf 'ligandpro_shared_storage=absent\n'
+fi
+
+python3 - <<'PY'
+import importlib.util
+import platform
+
+print(f"python={platform.python_version()}")
+for package in ("clearml", "torch"):
+    print(f"{package}_available={importlib.util.find_spec(package) is not None}")
+PY
