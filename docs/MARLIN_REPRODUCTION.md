@@ -114,6 +114,12 @@ million-row audit at commit `a7a49f6` examined 1,000,000 records and retained
 998,678: 1,305 were overlength, seven failed strict SAFE decoding without
 repair, and ten matched excluded NPLIB1 test connectivity keys. Its SHA-256 is
 `c6267bfcffe51b42fa82d3514cb148ba15fa9e7c0141119682aa12c64413b0fd`.
+Full snapshot SHA-256 verification is cached beside the immutable snapshot
+manifest after the first successful pass. The cache is bound to the manifest
+digest, canonical file-list digest, filesystem identity and timestamps, and a
+sampled content digest for every shard. Unchanged runs therefore read only
+small samples instead of rehashing the 71.3 GB snapshot; any identity or sample
+change falls back to full hashing before training.
 
 ## Rejected non-canonical checkpoints
 
