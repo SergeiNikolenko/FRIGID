@@ -36,7 +36,11 @@ from marlin.training import (
     MarlinLightningModule,
     MarlinTrainingFilter,
 )
-from marlin.warm_start import load_frigid_decoder, sha256_file
+from marlin.warm_start import (
+    load_frigid_decoder,
+    load_marlin_decoder_weights,
+    sha256_file,
+)
 
 
 def git_state() -> tuple[str | None, list[str]]:
@@ -390,33 +394,19 @@ def main(config: DictConfig) -> None:
         report_path.write_text(json.dumps(report, indent=2) + "\n")
     elif config.get("initial_weights_checkpoint"):
         checkpoint_path = Path(config.initial_weights_checkpoint)
-        checkpoint = torch.load(
+        report = load_marlin_decoder_weights(
+            module.decoder,
             checkpoint_path,
-            map_location="cpu",
-            weights_only=False,
+            architecture_upgrade=bool(
+                config.get("initial_weights_architecture_upgrade", False)
+            ),
+            use_ema=bool(config.get("initial_weights_use_ema", True)),
         )
-        decoder_state = {
-            key.removeprefix("decoder."): value
-            for key, value in checkpoint["state_dict"].items()
-            if key.startswith("decoder.")
-        }
-        module.decoder.load_state_dict(decoder_state, strict=True)
-        if "ema" in checkpoint:
-            module.ema.load_state_dict(checkpoint["ema"])
+        module.reset_ema()
         report_path = Path(config.output.root) / "weights_only_start.json"
         report_path.parent.mkdir(parents=True, exist_ok=True)
         report_path.write_text(
-            json.dumps(
-                {
-                    "checkpoint": str(checkpoint_path),
-                    "source_global_step": int(checkpoint.get("global_step", -1)),
-                    "optimizer_state_restored": False,
-                    "trainer_loop_state_restored": False,
-                    "ema_state_restored": "ema" in checkpoint,
-                },
-                indent=2,
-            )
-            + "\n"
+            json.dumps(report, indent=2, sort_keys=True) + "\n"
         )
     source_dataset = datasets.load_dataset(
         "parquet",

@@ -7,7 +7,15 @@ from pathlib import Path
 
 import torch
 
-from marlin.model import MarlinDecoder
+from marlin.model import MarlinDecoder, MarlinDecoderConfig
+
+
+_ARCHITECTURE_UPGRADE_PREFIXES = (
+    "conditioner.fingerprint.layer_norm.",
+    "conditioner.fingerprint.self_attention_layers.",
+    "token_type_embedding.",
+    "embedding_norm.",
+)
 
 
 def _copy(parameter: torch.Tensor, source: torch.Tensor, name: str) -> None:
@@ -185,6 +193,118 @@ def sha256_file(path: str | Path) -> str:
         for chunk in iter(lambda: handle.read(8 * 1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _marlin_decoder_from_checkpoint(
+    checkpoint: dict,
+    *,
+    use_ema: bool,
+) -> MarlinDecoder:
+    config_values = dict(checkpoint["hyper_parameters"]["config"])
+    checkpoint_state = checkpoint["state_dict"]
+    if (
+        "decoder.conditioner.fingerprint.layer_norm.weight"
+        not in checkpoint_state
+    ):
+        config_values["fingerprint_layer_norm"] = False
+    source = MarlinDecoder(MarlinDecoderConfig(**config_values))
+    decoder_state = {
+        key.removeprefix("decoder."): value
+        for key, value in checkpoint_state.items()
+        if key.startswith("decoder.")
+    }
+    source.load_state_dict(decoder_state, strict=True)
+    if use_ema and checkpoint.get("ema"):
+        parameters = [
+            parameter for parameter in source.parameters()
+            if parameter.requires_grad
+        ]
+        shadows = checkpoint["ema"]["shadow_params"]
+        if len(parameters) != len(shadows):
+            raise ValueError(
+                "MARLIN EMA parameter count mismatch: "
+                f"{len(parameters)} != {len(shadows)}"
+            )
+        with torch.no_grad():
+            for index, (parameter, shadow) in enumerate(
+                zip(parameters, shadows)
+            ):
+                if parameter.shape != shadow.shape:
+                    raise ValueError(
+                        "MARLIN EMA shape mismatch at position "
+                        f"{index}: {tuple(parameter.shape)} != "
+                        f"{tuple(shadow.shape)}"
+                    )
+                parameter.copy_(shadow)
+    return source
+
+
+def load_marlin_decoder_weights(
+    model: MarlinDecoder,
+    checkpoint_path: str | Path,
+    *,
+    architecture_upgrade: bool = False,
+    use_ema: bool = True,
+) -> dict:
+    """Load a MARLIN checkpoint, optionally adapting only known paper modules."""
+    checkpoint = torch.load(
+        checkpoint_path,
+        map_location="cpu",
+        weights_only=False,
+    )
+    source = _marlin_decoder_from_checkpoint(checkpoint, use_ema=use_ema)
+    source_state = source.state_dict()
+    target_state = model.state_dict()
+    missing = sorted(set(target_state) - set(source_state))
+    unexpected = sorted(set(source_state) - set(target_state))
+    shape_mismatches = sorted(
+        key
+        for key in set(source_state) & set(target_state)
+        if source_state[key].shape != target_state[key].shape
+    )
+    changed = missing + unexpected + shape_mismatches
+    if changed and not architecture_upgrade:
+        raise ValueError(
+            "MARLIN checkpoint architecture mismatch; set the explicit "
+            f"architecture-upgrade mode only for known paper modules: {changed}"
+        )
+    forbidden = [
+        key
+        for key in changed
+        if not key.startswith(_ARCHITECTURE_UPGRADE_PREFIXES)
+    ]
+    if forbidden:
+        raise ValueError(
+            "MARLIN architecture upgrade contains non-whitelisted keys: "
+            f"{forbidden}"
+        )
+    compatible = {
+        key: value
+        for key, value in source_state.items()
+        if key in target_state and value.shape == target_state[key].shape
+    }
+    incompatible = model.load_state_dict(compatible, strict=False)
+    if sorted(incompatible.missing_keys) != missing:
+        raise AssertionError("MARLIN upgrade missing-key accounting changed")
+    if incompatible.unexpected_keys:
+        raise AssertionError("filtered MARLIN upgrade has unexpected keys")
+    if model.token_type_embedding is not None and any(
+        key.startswith("token_type_embedding.") for key in missing
+    ):
+        torch.nn.init.zeros_(model.token_type_embedding.weight)
+    return {
+        "checkpoint": str(checkpoint_path),
+        "checkpoint_sha256": sha256_file(checkpoint_path),
+        "source_global_step": int(checkpoint.get("global_step", -1)),
+        "source_weights": "ema" if use_ema and checkpoint.get("ema") else "raw",
+        "architecture_upgrade": architecture_upgrade,
+        "loaded_keys": len(compatible),
+        "initialized_target_keys": missing,
+        "ignored_source_keys": unexpected,
+        "shape_mismatches": shape_mismatches,
+        "optimizer_state_restored": False,
+        "trainer_loop_state_restored": False,
+    }
 
 
 def load_frigid_decoder(

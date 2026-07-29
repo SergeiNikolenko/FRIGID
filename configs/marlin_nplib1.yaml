@@ -2,6 +2,9 @@
 # max_steps and mass Fourier frequencies are explicitly inferred because the paper omits them.
 seed: 42
 resume_checkpoint: null
+initial_weights_checkpoint: null
+initial_weights_architecture_upgrade: false
+initial_weights_use_ema: true
 frigid_warm_start_checkpoint: /mnt/netstorage/nikolenko/marlin/checkpoints/frigid/DLM.ckpt
 frigid_warm_start_sha256: b6177c2d43448380aba80ff41c01461ea34ca2ca93b213986954c5afb7f0f457
 
