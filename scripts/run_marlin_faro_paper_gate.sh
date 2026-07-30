@@ -9,10 +9,15 @@ FILE_LIST_SHA256=ca5356076d4e6e4920a019d55af0a769b0984d736f3feb9799045f3c49244e6
 FRIGID_SHA256=b6177c2d43448380aba80ff41c01461ea34ca2ca93b213986954c5afb7f0f457
 MAX_STEPS="${MARLIN_MAX_STEPS:-100}"
 GATE_INTERVAL="${MARLIN_GATE_INTERVAL:-100}"
+EVALUATION_INTERVAL="${MARLIN_EVALUATION_INTERVAL:-$GATE_INTERVAL}"
+CHECKPOINT_INTERVAL="${MARLIN_CHECKPOINT_INTERVAL:-$GATE_INTERVAL}"
 RESUME_CHECKPOINT="${MARLIN_RESUME_CHECKPOINT:-}"
 TASK_SUFFIX="${CLEARML_TASK_ID:-manual}"
 RUN_ROOT="$SHARED_ROOT/runs/faro-paper-gate-$TASK_SUFFIX"
 CACHE_ROOT="$SHARED_ROOT/cache/filtered-safe-prefix-v1"
+GLOBAL_BATCH_SIZE=$((8 * 2 * 16))
+STREAM_CACHE_ROWS="${MARLIN_STREAM_CACHE_ROWS:-$((MAX_STEPS * GLOBAL_BATCH_SIZE))}"
+STREAM_CACHE_ROOT="$SHARED_ROOT/cache/shuffled-safe-stream-v1-$STREAM_CACHE_ROWS"
 
 export NO_PROXY="${NO_PROXY:+$NO_PROXY,}.clearai.innopolis.university,.university.innopolis.ru"
 export no_proxy="${no_proxy:+$no_proxy,}.clearai.innopolis.university,.university.innopolis.ru"
@@ -52,6 +57,22 @@ if [[ ! -f "$CACHE_ROOT/manifest.json" ]]; then
     --output-dir "$CACHE_ROOT"
 fi
 
+if [[ ! -f "$STREAM_CACHE_ROOT/manifest.json" ]]; then
+  python scripts/build_marlin_shuffled_stream_cache.py \
+    --snapshot-manifest "$SHARED_ROOT/safe-gpt-$REVISION/manifest.json" \
+    --filtered-prefix-manifest "$CACHE_ROOT/manifest.json" \
+    --dataset datamol-io/safe-gpt \
+    --revision "$REVISION" \
+    --file-list-sha256 "$FILE_LIST_SHA256" \
+    --tokenizer "$RUNTIME_ROOT/tokenizer.json" \
+    --exclude-inchikeys "$RUNTIME_ROOT/nplib1_test_inchikeys.csv" \
+    --max-length 256 \
+    --seed 42 \
+    --shuffle-buffer 100000 \
+    --rows "$STREAM_CACHE_ROWS" \
+    --output-dir "$STREAM_CACHE_ROOT"
+fi
+
 test ! -e "$RUN_ROOT"
 
 INITIALIZATION_ARGS=()
@@ -71,14 +92,15 @@ python scripts/train_marlin.py \
   data.hf_cache_dir="$SHARED_ROOT/cache/huggingface" \
   data.snapshot_manifest="$SHARED_ROOT/safe-gpt-$REVISION/manifest.json" \
   data.filtered_prefix_cache_manifest="$CACHE_ROOT/manifest.json" \
+  data.shuffled_stream_cache_manifest="$STREAM_CACHE_ROOT/manifest.json" \
   evaluation.metadata="$RUNTIME_ROOT/val/metadata.csv" \
   evaluation.fingerprints="$RUNTIME_ROOT/val/fingerprints.npz" \
-  evaluation.interval_steps="$GATE_INTERVAL" \
+  evaluation.interval_steps="$EVALUATION_INTERVAL" \
   trainer.devices=2 \
   trainer.accumulate_grad_batches=16 \
   trainer.max_steps="$MAX_STEPS" \
   output.root="$RUN_ROOT" \
   output.checkpoints="$RUN_ROOT/checkpoints" \
-  output.checkpoint_interval="$GATE_INTERVAL" \
+  output.checkpoint_interval="$CHECKPOINT_INTERVAL" \
   tracking.clearml.task_name=marlin-faro-paper-gate \
   "${INITIALIZATION_ARGS[@]}"

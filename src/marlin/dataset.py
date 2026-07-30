@@ -284,3 +284,48 @@ def verify_filtered_prefix_cache(
     if sha256_file(shard) != manifest["shard_sha256"]:
         raise ValueError("filtered prefix cache shard SHA-256 mismatch")
     return str(shard), raw_rows_consumed
+
+
+def verify_shuffled_stream_cache(
+    manifest_path: str | Path,
+    *,
+    source_manifest_sha256: str,
+    filtered_prefix_manifest_sha256: str,
+    tokenizer_sha256: str,
+    exclusion_sha256: str,
+    max_length: int,
+    seed: int,
+    shuffle_buffer: int,
+    minimum_rows: int,
+) -> tuple[str, int]:
+    """Verify a finite cache of the canonical shuffled eligible stream."""
+    path = Path(manifest_path)
+    manifest = json.loads(path.read_text())
+    expected = {
+        "schema_version": 1,
+        "kind": "MARLIN shuffled eligible stream cache",
+        "source_manifest_sha256": source_manifest_sha256,
+        "filtered_prefix_manifest_sha256": filtered_prefix_manifest_sha256,
+        "tokenizer_sha256": tokenizer_sha256,
+        "exclusion_sha256": exclusion_sha256,
+        "max_length": max_length,
+        "seed": seed,
+        "shuffle_buffer": shuffle_buffer,
+    }
+    for key, value in expected.items():
+        if manifest.get(key) != value:
+            raise ValueError(f"shuffled stream cache {key} mismatch")
+    rows = int(manifest.get("rows", 0))
+    if rows < minimum_rows:
+        raise ValueError(
+            f"shuffled stream cache has {rows} rows; "
+            f"{minimum_rows} are required"
+        )
+    shard = (path.parent / manifest["shard"]).resolve()
+    if not shard.is_relative_to(path.parent.resolve()) or not shard.is_file():
+        raise ValueError("shuffled stream cache shard is missing or escapes its root")
+    if shard.stat().st_size != int(manifest["shard_size_bytes"]):
+        raise ValueError("shuffled stream cache shard size mismatch")
+    if sha256_file(shard) != manifest["shard_sha256"]:
+        raise ValueError("shuffled stream cache shard SHA-256 mismatch")
+    return str(shard), rows
