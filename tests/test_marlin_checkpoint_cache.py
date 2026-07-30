@@ -40,3 +40,34 @@ def test_materialize_checkpoint_rejects_corrupt_cache(
             expected_sha256=digest,
             cache_root=tmp_path,
         )
+
+
+def test_materialize_checkpoint_preserves_explicit_resume_step(
+    tmp_path: Path,
+) -> None:
+    payload = b"checkpoint"
+    digest = hashlib.sha256(payload).hexdigest()
+    checkpoint = tmp_path / digest / "step=2000.ckpt"
+    checkpoint.parent.mkdir()
+    checkpoint.write_bytes(payload)
+
+    assert materialize_checkpoint(
+        task_id="unused",
+        artifact_name="unused",
+        expected_sha256=digest,
+        cache_root=tmp_path,
+        output_name="step=2000.ckpt",
+    ) == checkpoint
+
+
+def test_materialize_checkpoint_rejects_unsafe_output_name(
+    tmp_path: Path,
+) -> None:
+    with pytest.raises(ValueError, match="output name"):
+        materialize_checkpoint(
+            task_id="unused",
+            artifact_name="unused",
+            expected_sha256="0" * 64,
+            cache_root=tmp_path,
+            output_name="../step=2000.ckpt",
+        )

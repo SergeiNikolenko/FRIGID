@@ -76,10 +76,12 @@ def test_faro_gate_keeps_paper_batch_and_supports_exact_continuation():
     assert 'RESUME_CHECKPOINT_TASK_ID="${MARLIN_RESUME_CHECKPOINT_TASK_ID:-}"' in script
     assert 'RESUME_CHECKPOINT_ARTIFACT="${MARLIN_RESUME_CHECKPOINT_ARTIFACT:-}"' in script
     assert 'RESUME_CHECKPOINT_SHA256="${MARLIN_RESUME_CHECKPOINT_SHA256:-}"' in script
+    assert 'RESUME_CHECKPOINT_STEP="${MARLIN_RESUME_CHECKPOINT_STEP:-}"' in script
     assert "scripts/materialize_marlin_checkpoint.py" in script
     assert '--task-id "$RESUME_CHECKPOINT_TASK_ID"' in script
     assert '--artifact-name "$RESUME_CHECKPOINT_ARTIFACT"' in script
     assert '--expected-sha256 "$RESUME_CHECKPOINT_SHA256"' in script
+    assert '--output-name "step=$RESUME_CHECKPOINT_STEP.ckpt"' in script
     assert 'if [[ -n "$RESUME_CHECKPOINT" ]]; then' in script
     assert '"resume_checkpoint=${RESUME_CHECKPOINT//=/\\\\=}"' in script
     assert '"frigid_warm_start_checkpoint=null"' in script

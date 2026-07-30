@@ -7,6 +7,7 @@ import argparse
 import contextlib
 import hashlib
 import os
+import re
 import shutil
 import sys
 import tempfile
@@ -21,6 +22,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--artifact-name", required=True)
     parser.add_argument("--expected-sha256", required=True)
     parser.add_argument("--cache-root", type=Path, required=True)
+    parser.add_argument("--output-name", default="checkpoint.ckpt")
     return parser.parse_args()
 
 
@@ -38,12 +40,17 @@ def materialize_checkpoint(
     artifact_name: str,
     expected_sha256: str,
     cache_root: Path,
+    output_name: str = "checkpoint.ckpt",
 ) -> Path:
     if len(expected_sha256) != 64:
         raise ValueError("expected SHA-256 must contain 64 hexadecimal characters")
     digest = expected_sha256.lower()
     int(digest, 16)
-    destination = cache_root.resolve() / digest / "checkpoint.ckpt"
+    if not re.fullmatch(r"(?:checkpoint|step=\d+)\.ckpt", output_name):
+        raise ValueError(
+            "output name must be checkpoint.ckpt or step=<integer>.ckpt"
+        )
+    destination = cache_root.resolve() / digest / output_name
     if destination.is_file():
         observed = sha256_file(destination)
         if observed != digest:
@@ -87,6 +94,7 @@ def main() -> None:
             artifact_name=args.artifact_name,
             expected_sha256=args.expected_sha256,
             cache_root=args.cache_root,
+            output_name=args.output_name,
         )
     print(checkpoint, flush=True)
 
