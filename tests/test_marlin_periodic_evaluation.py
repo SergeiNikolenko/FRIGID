@@ -4,6 +4,7 @@ from types import SimpleNamespace
 from omegaconf import OmegaConf
 
 from marlin.periodic_evaluation import PeriodicMolecularEvaluation
+import marlin.periodic_evaluation as periodic_evaluation
 
 
 def test_periodic_evaluation_waits_for_current_run_checkpoint(tmp_path: Path) -> None:
@@ -132,3 +133,49 @@ def test_periodic_evaluation_does_not_repeat_failed_boundary(
     callback.on_train_batch_end(trainer, None, None, None, 1)
 
     assert calls == [500]
+
+
+def test_periodic_evaluation_forwards_fingerprint_threshold(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    config = OmegaConf.create(
+        {
+            "data": {"tokenizer_file": str(tmp_path / "tokenizer.json")},
+            "evaluation": {
+                "enabled": True,
+                "interval_steps": 1000,
+                "metadata": str(tmp_path / "metadata.csv"),
+                "fingerprints": str(tmp_path / "dreams_predictions.npz"),
+                "fingerprint_key": "probs",
+                "threshold": 0.95,
+                "lane": "dreams",
+                "candidates": 16,
+                "max_spectra": 4,
+                "diversity_dropout": 0.3,
+                "temperature": 1.0,
+                "ppm_tolerance": 10.0,
+                "seed": 42,
+            },
+            "output": {
+                "root": str(tmp_path),
+                "checkpoints": str(tmp_path / "checkpoints"),
+                "checkpoint_interval": 1000,
+            },
+        }
+    )
+    checkpoint = tmp_path / "checkpoints/step=1000.ckpt"
+    checkpoint.parent.mkdir()
+    checkpoint.touch()
+    commands = []
+    monkeypatch.setattr(
+        periodic_evaluation.subprocess,
+        "run",
+        lambda command, **kwargs: commands.append(command),
+    )
+    monkeypatch.setattr(periodic_evaluation.torch.cuda, "is_available", lambda: False)
+
+    PeriodicMolecularEvaluation(config, project_root=tmp_path)._run(1000)
+
+    threshold_index = commands[0].index("--threshold")
+    assert commands[0][threshold_index + 1] == "0.95"

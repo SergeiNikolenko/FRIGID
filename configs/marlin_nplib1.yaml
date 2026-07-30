@@ -82,6 +82,8 @@ evaluation:
   metadata: /home/nikolenko/work/Projects/MARLIN_reproduction_20260717/data/processed/val/metadata.csv
   fingerprints: /home/nikolenko/work/Projects/MARLIN_reproduction_20260717/data/processed/val/fingerprints.npz
   fingerprint_key: ground_truth
+  # Required when the selected fingerprint array contains probabilities.
+  threshold: null
   lane: dreams
   max_spectra: 4
   candidates: 16

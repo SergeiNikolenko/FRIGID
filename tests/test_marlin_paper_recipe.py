@@ -89,7 +89,13 @@ def test_faro_gate_keeps_paper_batch_and_supports_exact_continuation():
     assert "cross_attention_only_steps=" not in script
     assert "evaluation.interval_steps=" in script
     assert 'EVALUATION_ENABLED="${MARLIN_EVALUATION_ENABLED:-true}"' in script
+    assert 'EVALUATION_FINGERPRINTS_REL="${MARLIN_EVALUATION_FINGERPRINTS_REL:-val/fingerprints.npz}"' in script
+    assert 'EVALUATION_FINGERPRINT_KEY="${MARLIN_EVALUATION_FINGERPRINT_KEY:-ground_truth}"' in script
+    assert 'EVALUATION_FINGERPRINT_THRESHOLD="${MARLIN_EVALUATION_FINGERPRINT_THRESHOLD:-}"' in script
     assert 'evaluation.enabled="$EVALUATION_ENABLED"' in script
+    assert 'evaluation.fingerprints="$RUNTIME_ROOT/$EVALUATION_FINGERPRINTS_REL"' in script
+    assert 'evaluation.fingerprint_key="$EVALUATION_FINGERPRINT_KEY"' in script
+    assert 'evaluation.threshold="$EVALUATION_FINGERPRINT_THRESHOLD"' in script
     assert 'EVALUATION_INTERVAL="${MARLIN_EVALUATION_INTERVAL:-$GATE_INTERVAL}"' in script
     assert 'CHECKPOINT_INTERVAL="${MARLIN_CHECKPOINT_INTERVAL:-$GATE_INTERVAL}"' in script
 

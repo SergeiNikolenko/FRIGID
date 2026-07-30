@@ -76,6 +76,9 @@ class PeriodicMolecularEvaluation(L.Callback):
             "--seed", str(evaluation.seed),
             "--clearml-iteration", str(step),
         ]
+        threshold = evaluation.get("threshold")
+        if threshold is not None and str(threshold):
+            command.extend(["--threshold", str(threshold)])
         if str(self.config.get("architecture", "marlin")) == "expanding":
             command.extend(
                 [
