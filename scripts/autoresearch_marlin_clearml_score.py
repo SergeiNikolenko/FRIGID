@@ -8,6 +8,8 @@ import json
 import os
 from typing import Any
 
+from marlin.research_metric import staged_research_metric
+
 
 COMMON_REQUIRED_TAGS = {
     "end-to-end",
@@ -100,9 +102,7 @@ def extract_metrics(last_scalars: dict[str, Any]) -> dict[str, float]:
         if isinstance(value, dict):
             value = value.get("last")
         metrics[output_name] = float(value)
-    metrics["exact_score"] = (
-        0.6 * metrics["exact_top1"] + 0.4 * metrics["exact_top10"]
-    )
+    metrics.update(staged_research_metric(metrics))
     return metrics
 
 

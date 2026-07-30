@@ -24,8 +24,13 @@ REPRO_ROOT = Path(
 )
 DEFAULT_SHARED_ROOT = Path("/mnt/netstorage/nikolenko/marlin")
 DEFAULT_METADATA = REPRO_ROOT / "data/processed/val/metadata.csv"
-DEFAULT_FINGERPRINTS = REPRO_ROOT / "data/processed/val/fingerprints.npz"
+DEFAULT_FINGERPRINTS = (
+    DEFAULT_SHARED_ROOT / "runtime-inputs-v3-0a1a6afd/val/dreams_predictions.npz"
+)
 DEFAULT_TOKENIZER = REPRO_ROOT / "data/safe-gpt/tokenizer.json"
+DEFAULT_SPEC_MANIFEST = (
+    PROJECT_ROOT / "configs/benchmarks/nplib1_v1/nplib1_val_micro32_v1.tsv"
+)
 
 SCORE_WEIGHTS = {
     "exact_top1": 0.30,
@@ -51,10 +56,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--metadata", type=Path, default=DEFAULT_METADATA)
     parser.add_argument("--fingerprints", type=Path, default=DEFAULT_FINGERPRINTS)
+    parser.add_argument("--fingerprint-key", default="probs")
+    parser.add_argument("--fingerprint-threshold", type=float, default=0.95)
+    parser.add_argument("--spec-manifest", type=Path, default=DEFAULT_SPEC_MANIFEST)
     parser.add_argument("--tokenizer", type=Path, default=DEFAULT_TOKENIZER)
     parser.add_argument("--shared-root", type=Path, default=DEFAULT_SHARED_ROOT)
     parser.add_argument("--seeds", default="42,314159,271828")
-    parser.add_argument("--max-spectra", type=int, default=4)
+    parser.add_argument("--max-spectra", type=int, default=32)
     parser.add_argument("--candidates", type=int, default=16)
     parser.add_argument("--temperature", type=float, default=1.0)
     parser.add_argument("--diversity-dropout", type=float, default=0.3)
@@ -97,6 +105,9 @@ def aggregate_seed_metrics(seed_metrics: list[dict[str, Any]]) -> dict[str, Any]
     aggregate["marlin_validation_score"] = sum(
         SCORE_WEIGHTS[name] * aggregate[name] for name in SCORE_WEIGHTS
     )
+    from marlin.research_metric import staged_research_metric
+
+    aggregate.update(staged_research_metric(aggregate))
     aggregate["score_weights"] = SCORE_WEIGHTS
     aggregate["seed_count"] = len(seed_metrics)
     return aggregate
@@ -144,6 +155,7 @@ def main() -> None:
         args.metadata,
         args.fingerprints,
         args.tokenizer,
+        args.spec_manifest,
     ):
         if not path.is_file():
             raise FileNotFoundError(path)
@@ -162,6 +174,9 @@ def main() -> None:
         "source_digest": source_digest,
         "metadata_sha256": sha256_file(args.metadata),
         "fingerprints_sha256": sha256_file(args.fingerprints),
+        "fingerprint_key": args.fingerprint_key,
+        "fingerprint_threshold": args.fingerprint_threshold,
+        "spec_manifest_sha256": sha256_file(args.spec_manifest),
         "tokenizer_sha256": sha256_file(args.tokenizer),
         "seeds": seeds,
         "max_spectra": args.max_spectra,
@@ -203,7 +218,11 @@ def main() -> None:
                 "--fingerprints",
                 str(args.fingerprints),
                 "--fingerprint-key",
-                "ground_truth",
+                args.fingerprint_key,
+                "--threshold",
+                str(args.fingerprint_threshold),
+                "--spec-manifest",
+                str(args.spec_manifest),
                 "--lane",
                 "dreams",
                 "--output-dir",
@@ -239,6 +258,13 @@ def main() -> None:
         "seeds": list(seeds),
         "selection_split": "held-out validation",
         "locked_test_used": False,
+        "fingerprint_contract": {
+            "source": "spectrum-derived DreaMS prediction",
+            "key": args.fingerprint_key,
+            "threshold": args.fingerprint_threshold,
+            "oracle_used": False,
+        },
+        "spec_manifest": str(args.spec_manifest.resolve()),
         "paper_recipe_guards": {
             "block_width": "read from checkpoint",
             "symmetric_fingerprint_noise": True,

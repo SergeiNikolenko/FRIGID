@@ -68,7 +68,6 @@ class PeriodicMolecularEvaluation(L.Callback):
             "--lane", str(evaluation.lane),
             "--output-dir", str(output),
             "--candidates", str(evaluation.candidates),
-            "--max-spectra", str(evaluation.max_spectra),
             "--diversity-dropout", str(evaluation.diversity_dropout),
             "--temperature", str(evaluation.temperature),
             "--generation-mode", "block",
@@ -76,6 +75,12 @@ class PeriodicMolecularEvaluation(L.Callback):
             "--seed", str(evaluation.seed),
             "--clearml-iteration", str(step),
         ]
+        max_spectra = evaluation.get("max_spectra")
+        if max_spectra is not None and str(max_spectra):
+            command.extend(["--max-spectra", str(max_spectra)])
+        spec_manifest = evaluation.get("spec_manifest")
+        if spec_manifest is not None and str(spec_manifest):
+            command.extend(["--spec-manifest", str(spec_manifest)])
         threshold = evaluation.get("threshold")
         if threshold is not None and str(threshold):
             command.extend(["--threshold", str(threshold)])

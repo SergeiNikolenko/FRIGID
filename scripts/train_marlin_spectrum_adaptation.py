@@ -55,6 +55,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--validation-fingerprints", type=Path, required=True)
     parser.add_argument("--validation-fingerprint-key", default="probs")
     parser.add_argument(
+        "--evaluation-manifest",
+        type=Path,
+        default=PROJECT_ROOT
+        / "configs/benchmarks/nplib1_v1/nplib1_val_micro32_v1.tsv",
+    )
+    parser.add_argument(
         "--validation-fingerprint-threshold",
         type=float,
         default=0.95,
@@ -63,7 +69,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-steps", type=int, default=100)
     parser.add_argument("--evaluation-interval", type=int, default=100)
     parser.add_argument("--checkpoint-interval", type=int, default=100)
-    parser.add_argument("--evaluation-spectra", type=int, default=4)
+    parser.add_argument("--evaluation-spectra", type=int, default=32)
     parser.add_argument("--evaluation-candidates", type=int, default=16)
     parser.add_argument("--batch-size", type=int, default=8)
     parser.add_argument("--accumulate-grad-batches", type=int, default=32)
@@ -243,6 +249,7 @@ def main() -> None:
             "fingerprints": str(args.validation_fingerprints),
             "fingerprint_key": args.validation_fingerprint_key,
             "threshold": args.validation_fingerprint_threshold,
+            "spec_manifest": str(args.evaluation_manifest),
             "max_spectra": args.evaluation_spectra,
             "candidates": args.evaluation_candidates,
         },
@@ -267,6 +274,7 @@ def main() -> None:
                 *args.exclude_metadata,
                 args.validation_metadata,
                 args.validation_fingerprints,
+                args.evaluation_manifest,
             )
         },
         "initialization": start_report,
@@ -284,6 +292,7 @@ def main() -> None:
                 "fingerprints": str(args.validation_fingerprints),
                 "fingerprint_key": args.validation_fingerprint_key,
                 "threshold": args.validation_fingerprint_threshold,
+                "spec_manifest": str(args.evaluation_manifest),
                 "use_ema": False,
                 "lane": "dreams",
                 "max_spectra": args.evaluation_spectra,

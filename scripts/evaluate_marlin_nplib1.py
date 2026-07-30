@@ -24,6 +24,11 @@ from rdkit.Chem import AllChem, rdMolDescriptors
 
 from marlin.expanding import ExpandingMarlinSampler
 from marlin.expanding_checkpoint import expanding_model_from_checkpoint
+from marlin.benchmark_selection import (
+    hash_spec_names,
+    load_spec_manifest,
+    select_metadata,
+)
 from marlin.evaluation import (
     load_fingerprints,
     mass_bin_metrics,
@@ -68,6 +73,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--eos-boost", type=float, default=1.0)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--max-spectra", type=int)
+    parser.add_argument(
+        "--spec-manifest",
+        type=Path,
+        help="Ordered CSV/TSV panel; cannot be truncated by --max-spectra.",
+    )
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--disable-grammar-mask", action="store_true")
     parser.add_argument("--disable-mass-shell", action="store_true")
@@ -428,8 +438,10 @@ def main() -> None:
             args.feature_bridge_manifest,
             args.mist_labels,
         )
-    if args.max_spectra is not None:
-        metadata = metadata.iloc[: args.max_spectra].copy()
+    manifest_names = (
+        load_spec_manifest(args.spec_manifest) if args.spec_manifest else None
+    )
+    metadata = select_metadata(metadata, manifest_names, args.max_spectra)
     fingerprints = load_fingerprints(
         args.fingerprints,
         args.fingerprint_key,
@@ -565,6 +577,12 @@ def main() -> None:
         "token_selection": "multinomial" if args.sample_tokens else "argmax",
         "seed": args.seed,
         "max_spectra": args.max_spectra,
+        "spec_manifest": str(args.spec_manifest.resolve())
+        if args.spec_manifest
+        else None,
+        "ordered_spec_names_sha256": hash_spec_names(
+            metadata["spec_name"].astype(str).tolist()
+        ),
     }
     signature = {
         "schema_version": 2,
@@ -577,6 +595,7 @@ def main() -> None:
                 args.tokenizer,
                 args.metadata,
                 args.fingerprints,
+                *([args.spec_manifest] if args.spec_manifest else []),
                 *([args.lane_provenance] if args.lane_provenance else []),
             )
         },

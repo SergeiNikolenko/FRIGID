@@ -44,11 +44,12 @@ source "$CODE/scripts/marlin_runtime_env.sh"
   --validation-fingerprints "$RUNTIME_ROOT/val/dreams_predictions.npz" \
   --validation-fingerprint-key probs \
   --validation-fingerprint-threshold 0.95 \
+  --evaluation-manifest "$CODE/configs/benchmarks/nplib1_v1/nplib1_val_micro32_v1.tsv" \
   --output-dir "$RUN_ROOT" \
   --max-steps 100 \
   --evaluation-interval 100 \
   --checkpoint-interval 100 \
-  --evaluation-spectra 4 \
+  --evaluation-spectra 32 \
   --evaluation-candidates 16 \
   --cross-attention-only-steps 100 \
   --learning-rate 1e-5

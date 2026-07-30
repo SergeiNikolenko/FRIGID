@@ -1,0 +1,149 @@
+{
+  "counts": {
+    "test_rows": 803,
+    "test_unique_molecules": 701,
+    "validation_rows": 396,
+    "validation_unique_molecules": 394
+  },
+  "distribution_checks": {
+    "macro64_vs_unique_val": {
+      "absolute_standardized_mean_difference": {
+        "active_bits": 0.052049719657771255,
+        "heavy_atoms": 0.014135547284497955,
+        "neutral_mass": 0.010143487689289691,
+        "replicate_count": 0.07142857142857008
+      },
+      "max_absolute_smd": 0.07142857142857008,
+      "max_category_share_difference": 0.0168940355329949
+    },
+    "micro128_vs_val": {
+      "absolute_standardized_mean_difference": {
+        "active_bits": 0.03883279134049252,
+        "heavy_atoms": 0.012562891630173613,
+        "neutral_mass": 0.014624663047621512,
+        "replicate_count": 0.022886268587511673
+      },
+      "max_absolute_smd": 0.03883279134049252,
+      "max_category_share_difference": 0.005287247474747486
+    },
+    "micro32_vs_val": {
+      "absolute_standardized_mean_difference": {
+        "active_bits": 0.07379379127966482,
+        "heavy_atoms": 0.04550744736224984,
+        "neutral_mass": 0.049742419495638304,
+        "replicate_count": 0.1010152544552217
+      },
+      "max_absolute_smd": 0.1010152544552217,
+      "max_category_share_difference": 0.014835858585858591
+    },
+    "micro64_vs_val": {
+      "absolute_standardized_mean_difference": {
+        "active_bits": 0.0139809962030086,
+        "heavy_atoms": 0.02763965074919647,
+        "neutral_mass": 0.0224063671195475,
+        "replicate_count": 0.1010152544552217
+      },
+      "max_absolute_smd": 0.1010152544552217,
+      "max_category_share_difference": 0.00868055555555558
+    }
+  },
+  "inputs": {
+    "test_fingerprints": {
+      "key": "probs",
+      "path": "/mnt/netstorage/nikolenko/marlin/cache/runtime-inputs-spectrum-v1/16b1af5276034c041e85a4b7c43129a790b4fc091826485b691c93f9f7b699b3/test/dreams_predictions.npz",
+      "sha256": "734af0929e1a08db8717383fb51b0423ee49ab54cd63a80068f8c5e95be595c4",
+      "threshold": 0.95
+    },
+    "test_metadata": {
+      "path": "/mnt/netstorage/nikolenko/marlin/cache/runtime-inputs-spectrum-v1/16b1af5276034c041e85a4b7c43129a790b4fc091826485b691c93f9f7b699b3/test/metadata.csv",
+      "sha256": "1c07607c551f683315e85b04ba05a670e3e0266d8d27043cce10949fd6b598e0"
+    },
+    "val_fingerprints": {
+      "key": "probs",
+      "path": "/mnt/netstorage/nikolenko/marlin/cache/runtime-inputs-spectrum-v1/16b1af5276034c041e85a4b7c43129a790b4fc091826485b691c93f9f7b699b3/val/dreams_predictions.npz",
+      "sha256": "c3737b16179b5fd718a83bc0df5d2305d10228fcb17cbd4cb384faf0e0a213b6",
+      "threshold": 0.95
+    },
+    "val_metadata": {
+      "path": "/mnt/netstorage/nikolenko/marlin/cache/runtime-inputs-spectrum-v1/16b1af5276034c041e85a4b7c43129a790b4fc091826485b691c93f9f7b699b3/val/metadata.csv",
+      "sha256": "ecb8a66b2f41a1935538b06672eb907839da0bcd1eb8fe12c50ae24ddfc8b738"
+    }
+  },
+  "outputs": {
+    "nplib1_test_locked_full803_v1": {
+      "ordered_spec_names_sha256": "e1ac40c518b9cfd3f73b7fc3a521c9734c6544d8dbd68b3de0cd70786befb354",
+      "path": "nplib1_test_locked_full803_v1.tsv",
+      "rows": 803,
+      "sha256": "c342792ec0fe0886843f36464e868baf1e5b4ee1799458af8cc3264a6f399bd0"
+    },
+    "nplib1_val_full396_v1": {
+      "ordered_spec_names_sha256": "13c4bd45cc54575a56b5d0655868e410145bb0ef0c1795c602c1884a96cfd8fa",
+      "path": "nplib1_val_full396_v1.tsv",
+      "rows": 396,
+      "sha256": "59741b76fc7d7d1e9ff6bf242023576af669694934286060b54d776add97b6f8"
+    },
+    "nplib1_val_macro64_v1": {
+      "ordered_spec_names_sha256": "12dc73ee7a0f115716c5ce723126801f235f580e1a89dc546702663fee2744a7",
+      "path": "nplib1_val_macro64_v1.tsv",
+      "rows": 64,
+      "sha256": "d900991a514c2e47b576a88601d651a3c2e7742fd6d34bb528887853d0e087fb"
+    },
+    "nplib1_val_micro128_v1": {
+      "ordered_spec_names_sha256": "9c67d409e68460db84e8c13d72fc90c121c03f715557b07db208d986d26ec41c",
+      "path": "nplib1_val_micro128_v1.tsv",
+      "rows": 128,
+      "sha256": "88f675ac5faaca81a47ee4402b759b3fa35d2a2834f893243b0ea121a1ba92b1"
+    },
+    "nplib1_val_micro32_v1": {
+      "ordered_spec_names_sha256": "ddb32a5f44612bbf19d468d065d65bc5d4c19e046a39d671164e9f2a155f9204",
+      "path": "nplib1_val_micro32_v1.tsv",
+      "rows": 32,
+      "sha256": "2b0818bf74884bc311e01b2e994647cfc576da762a7aa220c095856599e833ac"
+    },
+    "nplib1_val_micro64_v1": {
+      "ordered_spec_names_sha256": "91095147c164cfff0d4a5df461c63a2eb3f98524c3cdbeff14a32b04f30886c0",
+      "path": "nplib1_val_micro64_v1.tsv",
+      "rows": 64,
+      "sha256": "8fc41497bac557e429daf595ad62b1887e04d59478d343ddbe668c4affac8fcf"
+    }
+  },
+  "quality_checks": {
+    "all_panels_accepted": true,
+    "distribution_acceptance": {
+      "macro64": {
+        "accepted": true,
+        "max_category_share_difference": 0.05,
+        "max_smd": 0.15,
+        "threshold_configured": true
+      },
+      "micro128": {
+        "accepted": true,
+        "max_category_share_difference": 0.03,
+        "max_smd": 0.1,
+        "threshold_configured": true
+      },
+      "micro32": {
+        "accepted": true,
+        "max_category_share_difference": 0.05,
+        "max_smd": 0.15,
+        "threshold_configured": true
+      },
+      "micro64": {
+        "accepted": true,
+        "max_category_share_difference": 0.05,
+        "max_smd": 0.12,
+        "threshold_configured": true
+      }
+    },
+    "labels_used_only_for_panel_balancing": [
+      "SMILES-derived heavy atom and element-presence features"
+    ],
+    "micro_macro_molecule_overlap": 0,
+    "micro_macro_spec_overlap": 0,
+    "micro_panels_nested": true,
+    "target_fields_used_for_model_scoring": [],
+    "test_panel_locked_until_final_promotion": true
+  },
+  "schema_version": 1,
+  "selection_namespace": "marlin-nplib1-validation-v1"
+}

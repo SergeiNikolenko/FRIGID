@@ -18,6 +18,8 @@ def test_aggregate_seed_metrics_uses_fixed_weighted_score() -> None:
     result = MODULE.aggregate_seed_metrics([first, second])
 
     assert result["marlin_validation_score"] == 0.5
+    assert result["research_stage"] == "exact_retrieval"
+    assert result["research_score"] == 3.5
     assert result["seed_count"] == 2
 
 
@@ -29,3 +31,13 @@ def test_aggregate_seed_metrics_treats_nan_as_zero() -> None:
 
     assert result["tanimoto_top1"] == 0.0
     assert result["marlin_validation_score"] == 0.0
+
+
+def test_aggregate_seed_metrics_uses_prerequisite_gate_before_exact() -> None:
+    metrics = {name: 0.0 for name in MODULE.SCORE_WEIGHTS}
+    metrics["validity"] = 0.25
+
+    result = MODULE.aggregate_seed_metrics([metrics])
+
+    assert result["research_stage"] == "valid_decoding"
+    assert result["research_score"] == 0.25

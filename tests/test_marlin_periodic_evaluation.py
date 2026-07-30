@@ -226,3 +226,50 @@ def test_periodic_evaluation_forwards_fingerprint_threshold(
 
     threshold_index = commands[0].index("--threshold")
     assert commands[0][threshold_index + 1] == "0.95"
+
+
+def test_periodic_evaluation_forwards_locked_manifest(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    manifest = tmp_path / "micro32.tsv"
+    config = OmegaConf.create(
+        {
+            "data": {"tokenizer_file": str(tmp_path / "tokenizer.json")},
+            "evaluation": {
+                "enabled": True,
+                "interval_steps": 1000,
+                "metadata": str(tmp_path / "metadata.csv"),
+                "fingerprints": str(tmp_path / "dreams_predictions.npz"),
+                "fingerprint_key": "probs",
+                "spec_manifest": str(manifest),
+                "lane": "dreams",
+                "candidates": 16,
+                "max_spectra": 32,
+                "diversity_dropout": 0.3,
+                "temperature": 1.0,
+                "ppm_tolerance": 10.0,
+                "seed": 42,
+            },
+            "output": {
+                "root": str(tmp_path),
+                "checkpoints": str(tmp_path / "checkpoints"),
+                "checkpoint_interval": 1000,
+            },
+        }
+    )
+    checkpoint = tmp_path / "checkpoints/step=1000.ckpt"
+    checkpoint.parent.mkdir()
+    checkpoint.touch()
+    commands = []
+    monkeypatch.setattr(
+        periodic_evaluation.subprocess,
+        "run",
+        lambda command, **kwargs: commands.append(command),
+    )
+    monkeypatch.setattr(periodic_evaluation.torch.cuda, "is_available", lambda: False)
+
+    PeriodicMolecularEvaluation(config, project_root=tmp_path)._run(1000)
+
+    manifest_index = commands[0].index("--spec-manifest")
+    assert commands[0][manifest_index + 1] == str(manifest)
