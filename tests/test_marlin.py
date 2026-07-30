@@ -1,4 +1,5 @@
 import pytest
+import numpy as np
 import torch
 from rdkit import Chem
 from rdkit.Chem import Descriptors
@@ -19,6 +20,7 @@ from marlin.tokenizer import load_safe_tokenizer
 from marlin.training import (
     MarlinCollator,
     MarlinLightningModule,
+    MarlinMetadataDataset,
     MarlinTrainingFilter,
 )
 from marlin.warm_start import _copy_attention, sha256_file
@@ -145,6 +147,36 @@ def test_staged_adaptation_preserves_ema_parameter_order():
     assert all(parameter.requires_grad for parameter in module.decoder.parameters())
     module.ema.update(module.decoder.parameters())
     assert len(module.ema.shadow_params) == parameter_count
+
+
+def test_paired_adaptation_trains_fingerprint_conditioner_without_backbone():
+    config = MarlinDecoderConfig(
+        vocab_size=8,
+        hidden_size=8,
+        num_layers=1,
+        num_heads=1,
+        intermediate_size=16,
+        max_length=5,
+        block_width=2,
+        fingerprint_bits=4,
+        dropout=0.0,
+        mask_token_id=3,
+        pad_token_id=0,
+    )
+    module = MarlinLightningModule(
+        config,
+        conditioning_only_steps=2,
+        cross_attention_only_steps=3,
+        adapt_fingerprint=True,
+    )
+
+    assert module.apply_adaptation_stage(0) == "conditioning"
+    assert all(
+        parameter.requires_grad
+        for name, parameter in module.decoder.named_parameters()
+        if name.startswith("conditioner.fingerprint.")
+    )
+    assert not module.decoder.token_embedding.weight.requires_grad
 
 
 @pytest.mark.parametrize(
@@ -370,6 +402,73 @@ def test_training_collator_refuses_to_truncate_safe(monkeypatch):
 
     with pytest.raises(ValueError, match="refusing silent truncation"):
         collator([{"safe": "C"}])
+
+
+def test_training_collator_uses_supplied_binary_fingerprint(monkeypatch):
+    class Tokenizer:
+        def __call__(self, values, **kwargs):
+            assert values == ["CC"]
+            assert kwargs["truncation"] is False
+            return {"input_ids": torch.tensor([[1, 2]])}
+
+    monkeypatch.setattr("marlin.training.safe_to_smiles", lambda safe, fix: safe)
+    supplied = np.asarray([1, 0, 1, 0], dtype=np.float32)
+    batch = MarlinCollator(
+        Tokenizer(), max_length=4, fingerprint_bits=4
+    )([{"safe": "CC", "fingerprint": supplied}])
+
+    assert torch.equal(batch["fingerprint"], torch.tensor([[1.0, 0.0, 1.0, 0.0]]))
+
+
+def test_paired_metadata_requires_exact_id_alignment_and_thresholds(
+    monkeypatch, tmp_path
+):
+    class Tokenizer:
+        def encode(self, safe, add_special_tokens):
+            assert add_special_tokens is True
+            return [1, 2]
+
+    monkeypatch.setattr("marlin.training.smiles_to_safe", lambda smiles: smiles)
+    metadata = tmp_path / "metadata.csv"
+    metadata.write_text("spec_name,smiles\nspec-a,CC\nspec-b,CO\n")
+    fingerprints = tmp_path / "fingerprints.npz"
+    np.savez(
+        fingerprints,
+        probs=np.asarray(
+            [[0.96, 0.95, 0.94, 0.0], [0.1, 0.2, 0.99, 1.0]],
+            dtype=np.float32,
+        ),
+        spectrum_ids=np.asarray(["spec-a", "spec-b"]),
+    )
+
+    dataset = MarlinMetadataDataset(
+        metadata,
+        Tokenizer(),
+        max_length=4,
+        fingerprints_npz=fingerprints,
+        fingerprint_threshold=0.95,
+        fingerprint_bits=4,
+    )
+
+    assert dataset[0]["spec_name"] == "spec-a"
+    assert np.array_equal(
+        dataset[0]["fingerprint"],
+        np.asarray([1.0, 1.0, 0.0, 0.0], dtype=np.float32),
+    )
+
+    np.savez(
+        fingerprints,
+        probs=np.zeros((2, 4), dtype=np.float32),
+        spectrum_ids=np.asarray(["spec-b", "spec-a"]),
+    )
+    with pytest.raises(ValueError, match="do not exactly match"):
+        MarlinMetadataDataset(
+            metadata,
+            Tokenizer(),
+            max_length=4,
+            fingerprints_npz=fingerprints,
+            fingerprint_bits=4,
+        )
 
 
 def test_stream_filter_excludes_invalid_overlength_and_test_safe(

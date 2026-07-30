@@ -37,6 +37,7 @@ from marlin.tokenizer import load_safe_tokenizer, validate_safe_tokenizer
 from marlin.training import (
     MarlinCollator,
     MarlinLightningModule,
+    MarlinMetadataDataset,
     MarlinTrainingFilter,
 )
 from marlin.warm_start import (
@@ -123,6 +124,13 @@ def is_staged_adaptation(config: DictConfig) -> bool:
     )
 
 
+def is_paired_fingerprint_adaptation(config: DictConfig) -> bool:
+    """Return whether training uses aligned spectrum-predicted fingerprints."""
+    return bool(config.data.get("paired_metadata")) or bool(
+        config.data.get("paired_fingerprints")
+    )
+
+
 def training_variant(config: DictConfig) -> str:
     variants = []
     if is_eos_recovery(config):
@@ -139,6 +147,8 @@ def training_variant(config: DictConfig) -> str:
         variants.append("weights-only continuation")
     if is_staged_adaptation(config):
         variants.append("staged FRIGID adaptation")
+    if is_paired_fingerprint_adaptation(config):
+        variants.append("paired DreaMS fingerprint adaptation")
     return "experimental " + " + ".join(variants) if variants else "paper recipe"
 
 
@@ -160,6 +170,7 @@ def write_run_manifest(config: DictConfig, tokenizer_sha256: str) -> dict:
             or is_cached_prefix_replay(config)
             or is_weights_only_continuation(config)
             or is_staged_adaptation(config)
+            or is_paired_fingerprint_adaptation(config)
         ),
         "training_variant": training_variant(config),
         "author_code_available_at_start": False,
@@ -180,6 +191,16 @@ def write_run_manifest(config: DictConfig, tokenizer_sha256: str) -> dict:
             "training_snapshot_manifest": str(config.data.snapshot_manifest),
             "training_snapshot_manifest_sha256": sha256_file(
                 config.data.snapshot_manifest
+            ),
+            "paired_metadata_sha256": (
+                sha256_file(config.data.paired_metadata)
+                if config.data.get("paired_metadata")
+                else None
+            ),
+            "paired_fingerprints_sha256": (
+                sha256_file(config.data.paired_fingerprints)
+                if config.data.get("paired_fingerprints")
+                else None
             ),
         },
         "environment": {
@@ -235,6 +256,7 @@ def initialize_clearml(config: DictConfig):
     cached_prefix_replay = is_cached_prefix_replay(config)
     weights_only_continuation = is_weights_only_continuation(config)
     staged_adaptation = is_staged_adaptation(config)
+    paired_fingerprint_adaptation = is_paired_fingerprint_adaptation(config)
     tags = list(config.tracking.clearml.tags)
     if recovery:
         tags.extend(["experimental", "eos-recovery", "non-paper-objective"])
@@ -260,6 +282,14 @@ def initialize_clearml(config: DictConfig):
         tags.extend(
             ["experimental", "staged-frigid-adaptation", "inferred-optimizer-schedule"]
         )
+    if paired_fingerprint_adaptation:
+        tags.extend(
+            [
+                "experimental",
+                "paired-dreams-fingerprint-adaptation",
+                "non-paper-training-data",
+            ]
+        )
     suffixes = []
     if recovery:
         suffixes.append("eos-recovery")
@@ -275,6 +305,8 @@ def initialize_clearml(config: DictConfig):
         suffixes.append("weights-only")
     if staged_adaptation:
         suffixes.append("staged-adaptation")
+    if paired_fingerprint_adaptation:
+        suffixes.append("dreams-adaptation")
     task_suffix = "-".join(suffixes)
     task = Task.init(
         project_name=config.tracking.clearml.project_name,
@@ -342,6 +374,35 @@ def main(config: DictConfig) -> None:
             "choose exactly one initialization source; got "
             + (", ".join(selected_sources) or "none")
         )
+    paired_fingerprint_adaptation = is_paired_fingerprint_adaptation(config)
+    if paired_fingerprint_adaptation:
+        if not (
+            config.data.get("paired_metadata")
+            and config.data.get("paired_fingerprints")
+        ):
+            raise ValueError(
+                "paired adaptation requires both metadata and fingerprints"
+            )
+        if not config.get("initial_weights_checkpoint"):
+            raise ValueError(
+                "paired adaptation requires an initial_weights_checkpoint"
+            )
+        if not bool(config.training.get("adapt_fingerprint", False)):
+            raise ValueError(
+                "paired adaptation requires training.adapt_fingerprint=true"
+            )
+        if float(config.training.noise_probability) != 0.0:
+            raise ValueError(
+                "paired adaptation requires noise_probability=0 because its "
+                "fingerprints are already spectrum predictions"
+            )
+        staged_steps = int(
+            config.training.get("conditioning_only_steps", 0)
+        ) + int(config.training.get("cross_attention_only_steps", 0))
+        if staged_steps < int(config.trainer.max_steps):
+            raise ValueError(
+                "paired adaptation must keep the chemistry backbone frozen"
+            )
     stream_offset_examples = resolve_stream_offset_examples(
         resume_checkpoint=config.get("resume_checkpoint"),
         batch_size=int(config.loader.batch_size),
@@ -420,6 +481,7 @@ def main(config: DictConfig) -> None:
         cross_attention_only_steps=config.training.get(
             "cross_attention_only_steps", 0
         ),
+        adapt_fingerprint=config.training.get("adapt_fingerprint", False),
     )
     if config.get("frigid_warm_start_checkpoint"):
         report = load_frigid_decoder(
@@ -452,73 +514,106 @@ def main(config: DictConfig) -> None:
         report_path.write_text(
             json.dumps(report, indent=2, sort_keys=True) + "\n"
         )
-    source_dataset = datasets.load_dataset(
-        "parquet",
-        data_files={"train": local_shards},
-        split="train",
-        streaming=True,
-        cache_dir=config.data.hf_cache_dir,
-    )
-    training_filter = MarlinTrainingFilter(
-        tokenizer,
-        decoder_config.max_length,
-        config.data.exclude_inchikeys,
-    )
-    cache_manifest = Path(config.data.filtered_prefix_cache_manifest)
-    uses_filtered_prefix = cache_manifest.is_file()
-    if uses_filtered_prefix:
-        cache_shard, raw_rows_consumed = verify_filtered_prefix_cache(
-            cache_manifest,
-            source_manifest_sha256=snapshot_manifest_sha256,
-            tokenizer_sha256=tokenizer_sha256,
-            exclusion_sha256=sha256_file(config.data.exclude_inchikeys),
+    if paired_fingerprint_adaptation:
+        if stream_offset_examples:
+            raise ValueError("paired adaptation does not support stream offsets")
+        dataset = MarlinMetadataDataset(
+            config.data.paired_metadata,
+            tokenizer,
             max_length=decoder_config.max_length,
-            minimum_rows=int(config.data.shuffle_buffer),
+            exclude_inchikeys=config.data.exclude_inchikeys,
+            fingerprints_npz=config.data.paired_fingerprints,
+            fingerprint_key=config.data.get(
+                "paired_fingerprint_key", "probs"
+            ),
+            fingerprint_ids_key=config.data.get(
+                "paired_fingerprint_ids_key", "spectrum_ids"
+            ),
+            fingerprint_threshold=float(
+                config.data.get("paired_fingerprint_threshold", 0.95)
+            ),
+            fingerprint_bits=decoder_config.fingerprint_bits,
         )
-        cached_prefix_replay = is_cached_prefix_replay(config)
-        cached_prefix = datasets.load_dataset(
+        uses_filtered_prefix = False
+        loader_workers = int(config.loader.num_workers)
+        loader_shuffle = True
+        print(
+            "MARLIN paired DreaMS adaptation dataset: "
+            f"rows={len(dataset)}, threshold="
+            f"{float(config.data.get('paired_fingerprint_threshold', 0.95))}",
+            flush=True,
+        )
+    else:
+        source_dataset = datasets.load_dataset(
             "parquet",
-            data_files={"train": [cache_shard]},
+            data_files={"train": local_shards},
             split="train",
-            streaming=not cached_prefix_replay,
+            streaming=True,
             cache_dir=config.data.hf_cache_dir,
         )
-        if cached_prefix_replay:
-            dataset = cached_prefix
-        else:
-            filtered_tail = source_dataset.skip(raw_rows_consumed).filter(
-                training_filter
-            )
-            dataset = datasets.concatenate_datasets([cached_prefix, filtered_tail])
-    else:
-        dataset = source_dataset.filter(training_filter)
-    if is_cached_prefix_replay(config):
-        dataset = dataset.shuffle(seed=config.seed)
-    else:
-        dataset = dataset.shuffle(
-            seed=config.seed,
-            buffer_size=config.data.shuffle_buffer,
+        training_filter = MarlinTrainingFilter(
+            tokenizer,
+            decoder_config.max_length,
+            config.data.exclude_inchikeys,
         )
-    if stream_offset_examples:
-        dataset = dataset.skip(stream_offset_examples)
-    dataset = RankShardedIterableDataset(dataset)
-    print(
-        "MARLIN deterministic training stream: "
-        f"global_offset={stream_offset_examples}, "
-        "DDP rank sharding enabled",
-        flush=True,
-    )
+        cache_manifest = Path(config.data.filtered_prefix_cache_manifest)
+        uses_filtered_prefix = cache_manifest.is_file()
+        if uses_filtered_prefix:
+            cache_shard, raw_rows_consumed = verify_filtered_prefix_cache(
+                cache_manifest,
+                source_manifest_sha256=snapshot_manifest_sha256,
+                tokenizer_sha256=tokenizer_sha256,
+                exclusion_sha256=sha256_file(config.data.exclude_inchikeys),
+                max_length=decoder_config.max_length,
+                minimum_rows=int(config.data.shuffle_buffer),
+            )
+            cached_prefix_replay = is_cached_prefix_replay(config)
+            cached_prefix = datasets.load_dataset(
+                "parquet",
+                data_files={"train": [cache_shard]},
+                split="train",
+                streaming=not cached_prefix_replay,
+                cache_dir=config.data.hf_cache_dir,
+            )
+            if cached_prefix_replay:
+                dataset = cached_prefix
+            else:
+                filtered_tail = source_dataset.skip(raw_rows_consumed).filter(
+                    training_filter
+                )
+                dataset = datasets.concatenate_datasets(
+                    [cached_prefix, filtered_tail]
+                )
+        else:
+            dataset = source_dataset.filter(training_filter)
+        if is_cached_prefix_replay(config):
+            dataset = dataset.shuffle(seed=config.seed)
+        else:
+            dataset = dataset.shuffle(
+                seed=config.seed,
+                buffer_size=config.data.shuffle_buffer,
+            )
+        if stream_offset_examples:
+            dataset = dataset.skip(stream_offset_examples)
+        dataset = RankShardedIterableDataset(dataset)
+        print(
+            "MARLIN deterministic training stream: "
+            f"global_offset={stream_offset_examples}, "
+            "DDP rank sharding enabled",
+            flush=True,
+        )
+        loader_workers = streaming_loader_workers(
+            int(config.loader.num_workers),
+            uses_filtered_prefix=(
+                uses_filtered_prefix and not is_cached_prefix_replay(config)
+            ),
+        )
+        loader_shuffle = False
     collator = MarlinCollator(
         tokenizer,
         max_length=decoder_config.max_length,
         fingerprint_bits=decoder_config.fingerprint_bits,
         exclude_inchikeys=config.data.exclude_inchikeys,
-    )
-    loader_workers = streaming_loader_workers(
-        int(config.loader.num_workers),
-        uses_filtered_prefix=(
-            uses_filtered_prefix and not is_cached_prefix_replay(config)
-        ),
     )
     if loader_workers != int(config.loader.num_workers):
         print(
@@ -533,6 +628,7 @@ def main(config: DictConfig) -> None:
         num_workers=loader_workers,
         pin_memory=True,
         collate_fn=collator,
+        shuffle=loader_shuffle,
     )
     clearml_task = initialize_clearml(config)
     checkpoint = L.pytorch.callbacks.ModelCheckpoint(

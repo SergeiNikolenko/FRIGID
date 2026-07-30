@@ -47,6 +47,13 @@ def main() -> None:
             root / "runs/dreams/probe/test_predictions.summary.json"
         ),
         "test/metadata.csv": root / "data/processed/test/metadata.csv",
+        "train/dreams_predictions.npz": (
+            root / "runs/dreams/probe/train_predictions.npz"
+        ),
+        "train/dreams_predictions.summary.json": (
+            root / "runs/dreams/probe/train_predictions.summary.json"
+        ),
+        "train/metadata.csv": root / "data/processed/train/metadata.csv",
     }
     missing = [str(path) for path in sources.values() if not path.is_file()]
     if missing:

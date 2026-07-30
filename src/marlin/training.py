@@ -86,13 +86,26 @@ class MarlinCollator:
             key = Chem.MolToInchiKey(molecule).split("-")[0]
             if key in self.exclude:
                 raise ValueError("pre-batch filter admitted an excluded test structure")
-            fingerprint = AllChem.GetMorganGenerator(
-                radius=2, fpSize=self.fingerprint_bits
-            ).GetFingerprint(molecule)
-            array = np.zeros(self.fingerprint_bits, dtype=np.float32)
-            DataStructs.ConvertToNumpyArray(fingerprint, array)
+            supplied_fingerprint = example.get("fingerprint")
+            if supplied_fingerprint is None:
+                fingerprint = AllChem.GetMorganGenerator(
+                    radius=2, fpSize=self.fingerprint_bits
+                ).GetFingerprint(molecule)
+                array = np.zeros(self.fingerprint_bits, dtype=np.float32)
+                DataStructs.ConvertToNumpyArray(fingerprint, array)
+            else:
+                array = np.asarray(supplied_fingerprint, dtype=np.float32)
+                if array.shape != (self.fingerprint_bits,):
+                    raise ValueError(
+                        "supplied fingerprint width does not match the decoder: "
+                        f"{array.shape} != ({self.fingerprint_bits},)"
+                    )
+                if not np.isfinite(array).all():
+                    raise ValueError("supplied fingerprint contains non-finite values")
+                if not np.isin(array, (0.0, 1.0)).all():
+                    raise ValueError("supplied fingerprint must be binary")
             safes.append(safe)
-            fingerprints.append(torch.from_numpy(array))
+            fingerprints.append(torch.from_numpy(array.copy()))
             masses.append(Descriptors.ExactMolWt(molecule))
             isotope_ratios.append(theoretical_isotope_ratios(molecule))
         if len(safes) != len(examples):
@@ -128,21 +141,82 @@ class MarlinMetadataDataset(torch.utils.data.Dataset):
         *,
         max_length: int,
         exclude_inchikeys: str | Path | None = None,
+        fingerprints_npz: str | Path | None = None,
+        fingerprint_key: str = "probs",
+        fingerprint_ids_key: str = "spectrum_ids",
+        fingerprint_threshold: float = 0.95,
+        fingerprint_bits: int = 4096,
     ) -> None:
         table = pd.read_csv(metadata_csv)
         excluded = load_excluded_connectivity_keys(exclude_inchikeys)
+        predicted_fingerprints: np.ndarray | None = None
+        strict_paired_mode = fingerprints_npz is not None
+        if strict_paired_mode:
+            if not 0.0 <= fingerprint_threshold <= 1.0:
+                raise ValueError("fingerprint threshold must be in [0, 1]")
+            if "spec_name" not in table:
+                raise ValueError("paired metadata must contain spec_name")
+            with np.load(fingerprints_npz, allow_pickle=False) as archive:
+                if fingerprint_key not in archive:
+                    raise ValueError(
+                        f"paired fingerprints are missing {fingerprint_key!r}"
+                    )
+                if fingerprint_ids_key not in archive:
+                    raise ValueError(
+                        f"paired fingerprints are missing {fingerprint_ids_key!r}"
+                    )
+                probabilities = np.asarray(
+                    archive[fingerprint_key], dtype=np.float32
+                )
+                spectrum_ids = np.asarray(archive[fingerprint_ids_key]).astype(str)
+            metadata_ids = table["spec_name"].astype(str).to_numpy()
+            if probabilities.shape != (len(table), fingerprint_bits):
+                raise ValueError(
+                    "paired fingerprint shape mismatch: "
+                    f"{probabilities.shape} != ({len(table)}, {fingerprint_bits})"
+                )
+            if spectrum_ids.shape != metadata_ids.shape or not np.array_equal(
+                spectrum_ids, metadata_ids
+            ):
+                raise ValueError(
+                    "paired fingerprint spectrum_ids do not exactly match metadata"
+                )
+            if len(set(metadata_ids)) != len(metadata_ids):
+                raise ValueError("paired metadata contains duplicate spec_name values")
+            if not np.isfinite(probabilities).all():
+                raise ValueError("paired fingerprint probabilities are not finite")
+            predicted_fingerprints = (
+                probabilities >= fingerprint_threshold
+            ).astype(np.float32)
         rows = []
-        for record in table.to_dict("records"):
+        for row_index, record in enumerate(table.to_dict("records")):
             smiles = str(record.get("smiles", ""))
             molecule = Chem.MolFromSmiles(smiles) if smiles else None
             if molecule is None:
+                if strict_paired_mode:
+                    raise ValueError(
+                        f"paired metadata row {row_index} has invalid SMILES"
+                    )
                 continue
             key = Chem.MolToInchiKey(molecule).split("-")[0]
             if key in excluded:
+                if strict_paired_mode:
+                    raise ValueError(
+                        f"paired metadata row {row_index} overlaps exclusions"
+                    )
                 continue
             safe = smiles_to_safe(smiles)
-            if len(tokenizer.encode(safe, add_special_tokens=True)) <= max_length:
-                rows.append({"safe": safe})
+            if len(tokenizer.encode(safe, add_special_tokens=True)) > max_length:
+                if strict_paired_mode:
+                    raise ValueError(
+                        f"paired metadata row {row_index} exceeds max_length"
+                    )
+                continue
+            row = {"safe": safe}
+            if predicted_fingerprints is not None:
+                row["fingerprint"] = predicted_fingerprints[row_index]
+                row["spec_name"] = str(record["spec_name"])
+            rows.append(row)
         if not rows:
             raise ValueError(f"no MARLIN-compatible rows in {metadata_csv}")
         self.rows = rows
@@ -150,7 +224,7 @@ class MarlinMetadataDataset(torch.utils.data.Dataset):
     def __len__(self) -> int:
         return len(self.rows)
 
-    def __getitem__(self, index: int) -> dict[str, str]:
+    def __getitem__(self, index: int) -> dict:
         return self.rows[index]
 
 
@@ -173,6 +247,7 @@ class MarlinLightningModule(L.LightningModule):
         full_sequence_mask_probability: float = 0.0,
         conditioning_only_steps: int = 0,
         cross_attention_only_steps: int = 0,
+        adapt_fingerprint: bool = False,
     ) -> None:
         super().__init__()
         if conditioning_only_steps < 0 or cross_attention_only_steps < 0:
@@ -194,6 +269,7 @@ class MarlinLightningModule(L.LightningModule):
                 "full_sequence_mask_probability": full_sequence_mask_probability,
                 "conditioning_only_steps": conditioning_only_steps,
                 "cross_attention_only_steps": cross_attention_only_steps,
+                "adapt_fingerprint": adapt_fingerprint,
             }
         )
         self.decoder = MarlinDecoder(config)
@@ -211,6 +287,7 @@ class MarlinLightningModule(L.LightningModule):
         self.full_sequence_mask_probability = full_sequence_mask_probability
         self.conditioning_only_steps = conditioning_only_steps
         self.cross_attention_only_steps = cross_attention_only_steps
+        self.adapt_fingerprint = adapt_fingerprint
         self._last_metric_step = -1
         self._active_adaptation_stage: str | None = None
         self._trainable_parameter_fraction = 1.0
@@ -234,11 +311,14 @@ class MarlinLightningModule(L.LightningModule):
             return "cross_attention"
         return "full"
 
-    @staticmethod
-    def _stage_parameter_is_trainable(name: str, stage: str) -> bool:
+    def _stage_parameter_is_trainable(self, name: str, stage: str) -> bool:
         conditioning = (
             name.startswith("conditioner.mass.")
             or name.startswith("conditioner.isotope.")
+            or (
+                self.adapt_fingerprint
+                and name.startswith("conditioner.fingerprint.")
+            )
         )
         if stage == "conditioning":
             return conditioning
