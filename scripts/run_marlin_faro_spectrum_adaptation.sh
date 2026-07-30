@@ -15,13 +15,23 @@ export PYTHONPATH="$PWD/src${PYTHONPATH:+:$PYTHONPATH}"
 
 python scripts/materialize_marlin_runtime_inputs.py
 
+CHECKPOINT_SOURCE_ARGS=()
+if [[ -n "${MARLIN_SOURCE_CHECKPOINT_ARTIFACT_URI:-}" ]]; then
+  CHECKPOINT_SOURCE_ARGS+=(
+    --artifact-uri "$MARLIN_SOURCE_CHECKPOINT_ARTIFACT_URI"
+  )
+else
+  CHECKPOINT_SOURCE_ARGS+=(
+    --task-id "${MARLIN_SOURCE_CHECKPOINT_TASK_ID:?MARLIN_SOURCE_CHECKPOINT_TASK_ID is required}"
+    --artifact-name "${MARLIN_SOURCE_CHECKPOINT_ARTIFACT:?MARLIN_SOURCE_CHECKPOINT_ARTIFACT is required}"
+  )
+fi
 CHECKPOINT="$(
   python scripts/materialize_marlin_checkpoint.py \
-    --task-id "${MARLIN_SOURCE_CHECKPOINT_TASK_ID:?MARLIN_SOURCE_CHECKPOINT_TASK_ID is required}" \
-    --artifact-name "${MARLIN_SOURCE_CHECKPOINT_ARTIFACT:?MARLIN_SOURCE_CHECKPOINT_ARTIFACT is required}" \
+    "${CHECKPOINT_SOURCE_ARGS[@]}" \
     --expected-sha256 "${MARLIN_SOURCE_CHECKPOINT_SHA256:?MARLIN_SOURCE_CHECKPOINT_SHA256 is required}" \
     --cache-root "$CHECKPOINT_CACHE_ROOT" \
-    --output-name "source.ckpt"
+    --output-name "checkpoint.ckpt"
 )"
 
 test ! -e "$RUN_ROOT"

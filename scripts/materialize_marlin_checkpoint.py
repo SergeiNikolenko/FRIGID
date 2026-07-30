@@ -13,13 +13,11 @@ import sys
 import tempfile
 from pathlib import Path
 
-from clearml import Task
-
-
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--task-id", required=True)
-    parser.add_argument("--artifact-name", required=True)
+    parser.add_argument("--task-id")
+    parser.add_argument("--artifact-name")
+    parser.add_argument("--artifact-uri")
     parser.add_argument("--expected-sha256", required=True)
     parser.add_argument("--cache-root", type=Path, required=True)
     parser.add_argument("--output-name", default="checkpoint.ckpt")
@@ -36,8 +34,9 @@ def sha256_file(path: Path) -> str:
 
 def materialize_checkpoint(
     *,
-    task_id: str,
-    artifact_name: str,
+    task_id: str | None,
+    artifact_name: str | None,
+    artifact_uri: str | None = None,
     expected_sha256: str,
     cache_root: Path,
     output_name: str = "checkpoint.ckpt",
@@ -59,10 +58,31 @@ def materialize_checkpoint(
             )
         return destination
 
-    task = Task.get_task(task_id=task_id)
-    if artifact_name not in task.artifacts:
-        raise KeyError(f"task {task_id} has no artifact {artifact_name!r}")
-    downloaded = Path(task.artifacts[artifact_name].get_local_copy())
+    if bool(artifact_uri) == bool(task_id or artifact_name):
+        raise ValueError(
+            "set exactly one checkpoint source: task artifact or artifact URI"
+        )
+    if artifact_uri:
+        from clearml import StorageManager
+
+        local_copy = StorageManager.get_local_copy(
+            remote_url=artifact_uri,
+            extract_archive=False,
+        )
+        if not local_copy:
+            raise RuntimeError("ClearML storage manager did not return a local copy")
+        downloaded = Path(local_copy)
+    else:
+        if not task_id or not artifact_name:
+            raise ValueError(
+                "task ID and artifact name are both required for task downloads"
+            )
+        from clearml import Task
+
+        task = Task.get_task(task_id=task_id)
+        if artifact_name not in task.artifacts:
+            raise KeyError(f"task {task_id} has no artifact {artifact_name!r}")
+        downloaded = Path(task.artifacts[artifact_name].get_local_copy())
     observed = sha256_file(downloaded)
     if observed != digest:
         raise ValueError(
@@ -92,6 +112,7 @@ def main() -> None:
         checkpoint = materialize_checkpoint(
             task_id=args.task_id,
             artifact_name=args.artifact_name,
+            artifact_uri=args.artifact_uri,
             expected_sha256=args.expected_sha256,
             cache_root=args.cache_root,
             output_name=args.output_name,

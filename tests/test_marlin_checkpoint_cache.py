@@ -71,3 +71,28 @@ def test_materialize_checkpoint_rejects_unsafe_output_name(
             cache_root=tmp_path,
             output_name="../step=2000.ckpt",
         )
+
+
+def test_materialize_checkpoint_downloads_from_verified_artifact_uri(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    payload = b"checkpoint from storage"
+    digest = hashlib.sha256(payload).hexdigest()
+    downloaded = tmp_path / "downloaded.ckpt"
+    downloaded.write_bytes(payload)
+    monkeypatch.setattr(
+        "clearml.StorageManager.get_local_copy",
+        lambda **kwargs: str(downloaded),
+    )
+
+    checkpoint = materialize_checkpoint(
+        task_id=None,
+        artifact_name=None,
+        artifact_uri="https://files.example/checkpoint.ckpt",
+        expected_sha256=digest,
+        cache_root=tmp_path / "cache",
+    )
+
+    assert checkpoint.read_bytes() == payload
+    assert checkpoint == tmp_path / "cache" / digest / "checkpoint.ckpt"

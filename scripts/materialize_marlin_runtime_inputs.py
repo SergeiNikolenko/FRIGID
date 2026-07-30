@@ -180,6 +180,10 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--artifact-uri",
+        default=os.environ.get("MARLIN_RUNTIME_INPUT_ARTIFACT_URI"),
+    )
+    parser.add_argument(
         "--bundle-sha256",
         default=os.environ.get("MARLIN_RUNTIME_INPUT_BUNDLE_SHA256"),
     )
@@ -198,20 +202,33 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    if not args.source_task_id:
-        raise ValueError("source task ID is required")
+    if bool(args.source_task_id) == bool(args.artifact_uri):
+        raise ValueError(
+            "set exactly one runtime input source: task ID or artifact URI"
+        )
     if not args.bundle_sha256:
         raise ValueError("runtime bundle SHA-256 is required")
-    from clearml import Task
+    if args.artifact_uri:
+        from clearml import StorageManager
 
-    task = Task.get_task(task_id=args.source_task_id)
-    artifact = task.artifacts.get(args.artifact_name)
-    if artifact is None:
-        raise KeyError(
-            f"ClearML task {args.source_task_id} has no "
-            f"{args.artifact_name!r} artifact"
+        local_copy = StorageManager.get_local_copy(
+            remote_url=args.artifact_uri,
+            extract_archive=False,
         )
-    bundle = Path(artifact.get_local_copy())
+        if not local_copy:
+            raise RuntimeError("ClearML storage manager did not return a local copy")
+        bundle = Path(local_copy)
+    else:
+        from clearml import Task
+
+        task = Task.get_task(task_id=args.source_task_id)
+        artifact = task.artifacts.get(args.artifact_name)
+        if artifact is None:
+            raise KeyError(
+                f"ClearML task {args.source_task_id} has no "
+                f"{args.artifact_name!r} artifact"
+            )
+        bundle = Path(artifact.get_local_copy())
     materialize_bundle(
         bundle,
         args.output_dir.resolve(),
