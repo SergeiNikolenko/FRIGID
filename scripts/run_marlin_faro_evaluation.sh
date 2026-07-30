@@ -48,7 +48,7 @@ python -X faulthandler scripts/evaluate_marlin_nplib1.py \
   --output-dir "$OUTPUT_ROOT" \
   --candidates "${MARLIN_EVAL_CANDIDATES:-16}" \
   --max-spectra "${MARLIN_EVAL_MAX_SPECTRA:-4}" \
-  --diversity-dropout 0.3 \
+  --diversity-dropout "${MARLIN_EVAL_DIVERSITY_DROPOUT:-0.3}" \
   --temperature 1.0 \
   --generation-mode "${MARLIN_EVAL_GENERATION_MODE:-block}" \
   --ppm-tolerance 10.0 \
