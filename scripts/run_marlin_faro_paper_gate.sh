@@ -13,9 +13,13 @@ EVALUATION_INTERVAL="${MARLIN_EVALUATION_INTERVAL:-$GATE_INTERVAL}"
 EVALUATION_ENABLED="${MARLIN_EVALUATION_ENABLED:-true}"
 CHECKPOINT_INTERVAL="${MARLIN_CHECKPOINT_INTERVAL:-$GATE_INTERVAL}"
 RESUME_CHECKPOINT="${MARLIN_RESUME_CHECKPOINT:-}"
+RESUME_CHECKPOINT_TASK_ID="${MARLIN_RESUME_CHECKPOINT_TASK_ID:-}"
+RESUME_CHECKPOINT_ARTIFACT="${MARLIN_RESUME_CHECKPOINT_ARTIFACT:-}"
+RESUME_CHECKPOINT_SHA256="${MARLIN_RESUME_CHECKPOINT_SHA256:-}"
 TASK_SUFFIX="${CLEARML_TASK_ID:-manual}"
 RUN_ROOT="$SHARED_ROOT/runs/faro-paper-gate-$TASK_SUFFIX"
 CACHE_ROOT="$SHARED_ROOT/cache/filtered-safe-prefix-v1"
+CHECKPOINT_CACHE_ROOT="$SHARED_ROOT/cache/checkpoints"
 GLOBAL_BATCH_SIZE=$((8 * 2 * 16))
 STREAM_CACHE_ROWS="${MARLIN_STREAM_CACHE_ROWS:-$((MAX_STEPS * GLOBAL_BATCH_SIZE))}"
 STREAM_CACHE_ROOT="$SHARED_ROOT/cache/shuffled-safe-stream-v1-$STREAM_CACHE_ROWS"
@@ -25,6 +29,22 @@ export no_proxy="${no_proxy:+$no_proxy,}.clearai.innopolis.university,.universit
 export PYTHONPATH="$PWD/src${PYTHONPATH:+:$PYTHONPATH}"
 
 python scripts/materialize_marlin_runtime_inputs.py
+
+if [[ -n "$RESUME_CHECKPOINT" && -n "$RESUME_CHECKPOINT_TASK_ID" ]]; then
+  echo "set either MARLIN_RESUME_CHECKPOINT or artifact-backed resume variables" >&2
+  exit 2
+fi
+if [[ -n "$RESUME_CHECKPOINT_TASK_ID" ]]; then
+  test -n "$RESUME_CHECKPOINT_ARTIFACT"
+  test -n "$RESUME_CHECKPOINT_SHA256"
+  RESUME_CHECKPOINT="$(
+    python scripts/materialize_marlin_checkpoint.py \
+      --task-id "$RESUME_CHECKPOINT_TASK_ID" \
+      --artifact-name "$RESUME_CHECKPOINT_ARTIFACT" \
+      --expected-sha256 "$RESUME_CHECKPOINT_SHA256" \
+      --cache-root "$CHECKPOINT_CACHE_ROOT"
+  )"
+fi
 
 python - \
   "$SHARED_ROOT/worker_cache_ready.json" \
