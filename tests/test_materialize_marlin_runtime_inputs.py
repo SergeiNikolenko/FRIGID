@@ -28,6 +28,7 @@ def _bundle(
     extra_member: str | None = None,
     end_to_end: bool = False,
     autoresearch: bool = False,
+    spectrum_adaptation: bool = False,
 ) -> tuple[Path, str]:
     payloads = {
         "length_audit.json": b"length-audit",
@@ -36,7 +37,7 @@ def _bundle(
         "val/fingerprints.npz": b"fingerprints",
         "val/metadata.csv": b"smiles\nCC\n",
     }
-    if end_to_end or autoresearch:
+    if end_to_end or autoresearch or spectrum_adaptation:
         payloads.update(
             {
                 "test/dreams_predictions.npz": b"predictions",
@@ -44,11 +45,19 @@ def _bundle(
                 "test/metadata.csv": b"smiles\nCO\n",
             }
         )
-    if autoresearch:
+    if autoresearch or spectrum_adaptation:
         payloads.update(
             {
                 "val/dreams_predictions.npz": b"validation predictions",
                 "val/dreams_predictions.summary.json": b"{}",
+            }
+        )
+    if spectrum_adaptation:
+        payloads.update(
+            {
+                "train/dreams_predictions.npz": b"training predictions",
+                "train/dreams_predictions.summary.json": b"{}",
+                "train/metadata.csv": b"smiles\nCN\n",
             }
         )
     manifest = {
@@ -117,6 +126,17 @@ def test_materialize_bundle_accepts_autoresearch_validation_inputs(tmp_path):
     assert (
         output / "val/dreams_predictions.npz"
     ).read_bytes() == b"validation predictions"
+
+
+def test_materialize_bundle_accepts_spectrum_adaptation_inputs(tmp_path):
+    bundle, digest = _bundle(tmp_path, spectrum_adaptation=True)
+    output = tmp_path / "runtime"
+
+    MODULE.materialize_bundle(bundle, output, expected_sha256=digest)
+
+    assert (
+        output / "train/dreams_predictions.npz"
+    ).read_bytes() == b"training predictions"
 
 
 @pytest.mark.parametrize("member", ("../escape", "/absolute", "extra.txt"))

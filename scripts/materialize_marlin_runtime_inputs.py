@@ -27,10 +27,16 @@ AUTORESEARCH_EXPECTED_FILES = END_TO_END_EXPECTED_FILES | {
     "val/dreams_predictions.npz",
     "val/dreams_predictions.summary.json",
 }
+SPECTRUM_ADAPTATION_EXPECTED_FILES = AUTORESEARCH_EXPECTED_FILES | {
+    "train/dreams_predictions.npz",
+    "train/dreams_predictions.summary.json",
+    "train/metadata.csv",
+}
 EXPECTED_FILE_SETS = (
     LEGACY_EXPECTED_FILES,
     END_TO_END_EXPECTED_FILES,
     AUTORESEARCH_EXPECTED_FILES,
+    SPECTRUM_ADAPTATION_EXPECTED_FILES,
 )
 
 

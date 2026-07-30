@@ -86,14 +86,27 @@ class MarlinCollator:
             key = Chem.MolToInchiKey(molecule).split("-")[0]
             if key in self.exclude:
                 raise ValueError("pre-batch filter admitted an excluded test structure")
-            fingerprint = AllChem.GetMorganGenerator(
-                radius=2, fpSize=self.fingerprint_bits
-            ).GetFingerprint(molecule)
-            array = np.zeros(self.fingerprint_bits, dtype=np.float32)
-            DataStructs.ConvertToNumpyArray(fingerprint, array)
+            provided_fingerprint = example.get("fingerprint")
+            if provided_fingerprint is None:
+                fingerprint = AllChem.GetMorganGenerator(
+                    radius=2, fpSize=self.fingerprint_bits
+                ).GetFingerprint(molecule)
+                array = np.zeros(self.fingerprint_bits, dtype=np.float32)
+                DataStructs.ConvertToNumpyArray(fingerprint, array)
+            else:
+                array = np.asarray(provided_fingerprint, dtype=np.float32)
+                if array.shape != (self.fingerprint_bits,):
+                    raise ValueError(
+                        "provided fingerprint must have shape "
+                        f"({self.fingerprint_bits},), got {array.shape}"
+                    )
+                if not np.array_equal(array, array.astype(bool)):
+                    raise ValueError("provided fingerprint must be binary")
             safes.append(safe)
             fingerprints.append(torch.from_numpy(array))
-            masses.append(Descriptors.ExactMolWt(molecule))
+            masses.append(
+                float(example.get("precursor_mass", Descriptors.ExactMolWt(molecule)))
+            )
             isotope_ratios.append(theoretical_isotope_ratios(molecule))
         if len(safes) != len(examples):
             raise AssertionError("MARLIN collator changed the pre-filtered batch size")
@@ -151,6 +164,108 @@ class MarlinMetadataDataset(torch.utils.data.Dataset):
         return len(self.rows)
 
     def __getitem__(self, index: int) -> dict[str, str]:
+        return self.rows[index]
+
+
+class MarlinSpectrumFingerprintDataset(torch.utils.data.Dataset):
+    """Finite spectrum-to-molecule adaptation set with predicted fingerprints."""
+
+    def __init__(
+        self,
+        metadata_csv: str | Path,
+        fingerprint_npz: str | Path,
+        tokenizer,
+        *,
+        fingerprint_key: str,
+        threshold: float,
+        max_length: int,
+        exclude_inchikeys: str | Path | None = None,
+        exclude_metadata_csvs: tuple[str | Path, ...] = (),
+    ) -> None:
+        if not 0.0 <= threshold <= 1.0:
+            raise ValueError("fingerprint threshold must be in [0, 1]")
+        table = pd.read_csv(metadata_csv)
+        required_columns = {
+            "spec_name",
+            "smiles",
+            "inchikey_first_block",
+            "neutral_mass",
+        }
+        missing_columns = sorted(required_columns - set(table.columns))
+        if missing_columns:
+            raise ValueError(
+                f"spectrum metadata is missing columns: {missing_columns}"
+            )
+
+        excluded = load_excluded_connectivity_keys(exclude_inchikeys)
+        for path in exclude_metadata_csvs:
+            excluded.update(
+                pd.read_csv(path)["inchikey_first_block"].dropna().astype(str)
+            )
+
+        with np.load(fingerprint_npz, allow_pickle=False) as arrays:
+            if fingerprint_key not in arrays:
+                raise KeyError(
+                    f"{fingerprint_key!r} not found in {fingerprint_npz}; "
+                    f"keys={arrays.files}"
+                )
+            values = np.asarray(arrays[fingerprint_key])
+            if "spectrum_ids" not in arrays:
+                raise ValueError(
+                    "predicted fingerprint bundle must contain spectrum_ids"
+                )
+            spectrum_ids = [str(value) for value in arrays["spectrum_ids"]]
+        if values.ndim != 2 or values.shape[1] != 4096:
+            raise ValueError(
+                "predicted fingerprints must have shape [rows, 4096], "
+                f"got {values.shape}"
+            )
+        if len(spectrum_ids) != len(values) or len(set(spectrum_ids)) != len(
+            spectrum_ids
+        ):
+            raise ValueError(
+                "predicted fingerprint spectrum_ids are missing or duplicated"
+            )
+        positions = {value: index for index, value in enumerate(spectrum_ids)}
+
+        rows = []
+        for record in table.to_dict("records"):
+            key = str(record["inchikey_first_block"])
+            if key in excluded:
+                continue
+            spec_name = str(record["spec_name"])
+            if spec_name not in positions:
+                raise ValueError(
+                    f"predicted fingerprint bundle is missing {spec_name}"
+                )
+            smiles = str(record["smiles"])
+            molecule = Chem.MolFromSmiles(smiles)
+            if molecule is None:
+                continue
+            safe = smiles_to_safe(smiles)
+            if len(tokenizer.encode(safe, add_special_tokens=True)) > max_length:
+                continue
+            rows.append(
+                {
+                    "safe": safe,
+                    "fingerprint": (
+                        values[positions[spec_name]] >= threshold
+                    ).astype(np.float32),
+                    "precursor_mass": float(record["neutral_mass"]),
+                    "spec_name": spec_name,
+                    "inchikey_first_block": key,
+                }
+            )
+        if not rows:
+            raise ValueError(
+                f"no MARLIN-compatible spectrum rows in {metadata_csv}"
+            )
+        self.rows = rows
+
+    def __len__(self) -> int:
+        return len(self.rows)
+
+    def __getitem__(self, index: int) -> dict[str, object]:
         return self.rows[index]
 
 
