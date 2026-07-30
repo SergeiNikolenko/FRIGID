@@ -79,6 +79,8 @@ class PeriodicMolecularEvaluation(L.Callback):
         threshold = evaluation.get("threshold")
         if threshold is not None and str(threshold):
             command.extend(["--threshold", str(threshold)])
+        if not bool(evaluation.get("use_ema", True)):
+            command.append("--no-ema")
         if str(self.config.get("architecture", "marlin")) == "expanding":
             command.extend(
                 [

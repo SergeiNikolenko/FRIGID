@@ -288,6 +288,7 @@ class MarlinLightningModule(L.LightningModule):
         full_sequence_mask_probability: float = 0.0,
         conditioning_only_steps: int = 0,
         cross_attention_only_steps: int = 0,
+        adapt_fingerprint: bool = False,
     ) -> None:
         super().__init__()
         if conditioning_only_steps < 0 or cross_attention_only_steps < 0:
@@ -309,6 +310,7 @@ class MarlinLightningModule(L.LightningModule):
                 "full_sequence_mask_probability": full_sequence_mask_probability,
                 "conditioning_only_steps": conditioning_only_steps,
                 "cross_attention_only_steps": cross_attention_only_steps,
+                "adapt_fingerprint": adapt_fingerprint,
             }
         )
         self.decoder = MarlinDecoder(config)
@@ -326,6 +328,7 @@ class MarlinLightningModule(L.LightningModule):
         self.full_sequence_mask_probability = full_sequence_mask_probability
         self.conditioning_only_steps = conditioning_only_steps
         self.cross_attention_only_steps = cross_attention_only_steps
+        self.adapt_fingerprint = adapt_fingerprint
         self._last_metric_step = -1
         self._active_adaptation_stage: str | None = None
         self._trainable_parameter_fraction = 1.0
@@ -349,11 +352,14 @@ class MarlinLightningModule(L.LightningModule):
             return "cross_attention"
         return "full"
 
-    @staticmethod
-    def _stage_parameter_is_trainable(name: str, stage: str) -> bool:
+    def _stage_parameter_is_trainable(self, name: str, stage: str) -> bool:
         conditioning = (
             name.startswith("conditioner.mass.")
             or name.startswith("conditioner.isotope.")
+            or (
+                self.adapt_fingerprint
+                and name.startswith("conditioner.fingerprint.")
+            )
         )
         if stage == "conditioning":
             return conditioning

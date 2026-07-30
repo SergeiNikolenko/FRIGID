@@ -135,6 +135,53 @@ def test_periodic_evaluation_does_not_repeat_failed_boundary(
     assert calls == [500]
 
 
+def test_periodic_evaluation_can_use_raw_weights(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    config = OmegaConf.create(
+        {
+            "data": {"tokenizer_file": str(tmp_path / "tokenizer.json")},
+            "evaluation": {
+                "enabled": True,
+                "interval_steps": 500,
+                "metadata": str(tmp_path / "metadata.csv"),
+                "fingerprints": str(tmp_path / "dreams_predictions.npz"),
+                "fingerprint_key": "probs",
+                "use_ema": False,
+                "lane": "dreams",
+                "candidates": 16,
+                "max_spectra": 4,
+                "diversity_dropout": 0.3,
+                "temperature": 1.0,
+                "ppm_tolerance": 10.0,
+                "seed": 42,
+            },
+            "output": {
+                "root": str(tmp_path),
+                "checkpoints": str(tmp_path / "checkpoints"),
+                "checkpoint_interval": 500,
+            },
+        }
+    )
+    checkpoint = tmp_path / "checkpoints/step=500.ckpt"
+    checkpoint.parent.mkdir()
+    checkpoint.touch()
+    commands = []
+    monkeypatch.setattr(
+        "marlin.periodic_evaluation.subprocess.run",
+        lambda command, **kwargs: commands.append(command),
+    )
+    monkeypatch.setattr(
+        "marlin.periodic_evaluation.torch.cuda.is_available",
+        lambda: False,
+    )
+
+    PeriodicMolecularEvaluation(config, project_root=tmp_path)._run(500)
+
+    assert "--no-ema" in commands[0]
+
+
 def test_periodic_evaluation_forwards_fingerprint_threshold(
     tmp_path: Path,
     monkeypatch,

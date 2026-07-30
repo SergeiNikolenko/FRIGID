@@ -147,6 +147,50 @@ def test_staged_adaptation_preserves_ema_parameter_order():
     assert len(module.ema.shadow_params) == parameter_count
 
 
+def test_staged_adaptation_can_train_fingerprint_conditioner():
+    config = MarlinDecoderConfig(
+        vocab_size=8,
+        hidden_size=8,
+        num_layers=1,
+        num_heads=1,
+        intermediate_size=16,
+        max_length=5,
+        block_width=2,
+        fingerprint_bits=4,
+        dropout=0.0,
+        mask_token_id=3,
+        pad_token_id=0,
+    )
+    module = MarlinLightningModule(
+        config,
+        conditioning_only_steps=2,
+        adapt_fingerprint=True,
+    )
+
+    assert module.apply_adaptation_stage(0) == "conditioning"
+    assert all(
+        parameter.requires_grad
+        for name, parameter in module.decoder.named_parameters()
+        if name.startswith("conditioner.fingerprint.")
+    )
+    assert not module.decoder.layers[0].self_attention.in_proj_weight.requires_grad
+    assert {
+        name
+        for name, parameter in module.decoder.named_parameters()
+        if parameter.requires_grad
+    } == {
+        name
+        for name, _ in module.decoder.named_parameters()
+        if name.startswith(
+            (
+                "conditioner.mass.",
+                "conditioner.isotope.",
+                "conditioner.fingerprint.",
+            )
+        )
+    }
+
+
 @pytest.mark.parametrize(
     ("conditioning_steps", "cross_attention_steps"),
     ((-1, 0), (0, -1)),

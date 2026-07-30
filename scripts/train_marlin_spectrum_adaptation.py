@@ -43,7 +43,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--metadata", type=Path, required=True)
     parser.add_argument("--fingerprints", type=Path, required=True)
     parser.add_argument("--fingerprint-key", default="probs")
-    parser.add_argument("--fingerprint-threshold", type=float, default=0.95)
+    parser.add_argument("--fingerprint-threshold", type=float, default=0.90)
     parser.add_argument("--exclude-inchikeys", type=Path, required=True)
     parser.add_argument(
         "--exclude-metadata",
@@ -205,19 +205,20 @@ def main() -> None:
         decoder_config,
         learning_rate=args.learning_rate,
         weight_decay=0.0,
-        noise_probability=0.5,
+        noise_probability=0.0,
         noise_min_fraction=0.1,
         noise_max_fraction=0.3,
         ema_decay=0.9999,
         metric_interval=25,
         conditioning_only_steps=0,
         cross_attention_only_steps=args.cross_attention_only_steps,
+        adapt_fingerprint=True,
     )
     start_report = load_marlin_decoder_weights(
         module.decoder,
         args.checkpoint,
         architecture_upgrade=False,
-        use_ema=True,
+        use_ema=False,
     )
     module.reset_ema()
 
@@ -283,6 +284,7 @@ def main() -> None:
                 "fingerprints": str(args.validation_fingerprints),
                 "fingerprint_key": args.validation_fingerprint_key,
                 "threshold": args.validation_fingerprint_threshold,
+                "use_ema": False,
                 "lane": "dreams",
                 "max_spectra": args.evaluation_spectra,
                 "candidates": args.evaluation_candidates,

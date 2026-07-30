@@ -43,7 +43,7 @@ python -X faulthandler scripts/train_marlin_spectrum_adaptation.py \
   --metadata "$RUNTIME_ROOT/train/metadata.csv" \
   --fingerprints "$RUNTIME_ROOT/train/dreams_predictions.npz" \
   --fingerprint-key probs \
-  --fingerprint-threshold "${MARLIN_TRAIN_FINGERPRINT_THRESHOLD:-0.95}" \
+  --fingerprint-threshold "${MARLIN_TRAIN_FINGERPRINT_THRESHOLD:-0.90}" \
   --exclude-inchikeys "$RUNTIME_ROOT/nplib1_test_inchikeys.csv" \
   --exclude-metadata "$RUNTIME_ROOT/val/metadata.csv" \
   --validation-metadata "$RUNTIME_ROOT/val/metadata.csv" \
