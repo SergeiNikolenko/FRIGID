@@ -37,6 +37,7 @@ python scripts/train_marlin.py \
   frigid_warm_start_checkpoint=null \
   frigid_warm_start_sha256=null \
   "initial_weights_checkpoint=${CHECKPOINT//=/\\=}" \
+  initial_weights_architecture_upgrade=false \
   initial_weights_use_ema=false \
   data.tokenizer_file="$RUNTIME_ROOT/tokenizer.json" \
   data.exclude_inchikeys="$RUNTIME_ROOT/nplib1_test_inchikeys.csv" \
@@ -49,6 +50,9 @@ python scripts/train_marlin.py \
   +data.paired_fingerprint_key=probs \
   +data.paired_fingerprint_ids_key=spectrum_ids \
   +data.paired_fingerprint_threshold=0.90 \
+  model.fingerprint_layer_norm=false \
+  model.fingerprint_self_attention_layers=0 \
+  model.frigid_compatible_layer_order=false \
   training.noise_probability=0.0 \
   +training.adapt_fingerprint=true \
   +training.conditioning_only_steps="$CONDITIONING_STEPS" \

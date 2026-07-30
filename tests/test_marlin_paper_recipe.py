@@ -135,3 +135,14 @@ def test_paired_adaptation_does_not_require_worker_local_safe_snapshot():
     assert "if not paired_fingerprint_adaptation:" in source
     assert "training_snapshot_manifest" in source
     assert "if paired_fingerprint_adaptation" in source
+
+
+def test_legacy_step30000_adaptation_preserves_checkpoint_architecture():
+    script = (
+        PROJECT_ROOT / "scripts/run_marlin_faro_dreams_adaptation.sh"
+    ).read_text()
+
+    assert "initial_weights_architecture_upgrade=false" in script
+    assert "model.fingerprint_layer_norm=false" in script
+    assert "model.fingerprint_self_attention_layers=0" in script
+    assert "model.frigid_compatible_layer_order=false" in script
