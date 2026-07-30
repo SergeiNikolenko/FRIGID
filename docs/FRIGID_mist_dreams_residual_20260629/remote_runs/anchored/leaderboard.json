@@ -1,0 +1,40 @@
+{
+  "rows": [
+    {
+      "variant": "anchor10_scale005",
+      "best_epoch": 3,
+      "mean_tanimoto": 0.5427262996077179,
+      "delta_vs_mist": 0.0006837949737603655,
+      "mode": "threshold",
+      "value": 0.25,
+      "passed_encoder_gate": false
+    },
+    {
+      "variant": "anchor10_scale01_count",
+      "best_epoch": 1,
+      "mean_tanimoto": 0.5426932802521115,
+      "delta_vs_mist": 0.0006507756181539648,
+      "mode": "threshold",
+      "value": 0.25,
+      "passed_encoder_gate": false
+    },
+    {
+      "variant": "anchor30_pos5_scale01",
+      "best_epoch": 3,
+      "mean_tanimoto": 0.5426415288737063,
+      "delta_vs_mist": 0.0005990242397487799,
+      "mode": "threshold",
+      "value": 0.3,
+      "passed_encoder_gate": false
+    },
+    {
+      "variant": "anchor30_scale005",
+      "best_epoch": 3,
+      "mean_tanimoto": 0.5423324762334567,
+      "delta_vs_mist": 0.0002899715994991725,
+      "mode": "threshold",
+      "value": 0.25,
+      "passed_encoder_gate": false
+    }
+  ]
+}

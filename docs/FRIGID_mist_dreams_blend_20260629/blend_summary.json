@@ -1,0 +1,20 @@
+{
+  "rows": 19043,
+  "fingerprint_bits": 4096,
+  "primary_npz": "/home/nikolenko/work/Projects/FRIGID_dreams_fingerprint_head/runs/mist_dreams_blend_20260629T131733Z/mist_val/fingerprints.npz",
+  "secondary_npz": "/home/nikolenko/work/Projects/FRIGID_dreams_fingerprint_head/runs/dreams_fingerprint_head_msg_round2_20260629T123254Z/variants/pos10_count005/val_predictions/fingerprints.npz",
+  "targets_npz": "/home/nikolenko/work/Projects/FRIGID_dreams_fingerprint_head/runs/dreams_fingerprint_head_msg_full_20260629T110040Z/val_dataset/fingerprints.npz",
+  "best": {
+    "mode": "threshold",
+    "alpha_primary": 1.0,
+    "value": 0.25,
+    "mean_tanimoto": 0.5420425056316476,
+    "median_tanimoto": 0.5483871102333069,
+    "bit_accuracy": 0.9908363099096453,
+    "bit_precision": 0.7285243958048335,
+    "bit_recall": 0.6569716996882203,
+    "bit_f1": 0.6909004105217774,
+    "mean_active_bits": 57.5802116394043,
+    "mean_target_active_bits": 63.8514404296875
+  }
+}

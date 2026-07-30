@@ -1,0 +1,16 @@
+{
+  "split": "val",
+  "rows": 19043,
+  "fingerprint_bits": 4096,
+  "array_key": "probs",
+  "compatibility_keys": [
+    "mist_probs",
+    "mist_binary",
+    "ground_truth"
+  ],
+  "fp_threshold": 0.187,
+  "checkpoint": "/home/nikolenko/work/Projects/FRIGID/repro_cache/mist_msg.pt",
+  "data_dir": "/home/nikolenko/work/Projects/FRIGID/repro_cache/msg",
+  "predictions_npz": "/home/nikolenko/work/Projects/FRIGID_dreams_fingerprint_head/runs/mist_dreams_blend_20260629T131733Z/mist_val/fingerprints.npz",
+  "metadata_csv": "/home/nikolenko/work/Projects/FRIGID_dreams_fingerprint_head/runs/mist_dreams_blend_20260629T131733Z/mist_val/metadata.csv"
+}

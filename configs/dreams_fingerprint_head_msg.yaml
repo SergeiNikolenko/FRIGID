@@ -1,0 +1,41 @@
+# DreaMS fingerprint-head run recipe for MassSpecGym.
+#
+# This file is a reproducible path template for the DreaMS migration experiment.
+# The individual scripts accept CLI arguments; keep resolved absolute paths in
+# the run logs and summary JSON files.
+
+data:
+  config: configs/spec2mol_benchmark_msg.yaml
+  data_dir: /home/nikolenko/work/Projects/FRIGID/data/msg
+  train_split: train
+  val_split: val
+  test_split: test
+
+fingerprint:
+  bits: 4096
+  radius: 2
+  threshold: 0.5
+
+dreams:
+  model: null
+  batch_size: 128
+  device: cuda
+
+head:
+  hidden_dim: 1024
+  dropout: 0.1
+  batch_size: 256
+  epochs: 20
+  lr: 0.001
+  weight_decay: 0.0001
+
+outputs:
+  root: /home/nikolenko/work/Projects/FRIGID/runs/dreams_fingerprint_head_msg
+  train_dataset: train_dataset
+  val_dataset: val_dataset
+  train_embeddings: train_embeddings
+  val_embeddings: val_embeddings
+  head: fingerprint_head
+  val_predictions: val_predictions
+  val_evaluation: val_evaluation
+  downstream_benchmark: val_dlm_benchmark

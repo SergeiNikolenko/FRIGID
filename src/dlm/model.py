@@ -918,13 +918,17 @@ class DLM(L.LightningModule):
             return logits
     
     def training_step(self, batch, batch_idx):
-        input_ids = batch['input_ids']
-        attention_mask = batch['attention_mask']
+        input_ids = batch['input_ids'].to(self.device)
+        attention_mask = batch['attention_mask'].to(self.device)
         
         # Extract conditioning inputs
         formula = batch.get('formula', None) if self.use_formula_conditioning else None
         fingerprint = batch.get('fingerprint', None) if self.use_fingerprint_conditioning else None
         fingerprint_mask = batch.get('fingerprint_mask', None) if self.use_fingerprint_conditioning else None
+        if torch.is_tensor(fingerprint):
+            fingerprint = fingerprint.to(self.device)
+        if torch.is_tensor(fingerprint_mask):
+            fingerprint_mask = fingerprint_mask.to(self.device)
         
         # Handle sample exclusion (e.g., test set molecules)
         # If exclude_mask is present, zero out attention_mask for excluded samples

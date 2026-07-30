@@ -1,0 +1,36 @@
+{
+  "train_rows": 191216,
+  "val_rows": 19043,
+  "fingerprint_bits": 4096,
+  "embedding_dim": 1024,
+  "mist_baseline_best": {
+    "mode": "threshold",
+    "value": 0.25,
+    "mean_tanimoto": 0.5420425046339575,
+    "median_tanimoto": 0.5483870967741935,
+    "bit_accuracy": 0.9908363099096453,
+    "bit_precision": 0.7285243958048335,
+    "bit_recall": 0.6569716996882203,
+    "bit_f1": 0.6909004105217774,
+    "mean_active_bits": 57.58021320170141,
+    "mean_target_active_bits": 63.85144147455758
+  },
+  "best": {
+    "epoch": 3,
+    "best_metrics": {
+      "mode": "threshold",
+      "value": 0.25,
+      "mean_tanimoto": 0.5427262996077179,
+      "median_tanimoto": 0.5480769230769231,
+      "bit_accuracy": 0.9908534252661739,
+      "bit_precision": 0.7292081949311265,
+      "bit_recall": 0.6573730408915696,
+      "bit_f1": 0.6914298220118473,
+      "mean_active_bits": 57.56136113007404,
+      "mean_target_active_bits": 63.85144147455758
+    },
+    "best_delta_vs_mist": 0.0006837949737603655
+  },
+  "passed_encoder_gate": false,
+  "gate_delta": 0.005
+}

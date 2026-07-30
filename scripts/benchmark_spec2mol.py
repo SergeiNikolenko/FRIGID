@@ -58,6 +58,7 @@ from dlm.utils.benchmark_utils import (
     load_token_model,
     predict_token_count,
 )
+from frigid.fingerprint_backends import build_fingerprint_backend
 from mist.models import SpectraEncoderGrowing
 from mist.data import (
     get_paired_spectra,
@@ -83,6 +84,27 @@ def parse_args():
     parser.add_argument('--dlm-checkpoint', type=str, help='DLM decoder checkpoint')
     parser.add_argument('--data-dir', type=str, help='Spec data directory')
     parser.add_argument('--fp-threshold', type=float, help='FP binarization threshold')
+    parser.add_argument(
+        '--encoder-backend',
+        choices=['mist', 'precomputed', 'dreams_precomputed'],
+        help='Spectrum-to-fingerprint backend. Use precomputed/dreams_precomputed for DreaMS-head outputs.',
+    )
+    parser.add_argument(
+        '--fingerprint-npz',
+        type=str,
+        help='NPZ file containing precomputed fingerprint probabilities for precomputed backends.',
+    )
+    parser.add_argument(
+        '--fingerprint-metadata',
+        type=str,
+        help='Metadata CSV aligned to --fingerprint-npz rows and containing spec_name.',
+    )
+    parser.add_argument(
+        '--fingerprint-probability-key',
+        type=str,
+        default=None,
+        help='Array key inside --fingerprint-npz for precomputed probabilities.',
+    )
     parser.add_argument('--output-dir', type=str, help='Output directory')
     parser.add_argument('--split', type=str, choices=['val', 'test'])
     parser.add_argument('--max-spectra', type=int, default=None)
@@ -142,6 +164,9 @@ def get_default_config() -> dict:
             'mol_features': 'fingerprint',
             'top_layers': 1,
         },
+        'encoder_backend': {
+            'name': 'mist',
+        },
         'dlm': {
             'checkpoint': 'checkpoints/dlm.ckpt',
         },
@@ -200,6 +225,18 @@ def merge_config_with_args(config: dict, args) -> dict:
     """Override config with command-line arguments."""
     if args.mist_checkpoint:
         config['mist_encoder']['checkpoint'] = args.mist_checkpoint
+    if getattr(args, 'encoder_backend', None):
+        config.setdefault('encoder_backend', {})
+        config['encoder_backend']['name'] = args.encoder_backend
+    if getattr(args, 'fingerprint_npz', None):
+        config.setdefault('encoder_backend', {})
+        config['encoder_backend']['fingerprint_npz'] = args.fingerprint_npz
+    if getattr(args, 'fingerprint_metadata', None):
+        config.setdefault('encoder_backend', {})
+        config['encoder_backend']['metadata_csv'] = args.fingerprint_metadata
+    if getattr(args, 'fingerprint_probability_key', None):
+        config.setdefault('encoder_backend', {})
+        config['encoder_backend']['probability_key'] = args.fingerprint_probability_key
     if args.dlm_checkpoint:
         config['dlm']['checkpoint'] = args.dlm_checkpoint
     if args.data_dir:
@@ -386,8 +423,8 @@ def _worker_process_spectra(
     torch.cuda.set_device(device)
     
     # Load models on this GPU
-    print(config['mist_encoder'])
-    mist_encoder = load_mist_encoder(config['mist_encoder'], device)
+    print(config.get('encoder_backend', {'name': 'mist'}))
+    fingerprint_backend = build_fingerprint_backend(config, device)
     sampler = load_dlm_sampler(config['dlm'], use_shared_cross_attention)
     
     gen_cfg = config['generation']
@@ -423,13 +460,11 @@ def _worker_process_spectra(
             continue
         
         # Encode spectra to fingerprint
-        with torch.no_grad():
-            pred_fp_probs, _ = mist_encoder(batch)
-            pred_fp_probs = pred_fp_probs.cpu().numpy()[0]
+        pred_fp_probs = fingerprint_backend.predict_probs(batch, spec_name=spec.get_spec_name())
         pred_fp_binary = binarize_fingerprint(pred_fp_probs, fp_threshold)
         
         # Generate with formula filtering
-        matched_smiles, matched_sims, total_gen, total_valid, total_matched, counter, last_valid = \
+        matched_smiles, matched_sims, total_gen, total_valid, total_matched, counter, last_valid, gen_time = \
             generate_with_formula_filter(
                 sampler=sampler,
                 fingerprint_array=pred_fp_binary,
@@ -476,6 +511,8 @@ def _worker_process_spectra(
         
         # Add additional metrics
         result['mist_tanimoto'] = compute_tanimoto_similarity(target_fp, pred_fp_binary)
+        result['encoder_tanimoto'] = result['mist_tanimoto']
+        result['fingerprint_backend'] = fingerprint_backend.name
         result['spec_name'] = spec.get_spec_name()
         result['proposal_smiles'] = predictions[0]['smiles'] if predictions else None
         result['proposal_source'] = source if predictions else None
@@ -607,7 +644,7 @@ def run_benchmark_multi_gpu(
 
 
 def run_benchmark(
-    mist_encoder: torch.nn.Module,
+    fingerprint_backend,
     sampler: Sampler,
     dataset: SpectraMolDataset,
     split_data: List,
@@ -666,9 +703,7 @@ def run_benchmark(
             continue
 
         # Encode spectra to fingerprint
-        with torch.no_grad():
-            pred_fp_probs, _ = mist_encoder(batch)
-            pred_fp_probs = pred_fp_probs.cpu().numpy()[0]
+        pred_fp_probs = fingerprint_backend.predict_probs(batch, spec_name=spec.get_spec_name())
         pred_fp_binary = binarize_fingerprint(pred_fp_probs, fp_threshold)
 
         # Generate with formula filtering
@@ -719,6 +754,8 @@ def run_benchmark(
         
         # Add additional metrics
         result['mist_tanimoto'] = compute_tanimoto_similarity(target_fp, pred_fp_binary)
+        result['encoder_tanimoto'] = result['mist_tanimoto']
+        result['fingerprint_backend'] = fingerprint_backend.name
         result['spec_name'] = spec.get_spec_name()
         result['proposal_smiles'] = predictions[0]['smiles'] if predictions else None
         result['proposal_source'] = source if predictions else None
@@ -835,7 +872,7 @@ def print_summary(aggregate: Dict[str, Any]):
     print(f"Time in generation functions: {aggregate.get('total_generation_time', 0):.1f}s")
     print(f"Percentage of total time: {aggregate.get('generation_time_percentage', 0):.1f}%")
     
-    print(f"\n--- MIST Encoder Quality ---")
+    print(f"\n--- Fingerprint Encoder Quality ---")
     print(f"Mean Tanimoto (pred vs GT FP): {aggregate.get('mist_tanimoto_mean', 0):.4f}")
     
     print(f"\n--- Core Metrics ---")
@@ -907,10 +944,10 @@ def main():
         )
     else:
         # Single GPU mode: load models in main process
-        mist_encoder = load_mist_encoder(config['mist_encoder'], device)
+        fingerprint_backend = build_fingerprint_backend(config, device)
         sampler = load_dlm_sampler(config['dlm'], args.use_shared_cross_attention)
         aggregate, results = run_benchmark(
-            mist_encoder, sampler, dataset, split_data,
+            fingerprint_backend, sampler, dataset, split_data,
             config, device, max_spectra,
             token_model, token_features, is_ngboost, args.sigma_lambda
         )

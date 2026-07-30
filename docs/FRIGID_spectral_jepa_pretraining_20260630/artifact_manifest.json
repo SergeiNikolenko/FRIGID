@@ -1,0 +1,79 @@
+{
+  "experiment_id": "spectral_jepa_pretraining_20260630",
+  "source_host": "spectrum",
+  "source_run_dir": "/home/nikolenko/work/Projects/FRIGID_dreams_fingerprint_head/runs/spectral_jepa_pretraining_<UTC>",
+  "artifacts": [
+    {
+      "name": "training script",
+      "path": "scripts/train_spectral_jepa.py",
+      "type": "script",
+      "size_bytes": null,
+      "sha256": null,
+      "notes": "JEPA-style spectrum pretraining and frozen fingerprint-head evaluation script."
+    },
+    {
+      "name": "slurm launcher",
+      "path": "docs/FRIGID_spectral_jepa_pretraining_20260630/run_spectral_jepa.sbatch",
+      "type": "script",
+      "size_bytes": null,
+      "sha256": null,
+      "notes": "Submit from the remote FRIGID checkout on spectrum after active GPU jobs clear."
+    },
+    {
+      "name": "run identity",
+      "path": "/home/nikolenko/work/Projects/FRIGID_dreams_fingerprint_head/runs/spectral_jepa_pretraining_<UTC>/run_identity.json",
+      "type": "metadata",
+      "size_bytes": null,
+      "sha256": null,
+      "notes": "Created by the Slurm job."
+    },
+    {
+      "name": "training log",
+      "path": "/home/nikolenko/work/Projects/FRIGID_dreams_fingerprint_head/runs/spectral_jepa_pretraining_<UTC>/train.log",
+      "type": "log",
+      "size_bytes": null,
+      "sha256": null,
+      "notes": "Created by the Slurm job."
+    },
+    {
+      "name": "pretraining metrics",
+      "path": "/home/nikolenko/work/Projects/FRIGID_dreams_fingerprint_head/runs/spectral_jepa_pretraining_<UTC>/model/pretrain_metrics.json",
+      "type": "metrics",
+      "size_bytes": null,
+      "sha256": null,
+      "notes": "JEPA latent, variance, and covariance loss history."
+    },
+    {
+      "name": "best JEPA encoder",
+      "path": "/home/nikolenko/work/Projects/FRIGID_dreams_fingerprint_head/runs/spectral_jepa_pretraining_<UTC>/model/best_jepa_encoder.pt",
+      "type": "checkpoint",
+      "size_bytes": null,
+      "sha256": null,
+      "notes": "Best context encoder by pretraining loss."
+    },
+    {
+      "name": "fingerprint-head metrics",
+      "path": "/home/nikolenko/work/Projects/FRIGID_dreams_fingerprint_head/runs/spectral_jepa_pretraining_<UTC>/model/head_metrics.json",
+      "type": "metrics",
+      "size_bytes": null,
+      "sha256": null,
+      "notes": "Frozen-encoder fingerprint-head history and best sweep row."
+    },
+    {
+      "name": "validation sweep metrics",
+      "path": "/home/nikolenko/work/Projects/FRIGID_dreams_fingerprint_head/runs/spectral_jepa_pretraining_<UTC>/model/val_sweep_metrics.csv",
+      "type": "metrics",
+      "size_bytes": null,
+      "sha256": null,
+      "notes": "Threshold and top-k sweep for validation fingerprints."
+    },
+    {
+      "name": "validation predictions",
+      "path": "/home/nikolenko/work/Projects/FRIGID_dreams_fingerprint_head/runs/spectral_jepa_pretraining_<UTC>/model/val_predictions.npz",
+      "type": "prediction",
+      "size_bytes": null,
+      "sha256": null,
+      "notes": "Validation fingerprint probabilities aligned to val_prediction_metadata.csv."
+    }
+  ]
+}
