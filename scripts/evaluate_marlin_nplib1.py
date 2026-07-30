@@ -73,6 +73,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--disable-mass-shell", action="store_true")
     parser.add_argument("--sample-tokens", action="store_true")
     parser.add_argument("--sampling-top-k", type=int)
+    parser.add_argument(
+        "--reveal-order",
+        choices=("confidence", "left_to_right"),
+        default="confidence",
+    )
     parser.add_argument("--fix-safe-decode", action="store_true")
     parser.add_argument("--no-ema", action="store_true")
     parser.add_argument("--layer0-long-residual-scale", type=float)
@@ -535,6 +540,7 @@ def main() -> None:
             generation_mode=args.generation_mode,
             sample_tokens=args.sample_tokens,
             sampling_top_k=args.sampling_top_k,
+            reveal_order=args.reveal_order,
         )
 
     settings = {
@@ -566,6 +572,7 @@ def main() -> None:
         "safe_decode_fix": args.fix_safe_decode,
         "token_selection": "multinomial" if args.sample_tokens else "argmax",
         "sampling_top_k": args.sampling_top_k,
+        "reveal_order": args.reveal_order,
         "seed": args.seed,
         "max_spectra": args.max_spectra,
     }

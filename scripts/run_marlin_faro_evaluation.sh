@@ -53,6 +53,9 @@ fi
 if [[ -n "${MARLIN_EVAL_SAMPLING_TOP_K:-}" ]]; then
   EXTRA_ARGS+=(--sampling-top-k "$MARLIN_EVAL_SAMPLING_TOP_K")
 fi
+if [[ -n "${MARLIN_EVAL_REVEAL_ORDER:-}" ]]; then
+  EXTRA_ARGS+=(--reveal-order "$MARLIN_EVAL_REVEAL_ORDER")
+fi
 if [[ "${MARLIN_EVAL_NO_EMA:-0}" == "1" ]]; then
   EXTRA_ARGS+=(--no-ema)
 fi

@@ -55,9 +55,14 @@ class MarlinSampler:
         generation_mode: str = "block",
         sample_tokens: bool = False,
         sampling_top_k: int | None = None,
+        reveal_order: str = "confidence",
     ) -> None:
         if generation_mode not in {"block", "canvas"}:
             raise ValueError("generation_mode must be 'block' or 'canvas'")
+        if reveal_order not in {"confidence", "left_to_right"}:
+            raise ValueError(
+                "reveal_order must be 'confidence' or 'left_to_right'"
+            )
         if sampling_top_k is not None and sampling_top_k <= 0:
             raise ValueError("sampling_top_k must be positive")
         self.model = model
@@ -73,6 +78,7 @@ class MarlinSampler:
         self.generation_mode = generation_mode
         self.sample_tokens = sample_tokens
         self.sampling_top_k = sampling_top_k
+        self.reveal_order = reveal_order
 
     def _truncate_sampling_logits(self, logits: torch.Tensor) -> torch.Tensor:
         """Restrict stochastic draws to the model's highest-probability tokens."""
@@ -155,6 +161,8 @@ class MarlinSampler:
                 best_token = None
                 best_confidence = -torch.inf
                 positions = sorted(unresolved)
+                if self.reveal_order == "left_to_right":
+                    positions = positions[:1]
                 for position in positions:
                     position_logits = logits[position] / temperature
                     if self.mass_shell_enabled:
@@ -401,6 +409,8 @@ class MarlinSampler:
                     positions = torch.nonzero(unresolved[row], as_tuple=False).flatten()
                     if positions.numel() == 0:
                         continue
+                    if self.reveal_order == "left_to_right":
+                        positions = positions[:1]
                     best_position = None
                     best_token = None
                     best_confidence = -torch.inf
@@ -596,6 +606,8 @@ class MarlinSampler:
                     rounding_mode="floor",
                 )
                 positions = positions[block_ids.eq(block_ids.min())]
+                if self.reveal_order == "left_to_right":
+                    positions = positions[:1]
                 probabilities_by_position = []
                 confidences = []
                 for position in positions.tolist():
