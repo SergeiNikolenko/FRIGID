@@ -53,6 +53,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--lane", choices=("dreams", "mist"), required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--candidates", type=int, default=384)
+    parser.add_argument("--candidate-batch-size", type=int)
     parser.add_argument("--diversity-dropout", type=float, default=0.3)
     parser.add_argument("--temperature", type=float, default=1.0)
     parser.add_argument("--generation-mode", choices=("block", "canvas"), default="block")
@@ -393,6 +394,8 @@ def main() -> None:
     args = parse_args()
     if args.candidates <= 0:
         raise ValueError("--candidates must be positive")
+    if args.candidate_batch_size is not None and args.candidate_batch_size <= 0:
+        raise ValueError("--candidate-batch-size must be positive")
     if args.clearml_task_id and (args.clearml_project or args.clearml_task_name):
         raise ValueError("--clearml-task-id is mutually exclusive with project/task name")
     if not args.clearml_task_id and bool(args.clearml_project) != bool(args.clearml_task_name):
@@ -627,6 +630,7 @@ def main() -> None:
                 generator=torch.Generator(device=device).manual_seed(
                     args.seed + position
                 ),
+                candidate_batch_size=args.candidate_batch_size,
             )
             if torch.cuda.is_available():
                 torch.cuda.synchronize()

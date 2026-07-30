@@ -22,6 +22,9 @@ EXTRA_ARGS=()
 if [[ -n "${MARLIN_EVAL_THRESHOLD:-}" ]]; then
   EXTRA_ARGS+=(--threshold "$MARLIN_EVAL_THRESHOLD")
 fi
+if [[ -n "${MARLIN_EVAL_CANDIDATE_BATCH_SIZE:-}" ]]; then
+  EXTRA_ARGS+=(--candidate-batch-size "$MARLIN_EVAL_CANDIDATE_BATCH_SIZE")
+fi
 if [[ "${MARLIN_EVAL_DISABLE_GRAMMAR_MASK:-0}" == "1" ]]; then
   EXTRA_ARGS+=(--disable-grammar-mask)
 fi

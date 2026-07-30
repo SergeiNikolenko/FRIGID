@@ -192,6 +192,7 @@ class MarlinSampler:
         diversity_dropout: float = 0.3,
         temperature: float = 1.0,
         generator: torch.Generator | None = None,
+        candidate_batch_size: int | None = None,
     ) -> list[MarlinCandidate]:
         ranked, _ = self.generate_ranked_with_stats(
             fingerprint,
@@ -200,6 +201,7 @@ class MarlinSampler:
             diversity_dropout=diversity_dropout,
             temperature=temperature,
             generator=generator,
+            candidate_batch_size=candidate_batch_size,
         )
         return ranked
 
@@ -213,25 +215,56 @@ class MarlinSampler:
         diversity_dropout: float = 0.3,
         temperature: float = 1.0,
         generator: torch.Generator | None = None,
+        candidate_batch_size: int | None = None,
     ) -> tuple[list[MarlinCandidate], MarlinGenerationStats]:
         if candidates <= 0:
             raise ValueError("candidates must be positive")
         if temperature <= 0:
             raise ValueError("temperature must be positive")
+        if candidate_batch_size is not None and candidate_batch_size <= 0:
+            raise ValueError("candidate_batch_size must be positive")
         original = (fingerprint > 0.5).to(torch.float32)
         generator_fn = (
             self._generate_many_canvas
             if self.generation_mode == "canvas"
             else self._generate_many
         )
-        generated, valid, diagnostics = generator_fn(
-            original,
-            target_mass,
-            candidates=candidates,
-            diversity_dropout=diversity_dropout,
-            temperature=temperature,
-            generator=generator,
-        )
+        batch_size = min(candidate_batch_size or candidates, candidates)
+        generated: list[tuple[str, str, bool] | None] = []
+        valid = 0
+        diagnostics: dict[str, int | list] = {
+            "constraint_dead_ends": 0,
+            "eos_terminated": 0,
+            "max_length_terminated": 0,
+            "sample_terminal_safes": [],
+            "sample_dead_ends": [],
+        }
+        for start in range(0, candidates, batch_size):
+            batch_candidates = min(batch_size, candidates - start)
+            batch_generated, batch_valid, batch_diagnostics = generator_fn(
+                original,
+                target_mass,
+                candidates=batch_candidates,
+                diversity_dropout=diversity_dropout,
+                temperature=temperature,
+                generator=generator,
+            )
+            generated.extend(batch_generated)
+            valid += batch_valid
+            for name in (
+                "constraint_dead_ends",
+                "eos_terminated",
+                "max_length_terminated",
+            ):
+                diagnostics[name] = int(diagnostics[name]) + int(
+                    batch_diagnostics[name]
+                )
+            for name in ("sample_terminal_safes", "sample_dead_ends"):
+                samples = diagnostics[name]
+                assert isinstance(samples, list)
+                batch_samples = batch_diagnostics[name]
+                assert isinstance(batch_samples, list)
+                samples.extend(batch_samples[: 5 - len(samples)])
         unique: dict[str, tuple[str, str, bool]] = {}
         mass_valid = 0
         for result in generated:

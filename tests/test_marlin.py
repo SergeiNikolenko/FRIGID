@@ -686,6 +686,18 @@ def test_batched_sampler_reports_attempt_validity_and_uniqueness():
     assert stats.unique_mass_valid == 1
     assert len(ranked) == 1
 
+    ranked, stats = sampler.generate_ranked_with_stats(
+        torch.zeros(8),
+        target_mass,
+        candidates=3,
+        candidate_batch_size=2,
+    )
+    assert stats.attempts == 3
+    assert stats.valid == 3
+    assert stats.mass_valid == 3
+    assert stats.unique_mass_valid == 1
+    assert len(ranked) == 1
+
 
 def test_constrained_sampler_uses_confidence_order_within_block():
     class PositionConfidenceModel(torch.nn.Module):
