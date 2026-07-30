@@ -4,9 +4,11 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import hashlib
 import os
 import shutil
+import sys
 import tempfile
 from pathlib import Path
 
@@ -77,12 +79,15 @@ def materialize_checkpoint(
 
 def main() -> None:
     args = parse_args()
-    checkpoint = materialize_checkpoint(
-        task_id=args.task_id,
-        artifact_name=args.artifact_name,
-        expected_sha256=args.expected_sha256,
-        cache_root=args.cache_root,
-    )
+    # The shell runner captures stdout as the resolved checkpoint path.
+    # Keep SDK logging and transfer progress on stderr.
+    with contextlib.redirect_stdout(sys.stderr):
+        checkpoint = materialize_checkpoint(
+            task_id=args.task_id,
+            artifact_name=args.artifact_name,
+            expected_sha256=args.expected_sha256,
+            cache_root=args.cache_root,
+        )
     print(checkpoint, flush=True)
 
 
