@@ -147,6 +147,7 @@ def test_periodic_evaluation_forwards_probability_threshold(
                 "fingerprints": "fingerprints.npz",
                 "fingerprint_key": "probs",
                 "fingerprint_threshold": 0.9,
+                "use_ema": False,
                 "lane": "dreams",
                 "candidates": 16,
                 "max_spectra": 4,
@@ -180,3 +181,4 @@ def test_periodic_evaluation_forwards_probability_threshold(
 
     threshold_index = commands[0].index("--threshold")
     assert commands[0][threshold_index + 1] == "0.9"
+    assert "--no-ema" in commands[0]

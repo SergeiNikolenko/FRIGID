@@ -79,6 +79,8 @@ class PeriodicMolecularEvaluation(L.Callback):
         fingerprint_threshold = evaluation.get("fingerprint_threshold")
         if fingerprint_threshold is not None:
             command.extend(["--threshold", str(fingerprint_threshold)])
+        if not bool(evaluation.get("use_ema", True)):
+            command.append("--no-ema")
         if str(self.config.get("architecture", "marlin")) == "expanding":
             command.extend(
                 [

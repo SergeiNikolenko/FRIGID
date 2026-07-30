@@ -58,6 +58,7 @@ python scripts/train_marlin.py \
   evaluation.fingerprints="$RUNTIME_ROOT/val/dreams_predictions.npz" \
   evaluation.fingerprint_key=probs \
   +evaluation.fingerprint_threshold=0.90 \
+  +evaluation.use_ema=false \
   evaluation.interval_steps="$GATE_INTERVAL" \
   evaluation.max_spectra="${MARLIN_ADAPT_EVAL_SPECTRA:-4}" \
   evaluation.candidates="${MARLIN_ADAPT_EVAL_CANDIDATES:-16}" \
