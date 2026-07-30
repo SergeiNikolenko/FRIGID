@@ -31,6 +31,9 @@ fi
 if [[ "${MARLIN_EVAL_DISABLE_MASS_SHELL:-0}" == "1" ]]; then
   EXTRA_ARGS+=(--disable-mass-shell)
 fi
+if [[ "${MARLIN_EVAL_SAMPLE_TOKENS:-0}" == "1" ]]; then
+  EXTRA_ARGS+=(--sample-tokens)
+fi
 
 python -X faulthandler scripts/evaluate_marlin_nplib1.py \
   --checkpoint "$CHECKPOINT" \
