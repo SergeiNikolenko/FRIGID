@@ -723,6 +723,17 @@ class SafeGrammarMask:
         self.valence_slack = valence_slack
 
     @lru_cache(maxsize=32_768)
+    def _has_vocabulary_completion(self, prefix: str) -> bool:
+        """Reject partial lexical tokens that no vocabulary token can finish."""
+        for token_id, token in enumerate(self.token_strings):
+            if token_id in self.special_token_ids:
+                continue
+            state = _scan(prefix + token)
+            if state is not None and not state.incomplete_token:
+                return True
+        return False
+
+    @lru_cache(maxsize=32_768)
     def _valid_token_ids(self, prefix: str) -> tuple[int, ...]:
         state = _scan(prefix)
         if state is None:
@@ -734,7 +745,14 @@ class SafeGrammarMask:
             elif token_id in self.special_token_ids:
                 valid = False
             else:
-                valid = _scan(prefix + token) is not None
+                candidate_state = _scan(prefix + token)
+                valid = candidate_state is not None
+                if (
+                    valid
+                    and candidate_state.incomplete_token
+                    and not self._has_vocabulary_completion(prefix + token)
+                ):
+                    valid = False
             if valid:
                 valid_ids.append(token_id)
         return tuple(valid_ids)
