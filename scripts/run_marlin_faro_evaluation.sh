@@ -34,6 +34,9 @@ fi
 if [[ "${MARLIN_EVAL_SAMPLE_TOKENS:-0}" == "1" ]]; then
   EXTRA_ARGS+=(--sample-tokens)
 fi
+if [[ "${MARLIN_EVAL_NO_EMA:-0}" == "1" ]]; then
+  EXTRA_ARGS+=(--no-ema)
+fi
 
 python -X faulthandler scripts/evaluate_marlin_nplib1.py \
   --checkpoint "$CHECKPOINT" \
