@@ -3,7 +3,7 @@
   "task_id": "marlin-nplib1-exact",
   "task_type": "repository_optimization",
   "objective": "Improve non-oracle spectrum-to-molecule Exact@1 and Exact@10 while preserving candidate return, RDKit validity, mass validity, and uniqueness",
-  "repo_path": "/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/code",
+  "repo_path": "/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/autoresearch-marlin-exact",
   "signals": [
     "published code",
     "research code",
