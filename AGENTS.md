@@ -30,6 +30,11 @@
 ## MARLIN scope
 
 - Implement and evaluate MARLIN from arXiv:2607.04774 directly.
+- This worktree and branch are the strict paper-reproduction lane:
+  `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/paper-worktree`
+  on `marlin-paper-reproduction`. Limit implementation, experiments, and
+  status reports here to this lane. Do not modify, evaluate, or report the
+  Expanding MARLIN / EFlow / EFM lane from this worktree.
 - The strict clean-room reproduction lane may use the official FRIGID
   checkpoint only as the hashed one-time warm start described by the MARLIN
   paper. Do not use the FRIGID sampler or a FRIGID teacher in its objective or
