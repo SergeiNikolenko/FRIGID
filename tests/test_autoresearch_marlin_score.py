@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import math
 from pathlib import Path
+from unittest.mock import patch
 
 
 SCRIPT = Path(__file__).parents[1] / "scripts/autoresearch_marlin_score.py"
@@ -41,3 +42,22 @@ def test_aggregate_seed_metrics_uses_prerequisite_gate_before_exact() -> None:
 
     assert result["research_stage"] == "valid_decoding"
     assert result["research_score"] == 0.25
+
+
+def test_protected_evaluator_includes_metric_and_fixed_panels() -> None:
+    protected = set(MODULE.PROTECTED_EVALUATOR_PATHS)
+
+    assert "src/marlin/research_metric.py" in protected
+    assert "src/marlin/benchmark_selection.py" in protected
+    assert "configs/benchmarks/nplib1_v1/" in protected
+
+
+def test_require_clean_evaluator_rejects_protected_changes() -> None:
+    completed = type("Completed", (), {"stdout": " M src/marlin/research_metric.py"})()
+    with patch.object(MODULE.subprocess, "run", return_value=completed):
+        try:
+            MODULE.require_clean_evaluator()
+        except RuntimeError as error:
+            assert "research_metric.py" in str(error)
+        else:
+            raise AssertionError("modified research metric was accepted")

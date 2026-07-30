@@ -46,7 +46,10 @@ PROTECTED_EVALUATOR_PATHS = (
     "scripts/run_marlin_autoresearch_score.sh",
     "scripts/slurm_marlin_autoresearch_score.sbatch",
     "scripts/evaluate_marlin_nplib1.py",
+    "src/marlin/benchmark_selection.py",
     "src/marlin/evaluation.py",
+    "src/marlin/research_metric.py",
+    "configs/benchmarks/nplib1_v1/",
 )
 
 
@@ -165,6 +168,12 @@ def main() -> None:
         {
             "scorer": sha256_file(Path(__file__)),
             "evaluator": sha256_file(evaluator),
+            "benchmark_selection": sha256_file(
+                PROJECT_ROOT / "src/marlin/benchmark_selection.py"
+            ),
+            "research_metric": sha256_file(
+                PROJECT_ROOT / "src/marlin/research_metric.py"
+            ),
         }
     )
     checkpoint_sha256 = sha256_file(args.checkpoint)
