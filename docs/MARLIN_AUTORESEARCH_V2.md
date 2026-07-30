@@ -31,11 +31,17 @@ between training fingerprints and predicted DreaMS fingerprints.
 - early panel: `nplib1_val_micro32_v1.tsv`;
 - confirmation panels: nested micro64 and molecule-disjoint macro64;
 - fingerprint input: DreaMS `probs`, threshold 0.95;
-- decoding: 16 candidates, seed 42 for screening, grammar and mass shell on;
-- confirmation: at least three fixed seeds;
+- screening decoding: 16 candidates, seed 42, grammar and mass shell on;
+- paper-comparable confirmation: 384 candidates per spectrum, matching the
+  paper, on at least three fixed seeds;
 - final metrics: Exact@1 and Exact@10;
 - search metric while Exact is zero: lexicographic validity, mass-valid
   decoding, strict candidate return, then Exact.
+
+The 16-candidate lane is only a technical/futility screen. It cannot establish
+an incumbent or be compared with the paper's 384-decode Top-1/Top-10 results.
+Promotion requires the unchanged paper-comparable inference settings:
+block width 8, 10 ppm mass acceptance, and conditioning-diversity dropout 0.3.
 
 Ground-truth and oracle fingerprints are permitted only in explicitly labelled
 diagnostics. They cannot establish an incumbent.

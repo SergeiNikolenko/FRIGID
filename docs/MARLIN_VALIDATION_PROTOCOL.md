@@ -29,6 +29,21 @@ order, seed, fingerprint source and threshold, candidate budget, temperature,
 dropout, grammar and mass-shell settings. Only the intended intervention may
 differ, such as the checkpoint after spectrum-fingerprint adaptation.
 
+There are two explicitly different decoding budgets:
+
+- **screening:** 16 decodes per spectrum on `val_micro32`, used only to reject
+  broken or clearly futile candidates cheaply;
+- **paper-comparable confirmation:** 384 decodes per spectrum, matching Table I
+  of MARLIN. This budget is mandatory for promotion on `val_micro64` plus
+  `val_macro64`, `val_full396`, and the single locked-test evaluation.
+
+Results produced with the screening budget must be labelled `screening` and
+must never be compared numerically with the paper's reported Top-1/Top-10
+accuracy. The paper-comparable inference contract is block width 8, 4096-bit
+radius-2 Morgan conditioning, 10 ppm acceptance, and conditioning-diversity
+dropout 0.3. Exact model identity, checkpoint, seed, threshold, temperature,
+and all decoding settings remain part of every run signature.
+
 Report per-spectrum and aggregate:
 
 - Exact@1 and Exact@10;
@@ -42,7 +57,9 @@ Use 10,000 paired bootstrap resamples over molecule-connectivity clusters.
 Promote only when micro64 and the independent macro64 agree directionally and
 the primary metric confidence interval does not support a material regression.
 Exact@1 and Exact@10 are the final primary metrics; loss alone cannot promote a
-run.
+run. Confirmation uses at least three fixed seeds and reports each seed plus
+mean and standard deviation; the final locked-test run uses the frozen recipe
+without any further selection.
 
 ## Autoresearch prerequisite gates
 
