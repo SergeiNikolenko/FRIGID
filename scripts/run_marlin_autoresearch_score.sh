@@ -6,8 +6,9 @@ set -euo pipefail
 REPRO_ROOT=/home/nikolenko/work/Projects/MARLIN_reproduction_20260717
 CODE="$REPRO_ROOT/code"
 SHARED_ROOT=/mnt/netstorage/nikolenko/marlin
-# Program revision 1: never let a candidate change its evaluator.
-COMMIT=8082c57050b65d4be87f4a403fb97338ce307871
+# Program revision 2: fixed NPLIB1 panels, predicted DreaMS fingerprints, and
+# stage-aware prerequisite gates. Never let a candidate change its evaluator.
+COMMIT=4926f43d3c93320f9469ebc5547d61ed7cfeef0d
 WORKTREE_ROOT="$REPRO_ROOT/autoresearch-worktrees"
 WORKTREE="$WORKTREE_ROOT/scorer-${COMMIT:0:12}"
 mkdir -p "$SHARED_ROOT/runs/autoresearch/slurm"
