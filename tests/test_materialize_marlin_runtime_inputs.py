@@ -27,6 +27,7 @@ def _bundle(
     *,
     extra_member: str | None = None,
     end_to_end: bool = False,
+    autoresearch: bool = False,
 ) -> tuple[Path, str]:
     payloads = {
         "length_audit.json": b"length-audit",
@@ -35,12 +36,19 @@ def _bundle(
         "val/fingerprints.npz": b"fingerprints",
         "val/metadata.csv": b"smiles\nCC\n",
     }
-    if end_to_end:
+    if end_to_end or autoresearch:
         payloads.update(
             {
                 "test/dreams_predictions.npz": b"predictions",
                 "test/dreams_predictions.summary.json": b"{}",
                 "test/metadata.csv": b"smiles\nCO\n",
+            }
+        )
+    if autoresearch:
+        payloads.update(
+            {
+                "val/dreams_predictions.npz": b"validation predictions",
+                "val/dreams_predictions.summary.json": b"{}",
             }
         )
     manifest = {
@@ -98,6 +106,17 @@ def test_materialize_bundle_accepts_end_to_end_test_inputs(tmp_path):
 
     assert (output / "test/metadata.csv").read_text() == "smiles\nCO\n"
     assert (output / "test/dreams_predictions.npz").read_bytes() == b"predictions"
+
+
+def test_materialize_bundle_accepts_autoresearch_validation_inputs(tmp_path):
+    bundle, digest = _bundle(tmp_path, autoresearch=True)
+    output = tmp_path / "runtime"
+
+    MODULE.materialize_bundle(bundle, output, expected_sha256=digest)
+
+    assert (
+        output / "val/dreams_predictions.npz"
+    ).read_bytes() == b"validation predictions"
 
 
 @pytest.mark.parametrize("member", ("../escape", "/absolute", "extra.txt"))

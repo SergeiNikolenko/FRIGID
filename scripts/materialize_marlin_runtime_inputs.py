@@ -23,7 +23,15 @@ END_TO_END_EXPECTED_FILES = LEGACY_EXPECTED_FILES | {
     "test/dreams_predictions.summary.json",
     "test/metadata.csv",
 }
-EXPECTED_FILE_SETS = (LEGACY_EXPECTED_FILES, END_TO_END_EXPECTED_FILES)
+AUTORESEARCH_EXPECTED_FILES = END_TO_END_EXPECTED_FILES | {
+    "val/dreams_predictions.npz",
+    "val/dreams_predictions.summary.json",
+}
+EXPECTED_FILE_SETS = (
+    LEGACY_EXPECTED_FILES,
+    END_TO_END_EXPECTED_FILES,
+    AUTORESEARCH_EXPECTED_FILES,
+)
 
 
 def sha256_file(path: Path) -> str:

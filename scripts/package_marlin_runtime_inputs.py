@@ -36,6 +36,8 @@ def main() -> None:
         ),
         "nplib1_test_inchikeys.csv": root / "data/nplib1_test_inchikeys.csv",
         "tokenizer.json": root / "data/safe-gpt/tokenizer.json",
+        "val/dreams_predictions.npz": root / "runs/dreams/probe/predictions.npz",
+        "val/dreams_predictions.summary.json": root / "runs/dreams/probe/summary.json",
         "val/fingerprints.npz": root / "data/processed/val/fingerprints.npz",
         "val/metadata.csv": root / "data/processed/val/metadata.csv",
         "test/dreams_predictions.npz": (
