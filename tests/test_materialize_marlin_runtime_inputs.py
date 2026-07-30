@@ -22,7 +22,12 @@ MODULE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(MODULE)
 
 
-def _bundle(tmp_path: Path, *, extra_member: str | None = None) -> tuple[Path, str]:
+def _bundle(
+    tmp_path: Path,
+    *,
+    extra_member: str | None = None,
+    end_to_end: bool = False,
+) -> tuple[Path, str]:
     payloads = {
         "length_audit.json": b"length-audit",
         "nplib1_test_inchikeys.csv": b"inchikey\nAAAA\n",
@@ -30,6 +35,14 @@ def _bundle(tmp_path: Path, *, extra_member: str | None = None) -> tuple[Path, s
         "val/fingerprints.npz": b"fingerprints",
         "val/metadata.csv": b"smiles\nCC\n",
     }
+    if end_to_end:
+        payloads.update(
+            {
+                "test/dreams_predictions.npz": b"predictions",
+                "test/dreams_predictions.summary.json": b"{}",
+                "test/metadata.csv": b"smiles\nCO\n",
+            }
+        )
     manifest = {
         "schema_version": 1,
         "kind": "MARLIN FARO runtime input bundle",
@@ -75,6 +88,16 @@ def test_materialize_bundle_is_atomic_and_revalidates_existing_inputs(tmp_path):
     (output / "tokenizer.json").write_text("changed")
     with pytest.raises(ValueError, match="size mismatch"):
         MODULE.materialize_bundle(bundle, output, expected_sha256=digest)
+
+
+def test_materialize_bundle_accepts_end_to_end_test_inputs(tmp_path):
+    bundle, digest = _bundle(tmp_path, end_to_end=True)
+    output = tmp_path / "runtime"
+
+    MODULE.materialize_bundle(bundle, output, expected_sha256=digest)
+
+    assert (output / "test/metadata.csv").read_text() == "smiles\nCO\n"
+    assert (output / "test/dreams_predictions.npz").read_bytes() == b"predictions"
 
 
 @pytest.mark.parametrize("member", ("../escape", "/absolute", "extra.txt"))

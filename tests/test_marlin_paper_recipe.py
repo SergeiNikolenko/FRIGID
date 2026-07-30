@@ -106,6 +106,10 @@ def test_faro_evaluation_isolated_from_training_process():
     assert '--generation-mode "${MARLIN_EVAL_GENERATION_MODE:-block}"' in script
     assert "MARLIN_EVAL_DISABLE_GRAMMAR_MASK" in script
     assert "MARLIN_EVAL_DISABLE_MASS_SHELL" in script
+    assert "MARLIN_EVAL_METADATA_REL" in script
+    assert "MARLIN_EVAL_FINGERPRINTS_REL" in script
+    assert "MARLIN_EVAL_FINGERPRINT_KEY" in script
+    assert "MARLIN_EVAL_THRESHOLD" in script
 
 
 def test_faro_frigid_parity_uses_official_sampler_recipe():

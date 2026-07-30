@@ -11,13 +11,19 @@ import tarfile
 import tempfile
 from pathlib import Path, PurePosixPath
 
-EXPECTED_FILES = {
+LEGACY_EXPECTED_FILES = {
     "length_audit.json",
     "nplib1_test_inchikeys.csv",
     "tokenizer.json",
     "val/fingerprints.npz",
     "val/metadata.csv",
 }
+END_TO_END_EXPECTED_FILES = LEGACY_EXPECTED_FILES | {
+    "test/dreams_predictions.npz",
+    "test/dreams_predictions.summary.json",
+    "test/metadata.csv",
+}
+EXPECTED_FILE_SETS = (LEGACY_EXPECTED_FILES, END_TO_END_EXPECTED_FILES)
 
 
 def sha256_file(path: Path) -> str:
@@ -46,7 +52,8 @@ def _validate_manifest(manifest: dict[str, object]) -> list[dict[str, object]]:
     if not isinstance(files, list):
         raise ValueError("runtime bundle file manifest is missing")
     paths = [str(entry.get("path")) for entry in files if isinstance(entry, dict)]
-    if len(paths) != len(files) or set(paths) != EXPECTED_FILES:
+    file_set = set(paths)
+    if len(paths) != len(files) or file_set not in EXPECTED_FILE_SETS:
         raise ValueError("runtime bundle file set mismatch")
     if len(paths) != len(set(paths)):
         raise ValueError("runtime bundle contains duplicate file entries")
@@ -103,7 +110,9 @@ def materialize_bundle(
             raise ValueError("runtime bundle manifest is unreadable")
         manifest = json.load(manifest_source)
         files = _validate_manifest(manifest)
-        allowed_members = EXPECTED_FILES | {"manifest.json"}
+        allowed_members = set(str(entry["path"]) for entry in files) | {
+            "manifest.json"
+        }
         unexpected = {
             name
             for name, member in members.items()

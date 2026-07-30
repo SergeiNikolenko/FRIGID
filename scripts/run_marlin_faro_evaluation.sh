@@ -19,6 +19,9 @@ test -f "$CHECKPOINT"
 test ! -e "$OUTPUT_ROOT"
 
 EXTRA_ARGS=()
+if [[ -n "${MARLIN_EVAL_THRESHOLD:-}" ]]; then
+  EXTRA_ARGS+=(--threshold "$MARLIN_EVAL_THRESHOLD")
+fi
 if [[ "${MARLIN_EVAL_DISABLE_GRAMMAR_MASK:-0}" == "1" ]]; then
   EXTRA_ARGS+=(--disable-grammar-mask)
 fi
@@ -29,9 +32,9 @@ fi
 python -X faulthandler scripts/evaluate_marlin_nplib1.py \
   --checkpoint "$CHECKPOINT" \
   --tokenizer "$RUNTIME_ROOT/tokenizer.json" \
-  --metadata "$RUNTIME_ROOT/val/metadata.csv" \
-  --fingerprints "$RUNTIME_ROOT/val/fingerprints.npz" \
-  --fingerprint-key ground_truth \
+  --metadata "$RUNTIME_ROOT/${MARLIN_EVAL_METADATA_REL:-val/metadata.csv}" \
+  --fingerprints "$RUNTIME_ROOT/${MARLIN_EVAL_FINGERPRINTS_REL:-val/fingerprints.npz}" \
+  --fingerprint-key "${MARLIN_EVAL_FINGERPRINT_KEY:-ground_truth}" \
   --lane dreams \
   --output-dir "$OUTPUT_ROOT" \
   --candidates "${MARLIN_EVAL_CANDIDATES:-16}" \
