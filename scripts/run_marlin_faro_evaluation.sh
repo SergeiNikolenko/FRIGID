@@ -4,7 +4,7 @@ set -euo pipefail
 
 SHARED_ROOT="${MARLIN_SHARED_ROOT:-/mnt/netstorage/nikolenko/marlin}"
 RUNTIME_ROOT="${MARLIN_RUNTIME_INPUT_ROOT:-$SHARED_ROOT/runtime-inputs-v1}"
-CHECKPOINT="${MARLIN_EVAL_CHECKPOINT:?MARLIN_EVAL_CHECKPOINT is required}"
+CHECKPOINT="${MARLIN_EVAL_CHECKPOINT:-}"
 SOURCE_STEP="${MARLIN_EVAL_STEP:?MARLIN_EVAL_STEP is required}"
 TASK_ID="${CLEARML_TASK_ID:?CLEARML_TASK_ID is required}"
 OUTPUT_ROOT="$SHARED_ROOT/evaluations/faro-paper-gate-$TASK_ID"
@@ -15,8 +15,24 @@ export PYTHONFAULTHANDLER=1
 export PYTHONPATH="$PWD/src${PYTHONPATH:+:$PYTHONPATH}"
 
 python scripts/materialize_marlin_runtime_inputs.py
-test -f "$CHECKPOINT"
-test ! -e "$OUTPUT_ROOT"
+
+if [[ ! -f "$CHECKPOINT" && -n "${MARLIN_EVAL_CHECKPOINT_TASK_ID:-}" ]]; then
+  CHECKPOINT="$(
+    python scripts/materialize_marlin_checkpoint.py \
+      --task-id "$MARLIN_EVAL_CHECKPOINT_TASK_ID" \
+      --artifact-name "${MARLIN_EVAL_CHECKPOINT_ARTIFACT_NAME:?MARLIN_EVAL_CHECKPOINT_ARTIFACT_NAME is required}" \
+      --expected-sha256 "${MARLIN_EVAL_CHECKPOINT_SHA256:?MARLIN_EVAL_CHECKPOINT_SHA256 is required}" \
+      --cache-root "$SHARED_ROOT/checkpoints/marlin"
+  )"
+fi
+if [[ ! -f "$CHECKPOINT" ]]; then
+  echo "MARLIN evaluation checkpoint is unavailable on this worker: ${CHECKPOINT:-<unset>}" >&2
+  exit 2
+fi
+if [[ -e "$OUTPUT_ROOT" ]]; then
+  echo "MARLIN evaluation output already exists: $OUTPUT_ROOT" >&2
+  exit 2
+fi
 
 EXTRA_ARGS=()
 if [[ -n "${MARLIN_EVAL_THRESHOLD:-}" ]]; then
