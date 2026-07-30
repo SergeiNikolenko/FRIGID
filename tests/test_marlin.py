@@ -11,7 +11,7 @@ from marlin.model import (
     block_causal_attention_mask,
     two_stream_attention_mask,
 )
-from marlin.noise import symmetric_fingerprint_noise
+from marlin.noise import perturb_fingerprint, symmetric_fingerprint_noise
 from marlin.isotopes import theoretical_isotope_ratios
 from marlin.sampler import MarlinSampler
 from marlin.token_properties import build_token_property_table, token_properties
@@ -54,6 +54,32 @@ def test_symmetric_noise_preserves_number_of_on_bits():
     )
     assert noisy.sum() == fingerprint.sum()
     assert not torch.equal(noisy, fingerprint)
+
+
+def test_candidate_perturbation_preserves_number_of_on_bits():
+    fingerprint = torch.tensor([1, 1, 1, 1, 0, 0, 0, 0], dtype=torch.float32)
+    perturbed = perturb_fingerprint(
+        fingerprint,
+        dropout=0.5,
+        generator=torch.Generator().manual_seed(7),
+    )
+
+    assert perturbed.sum() == fingerprint.sum()
+    assert not torch.equal(perturbed, fingerprint)
+
+
+def test_candidate_perturbation_accepts_batched_fingerprints():
+    fingerprints = torch.tensor(
+        [[1, 1, 0, 0], [1, 0, 1, 0]],
+        dtype=torch.float32,
+    )
+    perturbed = perturb_fingerprint(
+        fingerprints,
+        dropout=0.5,
+        generator=torch.Generator().manual_seed(11),
+    )
+
+    assert torch.equal(perturbed.sum(dim=1), fingerprints.sum(dim=1))
 
 
 def test_conditioner_emits_mass_isotope_and_active_bit_tokens():

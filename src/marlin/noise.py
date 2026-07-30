@@ -50,12 +50,23 @@ def perturb_fingerprint(
     dropout: float = 0.3,
     generator: torch.Generator | None = None,
 ) -> torch.Tensor:
-    """Apply independent on-bit dropout for one inference candidate."""
+    """Swap active and inactive bits for one inference candidate.
+
+    Candidate conditioning must follow the same cardinality-preserving
+    corruption family used during training.  The legacy implementation only
+    dropped active bits, shrinking the sparse conditioning sequence by roughly
+    ``dropout`` for every candidate.
+    """
     if not 0 <= dropout <= 1:
         raise ValueError("dropout must be in [0, 1]")
-    keep = torch.rand(
-        fingerprint.shape,
-        device=fingerprint.device,
+    if fingerprint.ndim not in {1, 2}:
+        raise ValueError("fingerprint must have shape [bits] or [batch, bits]")
+    batched = fingerprint.unsqueeze(0) if fingerprint.ndim == 1 else fingerprint
+    perturbed = symmetric_fingerprint_noise(
+        batched,
+        corruption_probability=1.0,
+        min_fraction=dropout,
+        max_fraction=dropout,
         generator=generator,
-    ) >= dropout
-    return ((fingerprint > 0.5) & keep).to(dtype=fingerprint.dtype)
+    )
+    return perturbed[0] if fingerprint.ndim == 1 else perturbed
