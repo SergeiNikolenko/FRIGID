@@ -50,11 +50,12 @@ python -X faulthandler scripts/train_marlin_spectrum_adaptation.py \
   --validation-fingerprints "$RUNTIME_ROOT/val/dreams_predictions.npz" \
   --validation-fingerprint-key probs \
   --validation-fingerprint-threshold "${MARLIN_VALIDATION_FINGERPRINT_THRESHOLD:-0.95}" \
+  --evaluation-manifest "$PWD/configs/benchmarks/nplib1_v1/nplib1_val_micro32_v1.tsv" \
   --output-dir "$RUN_ROOT" \
   --max-steps "${MARLIN_MAX_STEPS:-100}" \
   --evaluation-interval "${MARLIN_EVALUATION_INTERVAL:-100}" \
   --checkpoint-interval "${MARLIN_CHECKPOINT_INTERVAL:-100}" \
-  --evaluation-spectra "${MARLIN_EVALUATION_SPECTRA:-4}" \
+  --evaluation-spectra "${MARLIN_EVALUATION_SPECTRA:-32}" \
   --evaluation-candidates "${MARLIN_EVALUATION_CANDIDATES:-16}" \
   --cross-attention-only-steps "${MARLIN_CROSS_ATTENTION_ONLY_STEPS:-100}" \
   --learning-rate "${MARLIN_LEARNING_RATE:-1e-5}"
