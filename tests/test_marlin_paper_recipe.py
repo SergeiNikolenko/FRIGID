@@ -106,6 +106,9 @@ def test_faro_evaluation_isolated_from_training_process():
     assert '--generation-mode "${MARLIN_EVAL_GENERATION_MODE:-block}"' in script
     assert "MARLIN_EVAL_DISABLE_GRAMMAR_MASK" in script
     assert "MARLIN_EVAL_DISABLE_MASS_SHELL" in script
+    assert "MARLIN_EVAL_SAMPLE_TOKENS" in script
+    assert "MARLIN_EVAL_NO_EMA" in script
+    assert "MARLIN_EVAL_DIVERSITY_DROPOUT" in script
     assert "MARLIN_EVAL_METADATA_REL" in script
     assert "MARLIN_EVAL_FINGERPRINTS_REL" in script
     assert "MARLIN_EVAL_FINGERPRINT_KEY" in script
