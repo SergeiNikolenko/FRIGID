@@ -331,6 +331,9 @@ class MarlinSampler:
                 for _ in range(candidates)
             ]
         ).to(device=device, dtype=torch.float32)
+        # Preserve the strongest available spectrum-derived conditioning for
+        # one candidate; the remaining rows still provide paper-recipe diversity.
+        conditioned[0] = fingerprint
         masses = torch.full((candidates,), target_mass, device=device)
         prefix = torch.full(
             (candidates, 1), self.bos_token_id, device=device, dtype=torch.long
@@ -535,6 +538,7 @@ class MarlinSampler:
                 for _ in range(candidates)
             ]
         ).to(device=device, dtype=torch.float32)
+        conditioned[0] = fingerprint
         masses = torch.full((candidates,), target_mass, device=device)
         lengths = self._canvas_lengths(target_mass, candidates, device, generator)
         max_length = int(lengths.max().item())
