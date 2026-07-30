@@ -50,6 +50,9 @@ fi
 if [[ "${MARLIN_EVAL_SAMPLE_TOKENS:-0}" == "1" ]]; then
   EXTRA_ARGS+=(--sample-tokens)
 fi
+if [[ -n "${MARLIN_EVAL_SAMPLING_TOP_K:-}" ]]; then
+  EXTRA_ARGS+=(--sampling-top-k "$MARLIN_EVAL_SAMPLING_TOP_K")
+fi
 if [[ "${MARLIN_EVAL_NO_EMA:-0}" == "1" ]]; then
   EXTRA_ARGS+=(--no-ema)
 fi

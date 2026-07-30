@@ -699,6 +699,53 @@ def test_batched_sampler_reports_attempt_validity_and_uniqueness():
     assert len(ranked) == 1
 
 
+def test_sampler_top_k_truncates_only_stochastic_candidate_support():
+    class FixedModel(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.anchor = torch.nn.Parameter(torch.zeros(()))
+            self.config = MarlinDecoderConfig(
+                vocab_size=5,
+                hidden_size=4,
+                num_layers=1,
+                num_heads=1,
+                intermediate_size=4,
+                max_length=3,
+                block_width=2,
+                fingerprint_bits=8,
+                dropout=0.0,
+                mask_token_id=3,
+                pad_token_id=0,
+            )
+
+    sampler = MarlinSampler(
+        FixedModel(),
+        MassShellConstraint([0.0] * 5, eos_token_id=2),
+        bos_token_id=0,
+        eos_token_id=2,
+        mask_token_id=3,
+        decode_tokens=lambda _: "C",
+        safe_to_smiles=lambda _: "C",
+        sampling_top_k=2,
+    )
+    truncated = sampler._truncate_sampling_logits(
+        torch.tensor([5.0, 4.0, 3.0, -torch.inf, 1.0])
+    )
+
+    assert torch.isfinite(truncated).tolist() == [True, True, False, False, False]
+    with pytest.raises(ValueError, match="sampling_top_k"):
+        MarlinSampler(
+            FixedModel(),
+            MassShellConstraint([0.0] * 5, eos_token_id=2),
+            bos_token_id=0,
+            eos_token_id=2,
+            mask_token_id=3,
+            decode_tokens=lambda _: "C",
+            safe_to_smiles=lambda _: "C",
+            sampling_top_k=0,
+        )
+
+
 def test_constrained_sampler_uses_confidence_order_within_block():
     class PositionConfidenceModel(torch.nn.Module):
         def __init__(self):

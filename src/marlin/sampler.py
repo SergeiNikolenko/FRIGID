@@ -54,9 +54,12 @@ class MarlinSampler:
         mass_shell_enabled: bool = True,
         generation_mode: str = "block",
         sample_tokens: bool = False,
+        sampling_top_k: int | None = None,
     ) -> None:
         if generation_mode not in {"block", "canvas"}:
             raise ValueError("generation_mode must be 'block' or 'canvas'")
+        if sampling_top_k is not None and sampling_top_k <= 0:
+            raise ValueError("sampling_top_k must be positive")
         self.model = model
         self.constraint = constraint
         self.bos_token_id = bos_token_id
@@ -69,6 +72,17 @@ class MarlinSampler:
         self.mass_shell_enabled = mass_shell_enabled
         self.generation_mode = generation_mode
         self.sample_tokens = sample_tokens
+        self.sampling_top_k = sampling_top_k
+
+    def _truncate_sampling_logits(self, logits: torch.Tensor) -> torch.Tensor:
+        """Restrict stochastic draws to the model's highest-probability tokens."""
+        if self.sampling_top_k is None:
+            return logits
+        finite_count = int(torch.isfinite(logits).sum().item())
+        if finite_count <= self.sampling_top_k:
+            return logits
+        cutoff = torch.topk(logits, self.sampling_top_k).values[-1]
+        return logits.masked_fill(logits < cutoff, -torch.inf)
 
     def _sampling_logits(
         self,
@@ -157,7 +171,9 @@ class MarlinSampler:
                         position_logits = self.grammar_mask(
                             prefix[:position], position_logits, target_mass
                         )
-                    probabilities = position_logits.softmax(dim=-1)
+                    probabilities = self._truncate_sampling_logits(
+                        position_logits
+                    ).softmax(dim=-1)
                     confidence, token = probabilities.max(dim=-1)
                     if confidence > best_confidence:
                         best_confidence = confidence
@@ -407,7 +423,9 @@ class MarlinSampler:
                                 position_logits,
                                 target_mass,
                             )
-                        probabilities = position_logits.softmax(dim=-1)
+                        probabilities = self._truncate_sampling_logits(
+                            position_logits
+                        ).softmax(dim=-1)
                         confidence = probabilities.max(dim=-1).values
                         if confidence > best_confidence:
                             best_confidence = confidence
@@ -584,7 +602,9 @@ class MarlinSampler:
                     position_logits = logits[row, position] / temperature
                     if forbidden_ids:
                         position_logits[forbidden_ids] = -torch.inf
-                    probabilities = position_logits.softmax(dim=-1)
+                    probabilities = self._truncate_sampling_logits(
+                        position_logits
+                    ).softmax(dim=-1)
                     confidence = probabilities.max(dim=-1).values
                     probabilities_by_position.append(probabilities)
                     confidences.append(confidence)
