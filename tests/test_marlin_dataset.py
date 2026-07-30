@@ -14,6 +14,7 @@ from marlin.dataset import (
     sha256_file,
     streaming_loader_workers,
     verify_filtered_prefix_cache,
+    verify_shuffled_stream_cache,
     verify_snapshot_manifest,
 )
 
@@ -108,6 +109,79 @@ def test_verify_filtered_prefix_cache_returns_shard_and_offset(tmp_path: Path) -
         max_length=256,
         minimum_rows=100,
     ) == (str(shard), 123)
+
+
+def test_verify_shuffled_stream_cache_returns_shard_and_rows(
+    tmp_path: Path,
+) -> None:
+    shard = tmp_path / "shuffled-stream.parquet"
+    shard.write_bytes(b"cached-shuffled-stream")
+    manifest = {
+        "schema_version": 1,
+        "kind": "MARLIN shuffled eligible stream cache",
+        "source_manifest_sha256": "source",
+        "filtered_prefix_manifest_sha256": "prefix",
+        "tokenizer_sha256": "tokenizer",
+        "exclusion_sha256": "exclusions",
+        "max_length": 256,
+        "seed": 42,
+        "shuffle_buffer": 100,
+        "rows": 1000,
+        "shard": shard.name,
+        "shard_size_bytes": shard.stat().st_size,
+        "shard_sha256": sha256_file(shard),
+    }
+    path = tmp_path / "manifest.json"
+    path.write_text(json.dumps(manifest))
+
+    assert verify_shuffled_stream_cache(
+        path,
+        source_manifest_sha256="source",
+        filtered_prefix_manifest_sha256="prefix",
+        tokenizer_sha256="tokenizer",
+        exclusion_sha256="exclusions",
+        max_length=256,
+        seed=42,
+        shuffle_buffer=100,
+        minimum_rows=900,
+    ) == (str(shard), 1000)
+
+
+def test_verify_shuffled_stream_cache_rejects_short_cache(
+    tmp_path: Path,
+) -> None:
+    shard = tmp_path / "shuffled-stream.parquet"
+    shard.write_bytes(b"short")
+    manifest = {
+        "schema_version": 1,
+        "kind": "MARLIN shuffled eligible stream cache",
+        "source_manifest_sha256": "source",
+        "filtered_prefix_manifest_sha256": "prefix",
+        "tokenizer_sha256": "tokenizer",
+        "exclusion_sha256": "exclusions",
+        "max_length": 256,
+        "seed": 42,
+        "shuffle_buffer": 100,
+        "rows": 10,
+        "shard": shard.name,
+        "shard_size_bytes": shard.stat().st_size,
+        "shard_sha256": sha256_file(shard),
+    }
+    path = tmp_path / "manifest.json"
+    path.write_text(json.dumps(manifest))
+
+    with pytest.raises(ValueError, match="100 are required"):
+        verify_shuffled_stream_cache(
+            path,
+            source_manifest_sha256="source",
+            filtered_prefix_manifest_sha256="prefix",
+            tokenizer_sha256="tokenizer",
+            exclusion_sha256="exclusions",
+            max_length=256,
+            seed=42,
+            shuffle_buffer=100,
+            minimum_rows=100,
+        )
 
 
 def test_verify_snapshot_manifest_returns_ordered_verified_shards(tmp_path: Path) -> None:

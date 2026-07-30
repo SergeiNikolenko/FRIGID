@@ -28,6 +28,7 @@ from marlin.dataset import (
     resolve_stream_offset_examples,
     streaming_loader_workers,
     verify_filtered_prefix_cache,
+    verify_shuffled_stream_cache,
     verify_snapshot_manifest,
 )
 from marlin.model import MarlinDecoderConfig
@@ -147,6 +148,9 @@ def write_run_manifest(config: DictConfig, tokenizer_sha256: str) -> dict:
     commit, dirty = git_state()
     if dirty:
         raise RuntimeError(f"refusing canonical training from dirty git state: {dirty}")
+    shuffled_cache_manifest = config.data.get(
+        "shuffled_stream_cache_manifest"
+    )
     manifest = {
         "schema_version": 1,
         "kind": "MARLIN clean-room decoder training",
@@ -180,6 +184,14 @@ def write_run_manifest(config: DictConfig, tokenizer_sha256: str) -> dict:
             "training_snapshot_manifest": str(config.data.snapshot_manifest),
             "training_snapshot_manifest_sha256": sha256_file(
                 config.data.snapshot_manifest
+            ),
+            "filtered_prefix_cache_manifest_sha256": sha256_file(
+                config.data.filtered_prefix_cache_manifest
+            ),
+            "shuffled_stream_cache_manifest_sha256": (
+                sha256_file(shuffled_cache_manifest)
+                if shuffled_cache_manifest
+                else None
             ),
         },
         "environment": {
@@ -452,13 +464,6 @@ def main(config: DictConfig) -> None:
         report_path.write_text(
             json.dumps(report, indent=2, sort_keys=True) + "\n"
         )
-    source_dataset = datasets.load_dataset(
-        "parquet",
-        data_files={"train": local_shards},
-        split="train",
-        streaming=True,
-        cache_dir=config.data.hf_cache_dir,
-    )
     training_filter = MarlinTrainingFilter(
         tokenizer,
         decoder_config.max_length,
@@ -466,7 +471,65 @@ def main(config: DictConfig) -> None:
     )
     cache_manifest = Path(config.data.filtered_prefix_cache_manifest)
     uses_filtered_prefix = cache_manifest.is_file()
-    if uses_filtered_prefix:
+    shuffled_cache_value = config.data.get("shuffled_stream_cache_manifest")
+    shuffled_cache_manifest = (
+        Path(shuffled_cache_value) if shuffled_cache_value else None
+    )
+    if shuffled_cache_manifest and not shuffled_cache_manifest.is_file():
+        raise FileNotFoundError(
+            f"shuffled stream cache manifest is missing: "
+            f"{shuffled_cache_manifest}"
+        )
+    uses_shuffled_cache = bool(
+        shuffled_cache_manifest and shuffled_cache_manifest.is_file()
+    )
+    if uses_shuffled_cache:
+        if not uses_filtered_prefix:
+            raise ValueError(
+                "shuffled stream cache requires the filtered-prefix manifest"
+            )
+        global_batch_size = (
+            int(config.loader.batch_size)
+            * int(config.trainer.devices)
+            * int(config.trainer.accumulate_grad_batches)
+        )
+        minimum_rows = int(config.trainer.max_steps) * global_batch_size
+        cache_shard, cached_rows = verify_shuffled_stream_cache(
+            shuffled_cache_manifest,
+            source_manifest_sha256=snapshot_manifest_sha256,
+            filtered_prefix_manifest_sha256=sha256_file(cache_manifest),
+            tokenizer_sha256=tokenizer_sha256,
+            exclusion_sha256=sha256_file(config.data.exclude_inchikeys),
+            max_length=decoder_config.max_length,
+            seed=int(config.seed),
+            shuffle_buffer=int(config.data.shuffle_buffer),
+            minimum_rows=minimum_rows,
+        )
+        if stream_offset_examples > cached_rows:
+            raise ValueError(
+                "stream offset exceeds the shuffled stream cache"
+            )
+        cached_dataset = datasets.load_dataset(
+            "parquet",
+            data_files={"train": [cache_shard]},
+            split="train",
+            streaming=False,
+            cache_dir=config.data.hf_cache_dir,
+        )
+        dataset = cached_dataset.select(
+            range(stream_offset_examples, cached_rows)
+        )
+    else:
+        source_dataset = datasets.load_dataset(
+            "parquet",
+            data_files={"train": local_shards},
+            split="train",
+            streaming=True,
+            cache_dir=config.data.hf_cache_dir,
+        )
+    if uses_shuffled_cache:
+        pass
+    elif uses_filtered_prefix:
         cache_shard, raw_rows_consumed = verify_filtered_prefix_cache(
             cache_manifest,
             source_manifest_sha256=snapshot_manifest_sha256,
@@ -492,14 +555,16 @@ def main(config: DictConfig) -> None:
             dataset = datasets.concatenate_datasets([cached_prefix, filtered_tail])
     else:
         dataset = source_dataset.filter(training_filter)
-    if is_cached_prefix_replay(config):
+    if uses_shuffled_cache:
+        pass
+    elif is_cached_prefix_replay(config):
         dataset = dataset.shuffle(seed=config.seed)
     else:
         dataset = dataset.shuffle(
             seed=config.seed,
             buffer_size=config.data.shuffle_buffer,
         )
-    if stream_offset_examples:
+    if stream_offset_examples and not uses_shuffled_cache:
         dataset = dataset.skip(stream_offset_examples)
     dataset = RankShardedIterableDataset(dataset)
     print(
@@ -517,12 +582,17 @@ def main(config: DictConfig) -> None:
     loader_workers = streaming_loader_workers(
         int(config.loader.num_workers),
         uses_filtered_prefix=(
-            uses_filtered_prefix and not is_cached_prefix_replay(config)
+            uses_shuffled_cache
+            or (
+                uses_filtered_prefix
+                and not is_cached_prefix_replay(config)
+            )
         ),
     )
     if loader_workers != int(config.loader.num_workers):
         print(
-            "Filtered-prefix cache uses an unshardable SkipExamplesIterable tail; "
+            "The selected cached stream requires deterministic single-process "
+            "iteration; "
             f"using {loader_workers} DataLoader workers instead of "
             f"{config.loader.num_workers}.",
             flush=True,
