@@ -53,6 +53,14 @@ Report per-spectrum and aggregate:
 - formula@1 and formula@10;
 - validity, mass validity and uniqueness.
 
+In this repository, Exact means equality of the first 14-character InChIKey
+block (molecular connectivity, without stereochemical identity). The MARLIN
+preprint calls its metric exact Top-1/Top-10 under the standard NPLIB1 protocol
+but does not state the identity-normalization details, and its code was not
+public at preprint v1. Until the authors' evaluator can be audited, report our
+metric explicitly as `connectivity Exact@1/@10`; do not claim bit-for-bit
+evaluator parity.
+
 Use 10,000 paired bootstrap resamples over molecule-connectivity clusters.
 Promote only when micro64 and the independent macro64 agree directionally and
 the primary metric confidence interval does not support a material regression.
