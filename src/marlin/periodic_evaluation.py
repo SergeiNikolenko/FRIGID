@@ -76,6 +76,9 @@ class PeriodicMolecularEvaluation(L.Callback):
             "--seed", str(evaluation.seed),
             "--clearml-iteration", str(step),
         ]
+        fingerprint_threshold = evaluation.get("fingerprint_threshold")
+        if fingerprint_threshold is not None:
+            command.extend(["--threshold", str(fingerprint_threshold)])
         if str(self.config.get("architecture", "marlin")) == "expanding":
             command.extend(
                 [

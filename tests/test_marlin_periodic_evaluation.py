@@ -132,3 +132,51 @@ def test_periodic_evaluation_does_not_repeat_failed_boundary(
     callback.on_train_batch_end(trainer, None, None, None, 1)
 
     assert calls == [500]
+
+
+def test_periodic_evaluation_forwards_probability_threshold(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    config = OmegaConf.create(
+        {
+            "evaluation": {
+                "enabled": True,
+                "interval_steps": 250,
+                "metadata": "metadata.csv",
+                "fingerprints": "fingerprints.npz",
+                "fingerprint_key": "probs",
+                "fingerprint_threshold": 0.9,
+                "lane": "dreams",
+                "candidates": 16,
+                "max_spectra": 4,
+                "diversity_dropout": 0.3,
+                "temperature": 1.0,
+                "ppm_tolerance": 10.0,
+                "seed": 42,
+            },
+            "data": {"tokenizer_file": "tokenizer.json"},
+            "output": {
+                "root": str(tmp_path),
+                "checkpoints": str(tmp_path / "checkpoints"),
+                "checkpoint_interval": 250,
+            },
+        }
+    )
+    checkpoint = tmp_path / "checkpoints/step=250.ckpt"
+    checkpoint.parent.mkdir()
+    checkpoint.touch()
+    commands = []
+    monkeypatch.setattr(
+        "marlin.periodic_evaluation.subprocess.run",
+        lambda command, **kwargs: commands.append(command),
+    )
+    monkeypatch.setattr(
+        "marlin.periodic_evaluation.torch.cuda.is_available",
+        lambda: False,
+    )
+
+    PeriodicMolecularEvaluation(config, project_root=tmp_path)._run(250)
+
+    threshold_index = commands[0].index("--threshold")
+    assert commands[0][threshold_index + 1] == "0.9"

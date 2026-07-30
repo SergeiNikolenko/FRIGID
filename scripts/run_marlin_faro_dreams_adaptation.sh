@@ -48,7 +48,7 @@ python scripts/train_marlin.py \
   +data.paired_fingerprints="$RUNTIME_ROOT/train/dreams_predictions.npz" \
   +data.paired_fingerprint_key=probs \
   +data.paired_fingerprint_ids_key=spectrum_ids \
-  +data.paired_fingerprint_threshold=0.95 \
+  +data.paired_fingerprint_threshold=0.90 \
   training.noise_probability=0.0 \
   +training.adapt_fingerprint=true \
   +training.conditioning_only_steps="$CONDITIONING_STEPS" \
@@ -57,6 +57,7 @@ python scripts/train_marlin.py \
   evaluation.metadata="$RUNTIME_ROOT/val/metadata.csv" \
   evaluation.fingerprints="$RUNTIME_ROOT/val/dreams_predictions.npz" \
   evaluation.fingerprint_key=probs \
+  +evaluation.fingerprint_threshold=0.90 \
   evaluation.interval_steps="$GATE_INTERVAL" \
   evaluation.max_spectra="${MARLIN_ADAPT_EVAL_SPECTRA:-4}" \
   evaluation.candidates="${MARLIN_ADAPT_EVAL_CANDIDATES:-16}" \
