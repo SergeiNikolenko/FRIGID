@@ -10,6 +10,7 @@ FRIGID_SHA256=b6177c2d43448380aba80ff41c01461ea34ca2ca93b213986954c5afb7f0f457
 MAX_STEPS="${MARLIN_MAX_STEPS:-100}"
 GATE_INTERVAL="${MARLIN_GATE_INTERVAL:-100}"
 EVALUATION_INTERVAL="${MARLIN_EVALUATION_INTERVAL:-$GATE_INTERVAL}"
+EVALUATION_ENABLED="${MARLIN_EVALUATION_ENABLED:-true}"
 CHECKPOINT_INTERVAL="${MARLIN_CHECKPOINT_INTERVAL:-$GATE_INTERVAL}"
 RESUME_CHECKPOINT="${MARLIN_RESUME_CHECKPOINT:-}"
 TASK_SUFFIX="${CLEARML_TASK_ID:-manual}"
@@ -95,6 +96,7 @@ python scripts/train_marlin.py \
   data.shuffled_stream_cache_manifest="$STREAM_CACHE_ROOT/manifest.json" \
   evaluation.metadata="$RUNTIME_ROOT/val/metadata.csv" \
   evaluation.fingerprints="$RUNTIME_ROOT/val/fingerprints.npz" \
+  evaluation.enabled="$EVALUATION_ENABLED" \
   evaluation.interval_steps="$EVALUATION_INTERVAL" \
   trainer.devices=2 \
   trainer.accumulate_grad_batches=16 \

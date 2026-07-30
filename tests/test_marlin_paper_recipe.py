@@ -79,6 +79,8 @@ def test_faro_gate_keeps_paper_batch_and_supports_exact_continuation():
     assert "conditioning_only_steps=" not in script
     assert "cross_attention_only_steps=" not in script
     assert "evaluation.interval_steps=" in script
+    assert 'EVALUATION_ENABLED="${MARLIN_EVALUATION_ENABLED:-true}"' in script
+    assert 'evaluation.enabled="$EVALUATION_ENABLED"' in script
     assert 'EVALUATION_INTERVAL="${MARLIN_EVALUATION_INTERVAL:-$GATE_INTERVAL}"' in script
     assert 'CHECKPOINT_INTERVAL="${MARLIN_CHECKPOINT_INTERVAL:-$GATE_INTERVAL}"' in script
 
