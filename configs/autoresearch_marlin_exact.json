@@ -1,0 +1,88 @@
+{
+  "schema_version": 1,
+  "task_id": "marlin-nplib1-exact",
+  "task_type": "repository_optimization",
+  "objective": "Improve non-oracle spectrum-to-molecule Exact@1 and Exact@10 while preserving candidate return, RDKit validity, mass validity, and uniqueness",
+  "repo_path": "/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/code",
+  "signals": [
+    "published code",
+    "research code",
+    "paper-reproduction",
+    "literature",
+    "multiple-metrics"
+  ],
+  "evaluator": {
+    "entrypoint": "scripts/autoresearch_marlin_clearml_score.py",
+    "command": [
+      "/usr/bin/python3",
+      "scripts/autoresearch_marlin_clearml_score.py",
+      "--split",
+      "selection"
+    ],
+    "metric_regex": "\"exact_score\": ([0-9.eE+-]+)",
+    "metric_group": 1,
+    "direction": "maximize",
+    "min_delta": 0.000001,
+    "estimated_cost_usd": 0,
+    "max_output_bytes": 1000000
+  },
+  "final_evaluator": {
+    "entrypoint": "scripts/autoresearch_marlin_clearml_score.py",
+    "command": [
+      "/usr/bin/python3",
+      "scripts/autoresearch_marlin_clearml_score.py",
+      "--split",
+      "final"
+    ],
+    "metric_regex": "\"exact_score\": ([0-9.eE+-]+)",
+    "metric_group": 1,
+    "direction": "maximize",
+    "min_delta": 0,
+    "acceptance_threshold": 0.000001,
+    "estimated_cost_usd": 0,
+    "max_output_bytes": 1000000
+  },
+  "budget": {
+    "wall_time_minutes": 10080,
+    "max_experiments": 24,
+    "evaluation_timeout_seconds": 21600,
+    "max_cost_usd": 0,
+    "max_submissions": 0,
+    "max_snapshot_bytes": 5000000000,
+    "max_snapshot_files": 100000,
+    "max_submission_bytes": 100000000
+  },
+  "constraints": {
+    "editable_paths": [
+      "configs/fp2mol_finetune_mist_fingerprints.yaml",
+      "configs/marlin_nplib1.yaml",
+      "scripts/run_marlin_faro_evaluation.sh",
+      "scripts/run_marlin_faro_paper_gate.sh",
+      "scripts/train_marlin.py",
+      "src/marlin"
+    ],
+    "readonly_paths": [
+      "configs/autoresearch_marlin_exact.json",
+      "data/exclude_inchikeys.csv",
+      "scripts/autoresearch_marlin_clearml_score.py",
+      "scripts/evaluate_marlin_nplib1.py",
+      "src/marlin/evaluation.py",
+      "tests/test_autoresearch_marlin_clearml_score.py",
+      "tests/test_evaluate_marlin_nplib1.py"
+    ],
+    "secret_paths": [
+      ".env",
+      "clearml.conf"
+    ],
+    "allow_network": false,
+    "human_submission_gate": false
+  },
+  "runtime": {
+    "kind": "sandbox-exec",
+    "read_paths": [],
+    "read_mounts": [],
+    "env_allowlist": [
+      "MARLIN_AUTORESEARCH_CLEARML_TASK_ID"
+    ]
+  }
+}

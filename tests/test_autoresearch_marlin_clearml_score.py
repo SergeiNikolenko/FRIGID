@@ -40,11 +40,24 @@ def test_extract_metrics_preserves_exact_metrics_and_builds_score():
 
 def test_validate_tags_rejects_oracle_and_locked_test():
     with pytest.raises(ValueError, match="locked-test"):
-        MODULE.validate_tags(MODULE.REQUIRED_TAGS | {"locked-test"})
+        MODULE.validate_tags(
+            MODULE.COMMON_REQUIRED_TAGS | {"selection-validation", "locked-test"}
+        )
     with pytest.raises(ValueError, match="oracle"):
-        MODULE.validate_tags(MODULE.REQUIRED_TAGS | {"oracle-target-formula"})
+        MODULE.validate_tags(
+            MODULE.COMMON_REQUIRED_TAGS
+            | {"selection-validation", "oracle-target-formula"}
+        )
 
 
 def test_validate_tags_requires_selection_contract():
     with pytest.raises(ValueError, match="selection-validation"):
-        MODULE.validate_tags(MODULE.REQUIRED_TAGS - {"selection-validation"})
+        MODULE.validate_tags(MODULE.COMMON_REQUIRED_TAGS)
+
+
+def test_validate_tags_accepts_only_locked_test_in_final_mode():
+    final_tags = MODULE.COMMON_REQUIRED_TAGS | {"heldout-nplib1"}
+    MODULE.validate_tags(final_tags, "final")
+
+    with pytest.raises(ValueError, match="selection-validation"):
+        MODULE.validate_tags(final_tags | {"selection-validation"}, "final")
