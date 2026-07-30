@@ -127,3 +127,11 @@ def test_faro_frigid_parity_uses_official_sampler_recipe():
     assert "FRIGID_PARITY_ORACLE_TARGET_LENGTH" in script
     assert '--fingerprint-key ground_truth' in script
     assert '--clearml-task-id "$TASK_ID"' in script
+
+
+def test_paired_adaptation_does_not_require_worker_local_safe_snapshot():
+    source = (PROJECT_ROOT / "scripts/train_marlin.py").read_text()
+
+    assert "if not paired_fingerprint_adaptation:" in source
+    assert "training_snapshot_manifest" in source
+    assert "if paired_fingerprint_adaptation" in source

@@ -157,6 +157,7 @@ def write_run_manifest(config: DictConfig, tokenizer_sha256: str) -> dict:
     commit, dirty = git_state()
     if dirty:
         raise RuntimeError(f"refusing canonical training from dirty git state: {dirty}")
+    paired_fingerprint_adaptation = is_paired_fingerprint_adaptation(config)
     manifest = {
         "schema_version": 1,
         "kind": "MARLIN clean-room decoder training",
@@ -188,9 +189,15 @@ def write_run_manifest(config: DictConfig, tokenizer_sha256: str) -> dict:
             ),
             "dataset": str(config.data.dataset),
             "dataset_revision": str(config.data.revision),
-            "training_snapshot_manifest": str(config.data.snapshot_manifest),
-            "training_snapshot_manifest_sha256": sha256_file(
-                config.data.snapshot_manifest
+            "training_snapshot_manifest": (
+                None
+                if paired_fingerprint_adaptation
+                else str(config.data.snapshot_manifest)
+            ),
+            "training_snapshot_manifest_sha256": (
+                None
+                if paired_fingerprint_adaptation
+                else sha256_file(config.data.snapshot_manifest)
             ),
             "paired_metadata_sha256": (
                 sha256_file(config.data.paired_metadata)
@@ -447,15 +454,22 @@ def main(config: DictConfig) -> None:
         config.data.exclude_inchikeys
     ):
         raise ValueError("training audit exclusion hash mismatch")
-    local_shards, snapshot_manifest_sha256 = verify_snapshot_manifest(
-        config.data.snapshot_manifest,
-        expected_dataset=str(config.data.dataset),
-        expected_revision=str(config.data.revision),
-        expected_file_list_sha256=str(config.data.snapshot_file_list_sha256),
-        verify_hashes=bool(config.data.get("verify_snapshot_hashes", True)),
-    )
-    if snapshot_manifest_sha256 != sha256_file(config.data.snapshot_manifest):
-        raise ValueError("training snapshot manifest changed during verification")
+    local_shards: list[str] = []
+    snapshot_manifest_sha256: str | None = None
+    if not paired_fingerprint_adaptation:
+        local_shards, snapshot_manifest_sha256 = verify_snapshot_manifest(
+            config.data.snapshot_manifest,
+            expected_dataset=str(config.data.dataset),
+            expected_revision=str(config.data.revision),
+            expected_file_list_sha256=str(config.data.snapshot_file_list_sha256),
+            verify_hashes=bool(config.data.get("verify_snapshot_hashes", True)),
+        )
+        if snapshot_manifest_sha256 != sha256_file(
+            config.data.snapshot_manifest
+        ):
+            raise ValueError(
+                "training snapshot manifest changed during verification"
+            )
     write_run_manifest(config, tokenizer_sha256)
     module = MarlinLightningModule(
         decoder_config,
