@@ -69,3 +69,7 @@ python scripts/train_marlin.py \
   output.checkpoints="$RUN_ROOT/checkpoints" \
   output.checkpoint_interval="$GATE_INTERVAL" \
   tracking.clearml.task_name=marlin-faro-dreams-adaptation
+
+python scripts/publish_marlin_checkpoint.py \
+  --checkpoint "$RUN_ROOT/checkpoints/step=${MAX_STEPS}.ckpt" \
+  --artifact-name "adapted-step-${MAX_STEPS}.ckpt"
