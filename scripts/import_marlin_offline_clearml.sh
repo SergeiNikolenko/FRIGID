@@ -4,12 +4,13 @@ set -euo pipefail
 
 SOURCE_JOB_ID="${1:?source Slurm job ID is required}"
 PROJECT_ROOT=/home/nikolenko/work/Projects/MARLIN_reproduction_20260717
+CODE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CACHE_ROOT="/mnt/netstorage/nikolenko/marlin/cache/clearml-offline/$SOURCE_JOB_ID"
 
 export MARLIN_PYTHON="$PROJECT_ROOT/code/.venv/bin/python"
 unset CLEARML_OFFLINE_MODE
 ROOT="$PROJECT_ROOT/code"
-source "$PROJECT_ROOT/code/scripts/marlin_runtime_env.sh"
+source "$CODE/scripts/marlin_runtime_env.sh"
 
 mapfile -d '' SESSIONS < <(
   find "$CACHE_ROOT/offline" \
