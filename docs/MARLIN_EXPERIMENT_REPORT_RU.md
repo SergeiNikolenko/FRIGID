@@ -52,7 +52,8 @@ Locked 803-spectrum test не используется для выбора мо�
 | 18 | Canvas inference ablation (`624`) | 4×16, seed 42 | 0 | 0 | 0 | 0 | 0.046875 | Отклонён: EOS/масса |
 | 19 | No-shell inference diagnostic (`623`) | 4×16, seed 42 | — | — | — | — | — | Остановлен: termination timeout |
 | 20 | Relaxed mass shell (`626`) | 1/4×16, seed 42, 500 ppm | — | — | — | — | — | Остановлен: block termination timeout |
-| 21 | Canvas + relaxed shell (`627`) | 4×16, seed 42, 500 ppm | RUNNING | RUNNING | RUNNING | RUNNING | RUNNING | Следующий termination test |
+| 21 | Canvas + relaxed shell (`627`) | 4×16, seed 42, 500 ppm | 0 | 0 | 0 | 0 | 0.03125 | Отклонён: EOS/масса |
+| 22 | Predicted-fingerprint threshold (`628`) | 4×16, seed 42, threshold 0.50 | RUNNING | RUNNING | RUNNING | RUNNING | RUNNING | Следующий conditioning test |
 
 `—` означает, что метрика не была частью данного parity-аудита или в старом
 артефакте не записана. Нули в molecular gate — фактические нули, а не
@@ -318,7 +319,8 @@ ClearML offline task `offline-fe140241d58543019853c6e66b786941`.
 - Slurm job `623` (cancelled no-shell diagnostic): log `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/logs/marlin-inference-ablation-623.out`;
 - Slurm job `625` (completed full-backbone adaptation): log `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/logs/marlin-fp-adapt-625.out`;
 - Slurm job `626` (cancelled relaxed mass-shell diagnostic): log `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/logs/marlin-inference-ablation-626.out`;
-- Slurm job `627` (running canvas relaxed-shell diagnostic): log `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/logs/marlin-inference-ablation-627.out`;
+- Slurm job `627` (completed canvas relaxed-shell diagnostic): log `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/logs/marlin-inference-ablation-627.out`;
+- Slurm job `628` (running threshold-0.50 diagnostic): log `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/logs/marlin-inference-ablation-628.out`;
 - launcher local-disk fix commit `7ae6cb6`, paper-noise commit `8388db0`,
   bounded-screen override commit `25f83ad`, micro4 manifest/override commit
   `bbbfd25`, task-manifest commit `e99d362`, multinomial gate commit
@@ -400,5 +402,18 @@ block lane не завершил вторую строку к `10:15`; job `626`
 
 Сохраняем checkpoint `625`, panel, seed, multinomial и `500 ppm`, но меняем
 только `generation_mode` на быстрый `canvas`, чтобы отделить mass tolerance от
-block termination. Job `627` ждёт свободный shard; полный `metrics.json` будет
-единственным источником Exact aggregate.
+block termination. Job `627` завершён за `56 s`: Exact@1/10 `0`, candidate
+return `0`, mass validity `0`, validity `0.03125`, EOS `16`, dead ends `0`.
+Relaxed shell в canvas lane также не дал candidate; incumbent отклонён.
+Артефакты: `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/runs/marlin-ablate-canvas-ppm500-627/{metrics.json,manifest.json,predictions.jsonl}`.
+
+**Эксперимент 22: predicted-fingerprint threshold (`628`) — отправлен**
+
+После full adaptation и mass-tolerance tests следующий короткий conditioning
+factor — порог бинаризации DreaMS `probs`: `0.95 → 0.50`. Checkpoint `625`,
+strict `10 ppm` shell, block decoder, multinomial, diversity dropout, seed и
+micro4 panel фиксированы. Это проверка distribution mismatch; promotion
+возможна только при non-zero Exact на том же строгом scorer-е.
+
+Job `628` отправлен на `gpu-shared`; output root
+`/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/runs/marlin-ablate-threshold050-628`.
