@@ -68,6 +68,24 @@ def test_conditioner_emits_mass_isotope_and_active_bit_tokens():
     assert mask.tolist() == [[True, True, True, True]]
 
 
+def test_conditioner_preserves_soft_active_bit_confidence():
+    conditioner = MarlinConditioner(
+        hidden_size=8, fingerprint_bits=4, num_mass_frequencies=2
+    )
+    with torch.no_grad():
+        conditioner.fingerprint.embedding.weight.zero_()
+        conditioner.fingerprint.embedding.weight[0].copy_(
+            torch.arange(8, dtype=torch.float32)
+        )
+    binary_tokens, _ = conditioner(
+        torch.tensor([250.0]), torch.tensor([[1.0, 0.0, 0.0, 0.0]])
+    )
+    soft_tokens, _ = conditioner(
+        torch.tensor([250.0]), torch.tensor([[0.75, 0.0, 0.0, 0.0]])
+    )
+    assert torch.allclose(soft_tokens[:, 1], binary_tokens[:, 1] * 0.75)
+
+
 def test_conditioner_omits_disabled_isotope_token():
     conditioner = MarlinConditioner(
         hidden_size=28, fingerprint_bits=8, num_mass_frequencies=4
