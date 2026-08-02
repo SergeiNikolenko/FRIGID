@@ -265,6 +265,7 @@ def main() -> None:
             "spec_manifest": str(args.evaluation_manifest),
             "max_spectra": args.evaluation_spectra,
             "candidates": args.evaluation_candidates,
+            "sample_tokens": True,
         },
     }
     manifest = {
@@ -311,6 +312,7 @@ def main() -> None:
                 "candidates": args.evaluation_candidates,
                 "diversity_dropout": 0.3,
                 "temperature": 1.0,
+                "sample_tokens": True,
                 "ppm_tolerance": 10.0,
                 "seed": args.seed,
             },

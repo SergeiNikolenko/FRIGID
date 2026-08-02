@@ -46,6 +46,11 @@ block width 8, 10 ppm mass acceptance, and conditioning-diversity dropout 0.3.
 Ground-truth and oracle fingerprints are permitted only in explicitly labelled
 diagnostics. They cannot establish an incumbent.
 
+The molecular evaluator must use multinomial token selection for the paper
+lane (`--sample-tokens`), with fixed seed and temperature. Argmax is retained
+only as an explicit diagnostic and cannot be compared with the stochastic
+paper lane.
+
 ## Active serialized run
 
 Slurm `609` is retained only as an infrastructure failure: it reached the
@@ -57,21 +62,29 @@ The storage-only replacement `616` was stopped after a partial `4/32` rows:
 the 32-row evaluator would not fit the two-hour wall clock. It is retained as
 an infrastructure control and has no aggregate molecular score.
 
-The active paper-recipe screen is Slurm `617`, using the same checkpoint,
+Slurm `618` completed the paper-noise adaptation with the corrected micro4
+manifest. Its argmax diagnostic produced Exact@1 `0`, Exact@10 `0`, candidate
+return `0`, mass validity `0`, strict validity `0.046875`, and validity
+`0.046875`; it is rejected as a paper result because the evaluator omitted
+multinomial token sampling.
+
+The active paper-recipe screen is Slurm `619`, using the same checkpoint,
 evaluator and input hashes, routing outputs and offline ClearML cache to local
-disk, and enabling symmetric fingerprint noise (`p=0.5`, `rho~U(0.1,0.3)`).
+disk, enabling symmetric fingerprint noise (`p=0.5`, `rho~U(0.1,0.3)`), and
+passing `--sample-tokens` to the evaluator.
 It runs on a free `gpu-shared` shard and does not preempt the foreign job on
 the shared A100. The screen is bounded to four spectra and 16 candidates so
 that a complete evaluator artifact fits the two-hour wall clock.
 
 - log:
-  `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/logs/marlin-fp-adapt-617.out`;
+  `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/logs/marlin-fp-adapt-619.out`;
 - run root:
-  `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/runs/spectrum-fingerprint-adaptation-slurm-617`;
+  `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/runs/spectrum-fingerprint-adaptation-slurm-619`;
 - expected molecular artifact:
-  `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/runs/spectrum-fingerprint-adaptation-slurm-617/periodic_molecular/step=100/metrics.json`;
+  `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/runs/spectrum-fingerprint-adaptation-slurm-619/periodic_molecular/step=100/metrics.json`;
 - offline ClearML task:
-  `offline-0d8c8d7ded524d02b151d85dcd27adbb`.
+  `offline-0d8c8d7ded524d02b151d85dcd27adbb` (618; 619 task id is recorded in
+  its run manifest after initialization).
 
 The numbered audit of this run and its predecessor is maintained in
 `docs/MARLIN_EXPERIMENT_REPORT_RU.md`.

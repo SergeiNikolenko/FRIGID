@@ -45,7 +45,8 @@ Locked 803-spectrum test не используется для выбора мо�
 | 11 | Adaptation на NFS (`609`) | 100 steps | — | — | — | — | — | Инфраструктурный fail: диск |
 | 12 | Adaptation на local disk + gpu-shared shard (`616`) | 4/32×16, 100 steps | — | — | — | — | — | Остановлен: panel не укладывался в лимит |
 | 13 | Paper-noise adaptation на bounded screen (`617`) | 4×16, 100 steps | — | — | — | — | — | Evaluator config fail |
-| 14 | Paper-noise adaptation с micro4 manifest (`618`) | 4×16, 100 steps | RUNNING | RUNNING | RUNNING | RUNNING | RUNNING | Ждём evaluator |
+| 14 | Paper-noise adaptation с micro4 manifest (`618`) | 4×16, 100 steps | 0 | 0 | 0 | 0 | 0.046875 | Отклонён: argmax gate |
+| 15 | Paper-noise + multinomial sampling (`619`) | 4×16, 100 steps | RUNNING | RUNNING | RUNNING | RUNNING | RUNNING | Ждём evaluator |
 
 `—` означает, что метрика не была частью данного parity-аудита или в старом
 артефакте не записана. Нули в molecular gate — фактические нули, а не
@@ -250,10 +251,29 @@ dropout 0.3, mass shell), меняя только evaluator contract на чес
 4-row manifest. Теперь `--max-spectra 4` не усекает panel и должен создать
 полный `metrics.json` в пределах двух часов.
 
-Состояние на момент записи: Slurm `618`, `RUNNING`; метрики намеренно не
-заполняются до появления `metrics.json`. После завершения сюда добавляются
-Exact@1/10, candidate return, mass/strict validity, termination diagnostics,
-ClearML offline task id и точный artifact path.
+Slurm `618` завершён (`00:19:30`) и создал полный молекулярный артефакт. На
+4 held-out rows он дал Exact@1 `0`, Exact@10 `0`, candidate return `0`, mass
+validity `0`, strict validity `0.046875`, validity `0.046875`, mean dead ends
+`14`, mean EOS terminations `2`, runtime `700.98 s`. Это честный отрицательный
+result для argmax token selection; он не доказывает, что paper multinomial
+lane безуспешен.
+
+Артефакты: `metrics.json`, `manifest.json`, `predictions.jsonl` в
+`/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/runs/spectrum-fingerprint-adaptation-slurm-618/periodic_molecular/step=100`;
+ClearML offline task `offline-0d8c8d7ded524d02b151d85dcd27adbb`; run commit
+`e99d362`.
+
+**Эксперимент 15: paper-noise + multinomial sampling (`619`)**
+
+Эксперимент 14 выявил, что periodic evaluator фактически использовал
+`token_selection=argmax`, хотя paper/autoresearch contract требует
+multinomial sampling при фиксированных seed и temperature. Меняем только
+этот inference factor: evaluator теперь получает `--sample-tokens`; training,
+fingerprint threshold, mass shell, block width, diversity dropout и panel
+остаются без изменений.
+
+Состояние на момент записи: Slurm `619`, `RUNNING`; метрики появятся только
+после полного `metrics.json`.
 
 Доказательства запуска:
 
@@ -264,6 +284,7 @@ ClearML offline task id и точный artifact path.
 - offline caches `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/cache/clearml-offline/{616,617,618}`;
 - offline ClearML task for `616`: `offline-bf2f93df2ff741caa4cf4b155624ba3c`;
 - offline ClearML task for `618`: `offline-0d8c8d7ded524d02b151d85dcd27adbb`;
+- Slurm job `619` (active multinomial screen): log `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/logs/marlin-fp-adapt-619.out`;
 - launcher local-disk fix commit `7ae6cb6`, paper-noise commit `8388db0`,
   bounded-screen override commit `25f83ad`, micro4 manifest/override commit
   (current).
