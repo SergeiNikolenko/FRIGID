@@ -209,7 +209,8 @@ dead ends — не арифметика маски.
 дойти до evaluator и вернуть честные molecular metrics.
 
 Изменение только инфраструктурное: run root и offline ClearML cache идут в
-`code/runs/` и `code/cache/clearml-offline/`, checkpoint и input bundle не
+локальные `MARLIN_reproduction_20260717/runs/` и
+`MARLIN_reproduction_20260717/cache/clearml-offline/`, checkpoint и input bundle не
 копируются и остаются на NFS. Job `616` запущен на свободном
 `gpu-shared` shard; чужой job `614` не затрагивался.
 
@@ -226,8 +227,8 @@ offline task id и точный artifact path.
 
 - Slurm job `616`;
 - log `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/logs/marlin-fp-adapt-616.out`;
-- run root `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/code/runs/spectrum-fingerprint-adaptation-slurm-616`;
-- offline cache `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/code/cache/clearml-offline/616`;
+- run root `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/runs/spectrum-fingerprint-adaptation-slurm-616`;
+- offline cache `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/cache/clearml-offline/616`;
 - offline ClearML task `offline-bf2f93df2ff741caa4cf4b155624ba3c`;
 - launcher fix commit `7ae6cb6`.
 
@@ -239,4 +240,3 @@ offline task id и точный artifact path.
 grammar dead ends или conditioning distribution — не увеличению длины прогона
 вслепую. Если появится non-zero return, тот же checkpoint проходит
 неизменённый three-seed confirmation, затем micro64/macro64.
-

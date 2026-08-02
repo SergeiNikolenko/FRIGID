@@ -61,7 +61,7 @@ and the offline ClearML cache to local disk. It runs on a free
 - log:
   `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/logs/marlin-fp-adapt-616.out`;
 - run root:
-  `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/code/runs/spectrum-fingerprint-adaptation-slurm-616`;
+  `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/runs/spectrum-fingerprint-adaptation-slurm-616`;
 - expected molecular artifact:
   `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/code/runs/spectrum-fingerprint-adaptation-slurm-616/periodic_molecular/step=100/metrics.json`;
 - offline ClearML task:
