@@ -48,7 +48,7 @@ Locked 803-spectrum test не используется для выбора мо�
 | 14 | Paper-noise adaptation с micro4 manifest (`618`) | 4×16, 100 steps | 0 | 0 | 0 | 0 | 0.046875 | Отклонён: argmax gate |
 | 15 | Paper-noise + multinomial sampling (`619`) | 4×16, 100 steps | 0 | 0 | 0 | 0 | 0 | Отклонён: conditioning dead ends |
 | 16 | Threshold-aligned paper-noise adaptation (`620`) | 4×16, 100 steps | 0 | 0 | 0 | 0 | 0.015625 | Отклонён: threshold alone |
-| 17 | Full-backbone paper-noise adaptation (`625`) | 4×16, 1000 steps | QUEUED | QUEUED | QUEUED | QUEUED | QUEUED | Следующий causal test |
+| 17 | Full-backbone paper-noise adaptation (`625`) | 4×16, 1000 steps | RUNNING/QUEUED | RUNNING/QUEUED | RUNNING/QUEUED | RUNNING/QUEUED | RUNNING/QUEUED | Следующий causal test |
 
 `—` означает, что метрика не была частью данного parity-аудита или в старом
 артефакте не записана. Нули в molecular gate — фактические нули, а не
@@ -322,6 +322,21 @@ commit `8388db0`; тесты `tests/test_marlin.py`,
 `tests/test_marlin_paper_recipe.py` прошли (`65 passed`).
 
 ## Следующая запись
+
+**Эксперимент 17: full-backbone paper-noise adaptation (`625`) — отправлен**
+
+После трёх коротких screen-итераций (argmax, multinomial и threshold-aligned)
+отдельный фактор — область обновляемых параметров. Запущен FRIGID warm-start с
+`p=0.5`, `rho~U(0.1,0.3)`, train/eval threshold `0.95`, block width `8`,
+diversity dropout `0.3`, multinomial molecular gate и тем же held-out
+`nplib1_val_micro4_v1.tsv`. Первые `100` шагов обновляют только
+fingerprint cross-attention, затем оставшиеся `900` шагов разрешают весь
+backbone; молекулярная оценка выполняется только в конце, чтобы не тратить
+двухчасовой Slurm budget на четыре дорогих промежуточных evaluator-а.
+
+Slurm job `625` принят в очередь `gpu-shared` (`PENDING` на момент записи;
+чужой job `614` не затрагивается). До появления финального `metrics.json`
+этот запуск не считается результатом и не получает Exact aggregate.
 
 Эксперимент 12 закрывается только после Slurm `COMPLETED` и наличия
 `periodic_molecular/step=100/metrics.json`. Если return и mass validity
