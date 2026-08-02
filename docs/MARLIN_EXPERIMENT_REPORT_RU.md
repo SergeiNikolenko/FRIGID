@@ -48,7 +48,9 @@ Locked 803-spectrum test не используется для выбора мо�
 | 14 | Paper-noise adaptation с micro4 manifest (`618`) | 4×16, 100 steps | 0 | 0 | 0 | 0 | 0.046875 | Отклонён: argmax gate |
 | 15 | Paper-noise + multinomial sampling (`619`) | 4×16, 100 steps | 0 | 0 | 0 | 0 | 0 | Отклонён: conditioning dead ends |
 | 16 | Threshold-aligned paper-noise adaptation (`620`) | 4×16, 100 steps | 0 | 0 | 0 | 0 | 0.015625 | Отклонён: threshold alone |
-| 17 | Full-backbone paper-noise adaptation (`625`) | 4×16, 1000 steps | RUNNING/QUEUED | RUNNING/QUEUED | RUNNING/QUEUED | RUNNING/QUEUED | RUNNING/QUEUED | Следующий causal test |
+| 17 | Full-backbone paper-noise adaptation (`625`) | 4×16, 1000 steps | RUNNING | RUNNING | RUNNING | RUNNING | RUNNING | Следующий causal test |
+| 18 | Canvas inference ablation (`624`) | 4×16, seed 42 | 0 | 0 | 0 | 0 | 0.046875 | Отклонён: EOS/масса |
+| 19 | No-shell inference diagnostic (`623`) | 4×16, seed 42 | — | — | — | — | — | Остановлен: termination timeout |
 
 `—` означает, что метрика не была частью данного parity-аудита или в старом
 артефакте не записана. Нули в molecular gate — фактические нули, а не
@@ -308,9 +310,11 @@ ClearML offline task `offline-fe140241d58543019853c6e66b786941`.
 - offline caches `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/cache/clearml-offline/{616,617,618}`;
 - offline ClearML task for `616`: `offline-bf2f93df2ff741caa4cf4b155624ba3c`;
 - offline ClearML task for `618`: `offline-0d8c8d7ded524d02b151d85dcd27adbb`;
-- Slurm job `619` (active multinomial screen): log `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/logs/marlin-fp-adapt-619.out`;
-- Slurm job `620` (active threshold-aligned screen): log `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/logs/marlin-fp-adapt-620.out`;
-- Slurm job `625` (queued full-backbone adaptation): log `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/logs/marlin-fp-adapt-625.out`;
+- Slurm job `619` (completed multinomial screen): log `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/logs/marlin-fp-adapt-619.out`;
+- Slurm job `620` (completed threshold-aligned screen): log `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/logs/marlin-fp-adapt-620.out`;
+- Slurm job `624` (completed canvas ablation): log `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/logs/marlin-inference-ablation-624.out`;
+- Slurm job `623` (cancelled no-shell diagnostic): log `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/logs/marlin-inference-ablation-623.out`;
+- Slurm job `625` (running full-backbone adaptation): log `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/logs/marlin-fp-adapt-625.out`;
 - launcher local-disk fix commit `7ae6cb6`, paper-noise commit `8388db0`,
   bounded-screen override commit `25f83ad`, micro4 manifest/override commit
   `bbbfd25`, task-manifest commit `e99d362`, multinomial gate commit
@@ -334,12 +338,42 @@ fingerprint cross-attention, затем оставшиеся `900` шагов р
 backbone; молекулярная оценка выполняется только в конце, чтобы не тратить
 двухчасовой Slurm budget на четыре дорогих промежуточных evaluator-а.
 
-Slurm job `625` принят в очередь `gpu-shared` (`PENDING` на момент записи;
-чужой job `614` не затрагивается). До появления финального `metrics.json`
-этот запуск не считается результатом и не получает Exact aggregate.
+Slurm job `625` принят в очередь `gpu-shared` и перешёл в `RUNNING` после
+освобождения shard-а; чужой job `614` не затрагивается. До появления финального
+`metrics.json` этот запуск не считается результатом и не получает Exact
+aggregate.
 
-Эксперимент 12 закрывается только после Slurm `COMPLETED` и наличия
-`periodic_molecular/step=100/metrics.json`. Если return и mass validity
+**Эксперимент 18: canvas inference ablation (`624`)**
+
+Гипотеза: block decoder мог слишком долго продолжать SAFE-последовательность,
+тогда как masked canvas с длиной, привязанной к precursor mass, может дать
+быстрый валидный candidate. Меняем только `generation_mode` на `canvas`;
+checkpoint `620`, DreaMS `probs`, threshold `0.95`, multinomial, diversity
+dropout `0.3`, mass shell `10 ppm`, panel и seed фиксированы.
+
+Job `624` завершён примерно за `1` минуту. Результат на 4 held-out rows:
+Exact@1 `0`, Exact@10 `0`, candidate return `0`, mass validity `0`, validity
+`0.046875`, uniqueness `0`, mean EOS terminations `16`, dead ends `0`. Canvas
+ускорил evaluator, но не восстановил mass-compatible return; как incumbent
+отклонён.
+
+Артефакты: `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/runs/marlin-ablate-canvas-624/{metrics.json,manifest.json,predictions.jsonl}`;
+log `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/logs/marlin-inference-ablation-624.out`.
+
+**Эксперимент 19: no-shell termination diagnostic (`623`)**
+
+Гипотеза: отключение mass shell покажет, является ли именно shell причиной
+нулевого return. Запуск оставлял тот же checkpoint, block decoder,
+multinomial, grammar и panel, но передавал `--disable-mass-shell`.
+
+После `12:40` runtime не было завершено ни одной строки: без shell block lane
+разрешает продолжение до `256` токенов и блокирует очередь. Job `623` отменён
+нами как диагностический timeout; это не molecular score и не evidence успеха.
+Частичный артефакт сохранён в
+`/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/runs/marlin-ablate-noshell-623/`.
+
+Эксперимент 17 закрывается только после Slurm `COMPLETED` и наличия
+`periodic_molecular/step=1000/metrics.json`. Если return и mass validity
 останутся нулевыми, следующий номер посвящается диагностике termination /
 grammar dead ends или conditioning distribution — не увеличению длины прогона
 вслепую. Если появится non-zero return, тот же checkpoint проходит
