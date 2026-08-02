@@ -16,6 +16,8 @@ RUNTIME_ROOT="$SHARED_ROOT/cache/runtime-inputs-spectrum-v1/16b1af5276034c041e85
 CHECKPOINT="$SHARED_ROOT/runs/safe-gpt-pretrain-v3/checkpoints/step=30000.ckpt"
 LOCAL_ROOT="$PROJECT_ROOT/runs"
 RUN_ROOT="${MARLIN_ADAPT_RUN_ROOT:-$LOCAL_ROOT/spectrum-fingerprint-adaptation-slurm-$SLURM_JOB_ID}"
+EVALUATION_SPECTRA="${MARLIN_EVALUATION_SPECTRA:-32}"
+EVALUATION_CANDIDATES="${MARLIN_EVALUATION_CANDIDATES:-16}"
 
 cd "$CODE"
 test -f "$RUNTIME_ROOT/manifest.json"
@@ -50,8 +52,8 @@ source "$CODE/scripts/marlin_runtime_env.sh"
   --max-steps 100 \
   --evaluation-interval 100 \
   --checkpoint-interval 100 \
-  --evaluation-spectra 32 \
-  --evaluation-candidates 16 \
+  --evaluation-spectra "$EVALUATION_SPECTRA" \
+  --evaluation-candidates "$EVALUATION_CANDIDATES" \
   --cross-attention-only-steps 100 \
   --noise-probability 0.5 \
   --noise-min-fraction 0.1 \
