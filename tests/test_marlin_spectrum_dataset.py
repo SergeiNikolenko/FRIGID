@@ -94,6 +94,23 @@ def test_collator_uses_provided_fingerprint_and_spectrum_mass(tmp_path):
     assert batch["precursor_mass"][0].item() == pytest.approx(46.0401)
 
 
+def test_spectrum_dataset_can_preserve_probability_amplitudes(tmp_path):
+    metadata, fingerprints = _write_inputs(tmp_path)
+    tokenizer = load_safe_tokenizer(TOKENIZER_PATH)
+    dataset = MarlinSpectrumFingerprintDataset(
+        metadata,
+        fingerprints,
+        tokenizer,
+        fingerprint_key="probs",
+        threshold=0.5,
+        max_length=256,
+        preserve_probabilities=True,
+    )
+
+    assert dataset[0]["fingerprint"][2] == pytest.approx(0.94)
+    assert dataset[0]["fingerprint"][7] == pytest.approx(0.96)
+
+
 def test_spectrum_dataset_requires_unique_spectrum_ids(tmp_path):
     metadata, _ = _write_inputs(tmp_path)
     fingerprints = tmp_path / "duplicate.npz"
