@@ -64,11 +64,13 @@ class MarlinCollator:
         max_length: int = 256,
         fingerprint_bits: int = 4096,
         exclude_inchikeys: str | Path | None = None,
+        allow_soft_fingerprints: bool = False,
     ) -> None:
         self.tokenizer = tokenizer
         self.max_length = max_length
         self.fingerprint_bits = fingerprint_bits
         self.exclude = load_excluded_connectivity_keys(exclude_inchikeys)
+        self.allow_soft_fingerprints = allow_soft_fingerprints
 
     def __call__(self, examples: list[dict]) -> dict[str, torch.Tensor]:
         safes: list[str] = []
@@ -100,7 +102,12 @@ class MarlinCollator:
                         "provided fingerprint must have shape "
                         f"({self.fingerprint_bits},), got {array.shape}"
                     )
-                if not np.array_equal(array, array.astype(bool)):
+                if self.allow_soft_fingerprints:
+                    if np.any(array < 0.0) or np.any(array > 1.0):
+                        raise ValueError(
+                            "provided soft fingerprint must be in [0, 1]"
+                        )
+                elif not np.array_equal(array, array.astype(bool)):
                     raise ValueError("provided fingerprint must be binary")
             safes.append(safe)
             fingerprints.append(torch.from_numpy(array))
@@ -181,6 +188,7 @@ class MarlinSpectrumFingerprintDataset(torch.utils.data.Dataset):
         max_length: int,
         exclude_inchikeys: str | Path | None = None,
         exclude_metadata_csvs: tuple[str | Path, ...] = (),
+        preserve_probabilities: bool = False,
     ) -> None:
         if not 0.0 <= threshold <= 1.0:
             raise ValueError("fingerprint threshold must be in [0, 1]")
@@ -245,12 +253,16 @@ class MarlinSpectrumFingerprintDataset(torch.utils.data.Dataset):
             safe = smiles_to_safe(smiles)
             if len(tokenizer.encode(safe, add_special_tokens=True)) > max_length:
                 continue
+            fingerprint = values[positions[spec_name]]
+            if preserve_probabilities:
+                if np.any(fingerprint < 0.0) or np.any(fingerprint > 1.0):
+                    raise ValueError("soft fingerprints must be probabilities in [0, 1]")
+            else:
+                fingerprint = fingerprint >= threshold
             rows.append(
                 {
                     "safe": safe,
-                    "fingerprint": (
-                        values[positions[spec_name]] >= threshold
-                    ).astype(np.float32),
+                    "fingerprint": fingerprint.astype(np.float32),
                     "precursor_mass": float(record["neutral_mass"]),
                     "spec_name": spec_name,
                     "inchikey_first_block": key,

@@ -22,7 +22,7 @@ def symmetric_fingerprint_noise(
         raise ValueError("noise fractions must satisfy 0 <= min <= max <= 1")
 
     binary = fingerprints > 0.5
-    output = binary.clone()
+    output = fingerprints.clone()
     device = fingerprints.device
     for row in range(binary.shape[0]):
         if torch.rand((), device=device, generator=generator) >= corruption_probability:
@@ -39,8 +39,8 @@ def symmetric_fingerprint_noise(
             continue
         drop = on[torch.randperm(on.numel(), device=device, generator=generator)[:count]]
         add = off[torch.randperm(off.numel(), device=device, generator=generator)[:count]]
-        output[row, drop] = False
-        output[row, add] = True
+        output[row, drop] = 0.0
+        output[row, add] = 1.0
     return output.to(dtype=fingerprints.dtype)
 
 

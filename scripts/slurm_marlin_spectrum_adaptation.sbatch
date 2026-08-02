@@ -20,6 +20,7 @@ EVALUATION_SPECTRA="${MARLIN_EVALUATION_SPECTRA:-32}"
 EVALUATION_CANDIDATES="${MARLIN_EVALUATION_CANDIDATES:-16}"
 EVALUATION_MANIFEST="${MARLIN_EVALUATION_MANIFEST:-$CODE/configs/benchmarks/nplib1_v1/nplib1_val_micro32_v1.tsv}"
 TRAIN_FINGERPRINT_THRESHOLD="${MARLIN_TRAIN_FINGERPRINT_THRESHOLD:-0.90}"
+SOFT_FINGERPRINT="${MARLIN_SOFT_FINGERPRINT:-0}"
 ADAPT_MAX_STEPS="${MARLIN_ADAPT_MAX_STEPS:-100}"
 CROSS_ATTENTION_ONLY_STEPS="${MARLIN_CROSS_ATTENTION_ONLY_STEPS:-100}"
 EVALUATION_INTERVAL="${MARLIN_EVALUATION_INTERVAL:-100}"
@@ -39,6 +40,11 @@ export PYTHONPATH="$CODE/src${PYTHONPATH:+:$PYTHONPATH}"
 ROOT="$PROJECT_ROOT/code"
 source "$CODE/scripts/marlin_runtime_env.sh"
 
+SOFT_FINGERPRINT_ARGS=()
+if [[ "$SOFT_FINGERPRINT" == "1" ]]; then
+  SOFT_FINGERPRINT_ARGS+=(--soft-fingerprint)
+fi
+
 "$MARLIN_PYTHON" -X faulthandler scripts/train_marlin_spectrum_adaptation.py \
   --checkpoint "$CHECKPOINT" \
   --checkpoint-sha256 6a44763d628c3b5b4a48178ceca034a397564ba1c56bf679594a1152692f7c82 \
@@ -47,6 +53,7 @@ source "$CODE/scripts/marlin_runtime_env.sh"
   --fingerprints "$RUNTIME_ROOT/train/dreams_predictions.npz" \
   --fingerprint-key probs \
   --fingerprint-threshold "$TRAIN_FINGERPRINT_THRESHOLD" \
+  "${SOFT_FINGERPRINT_ARGS[@]}" \
   --exclude-inchikeys "$RUNTIME_ROOT/nplib1_test_inchikeys.csv" \
   --exclude-metadata "$RUNTIME_ROOT/val/metadata.csv" \
   --validation-metadata "$RUNTIME_ROOT/val/metadata.csv" \

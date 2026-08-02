@@ -44,6 +44,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--fingerprints", type=Path, required=True)
     parser.add_argument("--fingerprint-key", default="probs")
     parser.add_argument("--fingerprint-threshold", type=float, default=0.90)
+    parser.add_argument(
+        "--soft-fingerprint",
+        action="store_true",
+        help="train on DreaMS probability amplitudes above the threshold",
+    )
     parser.add_argument("--exclude-inchikeys", type=Path, required=True)
     parser.add_argument(
         "--exclude-metadata",
@@ -199,6 +204,7 @@ def main() -> None:
         max_length=decoder_config.max_length,
         exclude_inchikeys=args.exclude_inchikeys,
         exclude_metadata_csvs=tuple(args.exclude_metadata),
+        preserve_probabilities=args.soft_fingerprint,
     )
     loader = torch.utils.data.DataLoader(
         dataset,
@@ -211,6 +217,7 @@ def main() -> None:
             max_length=decoder_config.max_length,
             fingerprint_bits=decoder_config.fingerprint_bits,
             exclude_inchikeys=args.exclude_inchikeys,
+            allow_soft_fingerprints=args.soft_fingerprint,
         ),
     )
 
@@ -245,6 +252,7 @@ def main() -> None:
         "training_fingerprints": str(args.fingerprints),
         "training_fingerprint_key": args.fingerprint_key,
         "training_fingerprint_threshold": args.fingerprint_threshold,
+        "training_soft_fingerprint": args.soft_fingerprint,
         "excluded_metadata": [str(path) for path in args.exclude_metadata],
         "training_rows_after_exclusions": len(dataset),
         "learning_rate": args.learning_rate,
@@ -266,6 +274,7 @@ def main() -> None:
             "max_spectra": args.evaluation_spectra,
             "candidates": args.evaluation_candidates,
             "sample_tokens": True,
+            "soft_fingerprint": args.soft_fingerprint,
         },
     }
     manifest = {
@@ -313,6 +322,7 @@ def main() -> None:
                 "diversity_dropout": 0.3,
                 "temperature": 1.0,
                 "sample_tokens": True,
+                "soft_fingerprint": args.soft_fingerprint,
                 "ppm_tolerance": 10.0,
                 "seed": args.seed,
             },

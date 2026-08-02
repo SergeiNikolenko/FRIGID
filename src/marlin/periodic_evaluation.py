@@ -88,6 +88,8 @@ class PeriodicMolecularEvaluation(L.Callback):
             command.append("--no-ema")
         if bool(evaluation.get("sample_tokens", False)):
             command.append("--sample-tokens")
+        if bool(evaluation.get("soft_fingerprint", False)):
+            command.append("--soft-fingerprint")
         if str(self.config.get("architecture", "marlin")) == "expanding":
             command.extend(
                 [
