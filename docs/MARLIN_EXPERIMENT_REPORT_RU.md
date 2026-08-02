@@ -54,7 +54,7 @@ Locked 803-spectrum test не используется для выбора мо�
 | 20 | Relaxed mass shell (`626`) | 1/4×16, seed 42, 500 ppm | — | — | — | — | — | Остановлен: block termination timeout |
 | 21 | Canvas + relaxed shell (`627`) | 4×16, seed 42, 500 ppm | 0 | 0 | 0 | 0 | 0.03125 | Отклонён: EOS/масса |
 | 22 | Predicted-fingerprint threshold (`628`) | 4×16, seed 42, threshold 0.50 | 0 | 0 | 0 | 0 | 0.15625 | Отклонён: threshold mismatch |
-| 23 | Soft DreaMS confidence (`629`) | 4×16, seed 42, threshold 0.50, amplitudes preserved | RUNNING | RUNNING | RUNNING | RUNNING | RUNNING | Conditioning ablation |
+| 23 | Soft DreaMS confidence (`629`) | 4×16, seed 42, threshold 0.50, amplitudes preserved | 0 | 0 | 0 | 0 | 0.15625 | Отклонён: confidence alone |
 | 24 | EOS recovery boost (`630`) | 4×16, seed 42, threshold 0.95, `eos_boost=4` | RUNNING | RUNNING | RUNNING | RUNNING | RUNNING | Termination ablation |
 | 25 | Soft-fingerprint adaptation (`631`) | train DreaMS probabilities, 1000 steps, eval 4×16 | RUNNING | RUNNING | RUNNING | RUNNING | RUNNING | Conditioning adaptation |
 
@@ -428,7 +428,7 @@ control, а не кандидат на promotion.
 Артефакты: `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/runs/marlin-ablate-threshold050-628/{metrics.json,manifest.json,predictions.jsonl}`;
 log `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/logs/marlin-inference-ablation-628.out`.
 
-**Эксперимент 23: soft DreaMS confidence (`629`) — отправлен**
+**Эксперимент 23: soft DreaMS confidence (`629`) — завершён**
 
 Порог `0.50` из эксперимента 22 резко увеличивает число активных битов,
 но оставляет только бинарный сигнал. Здесь сохраняем probability amplitude
@@ -438,9 +438,15 @@ sampling или held-out panel. Для бинарных Morgan fingerprint warm-
 поведение идентично: веса активных битов равны `1`; это отдельная
 inference-only проверка потери confidence при бинаризации.
 
-Изменение зафиксировано commit `6f4fe4d`; тесты molecular/evaluation suite
-прошли (`46 passed`). Job `629` отправлен на `gpu-shared`; output root
-`/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/runs/marlin-ablate-soft050-629`.
+Изменения зафиксированы commits `6f4fe4d` и `70e34eb`; тесты suite прошли
+(`59 passed`). Job `629` завершён на `gpu-shared`: Exact@1/10 `0`, candidate
+return `0`, mass validity `0`, validity `0.15625`, mean dead ends `12.25`,
+EOS `3.75`, runtime `683.86 s`. Сохранение confidence при threshold `0.50`
+не восстановило mass-compatible return; причиной является не только потеря
+амплитуды DreaMS.
+
+Артефакты: `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/runs/marlin-ablate-soft050-629/{metrics.json,manifest.json,predictions.jsonl}`;
+log `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/logs/marlin-inference-ablation-629.out`.
 
 **Эксперимент 24: EOS recovery boost (`630`) — отправлен**
 
