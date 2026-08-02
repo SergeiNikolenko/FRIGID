@@ -16,6 +16,7 @@ CHECKPOINT="${MARLIN_CHECKPOINT:?MARLIN_CHECKPOINT is required}"
 OUTPUT_DIR="${MARLIN_OUTPUT_DIR:?MARLIN_OUTPUT_DIR is required}"
 GENERATION_MODE="${MARLIN_GENERATION_MODE:-block}"
 DISABLE_MASS_SHELL="${MARLIN_DISABLE_MASS_SHELL:-0}"
+PPM_TOLERANCE="${MARLIN_PPM_TOLERANCE:-10.0}"
 
 cd "$CODE"
 test -f "$CHECKPOINT"
@@ -38,7 +39,7 @@ ARGS=(
   --diversity-dropout 0.3
   --temperature 1.0
   --generation-mode "$GENERATION_MODE"
-  --ppm-tolerance 10.0
+  --ppm-tolerance "$PPM_TOLERANCE"
   --seed 42
   --max-spectra 4
   --spec-manifest "$CODE/configs/benchmarks/nplib1_v1/nplib1_val_micro4_v1.tsv"
