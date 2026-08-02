@@ -80,10 +80,13 @@ shell to test whether it is the immediate bottleneck, while `624` uses the
 canvas decoder with the shell enabled. They are not promotion candidates and
 must be reported with their exact mode and panel.
 
-The active causal training test is Slurm `625`: full-backbone paper-noise
-adaptation on the same micro4 panel, with 100 cross-attention-only steps then
-900 full-backbone steps and one final molecular evaluator. It runs on a free
-`gpu-shared` shard and does not preempt the foreign job on the shared A100.
+The full-backbone causal training test `625` is complete: 100
+cross-attention-only steps then 900 full-backbone steps improved grammar
+validity to `0.140625`, but Exact@1/10 and mass-compatible return stayed `0`.
+The serialized inference follow-ups are `628` (threshold `0.50`, negative),
+`629` (soft DreaMS confidence, negative), and `630` (EOS boost, running).
+The next queued training factor is `631`: train and evaluate with soft DreaMS
+amplitudes on the structure-disjoint train/held-out split.
 
 - logs:
   `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/logs/marlin-fp-adapt-{619,620,625}.out`;
@@ -92,6 +95,8 @@ adaptation on the same micro4 panel, with 100 cross-attention-only steps then
 - molecular artifacts:
   `.../periodic_molecular/step=100/metrics.json` for `619/620`, and
   `.../periodic_molecular/step=1000/metrics.json` for `625`;
+- inference artifacts for `628` and `629` are under
+  `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/runs/marlin-ablate-{threshold050,soft050}-{628,629}`;
 - offline ClearML task IDs are recorded in each run's `run_manifest.json`;
   the API-backed ClearML dashboard is still blocked by the private API auth
   proxy, so offline IDs are not presented as live web tasks.
