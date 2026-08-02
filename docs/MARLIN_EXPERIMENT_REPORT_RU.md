@@ -44,7 +44,8 @@ Locked 803-spectrum test не используется для выбора мо�
 | 10 | Mass-shell / tokenizer parity | 396 rows | — | — | — | — | — | Маска не виновата |
 | 11 | Adaptation на NFS (`609`) | 100 steps | — | — | — | — | — | Инфраструктурный fail: диск |
 | 12 | Adaptation на local disk + gpu-shared shard (`616`) | 4/32×16, 100 steps | — | — | — | — | — | Остановлен: panel не укладывался в лимит |
-| 13 | Paper-noise adaptation на bounded screen (`617`) | 4×16, 100 steps | RUNNING | RUNNING | RUNNING | RUNNING | RUNNING | Ждём evaluator |
+| 13 | Paper-noise adaptation на bounded screen (`617`) | 4×16, 100 steps | — | — | — | — | — | Evaluator config fail |
+| 14 | Paper-noise adaptation с micro4 manifest (`618`) | 4×16, 100 steps | RUNNING | RUNNING | RUNNING | RUNNING | RUNNING | Ждём evaluator |
 
 `—` означает, что метрика не была частью данного parity-аудита или в старом
 артефакте не записана. Нули в molecular gate — фактические нули, а не
@@ -236,7 +237,20 @@ threshold, но с исправленной symmetric fingerprint noise:
 screen `4` spectra × `16` candidates, чтобы получить полный `metrics.json` за
 один Slurm лимит; это не финальный paper-comparable score.
 
-Состояние на момент записи: Slurm `617`, `RUNNING`; метрики намеренно не
+Slurm `617` завершил 100 шагов и создал checkpoint, но evaluator завершился
+до генерации с ошибкой контракта: `--max-spectra 4` нельзя применять к
+32-строчному `nplib1_val_micro32_v1.tsv`. Это не molecular result. Исправление
+сделано отдельным benchmark manifest `nplib1_val_micro4_v1.tsv` и launcher
+override `MARLIN_EVALUATION_MANIFEST`.
+
+**Эксперимент 14: paper-noise adaptation с micro4 manifest (`618`)**
+
+Повторяем тот же committed recipe (`p=0.5`, `rho~U(0.1,0.3)`, block width 8,
+dropout 0.3, mass shell), меняя только evaluator contract на честный
+4-row manifest. Теперь `--max-spectra 4` не усекает panel и должен создать
+полный `metrics.json` в пределах двух часов.
+
+Состояние на момент записи: Slurm `618`, `RUNNING`; метрики намеренно не
 заполняются до появления `metrics.json`. После завершения сюда добавляются
 Exact@1/10, candidate return, mass/strict validity, termination diagnostics,
 ClearML offline task id и точный artifact path.
@@ -244,12 +258,14 @@ ClearML offline task id и точный artifact path.
 Доказательства запуска:
 
 - Slurm job `616` (partial control): log `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/logs/marlin-fp-adapt-616.out`;
-- Slurm job `617` (active paper-noise screen): log `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/logs/marlin-fp-adapt-617.out`;
-- run roots `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/runs/spectrum-fingerprint-adaptation-slurm-{616,617}`;
-- offline caches `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/cache/clearml-offline/{616,617}`;
+- Slurm job `617` (paper-noise control with evaluator config fail): log `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/logs/marlin-fp-adapt-617.out`;
+- Slurm job `618` (active paper-noise screen): log `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/logs/marlin-fp-adapt-618.out`;
+- run roots `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/runs/spectrum-fingerprint-adaptation-slurm-{616,617,618}`;
+- offline caches `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/cache/clearml-offline/{616,617,618}`;
 - offline ClearML task for `616`: `offline-bf2f93df2ff741caa4cf4b155624ba3c`;
 - launcher local-disk fix commit `7ae6cb6`, paper-noise commit `8388db0`,
-  bounded-screen override commit `25f83ad`.
+  bounded-screen override commit `25f83ad`, micro4 manifest/override commit
+  (current).
 
 Параметр paper-noise включён в launcher и manifest после этого запуска,
 commit `8388db0`; тесты `tests/test_marlin.py`,

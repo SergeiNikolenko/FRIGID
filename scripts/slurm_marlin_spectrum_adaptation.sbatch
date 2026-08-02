@@ -18,6 +18,7 @@ LOCAL_ROOT="$PROJECT_ROOT/runs"
 RUN_ROOT="${MARLIN_ADAPT_RUN_ROOT:-$LOCAL_ROOT/spectrum-fingerprint-adaptation-slurm-$SLURM_JOB_ID}"
 EVALUATION_SPECTRA="${MARLIN_EVALUATION_SPECTRA:-32}"
 EVALUATION_CANDIDATES="${MARLIN_EVALUATION_CANDIDATES:-16}"
+EVALUATION_MANIFEST="${MARLIN_EVALUATION_MANIFEST:-$CODE/configs/benchmarks/nplib1_v1/nplib1_val_micro32_v1.tsv}"
 
 cd "$CODE"
 test -f "$RUNTIME_ROOT/manifest.json"
@@ -47,7 +48,7 @@ source "$CODE/scripts/marlin_runtime_env.sh"
   --validation-fingerprints "$RUNTIME_ROOT/val/dreams_predictions.npz" \
   --validation-fingerprint-key probs \
   --validation-fingerprint-threshold 0.95 \
-  --evaluation-manifest "$CODE/configs/benchmarks/nplib1_v1/nplib1_val_micro32_v1.tsv" \
+  --evaluation-manifest "$EVALUATION_MANIFEST" \
   --output-dir "$RUN_ROOT" \
   --max-steps 100 \
   --evaluation-interval 100 \
