@@ -53,4 +53,7 @@ source "$CODE/scripts/marlin_runtime_env.sh"
   --evaluation-spectra 32 \
   --evaluation-candidates 16 \
   --cross-attention-only-steps 100 \
+  --noise-probability 0.5 \
+  --noise-min-fraction 0.1 \
+  --noise-max-fraction 0.3 \
   --learning-rate 1e-5

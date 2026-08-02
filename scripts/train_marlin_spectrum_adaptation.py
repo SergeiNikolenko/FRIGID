@@ -76,6 +76,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--num-workers", type=int, default=4)
     parser.add_argument("--learning-rate", type=float, default=1e-5)
     parser.add_argument("--cross-attention-only-steps", type=int, default=100)
+    parser.add_argument("--noise-probability", type=float, default=0.5)
+    parser.add_argument("--noise-min-fraction", type=float, default=0.1)
+    parser.add_argument("--noise-max-fraction", type=float, default=0.3)
     parser.add_argument("--seed", type=int, default=42)
     return parser.parse_args()
 
@@ -148,6 +151,10 @@ def main() -> None:
         args.accumulate_grad_batches,
     ) <= 0:
         raise ValueError("training and evaluation sizes must be positive")
+    if not 0.0 <= args.noise_probability <= 1.0:
+        raise ValueError("noise probability must be in [0, 1]")
+    if not 0.0 <= args.noise_min_fraction <= args.noise_max_fraction <= 1.0:
+        raise ValueError("noise fractions must satisfy 0 <= min <= max <= 1")
     if args.output_dir.exists():
         raise FileExistsError(f"output directory already exists: {args.output_dir}")
     observed_checkpoint_sha256 = _sha256(args.checkpoint)
@@ -211,9 +218,9 @@ def main() -> None:
         decoder_config,
         learning_rate=args.learning_rate,
         weight_decay=0.0,
-        noise_probability=0.0,
-        noise_min_fraction=0.1,
-        noise_max_fraction=0.3,
+        noise_probability=args.noise_probability,
+        noise_min_fraction=args.noise_min_fraction,
+        noise_max_fraction=args.noise_max_fraction,
         ema_decay=0.9999,
         metric_interval=25,
         conditioning_only_steps=0,
@@ -243,6 +250,12 @@ def main() -> None:
         "learning_rate": args.learning_rate,
         "max_steps": args.max_steps,
         "cross_attention_only_steps": args.cross_attention_only_steps,
+        "symmetric_fingerprint_noise": {
+            "probability": args.noise_probability,
+            "min_fraction": args.noise_min_fraction,
+            "max_fraction": args.noise_max_fraction,
+            "equal_drop_add": True,
+        },
         "global_batch_size": args.batch_size * args.accumulate_grad_batches,
         "evaluation": {
             "metadata": str(args.validation_metadata),
