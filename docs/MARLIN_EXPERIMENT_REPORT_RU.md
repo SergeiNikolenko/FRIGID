@@ -48,9 +48,10 @@ Locked 803-spectrum test не используется для выбора мо�
 | 14 | Paper-noise adaptation с micro4 manifest (`618`) | 4×16, 100 steps | 0 | 0 | 0 | 0 | 0.046875 | Отклонён: argmax gate |
 | 15 | Paper-noise + multinomial sampling (`619`) | 4×16, 100 steps | 0 | 0 | 0 | 0 | 0 | Отклонён: conditioning dead ends |
 | 16 | Threshold-aligned paper-noise adaptation (`620`) | 4×16, 100 steps | 0 | 0 | 0 | 0 | 0.015625 | Отклонён: threshold alone |
-| 17 | Full-backbone paper-noise adaptation (`625`) | 4×16, 1000 steps | RUNNING | RUNNING | RUNNING | RUNNING | RUNNING | Следующий causal test |
+| 17 | Full-backbone paper-noise adaptation (`625`) | 4×16, 1000 steps | 0 | 0 | 0 | 0 | 0.140625 | Отклонён: mass shell |
 | 18 | Canvas inference ablation (`624`) | 4×16, seed 42 | 0 | 0 | 0 | 0 | 0.046875 | Отклонён: EOS/масса |
 | 19 | No-shell inference diagnostic (`623`) | 4×16, seed 42 | — | — | — | — | — | Остановлен: termination timeout |
+| 20 | Relaxed mass shell (`626`) | 4×16, seed 42, 500 ppm | RUNNING | RUNNING | RUNNING | RUNNING | RUNNING | Следующий termination test |
 
 `—` означает, что метрика не была частью данного parity-аудита или в старом
 артефакте не записана. Нули в molecular gate — фактические нули, а не
@@ -315,6 +316,7 @@ ClearML offline task `offline-fe140241d58543019853c6e66b786941`.
 - Slurm job `624` (completed canvas ablation): log `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/logs/marlin-inference-ablation-624.out`;
 - Slurm job `623` (cancelled no-shell diagnostic): log `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/logs/marlin-inference-ablation-623.out`;
 - Slurm job `625` (running full-backbone adaptation): log `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/logs/marlin-fp-adapt-625.out`;
+- Slurm job `626` (running relaxed mass-shell diagnostic): log `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/logs/marlin-inference-ablation-626.out`;
 - launcher local-disk fix commit `7ae6cb6`, paper-noise commit `8388db0`,
   bounded-screen override commit `25f83ad`, micro4 manifest/override commit
   `bbbfd25`, task-manifest commit `e99d362`, multinomial gate commit
@@ -338,12 +340,16 @@ fingerprint cross-attention, затем оставшиеся `900` шагов р
 backbone; молекулярная оценка выполняется только в конце, чтобы не тратить
 двухчасовой Slurm budget на четыре дорогих промежуточных evaluator-а.
 
-Slurm job `625` принят в очередь `gpu-shared` и перешёл в `RUNNING` после
-освобождения shard-а; чужой job `614` не затрагивается. До появления финального
-`metrics.json` этот запуск не считается результатом и не получает Exact
-aggregate. ClearML работает в offline mode; task id
-`offline-74e70c1eb8df48f8bb5e99ffd96ebee8` записан в
+Slurm job `625` завершён на `gpu-shared` без вмешательства в чужой job `614`.
+Он создал `step=1000.ckpt` и полный molecular artifact. ClearML работает в
+offline mode; task id `offline-74e70c1eb8df48f8bb5e99ffd96ebee8` записан в
 `runs/spectrum-fingerprint-adaptation-slurm-625/run_manifest.json`.
+
+На 4 held-out rows full-backbone stage дал Exact@1/10 `0`, candidate return
+`0`, mass validity `0`, validity `0.140625`, mean dead ends `10.75`, EOS
+`5.25`, runtime `667.80 s`. Это улучшило grammar-validity относительно
+100-step screens, но не дало mass-compatible molecule; incumbent отклонён.
+Артефакт: `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/runs/spectrum-fingerprint-adaptation-slurm-625/periodic_molecular/step=1000/metrics.json`.
 
 **Эксперимент 18: canvas inference ablation (`624`)**
 
@@ -374,9 +380,15 @@ multinomial, grammar и panel, но передавал `--disable-mass-shell`.
 Частичный артефакт сохранён в
 `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/runs/marlin-ablate-noshell-623/`.
 
-Эксперимент 17 закрывается только после Slurm `COMPLETED` и наличия
-`periodic_molecular/step=1000/metrics.json`. Если return и mass validity
-останутся нулевыми, следующий номер посвящается диагностике termination /
-grammar dead ends или conditioning distribution — не увеличению длины прогона
-вслепую. Если появится non-zero return, тот же checkpoint проходит
-неизменённый three-seed confirmation, затем micro64/macro64.
+**Эксперимент 20: relaxed mass-shell diagnostic (`626`) — отправлен**
+
+Гипотеза: после full adaptation модель уже строит валидные SAFE/SMILES, но
+10-ppm termination слишком узок для её mass calibration. Меняется только
+`ppm_tolerance: 10 → 500`; checkpoint `625`, block decoder, multinomial,
+grammar, diversity dropout, seed и micro4 panel фиксированы. Это diagnostic,
+не paper-comparable score: promotion возможна только при отдельном строгом
+10-ppm rerun.
+
+Slurm job `626` отправлен на `gpu-shared`; output root
+`/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/runs/marlin-ablate-ppm500-626`.
+До полного `metrics.json` результат не считается.
