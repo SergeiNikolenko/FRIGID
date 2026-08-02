@@ -17,6 +17,7 @@ OUTPUT_DIR="${MARLIN_OUTPUT_DIR:?MARLIN_OUTPUT_DIR is required}"
 GENERATION_MODE="${MARLIN_GENERATION_MODE:-block}"
 DISABLE_MASS_SHELL="${MARLIN_DISABLE_MASS_SHELL:-0}"
 PPM_TOLERANCE="${MARLIN_PPM_TOLERANCE:-10.0}"
+FINGERPRINT_THRESHOLD="${MARLIN_FINGERPRINT_THRESHOLD:-0.95}"
 
 cd "$CODE"
 test -f "$CHECKPOINT"
@@ -43,7 +44,7 @@ ARGS=(
   --seed 42
   --max-spectra 4
   --spec-manifest "$CODE/configs/benchmarks/nplib1_v1/nplib1_val_micro4_v1.tsv"
-  --threshold 0.95
+  --threshold "$FINGERPRINT_THRESHOLD"
   --sample-tokens
 )
 if [[ "$DISABLE_MASS_SHELL" == "1" ]]; then
