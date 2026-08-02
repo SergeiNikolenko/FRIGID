@@ -55,6 +55,7 @@ Locked 803-spectrum test не используется для выбора мо�
 | 21 | Canvas + relaxed shell (`627`) | 4×16, seed 42, 500 ppm | 0 | 0 | 0 | 0 | 0.03125 | Отклонён: EOS/масса |
 | 22 | Predicted-fingerprint threshold (`628`) | 4×16, seed 42, threshold 0.50 | 0 | 0 | 0 | 0 | 0.15625 | Отклонён: threshold mismatch |
 | 23 | Soft DreaMS confidence (`629`) | 4×16, seed 42, threshold 0.50, amplitudes preserved | RUNNING | RUNNING | RUNNING | RUNNING | RUNNING | Conditioning ablation |
+| 24 | EOS recovery boost (`630`) | 4×16, seed 42, threshold 0.95, `eos_boost=4` | RUNNING | RUNNING | RUNNING | RUNNING | RUNNING | Termination ablation |
 
 `—` означает, что метрика не была частью данного parity-аудита или в старом
 артефакте не записана. Нули в molecular gate — фактические нули, а не
@@ -439,3 +440,14 @@ inference-only проверка потери confidence при бинариза�
 Изменение зафиксировано commit `6f4fe4d`; тесты molecular/evaluation suite
 прошли (`46 passed`). Job `629` отправлен на `gpu-shared`; output root
 `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/runs/marlin-ablate-soft050-629`.
+
+**Эксперимент 24: EOS recovery boost (`630`) — отправлен**
+
+У full-backbone checkpoint `625` часть попыток заканчивается dead-end до
+завершения SAFE. Проверяем только termination factor: `eos_boost 1.0 → 4.0`;
+threshold `0.95`, raw weights, block width `8`, строгая `10 ppm` shell,
+multinomial, panel и seed остаются locked. Это диагностическая итерация:
+promotion возможна только после проверки Exact на исходном scorer-е.
+
+Job `630` поставлен в очередь `gpu-shared`; output root
+`/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/runs/marlin-ablate-eosboost4-630`.
