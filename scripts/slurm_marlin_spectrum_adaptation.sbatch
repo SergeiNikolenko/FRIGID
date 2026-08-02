@@ -14,7 +14,8 @@ CODE="${MARLIN_CODE_ROOT:-$PROJECT_ROOT/code}"
 SHARED_ROOT=/mnt/netstorage/nikolenko/marlin
 RUNTIME_ROOT="$SHARED_ROOT/cache/runtime-inputs-spectrum-v1/16b1af5276034c041e85a4b7c43129a790b4fc091826485b691c93f9f7b699b3"
 CHECKPOINT="$SHARED_ROOT/runs/safe-gpt-pretrain-v3/checkpoints/step=30000.ckpt"
-RUN_ROOT="$SHARED_ROOT/runs/spectrum-fingerprint-adaptation-slurm-$SLURM_JOB_ID"
+LOCAL_ROOT="$PROJECT_ROOT/runs"
+RUN_ROOT="${MARLIN_ADAPT_RUN_ROOT:-$LOCAL_ROOT/spectrum-fingerprint-adaptation-slurm-$SLURM_JOB_ID}"
 
 cd "$CODE"
 test -f "$RUNTIME_ROOT/manifest.json"
@@ -23,7 +24,7 @@ test ! -e "$RUN_ROOT"
 
 export MARLIN_PYTHON="$PROJECT_ROOT/code/.venv/bin/python"
 export CLEARML_OFFLINE_MODE="${MARLIN_CLEARML_OFFLINE_MODE:-1}"
-export CLEARML_CACHE_DIR="$SHARED_ROOT/cache/clearml-offline/$SLURM_JOB_ID"
+export CLEARML_CACHE_DIR="${MARLIN_CLEARML_CACHE_DIR:-$PROJECT_ROOT/cache/clearml-offline/$SLURM_JOB_ID}"
 export PYTHONFAULTHANDLER=1
 export PYTHONPATH="$CODE/src${PYTHONPATH:+:$PYTHONPATH}"
 
