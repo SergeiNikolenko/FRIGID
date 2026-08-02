@@ -292,9 +292,8 @@ def main() -> None:
         },
         "initialization": start_report,
     }
-    (args.output_dir / "run_manifest.json").write_text(
-        json.dumps(manifest, indent=2, sort_keys=True) + "\n"
-    )
+    manifest_path = args.output_dir / "run_manifest.json"
+    manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
 
     config = OmegaConf.create(
         {
@@ -324,6 +323,12 @@ def main() -> None:
         }
     )
     clearml_task = _clearml_task(args, resolved)
+    manifest["clearml"] = {
+        "task_id": clearml_task.id,
+        "offline_mode": os.environ.get("CLEARML_OFFLINE_MODE", "0"),
+        "cache_dir": os.environ.get("CLEARML_CACHE_DIR"),
+    }
+    manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
     checkpoint_callback = L.pytorch.callbacks.ModelCheckpoint(
         dirpath=checkpoint_dir,
         filename="{step}",
