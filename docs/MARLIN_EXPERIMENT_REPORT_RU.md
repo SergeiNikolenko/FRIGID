@@ -341,7 +341,9 @@ backbone; молекулярная оценка выполняется толь�
 Slurm job `625` принят в очередь `gpu-shared` и перешёл в `RUNNING` после
 освобождения shard-а; чужой job `614` не затрагивается. До появления финального
 `metrics.json` этот запуск не считается результатом и не получает Exact
-aggregate.
+aggregate. ClearML работает в offline mode; task id
+`offline-74e70c1eb8df48f8bb5e99ffd96ebee8` записан в
+`runs/spectrum-fingerprint-adaptation-slurm-625/run_manifest.json`.
 
 **Эксперимент 18: canvas inference ablation (`624`)**
 
