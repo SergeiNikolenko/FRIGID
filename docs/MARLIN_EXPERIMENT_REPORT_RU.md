@@ -54,6 +54,7 @@ Locked 803-spectrum test не используется для выбора мо�
 | 20 | Relaxed mass shell (`626`) | 1/4×16, seed 42, 500 ppm | — | — | — | — | — | Остановлен: block termination timeout |
 | 21 | Canvas + relaxed shell (`627`) | 4×16, seed 42, 500 ppm | 0 | 0 | 0 | 0 | 0.03125 | Отклонён: EOS/масса |
 | 22 | Predicted-fingerprint threshold (`628`) | 4×16, seed 42, threshold 0.50 | RUNNING | RUNNING | RUNNING | RUNNING | RUNNING | Следующий conditioning test |
+| 23 | Soft DreaMS confidence (`629`) | 4×16, seed 42, threshold 0.50, amplitudes preserved | RUNNING | RUNNING | RUNNING | RUNNING | RUNNING | Conditioning ablation |
 
 `—` означает, что метрика не была частью данного parity-аудита или в старом
 артефакте не записана. Нули в molecular gate — фактические нули, а не
@@ -417,3 +418,17 @@ micro4 panel фиксированы. Это проверка distribution mismat
 
 Job `628` отправлен на `gpu-shared`; output root
 `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/runs/marlin-ablate-threshold050-628`.
+
+**Эксперимент 23: soft DreaMS confidence (`629`) — отправлен**
+
+Порог `0.50` из эксперимента 22 резко увеличивает число активных битов,
+но оставляет только бинарный сигнал. Здесь сохраняем probability amplitude
+на активных битах DreaMS (`p >= 0.50`) и применяем ту же diversity dropout,
+не меняя checkpoint, block decoder, строгую `10 ppm` маску, multinomial
+sampling или held-out panel. Для бинарных Morgan fingerprint warm-start
+поведение идентично: веса активных битов равны `1`; это отдельная
+inference-only проверка потери confidence при бинаризации.
+
+Изменение зафиксировано commit `6f4fe4d`; тесты molecular/evaluation suite
+прошли (`46 passed`). Job `629` отправлен на `gpu-shared`; output root
+`/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/runs/marlin-ablate-soft050-629`.
