@@ -263,6 +263,7 @@ ClearML offline task id и точный artifact path.
 - run roots `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/runs/spectrum-fingerprint-adaptation-slurm-{616,617,618}`;
 - offline caches `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/cache/clearml-offline/{616,617,618}`;
 - offline ClearML task for `616`: `offline-bf2f93df2ff741caa4cf4b155624ba3c`;
+- offline ClearML task for `618`: `offline-0d8c8d7ded524d02b151d85dcd27adbb`;
 - launcher local-disk fix commit `7ae6cb6`, paper-noise commit `8388db0`,
   bounded-screen override commit `25f83ad`, micro4 manifest/override commit
   (current).

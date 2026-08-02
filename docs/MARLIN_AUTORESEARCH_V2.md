@@ -71,8 +71,7 @@ that a complete evaluator artifact fits the two-hour wall clock.
 - expected molecular artifact:
   `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/runs/spectrum-fingerprint-adaptation-slurm-617/periodic_molecular/step=100/metrics.json`;
 - offline ClearML task:
-  `offline-bf2f93df2ff741caa4cf4b155624ba3c` (the 617 task id is recorded in
-  its run manifest after ClearML initialization).
+  `offline-0d8c8d7ded524d02b151d85dcd27adbb`.
 
 The numbered audit of this run and its predecessor is maintained in
 `docs/MARLIN_EXPERIMENT_REPORT_RU.md`.
