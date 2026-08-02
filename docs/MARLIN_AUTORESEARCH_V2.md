@@ -48,12 +48,27 @@ diagnostics. They cannot establish an incumbent.
 
 ## Active serialized run
 
-- Slurm 609: 100-step cross-attention adaptation to predicted DreaMS
-  fingerprints, queued after the shared GPU predecessor.
-- Slurm 611: scorer revision `4926f43d3c93320f9469ebc5547d61ed7cfeef0d`,
-  `afterok:609`, fixed micro32/16-candidate/seed-42 evaluation.
-- Expected metric artifact:
-  `/mnt/netstorage/nikolenko/marlin/runs/autoresearch/v2/job609-micro32-seed42.json`.
+Slurm `609` is retained only as an infrastructure failure: it reached the
+training launcher while `/mnt/netstorage` was full and failed before writing
+`run_manifest.json`. Its absence of molecular metrics must not be interpreted
+as a model result. The dependent stale jobs `610` and `611` were cancelled.
+
+The replacement is Slurm `616`, using the same checkpoint, evaluator, input
+hashes and 100-step cross-attention-only adaptation, but routing run outputs
+and the offline ClearML cache to local disk. It runs on a free
+`gpu-shared` shard and does not preempt the foreign job on the shared A100.
+
+- log:
+  `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/logs/marlin-fp-adapt-616.out`;
+- run root:
+  `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/code/runs/spectrum-fingerprint-adaptation-slurm-616`;
+- expected molecular artifact:
+  `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/code/runs/spectrum-fingerprint-adaptation-slurm-616/periodic_molecular/step=100/metrics.json`;
+- offline ClearML task:
+  `offline-bf2f93df2ff741caa4cf4b155624ba3c`.
+
+The numbered audit of this run and its predecessor is maintained in
+`docs/MARLIN_EXPERIMENT_REPORT_RU.md`.
 
 ## Decision after job 611
 
