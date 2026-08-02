@@ -307,7 +307,8 @@ noise, block width, dropout, mass shell, multinomial) фиксировано.
 - Slurm job `620` (active threshold-aligned screen): log `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/logs/marlin-fp-adapt-620.out`;
 - launcher local-disk fix commit `7ae6cb6`, paper-noise commit `8388db0`,
   bounded-screen override commit `25f83ad`, micro4 manifest/override commit
-  (current).
+  `bbbfd25`, task-manifest commit `e99d362`, multinomial gate commit
+  `a1926a7`, threshold override commit `af7d00c`.
 
 Параметр paper-noise включён в launcher и manifest после этого запуска,
 commit `8388db0`; тесты `tests/test_marlin.py`,

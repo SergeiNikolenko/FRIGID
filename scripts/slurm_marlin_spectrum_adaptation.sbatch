@@ -20,6 +20,8 @@ EVALUATION_SPECTRA="${MARLIN_EVALUATION_SPECTRA:-32}"
 EVALUATION_CANDIDATES="${MARLIN_EVALUATION_CANDIDATES:-16}"
 EVALUATION_MANIFEST="${MARLIN_EVALUATION_MANIFEST:-$CODE/configs/benchmarks/nplib1_v1/nplib1_val_micro32_v1.tsv}"
 TRAIN_FINGERPRINT_THRESHOLD="${MARLIN_TRAIN_FINGERPRINT_THRESHOLD:-0.90}"
+ADAPT_MAX_STEPS="${MARLIN_ADAPT_MAX_STEPS:-100}"
+CROSS_ATTENTION_ONLY_STEPS="${MARLIN_CROSS_ATTENTION_ONLY_STEPS:-100}"
 
 cd "$CODE"
 test -f "$RUNTIME_ROOT/manifest.json"
@@ -51,12 +53,12 @@ source "$CODE/scripts/marlin_runtime_env.sh"
   --validation-fingerprint-threshold 0.95 \
   --evaluation-manifest "$EVALUATION_MANIFEST" \
   --output-dir "$RUN_ROOT" \
-  --max-steps 100 \
+  --max-steps "$ADAPT_MAX_STEPS" \
   --evaluation-interval 100 \
   --checkpoint-interval 100 \
   --evaluation-spectra "$EVALUATION_SPECTRA" \
   --evaluation-candidates "$EVALUATION_CANDIDATES" \
-  --cross-attention-only-steps 100 \
+  --cross-attention-only-steps "$CROSS_ATTENTION_ONLY_STEPS" \
   --noise-probability 0.5 \
   --noise-min-fraction 0.1 \
   --noise-max-fraction 0.3 \
