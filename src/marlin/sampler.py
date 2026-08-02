@@ -277,7 +277,7 @@ class MarlinSampler:
                 canonical = Chem.MolToSmiles(molecule, canonical=True)
                 unique.setdefault(canonical, (safe, canonical, is_mass_valid))
 
-        reference = _fingerprint(original)
+        reference = _fingerprint((original > 0.5).to(torch.float32))
         ranked = []
         unique_mass_valid = 0
         for safe, smiles, is_mass_valid in unique.values():
