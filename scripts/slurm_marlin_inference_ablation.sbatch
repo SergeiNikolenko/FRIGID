@@ -20,6 +20,8 @@ PPM_TOLERANCE="${MARLIN_PPM_TOLERANCE:-10.0}"
 FINGERPRINT_THRESHOLD="${MARLIN_FINGERPRINT_THRESHOLD:-0.95}"
 USE_EMA="${MARLIN_USE_EMA:-1}"
 SOFT_FINGERPRINT="${MARLIN_SOFT_FINGERPRINT:-0}"
+EOS_BOOST="${MARLIN_EOS_BOOST:-1.0}"
+FIX_SAFE_DECODE="${MARLIN_FIX_SAFE_DECODE:-0}"
 
 cd "$CODE"
 test -f "$CHECKPOINT"
@@ -43,6 +45,7 @@ ARGS=(
   --temperature 1.0
   --generation-mode "$GENERATION_MODE"
   --ppm-tolerance "$PPM_TOLERANCE"
+  --eos-boost "$EOS_BOOST"
   --seed 42
   --max-spectra 4
   --spec-manifest "$CODE/configs/benchmarks/nplib1_v1/nplib1_val_micro4_v1.tsv"
@@ -51,6 +54,9 @@ ARGS=(
 )
 if [[ "$SOFT_FINGERPRINT" == "1" ]]; then
   ARGS+=(--soft-fingerprint)
+fi
+if [[ "$FIX_SAFE_DECODE" == "1" ]]; then
+  ARGS+=(--fix-safe-decode)
 fi
 if [[ "$DISABLE_MASS_SHELL" == "1" ]]; then
   ARGS+=(--disable-mass-shell)
