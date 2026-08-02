@@ -53,19 +53,26 @@ training launcher while `/mnt/netstorage` was full and failed before writing
 `run_manifest.json`. Its absence of molecular metrics must not be interpreted
 as a model result. The dependent stale jobs `610` and `611` were cancelled.
 
-The replacement is Slurm `616`, using the same checkpoint, evaluator, input
-hashes and 100-step cross-attention-only adaptation, but routing run outputs
-and the offline ClearML cache to local disk. It runs on a free
-`gpu-shared` shard and does not preempt the foreign job on the shared A100.
+The storage-only replacement `616` was stopped after a partial `4/32` rows:
+the 32-row evaluator would not fit the two-hour wall clock. It is retained as
+an infrastructure control and has no aggregate molecular score.
+
+The active paper-recipe screen is Slurm `617`, using the same checkpoint,
+evaluator and input hashes, routing outputs and offline ClearML cache to local
+disk, and enabling symmetric fingerprint noise (`p=0.5`, `rho~U(0.1,0.3)`).
+It runs on a free `gpu-shared` shard and does not preempt the foreign job on
+the shared A100. The screen is bounded to four spectra and 16 candidates so
+that a complete evaluator artifact fits the two-hour wall clock.
 
 - log:
-  `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/logs/marlin-fp-adapt-616.out`;
+  `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/logs/marlin-fp-adapt-617.out`;
 - run root:
-  `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/runs/spectrum-fingerprint-adaptation-slurm-616`;
+  `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/runs/spectrum-fingerprint-adaptation-slurm-617`;
 - expected molecular artifact:
-  `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/code/runs/spectrum-fingerprint-adaptation-slurm-616/periodic_molecular/step=100/metrics.json`;
+  `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/runs/spectrum-fingerprint-adaptation-slurm-617/periodic_molecular/step=100/metrics.json`;
 - offline ClearML task:
-  `offline-bf2f93df2ff741caa4cf4b155624ba3c`.
+  `offline-bf2f93df2ff741caa4cf4b155624ba3c` (the 617 task id is recorded in
+  its run manifest after ClearML initialization).
 
 The numbered audit of this run and its predecessor is maintained in
 `docs/MARLIN_EXPERIMENT_REPORT_RU.md`.

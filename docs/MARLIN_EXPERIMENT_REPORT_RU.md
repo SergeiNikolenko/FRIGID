@@ -43,7 +43,8 @@ Locked 803-spectrum test не используется для выбора мо�
 | 9 | DreaMS fingerprint threshold parity | 396 rows | — | — | — | — | — | `0.95` зафиксирован |
 | 10 | Mass-shell / tokenizer parity | 396 rows | — | — | — | — | — | Маска не виновата |
 | 11 | Adaptation на NFS (`609`) | 100 steps | — | — | — | — | — | Инфраструктурный fail: диск |
-| 12 | Adaptation на local disk + gpu-shared shard (`616`) | 32×16, 100 steps | RUNNING | RUNNING | RUNNING | RUNNING | RUNNING | Ждём evaluator |
+| 12 | Adaptation на local disk + gpu-shared shard (`616`) | 4/32×16, 100 steps | — | — | — | — | — | Остановлен: panel не укладывался в лимит |
+| 13 | Paper-noise adaptation на bounded screen (`617`) | 4×16, 100 steps | RUNNING | RUNNING | RUNNING | RUNNING | RUNNING | Ждём evaluator |
 
 `—` означает, что метрика не была частью данного parity-аудита или в старом
 артефакте не записана. Нули в molecular gate — фактические нули, а не
@@ -222,19 +223,33 @@ diversity dropout `0.3`, cross-attention-only adaptation. Важная огов�
 control для `609`, а не paper-noise candidate. Новый paper-recipe run будет
 иметь `p=0.5`, `rho~U(0.1,0.3)` и получит следующий номер.
 
-Состояние на момент записи: `RUNNING`; метрики намеренно не заполняются до
-появления `metrics.json`. После завершения сюда добавляются Exact@1/10,
-candidate return, mass/strict validity, termination diagnostics, ClearML
-offline task id и точный artifact path.
+Сначала `616` был остановлен после `4/32` строк и `19:16` runtime: при
+скорости примерно четыре spectrum за 18 минут 32-row panel не мог завершить
+evaluator в двухчасовом Slurm лимите. Полученный partial JSONL сохранён, но
+не используется как molecular result и не получает Exact aggregate.
+
+**Эксперимент 13: paper-noise adaptation на bounded screen (`617`)**
+
+Это тот же FRIGID warm start, структура данных, optimizer, mass-shell scorer и
+threshold, но с исправленной symmetric fingerprint noise:
+`p=0.5`, `rho~U(0.1,0.3)`, equal drop/add. Panel сокращён до предусмотренного
+screen `4` spectra × `16` candidates, чтобы получить полный `metrics.json` за
+один Slurm лимит; это не финальный paper-comparable score.
+
+Состояние на момент записи: Slurm `617`, `RUNNING`; метрики намеренно не
+заполняются до появления `metrics.json`. После завершения сюда добавляются
+Exact@1/10, candidate return, mass/strict validity, termination diagnostics,
+ClearML offline task id и точный artifact path.
 
 Доказательства запуска:
 
-- Slurm job `616`;
-- log `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/logs/marlin-fp-adapt-616.out`;
-- run root `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/runs/spectrum-fingerprint-adaptation-slurm-616`;
-- offline cache `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/cache/clearml-offline/616`;
-- offline ClearML task `offline-bf2f93df2ff741caa4cf4b155624ba3c`;
-- launcher fix commit `7ae6cb6`.
+- Slurm job `616` (partial control): log `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/logs/marlin-fp-adapt-616.out`;
+- Slurm job `617` (active paper-noise screen): log `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/logs/marlin-fp-adapt-617.out`;
+- run roots `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/runs/spectrum-fingerprint-adaptation-slurm-{616,617}`;
+- offline caches `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/cache/clearml-offline/{616,617}`;
+- offline ClearML task for `616`: `offline-bf2f93df2ff741caa4cf4b155624ba3c`;
+- launcher local-disk fix commit `7ae6cb6`, paper-noise commit `8388db0`,
+  bounded-screen override commit `25f83ad`.
 
 Параметр paper-noise включён в launcher и manifest после этого запуска,
 commit `8388db0`; тесты `tests/test_marlin.py`,
