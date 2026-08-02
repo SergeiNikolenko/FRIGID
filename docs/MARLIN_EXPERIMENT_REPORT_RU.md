@@ -53,7 +53,7 @@ Locked 803-spectrum test не используется для выбора мо�
 | 19 | No-shell inference diagnostic (`623`) | 4×16, seed 42 | — | — | — | — | — | Остановлен: termination timeout |
 | 20 | Relaxed mass shell (`626`) | 1/4×16, seed 42, 500 ppm | — | — | — | — | — | Остановлен: block termination timeout |
 | 21 | Canvas + relaxed shell (`627`) | 4×16, seed 42, 500 ppm | 0 | 0 | 0 | 0 | 0.03125 | Отклонён: EOS/масса |
-| 22 | Predicted-fingerprint threshold (`628`) | 4×16, seed 42, threshold 0.50 | RUNNING | RUNNING | RUNNING | RUNNING | RUNNING | Следующий conditioning test |
+| 22 | Predicted-fingerprint threshold (`628`) | 4×16, seed 42, threshold 0.50 | 0 | 0 | 0 | 0 | 0.15625 | Отклонён: threshold mismatch |
 | 23 | Soft DreaMS confidence (`629`) | 4×16, seed 42, threshold 0.50, amplitudes preserved | RUNNING | RUNNING | RUNNING | RUNNING | RUNNING | Conditioning ablation |
 
 `—` означает, что метрика не была частью данного parity-аудита или в старом
@@ -408,7 +408,7 @@ return `0`, mass validity `0`, validity `0.03125`, EOS `16`, dead ends `0`.
 Relaxed shell в canvas lane также не дал candidate; incumbent отклонён.
 Артефакты: `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/runs/marlin-ablate-canvas-ppm500-627/{metrics.json,manifest.json,predictions.jsonl}`.
 
-**Эксперимент 22: predicted-fingerprint threshold (`628`) — отправлен**
+**Эксперимент 22: predicted-fingerprint threshold (`628`) — завершён**
 
 После full adaptation и mass-tolerance tests следующий короткий conditioning
 factor — порог бинаризации DreaMS `probs`: `0.95 → 0.50`. Checkpoint `625`,
@@ -416,8 +416,15 @@ strict `10 ppm` shell, block decoder, multinomial, diversity dropout, seed и
 micro4 panel фиксированы. Это проверка distribution mismatch; promotion
 возможна только при non-zero Exact на том же строгом scorer-е.
 
-Job `628` отправлен на `gpu-shared`; output root
-`/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/runs/marlin-ablate-threshold050-628`.
+Job `628` завершён на `gpu-shared`. На 4 held-out rows threshold `0.50`
+дал Exact@1/10 `0`, candidate return `0`, mass validity `0`, validity
+`0.15625`, mean dead ends `12`, EOS `4`, runtime `690.04 s`. В отличие от
+locked `0.95`, порог не создал mass-compatible molecule; checkpoint был
+обучен с threshold `0.95`, поэтому это отрицательный distribution-mismatch
+control, а не кандидат на promotion.
+
+Артефакты: `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/runs/marlin-ablate-threshold050-628/{metrics.json,manifest.json,predictions.jsonl}`;
+log `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/logs/marlin-inference-ablation-628.out`.
 
 **Эксперимент 23: soft DreaMS confidence (`629`) — отправлен**
 
