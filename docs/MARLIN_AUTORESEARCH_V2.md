@@ -68,31 +68,42 @@ return `0`, mass validity `0`, strict validity `0.046875`, and validity
 `0.046875`; it is rejected as a paper result because the evaluator omitted
 multinomial token sampling.
 
-The active paper-recipe screen is Slurm `619`, using the same checkpoint,
-evaluator and input hashes, routing outputs and offline ClearML cache to local
-disk, enabling symmetric fingerprint noise (`p=0.5`, `rho~U(0.1,0.3)`), and
-passing `--sample-tokens` to the evaluator.
-It runs on a free `gpu-shared` shard and does not preempt the foreign job on
-the shared A100. The screen is bounded to four spectra and 16 candidates so
-that a complete evaluator artifact fits the two-hour wall clock.
+The completed paper-recipe screens are Slurm `619` (multinomial sampling) and
+`620` (the same recipe with train threshold aligned to evaluation at `0.95`).
+Both used the same checkpoint, evaluator and input hashes, local-disk outputs,
+symmetric fingerprint noise (`p=0.5`, `rho~U(0.1,0.3)`), and a four-row held-out
+panel. Both returned Exact@1/10 `0` and candidate return `0`; their full
+metrics remain in the numbered experiment ledger.
 
-- log:
-  `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/logs/marlin-fp-adapt-619.out`;
-- run root:
-  `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/runs/spectrum-fingerprint-adaptation-slurm-619`;
-- expected molecular artifact:
-  `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/runs/spectrum-fingerprint-adaptation-slurm-619/periodic_molecular/step=100/metrics.json`;
-- offline ClearML task:
-  `offline-0d8c8d7ded524d02b151d85dcd27adbb` (618; 619 task id is recorded in
-  its run manifest after initialization).
+Two inference-only diagnostics are serialized next: `623` disables the mass
+shell to test whether it is the immediate bottleneck, while `624` uses the
+canvas decoder with the shell enabled. They are not promotion candidates and
+must be reported with their exact mode and panel.
+
+The active causal training test is Slurm `625`: full-backbone paper-noise
+adaptation on the same micro4 panel, with 100 cross-attention-only steps then
+900 full-backbone steps and one final molecular evaluator. It runs on a free
+`gpu-shared` shard and does not preempt the foreign job on the shared A100.
+
+- logs:
+  `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/logs/marlin-fp-adapt-{619,620,625}.out`;
+- run roots:
+  `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/runs/spectrum-fingerprint-adaptation-slurm-{619,620,625}`;
+- molecular artifacts:
+  `.../periodic_molecular/step=100/metrics.json` for `619/620`, and
+  `.../periodic_molecular/step=1000/metrics.json` for `625`;
+- offline ClearML task IDs are recorded in each run's `run_manifest.json`;
+  the API-backed ClearML dashboard is still blocked by the private API auth
+  proxy, so offline IDs are not presented as live web tasks.
 
 The numbered audit of this run and its predecessor is maintained in
 `docs/MARLIN_EXPERIMENT_REPORT_RU.md`.
 
-## Decision after job 611
+## Decision after job 620
 
-1. If validity remains zero, inspect termination, grammar dead ends and
-   teacher-forced reconstruction before further conditioning experiments.
+1. If the no-shell/canvas diagnostics show valid candidates but no mass return,
+   keep the shell in the paper lane and fix mass-compatible termination rather
+   than claiming an Exact improvement from an invalid decoder.
 2. If validity is non-zero but mass validity is zero, optimize predicted-
    fingerprint conditioning and mass-compatible termination; do not tune
    ranking or Exact sampling yet.
