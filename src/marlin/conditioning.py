@@ -79,6 +79,11 @@ class SparseFingerprintEncoder(nn.Module):
             indices[row, : row_indices.numel()] = row_indices
             mask[row, : row_indices.numel()] = True
         tokens = self.dropout(self.layer_norm(self.embedding(indices)))
+        # Binary Morgan fingerprints (the warm-start contract) have unit
+        # weights, while soft DreaMS probabilities retain confidence on the
+        # same active-bit token set without changing parameter shapes.
+        weights = torch.gather(fingerprint, 1, indices)
+        tokens = tokens * weights.unsqueeze(-1)
         attention_mask = mask.clone()
         empty = ~attention_mask.any(dim=1)
         if empty.any():

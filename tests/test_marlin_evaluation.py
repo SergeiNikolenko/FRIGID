@@ -33,6 +33,26 @@ def test_load_fingerprints_accepts_leading_metadata_subset_without_ids(tmp_path)
     assert np.array_equal(loaded, fingerprints[:1])
 
 
+def test_load_fingerprints_can_preserve_soft_probabilities(tmp_path):
+    fingerprints = np.zeros((1, 4096), dtype=np.float32)
+    fingerprints[0, [7, 11]] = [0.61, 0.99]
+    path = tmp_path / "fingerprints.npz"
+    np.savez(path, probs=fingerprints)
+    metadata = pd.DataFrame({"spec_name": ["spectrum-0"]})
+
+    loaded = load_fingerprints(
+        path,
+        "probs",
+        0.5,
+        metadata,
+        allow_leading_subset=True,
+        preserve_probabilities=True,
+    )
+
+    assert loaded[0, 7] == pytest.approx(0.61)
+    assert loaded[0, 11] == pytest.approx(0.99)
+
+
 def test_mass_bin_metrics_use_paper_boundaries():
     rows = [
         {"neutral_mass": 299.9, "exact_top1": True},

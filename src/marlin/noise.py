@@ -58,4 +58,4 @@ def perturb_fingerprint(
         device=fingerprint.device,
         generator=generator,
     ) >= dropout
-    return ((fingerprint > 0.5) & keep).to(dtype=fingerprint.dtype)
+    return fingerprint * (keep & (fingerprint > 0.5)).to(dtype=fingerprint.dtype)

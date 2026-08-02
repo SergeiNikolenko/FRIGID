@@ -19,6 +19,7 @@ DISABLE_MASS_SHELL="${MARLIN_DISABLE_MASS_SHELL:-0}"
 PPM_TOLERANCE="${MARLIN_PPM_TOLERANCE:-10.0}"
 FINGERPRINT_THRESHOLD="${MARLIN_FINGERPRINT_THRESHOLD:-0.95}"
 USE_EMA="${MARLIN_USE_EMA:-1}"
+SOFT_FINGERPRINT="${MARLIN_SOFT_FINGERPRINT:-0}"
 
 cd "$CODE"
 test -f "$CHECKPOINT"
@@ -48,6 +49,9 @@ ARGS=(
   --threshold "$FINGERPRINT_THRESHOLD"
   --sample-tokens
 )
+if [[ "$SOFT_FINGERPRINT" == "1" ]]; then
+  ARGS+=(--soft-fingerprint)
+fi
 if [[ "$DISABLE_MASS_SHELL" == "1" ]]; then
   ARGS+=(--disable-mass-shell)
 fi

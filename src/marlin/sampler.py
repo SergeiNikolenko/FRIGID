@@ -223,7 +223,7 @@ class MarlinSampler:
             raise ValueError("temperature must be positive")
         if candidate_batch_size is not None and candidate_batch_size <= 0:
             raise ValueError("candidate_batch_size must be positive")
-        original = (fingerprint > 0.5).to(torch.float32)
+        original = fingerprint.to(torch.float32)
         generator_fn = (
             self._generate_many_canvas
             if self.generation_mode == "canvas"

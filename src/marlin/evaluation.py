@@ -95,6 +95,7 @@ def load_fingerprints(
     metadata: pd.DataFrame,
     *,
     allow_leading_subset: bool = False,
+    preserve_probabilities: bool = False,
 ) -> np.ndarray:
     with np.load(path, allow_pickle=False) as arrays:
         if key not in arrays:
@@ -122,8 +123,11 @@ def load_fingerprints(
         raise ValueError(
             f"fingerprints must have shape ({len(metadata)}, 4096), got {values.shape}"
         )
-    if threshold is not None:
+    if threshold is not None and not preserve_probabilities:
         values = values >= threshold
     elif not np.array_equal(values, values.astype(bool)):
-        raise ValueError("non-binary fingerprints require --threshold")
+        if not preserve_probabilities:
+            raise ValueError("non-binary fingerprints require --threshold")
+        if np.any(values < 0.0) or np.any(values > 1.0):
+            raise ValueError("soft fingerprints must be probabilities in [0, 1]")
     return values.astype(np.float32, copy=False)

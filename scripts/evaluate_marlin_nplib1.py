@@ -51,6 +51,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--fingerprints", type=Path, required=True)
     parser.add_argument("--fingerprint-key", required=True)
     parser.add_argument("--threshold", type=float)
+    parser.add_argument(
+        "--soft-fingerprint",
+        action="store_true",
+        help="keep probability amplitudes on active bits while using threshold for sparsity",
+    )
     parser.add_argument("--lane-provenance", type=Path)
     parser.add_argument("--formula-manifest", type=Path)
     parser.add_argument("--feature-bridge-manifest", type=Path)
@@ -448,6 +453,7 @@ def main() -> None:
         args.threshold,
         metadata,
         allow_leading_subset=args.max_spectra is not None,
+        preserve_probabilities=args.soft_fingerprint,
     )
     device = torch.device(args.device)
     model = load_decoder(
@@ -551,6 +557,7 @@ def main() -> None:
         "lane": args.lane,
         "fingerprint_key": args.fingerprint_key,
         "fingerprint_threshold": args.threshold,
+        "soft_fingerprint": args.soft_fingerprint,
         "candidates": args.candidates,
         "diversity_dropout": args.diversity_dropout,
         "temperature": args.temperature,
