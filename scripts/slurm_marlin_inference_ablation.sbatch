@@ -18,6 +18,7 @@ GENERATION_MODE="${MARLIN_GENERATION_MODE:-block}"
 DISABLE_MASS_SHELL="${MARLIN_DISABLE_MASS_SHELL:-0}"
 PPM_TOLERANCE="${MARLIN_PPM_TOLERANCE:-10.0}"
 FINGERPRINT_THRESHOLD="${MARLIN_FINGERPRINT_THRESHOLD:-0.95}"
+USE_EMA="${MARLIN_USE_EMA:-1}"
 
 cd "$CODE"
 test -f "$CHECKPOINT"
@@ -49,6 +50,9 @@ ARGS=(
 )
 if [[ "$DISABLE_MASS_SHELL" == "1" ]]; then
   ARGS+=(--disable-mass-shell)
+fi
+if [[ "$USE_EMA" == "0" ]]; then
+  ARGS+=(--no-ema)
 fi
 
 "$MARLIN_PYTHON" -X faulthandler "${ARGS[@]}"
