@@ -216,7 +216,11 @@ dead ends — не арифметика маски.
 
 Параметры: `100` steps, `nplib1_val_micro32_v1.tsv`, `32` spectra,
 `16` candidates, seed `42`, threshold `0.95`, block width `8`, `10 ppm`,
-diversity dropout `0.3`, cross-attention-only adaptation.
+diversity dropout `0.3`, cross-attention-only adaptation. Важная оговорка:
+этот запуск был создан до исправления параметра и использует
+`symmetric_fingerprint_noise.p=0.0`; поэтому он является storage-replacement
+control для `609`, а не paper-noise candidate. Новый paper-recipe run будет
+иметь `p=0.5`, `rho~U(0.1,0.3)` и получит следующий номер.
 
 Состояние на момент записи: `RUNNING`; метрики намеренно не заполняются до
 появления `metrics.json`. После завершения сюда добавляются Exact@1/10,
@@ -231,6 +235,11 @@ offline task id и точный artifact path.
 - offline cache `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/cache/clearml-offline/616`;
 - offline ClearML task `offline-bf2f93df2ff741caa4cf4b155624ba3c`;
 - launcher fix commit `7ae6cb6`.
+
+Параметр paper-noise включён в launcher и manifest после этого запуска,
+commit `8388db0`; тесты `tests/test_marlin.py`,
+`tests/test_marlin_spectrum_dataset.py`, `tests/test_expanding_marlin.py` и
+`tests/test_marlin_paper_recipe.py` прошли (`65 passed`).
 
 ## Следующая запись
 
