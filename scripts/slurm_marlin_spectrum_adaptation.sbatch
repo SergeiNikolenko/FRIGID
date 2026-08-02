@@ -19,6 +19,7 @@ RUN_ROOT="${MARLIN_ADAPT_RUN_ROOT:-$LOCAL_ROOT/spectrum-fingerprint-adaptation-s
 EVALUATION_SPECTRA="${MARLIN_EVALUATION_SPECTRA:-32}"
 EVALUATION_CANDIDATES="${MARLIN_EVALUATION_CANDIDATES:-16}"
 EVALUATION_MANIFEST="${MARLIN_EVALUATION_MANIFEST:-$CODE/configs/benchmarks/nplib1_v1/nplib1_val_micro32_v1.tsv}"
+TRAIN_FINGERPRINT_THRESHOLD="${MARLIN_TRAIN_FINGERPRINT_THRESHOLD:-0.90}"
 
 cd "$CODE"
 test -f "$RUNTIME_ROOT/manifest.json"
@@ -41,7 +42,7 @@ source "$CODE/scripts/marlin_runtime_env.sh"
   --metadata "$RUNTIME_ROOT/train/metadata.csv" \
   --fingerprints "$RUNTIME_ROOT/train/dreams_predictions.npz" \
   --fingerprint-key probs \
-  --fingerprint-threshold 0.90 \
+  --fingerprint-threshold "$TRAIN_FINGERPRINT_THRESHOLD" \
   --exclude-inchikeys "$RUNTIME_ROOT/nplib1_test_inchikeys.csv" \
   --exclude-metadata "$RUNTIME_ROOT/val/metadata.csv" \
   --validation-metadata "$RUNTIME_ROOT/val/metadata.csv" \

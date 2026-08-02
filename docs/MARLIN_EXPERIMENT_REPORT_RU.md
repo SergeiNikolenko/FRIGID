@@ -46,7 +46,8 @@ Locked 803-spectrum test не используется для выбора мо�
 | 12 | Adaptation на local disk + gpu-shared shard (`616`) | 4/32×16, 100 steps | — | — | — | — | — | Остановлен: panel не укладывался в лимит |
 | 13 | Paper-noise adaptation на bounded screen (`617`) | 4×16, 100 steps | — | — | — | — | — | Evaluator config fail |
 | 14 | Paper-noise adaptation с micro4 manifest (`618`) | 4×16, 100 steps | 0 | 0 | 0 | 0 | 0.046875 | Отклонён: argmax gate |
-| 15 | Paper-noise + multinomial sampling (`619`) | 4×16, 100 steps | RUNNING | RUNNING | RUNNING | RUNNING | RUNNING | Ждём evaluator |
+| 15 | Paper-noise + multinomial sampling (`619`) | 4×16, 100 steps | 0 | 0 | 0 | 0 | 0 | Отклонён: conditioning dead ends |
+| 16 | Threshold-aligned paper-noise adaptation (`620`) | 4×16, 100 steps | RUNNING | RUNNING | RUNNING | RUNNING | RUNNING | Ждём evaluator |
 
 `—` означает, что метрика не была частью данного parity-аудита или в старом
 артефакте не записана. Нули в molecular gate — фактические нули, а не
@@ -272,7 +273,25 @@ multinomial sampling при фиксированных seed и temperature. Ме
 fingerprint threshold, mass shell, block width, diversity dropout и panel
 остаются без изменений.
 
-Состояние на момент записи: Slurm `619`, `RUNNING`; метрики появятся только
+Slurm `619` завершён (`00:19:55`) с `token_selection=multinomial`. На 4
+held-out rows он дал Exact@1 `0`, Exact@10 `0`, candidate return `0`, mass
+validity `0`, validity `0`, strict-valid candidate return `0`, mean dead ends
+`15.25`, mean EOS terminations `0.75`, runtime `731.07 s`. Это отвергает
+гипотезу, что один только argmax был причиной нулевого molecular return.
+
+Артефакты: `metrics.json`, `manifest.json`, `predictions.jsonl` в
+`/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/runs/spectrum-fingerprint-adaptation-slurm-619/periodic_molecular/step=100`;
+ClearML offline task `offline-568127ad56ff4a63ae64253846615423`.
+
+**Эксперимент 16: threshold-aligned paper-noise adaptation (`620`)**
+
+Гипотеза: adaptation обучался на binary DreaMS fingerprints с train threshold
+`0.90`, а evaluation подавал threshold `0.95`; это оставляло conditioning
+distribution shift даже после symmetric noise. Меняем только train threshold
+на `0.95`; evaluation остаётся `0.95`, всё остальное (checkpoint, seed, panel,
+noise, block width, dropout, mass shell, multinomial) фиксировано.
+
+Состояние на момент записи: Slurm `620`, `RUNNING`; метрики появятся только
 после полного `metrics.json`.
 
 Доказательства запуска:
@@ -285,6 +304,7 @@ fingerprint threshold, mass shell, block width, diversity dropout и panel
 - offline ClearML task for `616`: `offline-bf2f93df2ff741caa4cf4b155624ba3c`;
 - offline ClearML task for `618`: `offline-0d8c8d7ded524d02b151d85dcd27adbb`;
 - Slurm job `619` (active multinomial screen): log `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/logs/marlin-fp-adapt-619.out`;
+- Slurm job `620` (active threshold-aligned screen): log `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/logs/marlin-fp-adapt-620.out`;
 - launcher local-disk fix commit `7ae6cb6`, paper-noise commit `8388db0`,
   bounded-screen override commit `25f83ad`, micro4 manifest/override commit
   (current).
