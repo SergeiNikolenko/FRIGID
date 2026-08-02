@@ -56,6 +56,7 @@ Locked 803-spectrum test не используется для выбора мо�
 | 22 | Predicted-fingerprint threshold (`628`) | 4×16, seed 42, threshold 0.50 | 0 | 0 | 0 | 0 | 0.15625 | Отклонён: threshold mismatch |
 | 23 | Soft DreaMS confidence (`629`) | 4×16, seed 42, threshold 0.50, amplitudes preserved | RUNNING | RUNNING | RUNNING | RUNNING | RUNNING | Conditioning ablation |
 | 24 | EOS recovery boost (`630`) | 4×16, seed 42, threshold 0.95, `eos_boost=4` | RUNNING | RUNNING | RUNNING | RUNNING | RUNNING | Termination ablation |
+| 25 | Soft-fingerprint adaptation (`631`) | train DreaMS probabilities, 1000 steps, eval 4×16 | RUNNING | RUNNING | RUNNING | RUNNING | RUNNING | Conditioning adaptation |
 
 `—` означает, что метрика не была частью данного parity-аудита или в старом
 артефакте не записана. Нули в molecular gate — фактические нули, а не
@@ -451,3 +452,17 @@ promotion возможна только после проверки Exact на �
 
 Job `630` поставлен в очередь `gpu-shared`; output root
 `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/runs/marlin-ablate-eosboost4-630`.
+
+**Эксперимент 25: soft-fingerprint adaptation (`631`) — отправлен**
+
+Inference-only confidence test проверяет другой input distribution, но
+checkpoint `625` был обучен на бинарных fingerprints. Поэтому запускаем
+один staged FRIGID adaptation на structure-disjoint train split: threshold
+`0.95` задаёт активные bits, а probability amplitude сохраняется на этих
+bits; symmetric noise drop/add также сохраняет amplitude. Validation остаётся
+неизменным held-out `micro4`, строгий `10 ppm`, block width `8`, multinomial,
+seed 42. Locked test не используется.
+
+Изменения кода: commit `fbbdd2e`; тесты `58 passed`. Job `631` поставлен на
+`gpu-shared`, run root
+`/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/runs/spectrum-fingerprint-soft-adaptation-slurm-631`.
