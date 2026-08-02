@@ -47,7 +47,8 @@ Locked 803-spectrum test не используется для выбора мо�
 | 13 | Paper-noise adaptation на bounded screen (`617`) | 4×16, 100 steps | — | — | — | — | — | Evaluator config fail |
 | 14 | Paper-noise adaptation с micro4 manifest (`618`) | 4×16, 100 steps | 0 | 0 | 0 | 0 | 0.046875 | Отклонён: argmax gate |
 | 15 | Paper-noise + multinomial sampling (`619`) | 4×16, 100 steps | 0 | 0 | 0 | 0 | 0 | Отклонён: conditioning dead ends |
-| 16 | Threshold-aligned paper-noise adaptation (`620`) | 4×16, 100 steps | RUNNING | RUNNING | RUNNING | RUNNING | RUNNING | Ждём evaluator |
+| 16 | Threshold-aligned paper-noise adaptation (`620`) | 4×16, 100 steps | 0 | 0 | 0 | 0 | 0.015625 | Отклонён: threshold alone |
+| 17 | Full-backbone paper-noise adaptation (`625`) | 4×16, 1000 steps | QUEUED | QUEUED | QUEUED | QUEUED | QUEUED | Следующий causal test |
 
 `—` означает, что метрика не была частью данного parity-аудита или в старом
 артефакте не записана. Нули в molecular gate — фактические нули, а не
@@ -291,8 +292,12 @@ distribution shift даже после symmetric noise. Меняем тольк�
 на `0.95`; evaluation остаётся `0.95`, всё остальное (checkpoint, seed, panel,
 noise, block width, dropout, mass shell, multinomial) фиксировано.
 
-Состояние на момент записи: Slurm `620`, `RUNNING`; метрики появятся только
-после полного `metrics.json`.
+Slurm `620` завершён (`00:19:16`). Aligning train threshold to `0.95` не
+дал улучшения: Exact@1/10 `0`, candidate return `0`, mass validity `0`,
+validity `0.015625`, strict validity `0.015625`, mean dead ends `14.25`, EOS
+`1.75`. Артефакт:
+`/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/runs/spectrum-fingerprint-adaptation-slurm-620/periodic_molecular/step=100/metrics.json`;
+ClearML offline task `offline-fe140241d58543019853c6e66b786941`.
 
 Доказательства запуска:
 
@@ -305,6 +310,7 @@ noise, block width, dropout, mass shell, multinomial) фиксировано.
 - offline ClearML task for `618`: `offline-0d8c8d7ded524d02b151d85dcd27adbb`;
 - Slurm job `619` (active multinomial screen): log `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/logs/marlin-fp-adapt-619.out`;
 - Slurm job `620` (active threshold-aligned screen): log `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/logs/marlin-fp-adapt-620.out`;
+- Slurm job `625` (queued full-backbone adaptation): log `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/logs/marlin-fp-adapt-625.out`;
 - launcher local-disk fix commit `7ae6cb6`, paper-noise commit `8388db0`,
   bounded-screen override commit `25f83ad`, micro4 manifest/override commit
   `bbbfd25`, task-manifest commit `e99d362`, multinomial gate commit

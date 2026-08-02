@@ -22,6 +22,8 @@ EVALUATION_MANIFEST="${MARLIN_EVALUATION_MANIFEST:-$CODE/configs/benchmarks/npli
 TRAIN_FINGERPRINT_THRESHOLD="${MARLIN_TRAIN_FINGERPRINT_THRESHOLD:-0.90}"
 ADAPT_MAX_STEPS="${MARLIN_ADAPT_MAX_STEPS:-100}"
 CROSS_ATTENTION_ONLY_STEPS="${MARLIN_CROSS_ATTENTION_ONLY_STEPS:-100}"
+EVALUATION_INTERVAL="${MARLIN_EVALUATION_INTERVAL:-100}"
+CHECKPOINT_INTERVAL="${MARLIN_CHECKPOINT_INTERVAL:-100}"
 
 cd "$CODE"
 test -f "$RUNTIME_ROOT/manifest.json"
@@ -54,8 +56,8 @@ source "$CODE/scripts/marlin_runtime_env.sh"
   --evaluation-manifest "$EVALUATION_MANIFEST" \
   --output-dir "$RUN_ROOT" \
   --max-steps "$ADAPT_MAX_STEPS" \
-  --evaluation-interval 100 \
-  --checkpoint-interval 100 \
+  --evaluation-interval "$EVALUATION_INTERVAL" \
+  --checkpoint-interval "$CHECKPOINT_INTERVAL" \
   --evaluation-spectra "$EVALUATION_SPECTRA" \
   --evaluation-candidates "$EVALUATION_CANDIDATES" \
   --cross-attention-only-steps "$CROSS_ATTENTION_ONLY_STEPS" \
