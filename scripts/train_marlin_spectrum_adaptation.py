@@ -118,6 +118,17 @@ def _decoder_config(checkpoint: dict) -> MarlinDecoderConfig:
     return config
 
 
+def resolve_clearml_output_uri() -> str | bool:
+    """Where ClearML should store checkpoints.
+
+    On SLURM the run directory is already on shared storage, so uploading is
+    pure overhead and the default stays disabled. A queued worker has its own
+    filesystem, so the checkpoints it writes are unreachable from anywhere
+    else; set MARLIN_CLEARML_OUTPUT_URI to the files server in that case.
+    """
+    return os.environ.get("MARLIN_CLEARML_OUTPUT_URI", "").strip() or False
+
+
 def _clearml_task(args: argparse.Namespace, config: dict) -> Task:
     task = Task.init(
         project_name="MARLIN clean-room reproduction",
@@ -132,7 +143,7 @@ def _clearml_task(args: argparse.Namespace, config: dict) -> Task:
             "molecular-gates",
         ],
         reuse_last_task_id=False,
-        output_uri=False,
+        output_uri=resolve_clearml_output_uri(),
         auto_connect_streams=False,
         auto_connect_frameworks={"pytorch": True, "tensorboard": True},
     )
