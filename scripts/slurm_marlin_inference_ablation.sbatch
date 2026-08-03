@@ -22,6 +22,11 @@ USE_EMA="${MARLIN_USE_EMA:-1}"
 SOFT_FINGERPRINT="${MARLIN_SOFT_FINGERPRINT:-0}"
 EOS_BOOST="${MARLIN_EOS_BOOST:-1.0}"
 FIX_SAFE_DECODE="${MARLIN_FIX_SAFE_DECODE:-0}"
+FINGERPRINTS="${MARLIN_FINGERPRINTS:-$RUNTIME_ROOT/val/dreams_predictions.npz}"
+FINGERPRINT_KEY="${MARLIN_FINGERPRINT_KEY:-probs}"
+CANDIDATES="${MARLIN_CANDIDATES:-16}"
+MAX_SPECTRA="${MARLIN_MAX_SPECTRA:-4}"
+SPEC_MANIFEST="${MARLIN_SPEC_MANIFEST:-$CODE/configs/benchmarks/nplib1_v1/nplib1_val_micro4_v1.tsv}"
 
 cd "$CODE"
 test -f "$CHECKPOINT"
@@ -36,19 +41,19 @@ ARGS=(
   --checkpoint "$CHECKPOINT"
   --tokenizer "$RUNTIME_ROOT/tokenizer.json"
   --metadata "$RUNTIME_ROOT/val/metadata.csv"
-  --fingerprints "$RUNTIME_ROOT/val/dreams_predictions.npz"
-  --fingerprint-key probs
+  --fingerprints "$FINGERPRINTS"
+  --fingerprint-key "$FINGERPRINT_KEY"
   --lane dreams
   --output-dir "$OUTPUT_DIR"
-  --candidates 16
+  --candidates "$CANDIDATES"
   --diversity-dropout 0.3
   --temperature 1.0
   --generation-mode "$GENERATION_MODE"
   --ppm-tolerance "$PPM_TOLERANCE"
   --eos-boost "$EOS_BOOST"
   --seed 42
-  --max-spectra 4
-  --spec-manifest "$CODE/configs/benchmarks/nplib1_v1/nplib1_val_micro4_v1.tsv"
+  --max-spectra "$MAX_SPECTRA"
+  --spec-manifest "$SPEC_MANIFEST"
   --threshold "$FINGERPRINT_THRESHOLD"
   --sample-tokens
 )

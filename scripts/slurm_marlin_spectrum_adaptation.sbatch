@@ -2,8 +2,8 @@
 #SBATCH --job-name=marlin-fp-adapt
 #SBATCH --partition=gpu
 #SBATCH --gres=gpu:a100:1
-#SBATCH --cpus-per-task=12
-#SBATCH --mem=96G
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=24G
 #SBATCH --time=02:00:00
 #SBATCH --output=/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/logs/marlin-fp-adapt-%j.out
 

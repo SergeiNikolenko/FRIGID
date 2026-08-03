@@ -19,7 +19,11 @@ fi
 CA_DIR="$ROOT/cache/tls"
 CA_BUNDLE="$CA_DIR/cacert.pem"
 mkdir -p "$CA_DIR"
-install -m 0644 "$CERTIFI_CA" "$CA_BUNDLE"
+# Stage through a unique temp file so concurrent jobs on the same node cannot
+# race each other on the destination path.
+CA_STAGED="$(mktemp "$CA_BUNDLE.XXXXXX")"
+install -m 0644 "$CERTIFI_CA" "$CA_STAGED"
+mv -f "$CA_STAGED" "$CA_BUNDLE"
 
 export REQUESTS_CA_BUNDLE="$CA_BUNDLE"
 export SSL_CERT_FILE="$CA_BUNDLE"
