@@ -48,6 +48,9 @@ fingerprints для выбора модели. Paper fidelity остаётся �
 - EOS boost diagnostic, Slurm `630`, дал на первой завершённой строке
   validity `0`, mass/return `0` и был остановлен по bounded timeout; partial
   artifact сохранён.
+- Soft-fingerprint adaptation, Slurm `635` (offline ClearML task
+  `offline-d16a7c6cbba1427c9948d35f32bba997`), выполняется на локальном run
+  root; его финальные molecular metrics ещё не засчитываются до завершения.
 
 Итог на 03.08: molecular pipeline воспроизводимо запускается и считает
 полные метрики, но положительный Exact incumbent пока не получен. Главный
@@ -57,8 +60,9 @@ fingerprints для выбора модели. Paper fidelity остаётся �
 
 ## Следующие шаги
 
-1. Повторить soft-fingerprint adaptation на structure-disjoint train split с
-   тем же held-out scorer и micro4 screen; затем проверить на micro32/micro64.
+1. Дождаться soft-fingerprint adaptation `635` и проверить его тем же
+   held-out scorer на micro4; затем, только при non-zero return, перейти к
+   micro32/micro64.
 2. Если появится `candidate_return > 0`, зафиксировать checkpoint и повторить
    без изменений на трёх seed-ах и paper-comparable candidate budget `384`.
 3. Только после non-zero Exact на подтверждающей панели переходить к locked
@@ -66,4 +70,3 @@ fingerprints для выбора модели. Paper fidelity остаётся �
 
 Доказательства и полная таблица экспериментов:
 `docs/MARLIN_EXPERIMENT_REPORT_RU.md`.
-

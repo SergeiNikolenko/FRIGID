@@ -55,8 +55,8 @@ Locked 803-spectrum test не используется для выбора мо�
 | 21 | Canvas + relaxed shell (`627`) | 4×16, seed 42, 500 ppm | 0 | 0 | 0 | 0 | 0.03125 | Отклонён: EOS/масса |
 | 22 | Predicted-fingerprint threshold (`628`) | 4×16, seed 42, threshold 0.50 | 0 | 0 | 0 | 0 | 0.15625 | Отклонён: threshold mismatch |
 | 23 | Soft DreaMS confidence (`629`) | 4×16, seed 42, threshold 0.50, amplitudes preserved | 0 | 0 | 0 | 0 | 0.15625 | Отклонён: confidence alone |
-| 24 | EOS recovery boost (`630`) | 4×16, seed 42, threshold 0.95, `eos_boost=4` | RUNNING | RUNNING | RUNNING | RUNNING | RUNNING | Termination ablation |
-| 25 | Soft-fingerprint adaptation (`631`) | train DreaMS probabilities, 1000 steps, eval 4×16 | RUNNING | RUNNING | RUNNING | RUNNING | RUNNING | Conditioning adaptation |
+| 24 | EOS recovery boost (`630`) | 4×16, seed 42, threshold 0.95, `eos_boost=4` | — | — | — | — | — | Остановлен: bounded timeout after row 1 |
+| 25 | Soft-fingerprint adaptation (`635`) | train DreaMS probabilities, 1000 steps, eval 4×16 | RUNNING | RUNNING | RUNNING | RUNNING | RUNNING | Conditioning adaptation |
 
 `—` означает, что метрика не была частью данного parity-аудита или в старом
 артефакте не записана. Нули в molecular gate — фактические нули, а не
@@ -456,10 +456,12 @@ threshold `0.95`, raw weights, block width `8`, строгая `10 ppm` shell,
 multinomial, panel и seed остаются locked. Это диагностическая итерация:
 promotion возможна только после проверки Exact на исходном scorer-е.
 
-Job `630` поставлен в очередь `gpu-shared`; output root
-`/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/runs/marlin-ablate-eosboost4-630`.
+Job `630` был остановлен после `7:08`: первая строка имела validity `0`,
+mass-valid `0`, candidate return `0`; aggregate не вычислялся. Partial
+artifact сохранён в
+`/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/runs/marlin-ablate-eosboost4-630/predictions.jsonl`.
 
-**Эксперимент 25: soft-fingerprint adaptation (`631`) — отправлен**
+**Эксперимент 25: soft-fingerprint adaptation (`635`) — выполняется**
 
 Inference-only confidence test проверяет другой input distribution, но
 checkpoint `625` был обучен на бинарных fingerprints. Поэтому запускаем
@@ -469,6 +471,7 @@ bits; symmetric noise drop/add также сохраняет amplitude. Validati
 неизменным held-out `micro4`, строгий `10 ppm`, block width `8`, multinomial,
 seed 42. Locked test не используется.
 
-Изменения кода: commit `fbbdd2e`; тесты `58 passed`. Job `631` поставлен на
-`gpu-shared`, run root
-`/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/runs/spectrum-fingerprint-soft-adaptation-slurm-631`.
+Изменения кода: commits `fbbdd2e`, `6c56d49`; тесты `59 passed`. Job `635`
+выполняется на `gpu-shared`; ClearML offline task
+`offline-d16a7c6cbba1427c9948d35f32bba997` записан в manifest. Run root:
+`/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/runs/spectrum-fingerprint-soft-adaptation-slurm-632`.

@@ -85,8 +85,9 @@ cross-attention-only steps then 900 full-backbone steps improved grammar
 validity to `0.140625`, but Exact@1/10 and mass-compatible return stayed `0`.
 The serialized inference follow-ups are `628` (threshold `0.50`, negative),
 `629` (soft DreaMS confidence, negative), and `630` (EOS boost, running).
-The next queued training factor is `631`: train and evaluate with soft DreaMS
-amplitudes on the structure-disjoint train/held-out split.
+The current training factor is Slurm `635`: train and evaluate with soft DreaMS
+amplitudes on the structure-disjoint train/held-out split (offline ClearML task
+`offline-d16a7c6cbba1427c9948d35f32bba997`).
 
 - logs:
   `/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/logs/marlin-fp-adapt-{619,620,625}.out`;
