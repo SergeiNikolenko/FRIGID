@@ -13,6 +13,11 @@ export no_proxy="${no_proxy:+$no_proxy,}.clearai.innopolis.university,.universit
 export PYTHONFAULTHANDLER=1
 export PYTHONPATH="$PWD/src${PYTHONPATH:+:$PYTHONPATH}"
 
+# materialize_marlin_runtime_inputs.py has its own default root, which does
+# not match RUNTIME_ROOT. Pin both to the same resolved path, otherwise the
+# bundle unpacks into one directory and training reads from another.
+export MARLIN_RUNTIME_INPUT_ROOT="$RUNTIME_ROOT"
+
 python scripts/materialize_marlin_runtime_inputs.py
 
 CHECKPOINT_SOURCE_ARGS=()

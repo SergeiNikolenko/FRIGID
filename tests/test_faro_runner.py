@@ -47,3 +47,17 @@ def test_faro_runner_passes_the_soft_fingerprint_args_to_training():
     script = RUNNER.read_text()
 
     assert '"${SOFT_FINGERPRINT_ARGS[@]}"' in script
+
+
+def test_faro_runner_pins_materialize_to_the_same_runtime_root_it_reads():
+    """materialize_marlin_runtime_inputs.py defaults to a different directory
+    than RUNTIME_ROOT, so the runner must export the resolved path before
+    calling it or training reads from an empty location."""
+    script = RUNNER.read_text()
+
+    export_index = script.index('export MARLIN_RUNTIME_INPUT_ROOT="$RUNTIME_ROOT"')
+    materialize_index = script.index(
+        "python scripts/materialize_marlin_runtime_inputs.py"
+    )
+
+    assert export_index < materialize_index
