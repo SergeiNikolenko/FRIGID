@@ -85,6 +85,14 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--disable-grammar-mask", action="store_true")
+    parser.add_argument(
+        "--mass-reachability-prune",
+        action="store_true",
+        help=(
+            "documented deviation: fold chemical mass reachability into the "
+            "syntax mask instead of the paper's syntax-only support"
+        ),
+    )
     parser.add_argument("--disable-mass-shell", action="store_true")
     parser.add_argument("--sample-tokens", action="store_true")
     parser.add_argument("--fix-safe-decode", action="store_true")
@@ -542,6 +550,7 @@ def main() -> None:
                 special_token_ids=tuple(special_ids) + (tokenizer.unk_token_id,),
                 ppm_tolerance=args.ppm_tolerance,
                 valence_slack=args.valence_slack,
+                mass_reachability_prune=args.mass_reachability_prune,
             ),
             forbidden_token_ids=tuple(
                 token_id
@@ -580,6 +589,7 @@ def main() -> None:
             else False
         ),
         "mass_shell_constraint": not args.disable_mass_shell,
+        "mass_reachability_prune": args.mass_reachability_prune,
         "safe_decode_fix": args.fix_safe_decode,
         "token_selection": "multinomial" if args.sample_tokens else "argmax",
         "seed": args.seed,

@@ -713,6 +713,7 @@ class SafeGrammarMask:
         special_token_ids: Sequence[int],
         ppm_tolerance: float = 10.0,
         valence_slack: float = 4.0,
+        mass_reachability_prune: bool = False,
     ) -> None:
         self.token_strings = tuple(token_strings)
         self.decode_prefix = decode_prefix
@@ -721,6 +722,9 @@ class SafeGrammarMask:
         self.special_token_ids = frozenset(special_token_ids)
         self.ppm_tolerance = ppm_tolerance
         self.valence_slack = valence_slack
+        # Off by default: the paper's syntax mask carries no chemical mass
+        # reachability, so enabling this is a documented deviation.
+        self.mass_reachability_prune = mass_reachability_prune
 
     @lru_cache(maxsize=32_768)
     def _valid_token_ids(self, prefix: str) -> tuple[int, ...]:
@@ -739,6 +743,45 @@ class SafeGrammarMask:
                 valid_ids.append(token_id)
         return tuple(valid_ids)
 
+    @lru_cache(maxsize=32_768)
+    def _mass_reachable_token_ids(
+        self, prefix: str, target_mass: float
+    ) -> tuple[int, ...]:
+        state = _scan(prefix)
+        if state is None:
+            return ()
+        tolerance = self.ppm_tolerance * 1e-6 * target_mass
+        valid_ids = []
+        for token_id, token in enumerate(self.token_strings):
+            if token_id == self.eos_token_id:
+                valid = state.terminal and _has_hydrogen_only_exact_mass(
+                    state, target_mass, self.valence_slack, tolerance
+                )
+            elif token_id in self.special_token_ids:
+                valid = False
+            else:
+                text = prefix + token
+                completed = _scan(text)
+                if completed is None:
+                    valid = False
+                elif completed.incomplete_token:
+                    valid = _has_vocabulary_completion(
+                        text,
+                        self.token_strings,
+                        target_mass,
+                        self.valence_slack,
+                        tolerance,
+                    )
+                else:
+                    valid = _has_reachable_exact_mass(
+                        completed, target_mass, self.valence_slack, tolerance
+                    ) and _has_structurally_viable_continuation(
+                        text, completed, target_mass, self.valence_slack, tolerance
+                    )
+            if valid:
+                valid_ids.append(token_id)
+        return tuple(valid_ids)
+
     def __call__(
         self,
         prefix_ids: Sequence[int],
@@ -752,7 +795,10 @@ class SafeGrammarMask:
             return torch.full_like(logits, -torch.inf)
         prefix = self.decode_prefix(prefix_ids)
         constrained = torch.full_like(logits, -torch.inf)
-        valid_ids = self._valid_token_ids(prefix)
+        if self.mass_reachability_prune and target_mass is not None:
+            valid_ids = self._mass_reachable_token_ids(prefix, target_mass)
+        else:
+            valid_ids = self._valid_token_ids(prefix)
         if valid_ids:
             indices = list(valid_ids)
             constrained[indices] = logits[indices]

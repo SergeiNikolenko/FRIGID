@@ -194,3 +194,55 @@ def test_safe_grammar_requires_partial_atom_completion_in_vocabulary():
         partial, ("C", "O", "1", "[C]"), target_mass, 4.0, tolerance
     )
     assert _has_vocabulary_completion(partial, ("]",), target_mass, 4.0, tolerance)
+
+
+def _reachability_grammar(prefix: str, tokens: tuple[str, ...]) -> SafeGrammarMask:
+    return SafeGrammarMask(
+        tokens,
+        lambda _ids: prefix,
+        eos_token_id=2,
+        special_token_ids=(0, 1, 2, 3, 4),
+        mass_reachability_prune=True,
+    )
+
+
+def test_mass_reachability_prune_removes_tokens_that_cannot_reach_target_mass():
+    tokens = ("[UNK]", "[CLS]", "[SEP]", "[PAD]", "[MASK]", "1", "C")
+    grammar = _reachability_grammar("C" * 32, tokens)
+    logits = torch.zeros(len(tokens))
+
+    constrained = grammar([], logits, 444.103807533379)
+
+    assert torch.isneginf(constrained[5])
+    assert torch.isneginf(constrained[6])
+
+
+def test_mass_reachability_prune_keeps_tokens_on_a_reachable_path():
+    tokens = ("[UNK]", "[CLS]", "[SEP]", "[PAD]", "[MASK]", "1", "C")
+    grammar = _reachability_grammar("CC", tokens)
+    logits = torch.zeros(len(tokens))
+
+    constrained = grammar([], logits, 444.103807533379)
+
+    assert constrained[6] == 0.0
+
+
+def test_mass_reachability_prune_forbids_eos_when_mass_misses_the_target():
+    tokens = ("[UNK]", "[CLS]", "[SEP]", "[PAD]", "[MASK]", "1", "C")
+    grammar = _reachability_grammar("CC", tokens)
+    logits = torch.zeros(len(tokens))
+
+    constrained = grammar([], logits, 444.103807533379)
+
+    assert torch.isneginf(constrained[2])
+
+
+def test_mass_reachability_prune_allows_eos_when_hydrogens_close_the_target():
+    target = "COc1cc(C2C3(O)C(O)C4CC2(O)C(O)(C(=O)O4)C3C(=O)c2ccccc2)oc(=O)c1"
+    tokens = ("[UNK]", "[CLS]", "[SEP]", "[PAD]", "[MASK]", "1", "C")
+    grammar = _reachability_grammar(target, tokens)
+    logits = torch.zeros(len(tokens))
+
+    constrained = grammar([], logits, 444.103807533379)
+
+    assert constrained[2] == 0.0

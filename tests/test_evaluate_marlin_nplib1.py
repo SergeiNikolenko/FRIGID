@@ -8,8 +8,42 @@ from scripts.evaluate_marlin_nplib1 import (
     _clearml_decoding_diagnostic_table,
     add_formula_metrics,
     formula_metric_summary,
+    parse_args,
     publish_clearml_evaluation,
 )
+
+
+_MINIMAL_EVALUATION_ARGV = [
+    "evaluate_marlin_nplib1.py",
+    "--checkpoint", "checkpoint.ckpt",
+    "--tokenizer", "tokenizer.json",
+    "--metadata", "metadata.csv",
+    "--fingerprints", "fingerprints.npz",
+    "--fingerprint-key", "probs",
+    "--lane", "dreams",
+    "--output-dir", "out",
+]
+
+
+def test_mass_reachability_prune_is_opt_in_on_the_evaluation_cli(monkeypatch):
+    monkeypatch.setattr(sys, "argv", _MINIMAL_EVALUATION_ARGV)
+
+    assert parse_args().mass_reachability_prune is False
+
+
+def test_mass_reachability_prune_flag_enables_the_deviation(monkeypatch):
+    monkeypatch.setattr(
+        sys, "argv", _MINIMAL_EVALUATION_ARGV + ["--mass-reachability-prune"]
+    )
+
+    assert parse_args().mass_reachability_prune is True
+
+
+def test_mass_reachability_prune_reaches_the_grammar_mask_and_the_manifest():
+    source = Path("scripts/evaluate_marlin_nplib1.py").read_text()
+
+    assert "mass_reachability_prune=args.mass_reachability_prune" in source
+    assert '"mass_reachability_prune": args.mass_reachability_prune' in source
 
 
 def test_safe_import_precedes_rdkit_draw_on_faro() -> None:
