@@ -1,0 +1,39 @@
+{
+  "report": "/home/nikolenko/work/Projects/FRIGID/repro_runs/20260616T203000Z_msg_paper_repro/msg_base_full_ngboost/eda_chemical_full/frigid_chemical_eda_report.html",
+  "run_root": "/home/nikolenko/work/Projects/FRIGID/repro_runs/20260616T203000Z_msg_paper_repro/msg_base_full_ngboost",
+  "output_root": "/home/nikolenko/work/Projects/FRIGID/repro_runs/20260616T203000Z_msg_paper_repro/msg_base_full_ngboost/eda_chemical_full",
+  "spectra": 17082,
+  "unique_targets": 2905,
+  "exact_top10": 0.12393162393162394,
+  "chemical_classes": 11,
+  "clusters": 12,
+  "tables": {
+    "features_by_spectrum": "/home/nikolenko/work/Projects/FRIGID/repro_runs/20260616T203000Z_msg_paper_repro/msg_base_full_ngboost/eda_chemical_full/tables/chemical_features_by_spectrum.csv",
+    "features_by_target": "/home/nikolenko/work/Projects/FRIGID/repro_runs/20260616T203000Z_msg_paper_repro/msg_base_full_ngboost/eda_chemical_full/tables/chemical_features_by_target.csv",
+    "by_shard": "/home/nikolenko/work/Projects/FRIGID/repro_runs/20260616T203000Z_msg_paper_repro/msg_base_full_ngboost/eda_chemical_full/tables/by_shard_chemical.csv",
+    "class_summary": "/home/nikolenko/work/Projects/FRIGID/repro_runs/20260616T203000Z_msg_paper_repro/msg_base_full_ngboost/eda_chemical_full/tables/class_summary.csv",
+    "cluster_summary": "/home/nikolenko/work/Projects/FRIGID/repro_runs/20260616T203000Z_msg_paper_repro/msg_base_full_ngboost/eda_chemical_full/tables/cluster_summary.csv",
+    "quality_group_summary": "/home/nikolenko/work/Projects/FRIGID/repro_runs/20260616T203000Z_msg_paper_repro/msg_base_full_ngboost/eda_chemical_full/tables/quality_group_summary.csv",
+    "class_by_quality_group": "/home/nikolenko/work/Projects/FRIGID/repro_runs/20260616T203000Z_msg_paper_repro/msg_base_full_ngboost/eda_chemical_full/tables/class_by_quality_group.csv",
+    "descriptor_associations": "/home/nikolenko/work/Projects/FRIGID/repro_runs/20260616T203000Z_msg_paper_repro/msg_base_full_ngboost/eda_chemical_full/tables/descriptor_associations.csv",
+    "class_mix_worst_vs_best": "/home/nikolenko/work/Projects/FRIGID/repro_runs/20260616T203000Z_msg_paper_repro/msg_base_full_ngboost/eda_chemical_full/tables/class_mix_worst_vs_best.csv",
+    "scaffold_summary": "/home/nikolenko/work/Projects/FRIGID/repro_runs/20260616T203000Z_msg_paper_repro/msg_base_full_ngboost/eda_chemical_full/tables/top_scaffold_summary.csv",
+    "cluster_top_scaffolds": "/home/nikolenko/work/Projects/FRIGID/repro_runs/20260616T203000Z_msg_paper_repro/msg_base_full_ngboost/eda_chemical_full/tables/cluster_top_scaffolds.csv",
+    "case_examples": "/home/nikolenko/work/Projects/FRIGID/repro_runs/20260616T203000Z_msg_paper_repro/msg_base_full_ngboost/eda_chemical_full/tables/chemical_case_examples.csv",
+    "random_forest_importance": "/home/nikolenko/work/Projects/FRIGID/repro_runs/20260616T203000Z_msg_paper_repro/msg_base_full_ngboost/eda_chemical_full/tables/random_forest_descriptor_importance.csv"
+  },
+  "charts": {
+    "quality_by_chemical_class": "/home/nikolenko/work/Projects/FRIGID/repro_runs/20260616T203000Z_msg_paper_repro/msg_base_full_ngboost/eda_chemical_full/charts/quality_by_chemical_class.png",
+    "class_mix_worst_vs_best": "/home/nikolenko/work/Projects/FRIGID/repro_runs/20260616T203000Z_msg_paper_repro/msg_base_full_ngboost/eda_chemical_full/charts/class_mix_worst_vs_best.png",
+    "descriptor_shift_bad_vs_hit": "/home/nikolenko/work/Projects/FRIGID/repro_runs/20260616T203000Z_msg_paper_repro/msg_base_full_ngboost/eda_chemical_full/charts/descriptor_shift_bad_vs_hit.png",
+    "cluster_quality_map": "/home/nikolenko/work/Projects/FRIGID/repro_runs/20260616T203000Z_msg_paper_repro/msg_base_full_ngboost/eda_chemical_full/charts/cluster_quality_map.png",
+    "tsne_by_class": "/home/nikolenko/work/Projects/FRIGID/repro_runs/20260616T203000Z_msg_paper_repro/msg_base_full_ngboost/eda_chemical_full/charts/tsne_by_class.png",
+    "tsne_by_exact_top10": "/home/nikolenko/work/Projects/FRIGID/repro_runs/20260616T203000Z_msg_paper_repro/msg_base_full_ngboost/eda_chemical_full/charts/tsne_by_exact_top10.png",
+    "tsne_by_cluster": "/home/nikolenko/work/Projects/FRIGID/repro_runs/20260616T203000Z_msg_paper_repro/msg_base_full_ngboost/eda_chemical_full/charts/tsne_by_cluster.png",
+    "mol_wt_by_outcome": "/home/nikolenko/work/Projects/FRIGID/repro_runs/20260616T203000Z_msg_paper_repro/msg_base_full_ngboost/eda_chemical_full/charts/mol_wt_by_outcome.png",
+    "amide_count_by_outcome": "/home/nikolenko/work/Projects/FRIGID/repro_runs/20260616T203000Z_msg_paper_repro/msg_base_full_ngboost/eda_chemical_full/charts/amide_count_by_outcome.png",
+    "max_ring_size_by_outcome": "/home/nikolenko/work/Projects/FRIGID/repro_runs/20260616T203000Z_msg_paper_repro/msg_base_full_ngboost/eda_chemical_full/charts/max_ring_size_by_outcome.png",
+    "chiral_centers_by_outcome": "/home/nikolenko/work/Projects/FRIGID/repro_runs/20260616T203000Z_msg_paper_repro/msg_base_full_ngboost/eda_chemical_full/charts/chiral_centers_by_outcome.png",
+    "random_forest_descriptor_importance": "/home/nikolenko/work/Projects/FRIGID/repro_runs/20260616T203000Z_msg_paper_repro/msg_base_full_ngboost/eda_chemical_full/charts/random_forest_descriptor_importance.png"
+  }
+}

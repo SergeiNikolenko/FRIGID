@@ -1,0 +1,32 @@
+[
+  {
+    "threshold": "0.187",
+    "spectra": 40,
+    "exact_any_rate": 0.0,
+    "exact_any_count": 0,
+    "top1_exact_count": 0,
+    "top10_exact_count": 0,
+    "mean_saved_top1_tanimoto": 0.5844007574021817,
+    "mean_oracle_best_tanimoto": 0.5873324995117927,
+    "mean_oracle_gain": 0.0029317421096111906,
+    "median_oracle_gain": -3.5061555880844253e-09,
+    "mean_num_candidates": 3.0,
+    "mean_valid_candidates": 3.0,
+    "cases_with_oracle_gain_gt_0_05": 0
+  },
+  {
+    "threshold": "0.25",
+    "spectra": 40,
+    "exact_any_rate": 0.0,
+    "exact_any_count": 0,
+    "top1_exact_count": 0,
+    "top10_exact_count": 0,
+    "mean_saved_top1_tanimoto": 0.5905735813081264,
+    "mean_oracle_best_tanimoto": 0.5910432182347207,
+    "mean_oracle_gain": 0.00046963692659425375,
+    "median_oracle_gain": 0.0,
+    "mean_num_candidates": 3.0,
+    "mean_valid_candidates": 3.0,
+    "cases_with_oracle_gain_gt_0_05": 0
+  }
+]

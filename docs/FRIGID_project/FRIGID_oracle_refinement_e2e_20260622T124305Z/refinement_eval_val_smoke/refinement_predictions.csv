@@ -1,0 +1,9 @@
+row_index,name,rank,true_smiles,candidate_smiles,refined_smiles,exact_match,candidate_tanimoto,refined_tanimoto,formula,fingerprint_source
+0,,1,O=C(O)C(=O)Nc1sc2c(c1C(=O)O)CCNC2,CSCC1CN(/N=C\c2ccc([N+](=O)[O-])o2)C(=O)O1,COC=O,False,0.0379746835443038,0.023255813953488372,C10H10N2O5S,candidate
+0,,2,O=C(O)C(=O)Nc1sc2c(c1C(=O)O)CCNC2,CSCC1CN(/N=C\c2ccc([N+](=O)[O-])o2)C(=O)O1,CSc1ccc(/C=N/N2CC(C(=O)[O-])CC2=O)o1,False,0.0379746835443038,0.0821917808219178,C10H10N2O5S,candidate
+1,,1,O=C(O)C(=O)Nc1sc2c(c1C(=O)O)CCNC2,CSCC1CN(/N=C\c2ccc([N+](=O)[O-])o2)C(=O)O1,C=C1C=CC(=[N+]2OC(=O)[C-](CSC)OC2=O)O1,False,0.0379746835443038,0.028169014084507043,C10H10N2O5S,candidate
+1,,2,O=C(O)C(=O)Nc1sc2c(c1C(=O)O)CCNC2,CSCC1CN(/N=C\c2ccc([N+](=O)[O-])o2)C(=O)O1,O=C1OCCC1CSCc1ccc([N+](=O)[O-])o1,False,0.0379746835443038,0.041666666666666664,C10H10N2O5S,candidate
+2,,1,O=C(O)C(=O)Nc1sc2c(c1C(=O)O)CCNC2,CSCC1CN(/N=C\c2ccc([N+](=O)[O-])o2)C(=O)O1,CSCc1ccc(C=NC2(C[C-]=O)OC2=O)o1,False,0.0379746835443038,0.041666666666666664,C10H10N2O5S,candidate
+2,,2,O=C(O)C(=O)Nc1sc2c(c1C(=O)O)CCNC2,CSCC1CN(/N=C\c2ccc([N+](=O)[O-])o2)C(=O)O1,O=C(O[C]1C(=O)C1S)c1ccc(/C=N/O)o1,False,0.0379746835443038,0.05970149253731343,C10H10N2O5S,candidate
+3,,1,O=C(O)C(=O)Nc1sc2c(c1C(=O)O)CCNC2,CN1CCN(S(=O)(=O)c2cnc(Cl)c(Br)c2)CC1,c1ccncc1,False,0.04477611940298507,0.023255813953488372,C10H10N2O5S,candidate
+3,,2,O=C(O)C(=O)Nc1sc2c(c1C(=O)O)CCNC2,CN1CCN(S(=O)(=O)c2cnc(Cl)c(Br)c2)CC1,O=[SH](=O)c1nc(C2CC2)oc1O,False,0.04477611940298507,0.07017543859649122,C10H10N2O5S,candidate

@@ -1,0 +1,7 @@
+spec_name,union_unique_candidates,union_strict_canonical_smiles_hit,union_reported_exact_hit,union_best_tanimoto_morgan2048,best_reported_tanimoto_across_attempts,best_attempt_by_reported_tanimoto,attempts_with_exact_hit
+MassSpecGymID0105109,120,0,0,0.7191011235955056,0.7142857313156128,a18_r4_t1_seed42,
+MassSpecGymID0152325,120,0,1,1.0,1.0,a17_r2_t1_seed42,a17_r2_t1_seed42;a18_r4_t1_seed42
+MassSpecGymID0185133,120,0,0,0.8831168831168831,0.8846153616905212,a15_r10_t1_seed42,
+MassSpecGymID0341761,116,0,0,0.6444444444444445,0.6451612710952759,a17_r2_t1_seed42,
+MassSpecGymID0347534,119,0,0,0.6046511627906976,0.6022727489471436,a22_r4_t1_seed123,
+MassSpecGymID0380322,117,0,0,0.891566265060241,0.891566276550293,a15_r10_t1_seed42,

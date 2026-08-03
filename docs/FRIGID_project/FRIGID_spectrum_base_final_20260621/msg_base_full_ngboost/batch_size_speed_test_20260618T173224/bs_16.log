@@ -1,0 +1,77 @@
+START batch_size=16 2026-06-18 17:32:24
+Loading token model from /home/nikolenko/work/Projects/FRIGID/token_models/models/best_ngboost_MSG.joblib
+Detected NGBoost model - will use sigma-based sampling
+Loaded 14 features from /home/nikolenko/work/Projects/FRIGID/token_models/models/best_ngboost_MSG_features.json
+Using device: cuda
+
+Loading test split...
+Finding spectra files:   0%|          | 0/500 [00:00<?, ?it/s]                                                              0it [00:00, ?it/s]500it [00:00, 911408.95it/s]
+0it [00:00, ?it/s]500it [00:00, 7373.41it/s]
+0it [00:00, ?it/s]500it [00:00, 4519724.14it/s]
+Loaded 487 total spectra-molecule pairs
+Using 487 samples from test split
+
+Loading MIST encoder from: repro_cache/mist_msg.pt
+✓ Loaded MIST encoder weights
+
+Loading DLM decoder from: repro_cache/DLM.ckpt
+Using SHARED cross-attention mode
+[load_model] Removed 120 fingerprint_conditioner.cross_attention_layers keys for shared mode
+[DLM] Loading checkpoint with missing buffers (safe to skip): {'token_atom_counts'}
+[Sampler] Warning: data/len.pk not found. Using default length range.
+✓ Fingerprint conditioning: ENABLED
+✓ Formula conditioning: ENABLED
+Cross-attention mode: SHARED
+
+======================================================================
+SPEC2MOL BENCHMARK
+======================================================================
+Total spectra: 487
+Formula matches required: 10
+Max attempts: 100
+Batch size: 16
+Temperature: 1.0
+Randomness: 10.0
+FP threshold: 0.187
+======================================================================
+
+Processing spectra:   0%|          | 0/5 [00:00<?, ?it/s]Processing spectra:  20%|██        | 1/5 [00:16<01:04, 16.07s/it]Processing spectra:  40%|████      | 2/5 [00:25<00:35, 11.99s/it]Processing spectra:  60%|██████    | 3/5 [00:29<00:16,  8.47s/it]Processing spectra:  80%|████████  | 4/5 [00:38<00:08,  8.72s/it]Processing spectra: 100%|██████████| 5/5 [00:51<00:00, 10.40s/it]Processing spectra: 100%|██████████| 5/5 [00:51<00:00, 10.40s/it]
+
+Saved aggregate statistics to: /home/nikolenko/work/Projects/FRIGID/repro_runs/20260616T203000Z_msg_paper_repro/msg_base_full_ngboost/batch_size_speed_test_20260618T173224/bs_16/aggregate_statistics.json
+Saved detailed results to: /home/nikolenko/work/Projects/FRIGID/repro_runs/20260616T203000Z_msg_paper_repro/msg_base_full_ngboost/batch_size_speed_test_20260618T173224/bs_16/detailed_results.csv
+Saved predictions to: /home/nikolenko/work/Projects/FRIGID/repro_runs/20260616T203000Z_msg_paper_repro/msg_base_full_ngboost/batch_size_speed_test_20260618T173224/bs_16/predictions.csv
+
+======================================================================
+BENCHMARK SUMMARY
+======================================================================
+
+Total spectra: 5
+Time: 52.0s
+Speed: 0.10 spectra/s
+
+--- Generation Timing ---
+Time in generation functions: 51.1s
+Percentage of total time: 98.3%
+
+--- MIST Encoder Quality ---
+Mean Tanimoto (pred vs GT FP): 0.5165
+
+--- Core Metrics ---
+Exact Match Top-1: 20.00%
+Exact Match Top-10: 20.00%
+Tanimoto Top-1: 0.5063
+Tanimoto Top-10: 0.5134
+
+--- Formula Matching ---
+Success rate: 100.00%
+Never matched: 0.00%
+Avg actual formula matches: 10.0
+Avg predictions collected (incl. padding): 10.0
+Avg generations: 84.8
+Avg attempts per match (successful only): 10.1
+======================================================================
+
+Results saved to: /home/nikolenko/work/Projects/FRIGID/repro_runs/20260616T203000Z_msg_paper_repro/msg_base_full_ngboost/batch_size_speed_test_20260618T173224/bs_16/
+WALL_SECONDS 72.53
+DONE batch_size=16 2026-06-18 17:33:37
+0, 0, 81920, 21

@@ -1,0 +1,3 @@
+metric,reported_observed_denominator,missing_as_failures_denominator,successes,observed_rows,manifest_test_samples
+exact_match_top1,0.10970612340475354,0.10674413305992253,1874,17082,17556
+exact_match_top10,0.12393162393162394,0.12058555479608112,2117,17082,17556

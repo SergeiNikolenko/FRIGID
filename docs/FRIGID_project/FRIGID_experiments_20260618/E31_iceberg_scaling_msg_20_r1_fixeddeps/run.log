@@ -1,0 +1,1387 @@
+START_UTC 2026-06-22T16:20:26Z
+HOST spectrum
+COMMIT bcf395a249d9313b4fe1d60a5c048bce23408dbe
+ENV torch 2.6.0+cu124
+ENV torchdata 0.7.1
+ENV dgl 1.1.3
+ENV ray 2.55.1
+Loading token model from token_models/models/best_ngboost_MSG.joblib
+Detected NGBoost model - will use sigma-based sampling
+Loaded 14 features from token_models/models/best_ngboost_MSG_features.json
+Using device: cuda
+config['mist_encoder']: {'checkpoint': 'repro_cache/mist_msg.pt', 'hidden_size': 640, 'magma_modulo': 2048, 'peak_attn_layers': 2, 'num_heads': 8, 'spectra_dropout': 0.1, 'output_size': 4096, 'form_embedder': 'pos-cos', 'set_pooling': 'cls', 'refine_layers': 4, 'pairwise_featurization': True, 'embed_instrument': False, 'inten_transform': 'float', 'inten_prob': 0.1, 'remove_prob': 0.5, 'cls_type': 'ms1', 'spec_features': 'peakformula', 'mol_features': 'fingerprint', 'top_layers': 1, 'max_peaks': None}
+
+Loading test split...
+Loaded instrument information for 231104 spectra
+  Instrument distribution: {'Orbitrap': 177281, 'QTOF': 53823}
+  Ionization distribution: {'[M+H]+': 195237, '[M+Na]+': 35867}
+Finding spectra files:   0%|          | 0/17556 [00:00<?, ?it/s]Finding spectra files:  17%|█▋        | 2966/17556 [00:00<00:00, 29653.03it/s]Finding spectra files:  35%|███▍      | 6097/17556 [00:00<00:00, 30627.21it/s]Finding spectra files:  53%|█████▎    | 9271/17556 [00:00<00:00, 31133.79it/s]Finding spectra files:  71%|███████   | 12385/17556 [00:00<00:00, 31092.97it/s]Finding spectra files:  88%|████████▊ | 15495/17556 [00:00<00:00, 30963.68it/s]                                                                               0it [00:00, ?it/s]17556it [00:00, 989507.65it/s]
+0it [00:00, ?it/s]669it [00:00, 6688.81it/s]1463it [00:00, 7422.17it/s]2255it [00:00, 7647.48it/s]3069it [00:00, 7838.19it/s]3853it [00:00, 7529.70it/s]4608it [00:00, 7306.18it/s]5341it [00:00, 7155.36it/s]6059it [00:00, 6898.70it/s]6941it [00:00, 7466.15it/s]7860it [00:01, 7976.83it/s]8767it [00:01, 8300.07it/s]9602it [00:01, 8025.30it/s]10410it [00:01, 7800.96it/s]11195it [00:01, 7629.64it/s]11961it [00:01, 7535.35it/s]12717it [00:01, 7286.75it/s]13448it [00:01, 6993.80it/s]14151it [00:01, 6874.50it/s]14841it [00:02, 6747.37it/s]15517it [00:02, 6644.54it/s]16204it [00:02, 6707.72it/s]16876it [00:02, 6522.71it/s]17530it [00:02, 6448.90it/s]17556it [00:02, 7187.40it/s]
+0it [00:00, ?it/s]17556it [00:00, 4943618.73it/s]
+Loaded 17082 total spectra-molecule pairs
+Using 17082 samples from test split
+Shuffling split data
+
+Loading MIST encoder from: repro_cache/mist_msg.pt
+✓ Loaded MIST encoder weights
+
+Loading DLM decoder from: /home/nikolenko/work/Projects/FRIGID/repro_runs/oracle_fingerprint_ablation_20260622/DLM.local_hf_cache.ckpt
+Using SHARED cross-attention mode
+[load_model] Removed 120 fingerprint_conditioner.cross_attention_layers keys for shared mode
+[DLM] Loading checkpoint with missing buffers (safe to skip): {'token_atom_counts'}
+[Sampler] Warning: data/len.pk not found. Using default length range.
+✓ Fingerprint conditioning: ENABLED
+✓ Formula conditioning: ENABLED
+Using masking strategy: SimpleMaskingStrategy
+
+======================================================================
+SPEC2MOL BENCHMARK WITH BATCHED ICEBERG SCALING
+======================================================================
+Total spectra in dataset: 17082
+Scaling config:
+  - Batch size (B): 32
+  - Unique to refine (K): 4
+  - Masks per molecule (M): 2
+  - Num rounds (R): 1
+  - Mask probability: 0.5
+  - Collision energies: [10, 20, 30, 40, 50]
+FP threshold: 0.187
+Token model: ENABLED (NGBoost=True, sigma_lambda=3.0)
+======================================================================
+
+Phase 1: Preprocessing all test samples...
+Loading spectra:   0%|          | 0/20 [00:00<?, ?it/s]Loading spectra:   5%|▌         | 1/20 [00:00<00:03,  5.18it/s]Loading spectra:  30%|███       | 6/20 [00:00<00:00, 23.90it/s]Loading spectra:  60%|██████    | 12/20 [00:00<00:00, 33.95it/s]Loading spectra:  85%|████████▌ | 17/20 [00:00<00:00, 38.05it/s]Loading spectra: 100%|██████████| 20/20 [00:00<00:00, 34.86it/s]
+Seed set to 42
+2026-06-22 19:24:46,838 INFO: 
+adduct_shift: true
+batch_size: 4
+binned_out: false
+dataset_labels: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/c8e99425131f3c70f123c4fabc09fa2a/cands_df_scaling_61675b29.tsv
+dataset_name: null
+debug: false
+gen_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt
+gpu: true
+inten_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+max_nodes: 100
+num_bins: 15000
+num_workers: 6
+save_dir: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/c8e99425131f3c70f123c4fabc09fa2a
+seed: 42
+sparse_k: 100
+sparse_out: true
+split_name: split_22.tsv
+subset_datasets: none
+threshold: 0.0
+upper_limit: 1500
+
+Lightning automatically upgraded your loaded checkpoint from v1.6.5 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt`
+Lightning automatically upgraded your loaded checkpoint from v1.6.0 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt`
+2026-06-22 19:24:47,547 INFO: Loaded gen / inten models from /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt & /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+2026-06-22 19:24:47,550 INFO: Preparing entries
+Traceback (most recent call last):
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 276, in <module>
+    predict()
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 170, in predict
+    predict_entries = common.chunked_parallel(
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/common/parallel_utils.py", line 92, in chunked_parallel
+    from pathos import multiprocessing as mp
+ModuleNotFoundError: No module named 'pathos'
+Seed set to 42
+2026-06-22 19:24:53,044 INFO: 
+adduct_shift: true
+batch_size: 4
+binned_out: false
+dataset_labels: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/0702b0dbeb3de3b9b1a2261da513464d/cands_df_scaling_06fee81b.tsv
+dataset_name: null
+debug: false
+gen_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt
+gpu: true
+inten_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+max_nodes: 100
+num_bins: 15000
+num_workers: 6
+save_dir: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/0702b0dbeb3de3b9b1a2261da513464d
+seed: 42
+sparse_k: 100
+sparse_out: true
+split_name: split_22.tsv
+subset_datasets: none
+threshold: 0.0
+upper_limit: 1500
+
+Lightning automatically upgraded your loaded checkpoint from v1.6.5 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt`
+Lightning automatically upgraded your loaded checkpoint from v1.6.0 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt`
+2026-06-22 19:24:53,810 INFO: Loaded gen / inten models from /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt & /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+2026-06-22 19:24:53,813 INFO: Preparing entries
+Traceback (most recent call last):
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 276, in <module>
+    predict()
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 170, in predict
+    predict_entries = common.chunked_parallel(
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/common/parallel_utils.py", line 92, in chunked_parallel
+    from pathos import multiprocessing as mp
+ModuleNotFoundError: No module named 'pathos'
+Seed set to 42
+2026-06-22 19:24:59,526 INFO: 
+adduct_shift: true
+batch_size: 4
+binned_out: false
+dataset_labels: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/638942d6ee39e96205ab4600d3372b87/cands_df_scaling_2d6fccf1.tsv
+dataset_name: null
+debug: false
+gen_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt
+gpu: true
+inten_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+max_nodes: 100
+num_bins: 15000
+num_workers: 6
+save_dir: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/638942d6ee39e96205ab4600d3372b87
+seed: 42
+sparse_k: 100
+sparse_out: true
+split_name: split_22.tsv
+subset_datasets: none
+threshold: 0.0
+upper_limit: 1500
+
+Lightning automatically upgraded your loaded checkpoint from v1.6.5 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt`
+Lightning automatically upgraded your loaded checkpoint from v1.6.0 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt`
+2026-06-22 19:25:00,228 INFO: Loaded gen / inten models from /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt & /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+2026-06-22 19:25:00,231 INFO: Preparing entries
+Traceback (most recent call last):
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 276, in <module>
+    predict()
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 170, in predict
+    predict_entries = common.chunked_parallel(
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/common/parallel_utils.py", line 92, in chunked_parallel
+    from pathos import multiprocessing as mp
+ModuleNotFoundError: No module named 'pathos'
+Seed set to 42
+2026-06-22 19:25:05,996 INFO: 
+adduct_shift: true
+batch_size: 4
+binned_out: false
+dataset_labels: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/0b6c3d89f821bce15b53d9dd29ff204c/cands_df_scaling_0a38f90e.tsv
+dataset_name: null
+debug: false
+gen_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt
+gpu: true
+inten_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+max_nodes: 100
+num_bins: 15000
+num_workers: 6
+save_dir: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/0b6c3d89f821bce15b53d9dd29ff204c
+seed: 42
+sparse_k: 100
+sparse_out: true
+split_name: split_22.tsv
+subset_datasets: none
+threshold: 0.0
+upper_limit: 1500
+
+Lightning automatically upgraded your loaded checkpoint from v1.6.5 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt`
+Lightning automatically upgraded your loaded checkpoint from v1.6.0 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt`
+2026-06-22 19:25:06,742 INFO: Loaded gen / inten models from /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt & /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+2026-06-22 19:25:06,745 INFO: Preparing entries
+Traceback (most recent call last):
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 276, in <module>
+    predict()
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 170, in predict
+    predict_entries = common.chunked_parallel(
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/common/parallel_utils.py", line 92, in chunked_parallel
+    from pathos import multiprocessing as mp
+ModuleNotFoundError: No module named 'pathos'
+Seed set to 42
+2026-06-22 19:25:12,487 INFO: 
+adduct_shift: true
+batch_size: 4
+binned_out: false
+dataset_labels: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/9fd869e2d85498e404a6ed17ac3ca9e2/cands_df_scaling_32845a8c.tsv
+dataset_name: null
+debug: false
+gen_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt
+gpu: true
+inten_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+max_nodes: 100
+num_bins: 15000
+num_workers: 6
+save_dir: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/9fd869e2d85498e404a6ed17ac3ca9e2
+seed: 42
+sparse_k: 100
+sparse_out: true
+split_name: split_22.tsv
+subset_datasets: none
+threshold: 0.0
+upper_limit: 1500
+
+Lightning automatically upgraded your loaded checkpoint from v1.6.5 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt`
+Lightning automatically upgraded your loaded checkpoint from v1.6.0 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt`
+2026-06-22 19:25:13,094 INFO: Loaded gen / inten models from /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt & /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+2026-06-22 19:25:13,097 INFO: Preparing entries
+Traceback (most recent call last):
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 276, in <module>
+    predict()
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 170, in predict
+    predict_entries = common.chunked_parallel(
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/common/parallel_utils.py", line 92, in chunked_parallel
+    from pathos import multiprocessing as mp
+ModuleNotFoundError: No module named 'pathos'
+Seed set to 42
+2026-06-22 19:25:18,605 INFO: 
+adduct_shift: true
+batch_size: 4
+binned_out: false
+dataset_labels: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/516da0954e526ee039481f92304d396b/cands_df_scaling_c0387fd8.tsv
+dataset_name: null
+debug: false
+gen_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt
+gpu: true
+inten_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+max_nodes: 100
+num_bins: 15000
+num_workers: 6
+save_dir: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/516da0954e526ee039481f92304d396b
+seed: 42
+sparse_k: 100
+sparse_out: true
+split_name: split_22.tsv
+subset_datasets: none
+threshold: 0.0
+upper_limit: 1500
+
+Lightning automatically upgraded your loaded checkpoint from v1.6.5 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt`
+Lightning automatically upgraded your loaded checkpoint from v1.6.0 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt`
+2026-06-22 19:25:19,307 INFO: Loaded gen / inten models from /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt & /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+2026-06-22 19:25:19,309 INFO: Preparing entries
+Traceback (most recent call last):
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 276, in <module>
+    predict()
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 170, in predict
+    predict_entries = common.chunked_parallel(
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/common/parallel_utils.py", line 92, in chunked_parallel
+    from pathos import multiprocessing as mp
+ModuleNotFoundError: No module named 'pathos'
+Loaded 20 valid test samples
+
+Phase 2: Running batched scaling with 1 rounds...
+
+============================================================
+SCALING ROUND 1/1
+============================================================
+
+  Round 1: Generating 32 molecules from scratch...
+  Round 1: Running ICEBERG predictions for top 4 molecules...
+  Running ICEBERG for 64 molecules at CE=10eV, instrument=Orbitrap, ionization=[M+H]+...
+CUDA_VISIBLE_DEVICES=0 /home/nikolenko/work/Projects/FRIGID/.venv/bin/python src/ms_pred/dag_pred/predict_smis.py \
+               --batch-size 4 \
+               --num-workers 6 \
+               --dataset-labels /home/nikolenko/.cache/ms-pred/iceberg-elucidation/c8e99425131f3c70f123c4fabc09fa2a/cands_df_scaling_61675b29.tsv \
+               --sparse-out \
+               --sparse-k 100 \
+               --max-nodes 100 \
+               --threshold 0.0 \
+               --gen-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt \
+               --inten-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt \
+               --save-dir /home/nikolenko/.cache/ms-pred/iceberg-elucidation/c8e99425131f3c70f123c4fabc09fa2a \
+               --adduct-shift \
+               --gpu
+Warning: ICEBERG prediction failed: [Errno 2] Unable to synchronously open file (unable to open file: name = '/home/nikolenko/.cache/ms-pred/iceberg-elucidation/c8e99425131f3c70f123c4fabc09fa2a/preds.hdf5', errno = 2, error message = 'No such file or directory', flags = 0, o_flags = 0)
+  Running ICEBERG for 64 molecules at CE=20eV, instrument=Orbitrap, ionization=[M+H]+...
+CUDA_VISIBLE_DEVICES=0 /home/nikolenko/work/Projects/FRIGID/.venv/bin/python src/ms_pred/dag_pred/predict_smis.py \
+               --batch-size 4 \
+               --num-workers 6 \
+               --dataset-labels /home/nikolenko/.cache/ms-pred/iceberg-elucidation/0702b0dbeb3de3b9b1a2261da513464d/cands_df_scaling_06fee81b.tsv \
+               --sparse-out \
+               --sparse-k 100 \
+               --max-nodes 100 \
+               --threshold 0.0 \
+               --gen-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt \
+               --inten-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt \
+               --save-dir /home/nikolenko/.cache/ms-pred/iceberg-elucidation/0702b0dbeb3de3b9b1a2261da513464d \
+               --adduct-shift \
+               --gpu
+Warning: ICEBERG prediction failed: [Errno 2] Unable to synchronously open file (unable to open file: name = '/home/nikolenko/.cache/ms-pred/iceberg-elucidation/0702b0dbeb3de3b9b1a2261da513464d/preds.hdf5', errno = 2, error message = 'No such file or directory', flags = 0, o_flags = 0)
+  Running ICEBERG for 64 molecules at CE=30eV, instrument=Orbitrap, ionization=[M+H]+...
+CUDA_VISIBLE_DEVICES=0 /home/nikolenko/work/Projects/FRIGID/.venv/bin/python src/ms_pred/dag_pred/predict_smis.py \
+               --batch-size 4 \
+               --num-workers 6 \
+               --dataset-labels /home/nikolenko/.cache/ms-pred/iceberg-elucidation/638942d6ee39e96205ab4600d3372b87/cands_df_scaling_2d6fccf1.tsv \
+               --sparse-out \
+               --sparse-k 100 \
+               --max-nodes 100 \
+               --threshold 0.0 \
+               --gen-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt \
+               --inten-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt \
+               --save-dir /home/nikolenko/.cache/ms-pred/iceberg-elucidation/638942d6ee39e96205ab4600d3372b87 \
+               --adduct-shift \
+               --gpu
+Warning: ICEBERG prediction failed: [Errno 2] Unable to synchronously open file (unable to open file: name = '/home/nikolenko/.cache/ms-pred/iceberg-elucidation/638942d6ee39e96205ab4600d3372b87/preds.hdf5', errno = 2, error message = 'No such file or directory', flags = 0, o_flags = 0)
+  Running ICEBERG for 64 molecules at CE=40eV, instrument=Orbitrap, ionization=[M+H]+...
+CUDA_VISIBLE_DEVICES=0 /home/nikolenko/work/Projects/FRIGID/.venv/bin/python src/ms_pred/dag_pred/predict_smis.py \
+               --batch-size 4 \
+               --num-workers 6 \
+               --dataset-labels /home/nikolenko/.cache/ms-pred/iceberg-elucidation/0b6c3d89f821bce15b53d9dd29ff204c/cands_df_scaling_0a38f90e.tsv \
+               --sparse-out \
+               --sparse-k 100 \
+               --max-nodes 100 \
+               --threshold 0.0 \
+               --gen-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt \
+               --inten-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt \
+               --save-dir /home/nikolenko/.cache/ms-pred/iceberg-elucidation/0b6c3d89f821bce15b53d9dd29ff204c \
+               --adduct-shift \
+               --gpu
+Warning: ICEBERG prediction failed: [Errno 2] Unable to synchronously open file (unable to open file: name = '/home/nikolenko/.cache/ms-pred/iceberg-elucidation/0b6c3d89f821bce15b53d9dd29ff204c/preds.hdf5', errno = 2, error message = 'No such file or directory', flags = 0, o_flags = 0)
+  Running ICEBERG for 64 molecules at CE=50eV, instrument=Orbitrap, ionization=[M+H]+...
+CUDA_VISIBLE_DEVICES=0 /home/nikolenko/work/Projects/FRIGID/.venv/bin/python src/ms_pred/dag_pred/predict_smis.py \
+               --batch-size 4 \
+               --num-workers 6 \
+               --dataset-labels /home/nikolenko/.cache/ms-pred/iceberg-elucidation/9fd869e2d85498e404a6ed17ac3ca9e2/cands_df_scaling_32845a8c.tsv \
+               --sparse-out \
+               --sparse-k 100 \
+               --max-nodes 100 \
+               --threshold 0.0 \
+               --gen-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt \
+               --inten-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt \
+               --save-dir /home/nikolenko/.cache/ms-pred/iceberg-elucidation/9fd869e2d85498e404a6ed17ac3ca9e2 \
+               --adduct-shift \
+               --gpu
+Warning: ICEBERG prediction failed: [Errno 2] Unable to synchronously open file (unable to open file: name = '/home/nikolenko/.cache/ms-pred/iceberg-elucidation/9fd869e2d85498e404a6ed17ac3ca9e2/preds.hdf5', errno = 2, error message = 'No such file or directory', flags = 0, o_flags = 0)
+  Running ICEBERG for 12 molecules at CE=10eV, instrument=QTOF, ionization=[M+Na]+...
+CUDA_VISIBLE_DEVICES=0 /home/nikolenko/work/Projects/FRIGID/.venv/bin/python src/ms_pred/dag_pred/predict_smis.py \
+               --batch-size 4 \
+               --num-workers 6 \
+               --dataset-labels /home/nikolenko/.cache/ms-pred/iceberg-elucidation/516da0954e526ee039481f92304d396b/cands_df_scaling_c0387fd8.tsv \
+               --sparse-out \
+               --sparse-k 100 \
+               --max-nodes 100 \
+               --threshold 0.0 \
+               --gen-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt \
+               --inten-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt \
+               --save-dir /home/nikolenko/.cache/ms-pred/iceberg-elucidation/516da0954e526ee039481f92304d396b \
+               --adduct-shift \
+               --gpu
+Warning: ICEBERG prediction failed: [Errno 2] Unable to synchronously open file (unable to open file: name = '/home/nikolenko/.cache/ms-pred/iceberg-elucidation/516da0954e526ee039481f92304d396b/preds.hdf5', errno = 2, error message = 'No such file or directory', flags = 0, o_flags = 0)
+  Running ICEBERG for 12 molecules at CE=20eV, instrument=QTOF, ionization=[M+Na]+...
+Seed set to 42
+2026-06-22 19:25:24,549 INFO: 
+adduct_shift: true
+batch_size: 4
+binned_out: false
+dataset_labels: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/6f834cafe5957b0a14cdb504e9cacef2/cands_df_scaling_ed9969a5.tsv
+dataset_name: null
+debug: false
+gen_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt
+gpu: true
+inten_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+max_nodes: 100
+num_bins: 15000
+num_workers: 6
+save_dir: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/6f834cafe5957b0a14cdb504e9cacef2
+seed: 42
+sparse_k: 100
+sparse_out: true
+split_name: split_22.tsv
+subset_datasets: none
+threshold: 0.0
+upper_limit: 1500
+
+Lightning automatically upgraded your loaded checkpoint from v1.6.5 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt`
+Lightning automatically upgraded your loaded checkpoint from v1.6.0 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt`
+2026-06-22 19:25:25,202 INFO: Loaded gen / inten models from /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt & /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+2026-06-22 19:25:25,204 INFO: Preparing entries
+  0%|          | 0/12 [00:00<?, ?it/s]  8%|▊         | 1/12 [00:05<00:55,  5.06s/it]100%|██████████| 12/12 [00:05<00:00,  2.37it/s]
+2026-06-22 19:25:30,316 INFO: There are 12 entries to process
+  0%|          | 0/3 [00:00<?, ?it/s]  0%|          | 0/3 [00:00<?, ?it/s]
+multiprocess.pool.RemoteTraceback: 
+"""
+Traceback (most recent call last):
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/multiprocess/pool.py", line 125, in worker
+    result = (True, func(*args, **kwds))
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/pathos/helpers/mp_helper.py", line 15, in <lambda>
+    func = lambda args: f(*args)
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/common/parallel_utils.py", line 79, in batch_func
+    outputs.append(function(i))
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 202, in producer_func
+    full_outputs = model.predict_mol(
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/joint_model.py", line 137, in predict_mol
+    frag_tree = self.gen_model_obj.predict_mol(**gen_kwargs)
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/gen_model.py", line 541, in predict_mol
+    root_repr = dgl.batch([rg["graph"] for rg in root_graph_dict]).to(device)
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/heterograph.py", line 5709, in to
+    ret._graph = self._graph.copy_to(utils.to_dgl_context(device))
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/heterograph_index.py", line 255, in copy_to
+    return _CAPI_DGLHeteroCopyTo(self, ctx.device_type, ctx.device_id)
+  File "dgl/_ffi/_cython/./function.pxi", line 295, in dgl._ffi._cy3.core.FunctionBase.__call__
+  File "dgl/_ffi/_cython/./function.pxi", line 227, in dgl._ffi._cy3.core.FuncCall
+  File "dgl/_ffi/_cython/./function.pxi", line 217, in dgl._ffi._cy3.core.FuncCall3
+dgl._ffi.base.DGLError: [19:25:31] /opt/dgl/src/runtime/c_runtime_api.cc:82: Check failed: allow_missing: Device API cuda is not enabled. Please install the cuda version of dgl.
+Stack trace:
+  [bt] (0) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dmlc::LogMessageFatal::~LogMessageFatal()+0x75) [0x75c1e073e8f5]
+  [bt] (1) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::runtime::DeviceAPIManager::GetAPI(std::string, bool)+0x202) [0x75c1e0aada92]
+  [bt] (2) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::runtime::DeviceAPI::Get(DGLContext, bool)+0x1e1) [0x75c1e0aaa071]
+  [bt] (3) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::runtime::NDArray::Empty(std::vector<long, std::allocator<long> >, DGLDataType, DGLContext)+0x13b) [0x75c1e0ac554b]
+  [bt] (4) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::runtime::NDArray::CopyTo(DGLContext const&) const+0xc3) [0x75c1e0affd53]
+  [bt] (5) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::UnitGraph::CopyTo(std::shared_ptr<dgl::BaseHeteroGraph>, DGLContext const&)+0x3ff) [0x75c1e0c0d24f]
+  [bt] (6) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::HeteroGraph::CopyTo(std::shared_ptr<dgl::BaseHeteroGraph>, DGLContext const&)+0xf6) [0x75c1e0b0c5d6]
+  [bt] (7) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(+0x51b396) [0x75c1e0b1b396]
+  [bt] (8) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(DGLFuncCall+0x48) [0x75c1e0aa92a8]
+
+
+"""
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 276, in <module>
+    predict()
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 268, in predict
+    common.chunked_parallel(all_batched_entries, producer_func, output_func=write_h5_func,
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/common/parallel_utils.py", line 102, in chunked_parallel
+    output_func(itertools.chain.from_iterable(iter_outputs))
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 250, in write_h5_func
+    for out_batch in out_entries:
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/tqdm/std.py", line 1181, in __iter__
+    for obj in iterable:
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/multiprocess/pool.py", line 873, in next
+    raise value
+dgl._ffi.base.DGLError: [19:25:31] /opt/dgl/src/runtime/c_runtime_api.cc:82: Check failed: allow_missing: Device API cuda is not enabled. Please install the cuda version of dgl.
+Stack trace:
+  [bt] (0) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dmlc::LogMessageFatal::~LogMessageFatal()+0x75) [0x75c1e073e8f5]
+  [bt] (1) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::runtime::DeviceAPIManager::GetAPI(std::string, bool)+0x202) [0x75c1e0aada92]
+  [bt] (2) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::runtime::DeviceAPI::Get(DGLContext, bool)+0x1e1) [0x75c1e0aaa071]
+  [bt] (3) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::runtime::NDArray::Empty(std::vector<long, std::allocator<long> >, DGLDataType, DGLContext)+0x13b) [0x75c1e0ac554b]
+  [bt] (4) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::runtime::NDArray::CopyTo(DGLContext const&) const+0xc3) [0x75c1e0affd53]
+  [bt] (5) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::UnitGraph::CopyTo(std::shared_ptr<dgl::BaseHeteroGraph>, DGLContext const&)+0x3ff) [0x75c1e0c0d24f]
+  [bt] (6) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::HeteroGraph::CopyTo(std::shared_ptr<dgl::BaseHeteroGraph>, DGLContext const&)+0xf6) [0x75c1e0b0c5d6]
+  [bt] (7) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(+0x51b396) [0x75c1e0b1b396]
+  [bt] (8) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(DGLFuncCall+0x48) [0x75c1e0aa92a8]
+
+
+Seed set to 42
+2026-06-22 19:25:36,927 INFO: 
+adduct_shift: true
+batch_size: 4
+binned_out: false
+dataset_labels: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/c1b179f9751e55ef434dfd49915400b2/cands_df_scaling_720243ec.tsv
+dataset_name: null
+debug: false
+gen_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt
+gpu: true
+inten_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+max_nodes: 100
+num_bins: 15000
+num_workers: 6
+save_dir: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/c1b179f9751e55ef434dfd49915400b2
+seed: 42
+sparse_k: 100
+sparse_out: true
+split_name: split_22.tsv
+subset_datasets: none
+threshold: 0.0
+upper_limit: 1500
+
+Lightning automatically upgraded your loaded checkpoint from v1.6.5 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt`
+Lightning automatically upgraded your loaded checkpoint from v1.6.0 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt`
+2026-06-22 19:25:37,448 INFO: Loaded gen / inten models from /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt & /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+2026-06-22 19:25:37,450 INFO: Preparing entries
+  0%|          | 0/12 [00:00<?, ?it/s]  8%|▊         | 1/12 [00:05<00:55,  5.01s/it]100%|██████████| 12/12 [00:05<00:00,  2.39it/s]
+2026-06-22 19:25:42,510 INFO: There are 12 entries to process
+  0%|          | 0/3 [00:00<?, ?it/s]  0%|          | 0/3 [00:00<?, ?it/s]
+multiprocess.pool.RemoteTraceback: 
+"""
+Traceback (most recent call last):
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/multiprocess/pool.py", line 125, in worker
+    result = (True, func(*args, **kwds))
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/pathos/helpers/mp_helper.py", line 15, in <lambda>
+    func = lambda args: f(*args)
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/common/parallel_utils.py", line 79, in batch_func
+    outputs.append(function(i))
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 202, in producer_func
+    full_outputs = model.predict_mol(
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/joint_model.py", line 137, in predict_mol
+    frag_tree = self.gen_model_obj.predict_mol(**gen_kwargs)
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/gen_model.py", line 541, in predict_mol
+    root_repr = dgl.batch([rg["graph"] for rg in root_graph_dict]).to(device)
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/heterograph.py", line 5709, in to
+    ret._graph = self._graph.copy_to(utils.to_dgl_context(device))
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/heterograph_index.py", line 255, in copy_to
+    return _CAPI_DGLHeteroCopyTo(self, ctx.device_type, ctx.device_id)
+  File "dgl/_ffi/_cython/./function.pxi", line 295, in dgl._ffi._cy3.core.FunctionBase.__call__
+  File "dgl/_ffi/_cython/./function.pxi", line 227, in dgl._ffi._cy3.core.FuncCall
+  File "dgl/_ffi/_cython/./function.pxi", line 217, in dgl._ffi._cy3.core.FuncCall3
+dgl._ffi.base.DGLError: [19:25:42] /opt/dgl/src/runtime/c_runtime_api.cc:82: Check failed: allow_missing: Device API cuda is not enabled. Please install the cuda version of dgl.
+Stack trace:
+  [bt] (0) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dmlc::LogMessageFatal::~LogMessageFatal()+0x75) [0x7622cc53e8f5]
+  [bt] (1) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::runtime::DeviceAPIManager::GetAPI(std::string, bool)+0x202) [0x7622cc8ada92]
+  [bt] (2) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::runtime::DeviceAPI::Get(DGLContext, bool)+0x1e1) [0x7622cc8aa071]
+  [bt] (3) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::runtime::NDArray::Empty(std::vector<long, std::allocator<long> >, DGLDataType, DGLContext)+0x13b) [0x7622cc8c554b]
+  [bt] (4) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::runtime::NDArray::CopyTo(DGLContext const&) const+0xc3) [0x7622cc8ffd53]
+  [bt] (5) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::UnitGraph::CopyTo(std::shared_ptr<dgl::BaseHeteroGraph>, DGLContext const&)+0x3ff) [0x7622cca0d24f]
+  [bt] (6) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::HeteroGraph::CopyTo(std::shared_ptr<dgl::BaseHeteroGraph>, DGLContext const&)+0xf6) [0x7622cc90c5d6]
+  [bt] (7) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(+0x51b396) [0x7622cc91b396]
+  [bt] (8) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(DGLFuncCall+0x48) [0x7622cc8a92a8]
+
+
+"""
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 276, in <module>
+    predict()
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 268, in predict
+    common.chunked_parallel(all_batched_entries, producer_func, output_func=write_h5_func,
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/common/parallel_utils.py", line 102, in chunked_parallel
+    output_func(itertools.chain.from_iterable(iter_outputs))
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 250, in write_h5_func
+    for out_batch in out_entries:
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/tqdm/std.py", line 1181, in __iter__
+    for obj in iterable:
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/multiprocess/pool.py", line 873, in next
+    raise value
+dgl._ffi.base.DGLError: [19:25:42] /opt/dgl/src/runtime/c_runtime_api.cc:82: Check failed: allow_missing: Device API cuda is not enabled. Please install the cuda version of dgl.
+Stack trace:
+  [bt] (0) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dmlc::LogMessageFatal::~LogMessageFatal()+0x75) [0x7622cc53e8f5]
+  [bt] (1) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::runtime::DeviceAPIManager::GetAPI(std::string, bool)+0x202) [0x7622cc8ada92]
+  [bt] (2) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::runtime::DeviceAPI::Get(DGLContext, bool)+0x1e1) [0x7622cc8aa071]
+  [bt] (3) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::runtime::NDArray::Empty(std::vector<long, std::allocator<long> >, DGLDataType, DGLContext)+0x13b) [0x7622cc8c554b]
+  [bt] (4) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::runtime::NDArray::CopyTo(DGLContext const&) const+0xc3) [0x7622cc8ffd53]
+  [bt] (5) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::UnitGraph::CopyTo(std::shared_ptr<dgl::BaseHeteroGraph>, DGLContext const&)+0x3ff) [0x7622cca0d24f]
+  [bt] (6) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::HeteroGraph::CopyTo(std::shared_ptr<dgl::BaseHeteroGraph>, DGLContext const&)+0xf6) [0x7622cc90c5d6]
+  [bt] (7) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(+0x51b396) [0x7622cc91b396]
+  [bt] (8) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(DGLFuncCall+0x48) [0x7622cc8a92a8]
+
+
+Seed set to 42
+2026-06-22 19:25:48,817 INFO: 
+adduct_shift: true
+batch_size: 4
+binned_out: false
+dataset_labels: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/46e751485061a9e69833072c17dc33ac/cands_df_scaling_2d066bb6.tsv
+dataset_name: null
+debug: false
+gen_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt
+gpu: true
+inten_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+max_nodes: 100
+num_bins: 15000
+num_workers: 6
+save_dir: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/46e751485061a9e69833072c17dc33ac
+seed: 42
+sparse_k: 100
+sparse_out: true
+split_name: split_22.tsv
+subset_datasets: none
+threshold: 0.0
+upper_limit: 1500
+
+Lightning automatically upgraded your loaded checkpoint from v1.6.5 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt`
+Lightning automatically upgraded your loaded checkpoint from v1.6.0 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt`
+2026-06-22 19:25:49,330 INFO: Loaded gen / inten models from /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt & /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+2026-06-22 19:25:49,332 INFO: Preparing entries
+  0%|          | 0/12 [00:00<?, ?it/s]  8%|▊         | 1/12 [00:05<00:57,  5.24s/it]100%|██████████| 12/12 [00:05<00:00,  2.29it/s]
+2026-06-22 19:25:54,621 INFO: There are 12 entries to process
+  0%|          | 0/3 [00:00<?, ?it/s]  0%|          | 0/3 [00:00<?, ?it/s]
+multiprocess.pool.RemoteTraceback: 
+"""
+Traceback (most recent call last):
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/multiprocess/pool.py", line 125, in worker
+    result = (True, func(*args, **kwds))
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/pathos/helpers/mp_helper.py", line 15, in <lambda>
+    func = lambda args: f(*args)
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/common/parallel_utils.py", line 79, in batch_func
+    outputs.append(function(i))
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 202, in producer_func
+    full_outputs = model.predict_mol(
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/joint_model.py", line 137, in predict_mol
+    frag_tree = self.gen_model_obj.predict_mol(**gen_kwargs)
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/gen_model.py", line 541, in predict_mol
+    root_repr = dgl.batch([rg["graph"] for rg in root_graph_dict]).to(device)
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/heterograph.py", line 5709, in to
+    ret._graph = self._graph.copy_to(utils.to_dgl_context(device))
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/heterograph_index.py", line 255, in copy_to
+    return _CAPI_DGLHeteroCopyTo(self, ctx.device_type, ctx.device_id)
+  File "dgl/_ffi/_cython/./function.pxi", line 295, in dgl._ffi._cy3.core.FunctionBase.__call__
+  File "dgl/_ffi/_cython/./function.pxi", line 227, in dgl._ffi._cy3.core.FuncCall
+  File "dgl/_ffi/_cython/./function.pxi", line 217, in dgl._ffi._cy3.core.FuncCall3
+dgl._ffi.base.DGLError: [19:25:55] /opt/dgl/src/runtime/c_runtime_api.cc:82: Check failed: allow_missing: Device API cuda is not enabled. Please install the cuda version of dgl.
+Stack trace:
+  [bt] (0) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dmlc::LogMessageFatal::~LogMessageFatal()+0x75) [0x71c87d33e8f5]
+  [bt] (1) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::runtime::DeviceAPIManager::GetAPI(std::string, bool)+0x202) [0x71c87d6ada92]
+  [bt] (2) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::runtime::DeviceAPI::Get(DGLContext, bool)+0x1e1) [0x71c87d6aa071]
+  [bt] (3) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::runtime::NDArray::Empty(std::vector<long, std::allocator<long> >, DGLDataType, DGLContext)+0x13b) [0x71c87d6c554b]
+  [bt] (4) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::runtime::NDArray::CopyTo(DGLContext const&) const+0xc3) [0x71c87d6ffd53]
+  [bt] (5) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::UnitGraph::CopyTo(std::shared_ptr<dgl::BaseHeteroGraph>, DGLContext const&)+0x3ff) [0x71c87d80d24f]
+  [bt] (6) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::HeteroGraph::CopyTo(std::shared_ptr<dgl::BaseHeteroGraph>, DGLContext const&)+0xf6) [0x71c87d70c5d6]
+  [bt] (7) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(+0x51b396) [0x71c87d71b396]
+  [bt] (8) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(DGLFuncCall+0x48) [0x71c87d6a92a8]
+
+
+"""
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 276, in <module>
+    predict()
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 268, in predict
+    common.chunked_parallel(all_batched_entries, producer_func, output_func=write_h5_func,
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/common/parallel_utils.py", line 102, in chunked_parallel
+    output_func(itertools.chain.from_iterable(iter_outputs))
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 250, in write_h5_func
+    for out_batch in out_entries:
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/tqdm/std.py", line 1181, in __iter__
+    for obj in iterable:
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/multiprocess/pool.py", line 873, in next
+    raise value
+dgl._ffi.base.DGLError: [19:25:55] /opt/dgl/src/runtime/c_runtime_api.cc:82: Check failed: allow_missing: Device API cuda is not enabled. Please install the cuda version of dgl.
+Stack trace:
+  [bt] (0) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dmlc::LogMessageFatal::~LogMessageFatal()+0x75) [0x71c87d33e8f5]
+  [bt] (1) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::runtime::DeviceAPIManager::GetAPI(std::string, bool)+0x202) [0x71c87d6ada92]
+  [bt] (2) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::runtime::DeviceAPI::Get(DGLContext, bool)+0x1e1) [0x71c87d6aa071]
+  [bt] (3) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::runtime::NDArray::Empty(std::vector<long, std::allocator<long> >, DGLDataType, DGLContext)+0x13b) [0x71c87d6c554b]
+  [bt] (4) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::runtime::NDArray::CopyTo(DGLContext const&) const+0xc3) [0x71c87d6ffd53]
+  [bt] (5) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::UnitGraph::CopyTo(std::shared_ptr<dgl::BaseHeteroGraph>, DGLContext const&)+0x3ff) [0x71c87d80d24f]
+  [bt] (6) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::HeteroGraph::CopyTo(std::shared_ptr<dgl::BaseHeteroGraph>, DGLContext const&)+0xf6) [0x71c87d70c5d6]
+  [bt] (7) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(+0x51b396) [0x71c87d71b396]
+  [bt] (8) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(DGLFuncCall+0x48) [0x71c87d6a92a8]
+
+
+Seed set to 42
+2026-06-22 19:26:01,204 INFO: 
+adduct_shift: true
+batch_size: 4
+binned_out: false
+dataset_labels: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/03886b327360ca9110b9642cf03b9250/cands_df_scaling_6366364b.tsv
+dataset_name: null
+debug: false
+gen_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt
+gpu: true
+inten_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+max_nodes: 100
+num_bins: 15000
+num_workers: 6
+save_dir: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/03886b327360ca9110b9642cf03b9250
+seed: 42
+sparse_k: 100
+sparse_out: true
+split_name: split_22.tsv
+subset_datasets: none
+threshold: 0.0
+upper_limit: 1500
+
+Lightning automatically upgraded your loaded checkpoint from v1.6.5 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt`
+Lightning automatically upgraded your loaded checkpoint from v1.6.0 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt`
+2026-06-22 19:26:01,928 INFO: Loaded gen / inten models from /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt & /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+2026-06-22 19:26:01,930 INFO: Preparing entries
+  0%|          | 0/12 [00:00<?, ?it/s]  8%|▊         | 1/12 [00:04<00:53,  4.91s/it]100%|██████████| 12/12 [00:04<00:00,  2.44it/s]
+2026-06-22 19:26:06,885 INFO: There are 12 entries to process
+  0%|          | 0/3 [00:00<?, ?it/s]  0%|          | 0/3 [00:00<?, ?it/s]
+multiprocess.pool.RemoteTraceback: 
+"""
+Traceback (most recent call last):
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/multiprocess/pool.py", line 125, in worker
+    result = (True, func(*args, **kwds))
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/pathos/helpers/mp_helper.py", line 15, in <lambda>
+    func = lambda args: f(*args)
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/common/parallel_utils.py", line 79, in batch_func
+    outputs.append(function(i))
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 202, in producer_func
+    full_outputs = model.predict_mol(
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/joint_model.py", line 137, in predict_mol
+    frag_tree = self.gen_model_obj.predict_mol(**gen_kwargs)
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/gen_model.py", line 541, in predict_mol
+    root_repr = dgl.batch([rg["graph"] for rg in root_graph_dict]).to(device)
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/heterograph.py", line 5709, in to
+    ret._graph = self._graph.copy_to(utils.to_dgl_context(device))
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/heterograph_index.py", line 255, in copy_to
+    return _CAPI_DGLHeteroCopyTo(self, ctx.device_type, ctx.device_id)
+  File "dgl/_ffi/_cython/./function.pxi", line 295, in dgl._ffi._cy3.core.FunctionBase.__call__
+  File "dgl/_ffi/_cython/./function.pxi", line 227, in dgl._ffi._cy3.core.FuncCall
+  File "dgl/_ffi/_cython/./function.pxi", line 217, in dgl._ffi._cy3.core.FuncCall3
+dgl._ffi.base.DGLError: [19:26:07] /opt/dgl/src/runtime/c_runtime_api.cc:82: Check failed: allow_missing: Device API cuda is not enabled. Please install the cuda version of dgl.
+Stack trace:
+  [bt] (0) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dmlc::LogMessageFatal::~LogMessageFatal()+0x75) [0x76bbec13e8f5]
+  [bt] (1) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::runtime::DeviceAPIManager::GetAPI(std::string, bool)+0x202) [0x76bbec4ada92]
+  [bt] (2) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::runtime::DeviceAPI::Get(DGLContext, bool)+0x1e1) [0x76bbec4aa071]
+  [bt] (3) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::runtime::NDArray::Empty(std::vector<long, std::allocator<long> >, DGLDataType, DGLContext)+0x13b) [0x76bbec4c554b]
+  [bt] (4) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::runtime::NDArray::CopyTo(DGLContext const&) const+0xc3) [0x76bbec4ffd53]
+  [bt] (5) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::UnitGraph::CopyTo(std::shared_ptr<dgl::BaseHeteroGraph>, DGLContext const&)+0x3ff) [0x76bbec60d24f]
+  [bt] (6) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::HeteroGraph::CopyTo(std::shared_ptr<dgl::BaseHeteroGraph>, DGLContext const&)+0xf6) [0x76bbec50c5d6]
+  [bt] (7) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(+0x51b396) [0x76bbec51b396]
+  [bt] (8) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(DGLFuncCall+0x48) [0x76bbec4a92a8]
+
+
+"""
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 276, in <module>
+    predict()
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 268, in predict
+    common.chunked_parallel(all_batched_entries, producer_func, output_func=write_h5_func,
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/common/parallel_utils.py", line 102, in chunked_parallel
+    output_func(itertools.chain.from_iterable(iter_outputs))
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 250, in write_h5_func
+    for out_batch in out_entries:
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/tqdm/std.py", line 1181, in __iter__
+    for obj in iterable:
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/multiprocess/pool.py", line 873, in next
+    raise value
+dgl._ffi.base.DGLError: [19:26:07] /opt/dgl/src/runtime/c_runtime_api.cc:82: Check failed: allow_missing: Device API cuda is not enabled. Please install the cuda version of dgl.
+Stack trace:
+  [bt] (0) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dmlc::LogMessageFatal::~LogMessageFatal()+0x75) [0x76bbec13e8f5]
+  [bt] (1) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::runtime::DeviceAPIManager::GetAPI(std::string, bool)+0x202) [0x76bbec4ada92]
+  [bt] (2) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::runtime::DeviceAPI::Get(DGLContext, bool)+0x1e1) [0x76bbec4aa071]
+  [bt] (3) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::runtime::NDArray::Empty(std::vector<long, std::allocator<long> >, DGLDataType, DGLContext)+0x13b) [0x76bbec4c554b]
+  [bt] (4) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::runtime::NDArray::CopyTo(DGLContext const&) const+0xc3) [0x76bbec4ffd53]
+  [bt] (5) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::UnitGraph::CopyTo(std::shared_ptr<dgl::BaseHeteroGraph>, DGLContext const&)+0x3ff) [0x76bbec60d24f]
+  [bt] (6) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::HeteroGraph::CopyTo(std::shared_ptr<dgl::BaseHeteroGraph>, DGLContext const&)+0xf6) [0x76bbec50c5d6]
+  [bt] (7) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(+0x51b396) [0x76bbec51b396]
+  [bt] (8) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(DGLFuncCall+0x48) [0x76bbec4a92a8]
+
+
+Seed set to 42
+2026-06-22 19:26:13,316 INFO: 
+adduct_shift: true
+batch_size: 4
+binned_out: false
+dataset_labels: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/704fb2f6e50777d616f2dbb3641aa0dd/cands_df_scaling_83f75727.tsv
+dataset_name: null
+debug: false
+gen_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt
+gpu: true
+inten_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+max_nodes: 100
+num_bins: 15000
+num_workers: 6
+save_dir: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/704fb2f6e50777d616f2dbb3641aa0dd
+seed: 42
+sparse_k: 100
+sparse_out: true
+split_name: split_22.tsv
+subset_datasets: none
+threshold: 0.0
+upper_limit: 1500
+
+Lightning automatically upgraded your loaded checkpoint from v1.6.5 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt`
+Lightning automatically upgraded your loaded checkpoint from v1.6.0 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt`
+2026-06-22 19:26:14,020 INFO: Loaded gen / inten models from /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt & /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+2026-06-22 19:26:14,021 INFO: Preparing entries
+  0%|          | 0/4 [00:00<?, ?it/s] 25%|██▌       | 1/4 [00:05<00:15,  5.05s/it]100%|██████████| 4/4 [00:05<00:00,  1.26s/it]
+2026-06-22 19:26:19,113 INFO: There are 4 entries to process
+  0%|          | 0/1 [00:00<?, ?it/s]  0%|          | 0/1 [00:00<?, ?it/s]
+multiprocess.pool.RemoteTraceback: 
+"""
+Traceback (most recent call last):
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/multiprocess/pool.py", line 125, in worker
+    result = (True, func(*args, **kwds))
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/pathos/helpers/mp_helper.py", line 15, in <lambda>
+    func = lambda args: f(*args)
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/common/parallel_utils.py", line 79, in batch_func
+    outputs.append(function(i))
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 202, in producer_func
+    full_outputs = model.predict_mol(
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/joint_model.py", line 137, in predict_mol
+    frag_tree = self.gen_model_obj.predict_mol(**gen_kwargs)
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/gen_model.py", line 541, in predict_mol
+    root_repr = dgl.batch([rg["graph"] for rg in root_graph_dict]).to(device)
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/heterograph.py", line 5709, in to
+    ret._graph = self._graph.copy_to(utils.to_dgl_context(device))
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/heterograph_index.py", line 255, in copy_to
+    return _CAPI_DGLHeteroCopyTo(self, ctx.device_type, ctx.device_id)
+  File "dgl/_ffi/_cython/./function.pxi", line 295, in dgl._ffi._cy3.core.FunctionBase.__call__
+  File "dgl/_ffi/_cython/./function.pxi", line 227, in dgl._ffi._cy3.core.FuncCall
+  File "dgl/_ffi/_cython/./function.pxi", line 217, in dgl._ffi._cy3.core.FuncCall3
+dgl._ffi.base.DGLError: [19:26:19] /opt/dgl/src/runtime/c_runtime_api.cc:82: Check failed: allow_missing: Device API cuda is not enabled. Please install the cuda version of dgl.
+Stack trace:
+  [bt] (0) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dmlc::LogMessageFatal::~LogMessageFatal()+0x75) [0x709f6cd3e8f5]
+  [bt] (1) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::runtime::DeviceAPIManager::GetAPI(std::string, bool)+0x202) [0x709f6d0ada92]
+  [bt] (2) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::runtime::DeviceAPI::Get(DGLContext, bool)+0x1e1) [0x709f6d0aa071]
+  [bt] (3) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::runtime::NDArray::Empty(std::vector<long, std::allocator<long> >, DGLDataType, DGLContext)+0x13b) [0x709f6d0c554b]
+  [bt] (4) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::runtime::NDArray::CopyTo(DGLContext const&) const+0xc3) [0x709f6d0ffd53]
+  [bt] (5) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::UnitGraph::CopyTo(std::shared_ptr<dgl::BaseHeteroGraph>, DGLContext const&)+0x3ff) [0x709f6d20d24f]
+  [bt] (6) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::HeteroGraph::CopyTo(std::shared_ptr<dgl::BaseHeteroGraph>, DGLContext const&)+0xf6) [0x709f6d10c5d6]
+  [bt] (7) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(+0x51b396) [0x709f6d11b396]
+  [bt] (8) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(DGLFuncCall+0x48) [0x709f6d0a92a8]
+
+
+"""
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 276, in <module>
+    predict()
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 268, in predict
+    common.chunked_parallel(all_batched_entries, producer_func, output_func=write_h5_func,
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/common/parallel_utils.py", line 102, in chunked_parallel
+    output_func(itertools.chain.from_iterable(iter_outputs))
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 250, in write_h5_func
+    for out_batch in out_entries:
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/tqdm/std.py", line 1181, in __iter__
+    for obj in iterable:
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/multiprocess/pool.py", line 873, in next
+    raise value
+dgl._ffi.base.DGLError: [19:26:19] /opt/dgl/src/runtime/c_runtime_api.cc:82: Check failed: allow_missing: Device API cuda is not enabled. Please install the cuda version of dgl.
+Stack trace:
+  [bt] (0) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dmlc::LogMessageFatal::~LogMessageFatal()+0x75) [0x709f6cd3e8f5]
+  [bt] (1) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::runtime::DeviceAPIManager::GetAPI(std::string, bool)+0x202) [0x709f6d0ada92]
+  [bt] (2) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::runtime::DeviceAPI::Get(DGLContext, bool)+0x1e1) [0x709f6d0aa071]
+  [bt] (3) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::runtime::NDArray::Empty(std::vector<long, std::allocator<long> >, DGLDataType, DGLContext)+0x13b) [0x709f6d0c554b]
+  [bt] (4) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::runtime::NDArray::CopyTo(DGLContext const&) const+0xc3) [0x709f6d0ffd53]
+  [bt] (5) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::UnitGraph::CopyTo(std::shared_ptr<dgl::BaseHeteroGraph>, DGLContext const&)+0x3ff) [0x709f6d20d24f]
+  [bt] (6) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::HeteroGraph::CopyTo(std::shared_ptr<dgl::BaseHeteroGraph>, DGLContext const&)+0xf6) [0x709f6d10c5d6]
+  [bt] (7) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(+0x51b396) [0x709f6d11b396]
+  [bt] (8) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(DGLFuncCall+0x48) [0x709f6d0a92a8]
+
+
+Seed set to 42
+2026-06-22 19:26:25,289 INFO: 
+adduct_shift: true
+batch_size: 4
+binned_out: false
+dataset_labels: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/6555f8c1e11d5de02fe077fb26013214/cands_df_scaling_eb27b2b8.tsv
+dataset_name: null
+debug: false
+gen_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt
+gpu: true
+inten_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+max_nodes: 100
+num_bins: 15000
+num_workers: 6
+save_dir: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/6555f8c1e11d5de02fe077fb26013214
+seed: 42
+sparse_k: 100
+sparse_out: true
+split_name: split_22.tsv
+subset_datasets: none
+threshold: 0.0
+upper_limit: 1500
+
+Lightning automatically upgraded your loaded checkpoint from v1.6.5 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt`
+Lightning automatically upgraded your loaded checkpoint from v1.6.0 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt`
+2026-06-22 19:26:26,038 INFO: Loaded gen / inten models from /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt & /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+2026-06-22 19:26:26,040 INFO: Preparing entries
+  0%|          | 0/4 [00:00<?, ?it/s] 25%|██▌       | 1/4 [00:04<00:14,  4.92s/it]100%|██████████| 4/4 [00:04<00:00,  1.23s/it]
+2026-06-22 19:26:31,010 INFO: There are 4 entries to process
+  0%|          | 0/1 [00:00<?, ?it/s]  0%|          | 0/1 [00:00<?, ?it/s]
+multiprocess.pool.RemoteTraceback: 
+"""
+Traceback (most recent call last):
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/multiprocess/pool.py", line 125, in worker
+    result = (True, func(*args, **kwds))
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/pathos/helpers/mp_helper.py", line 15, in <lambda>
+    func = lambda args: f(*args)
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/common/parallel_utils.py", line 79, in batch_func
+    outputs.append(function(i))
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 202, in producer_func
+    full_outputs = model.predict_mol(
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/joint_model.py", line 137, in predict_mol
+    frag_tree = self.gen_model_obj.predict_mol(**gen_kwargs)
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/gen_model.py", line 541, in predict_mol
+    root_repr = dgl.batch([rg["graph"] for rg in root_graph_dict]).to(device)
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/heterograph.py", line 5709, in to
+    ret._graph = self._graph.copy_to(utils.to_dgl_context(device))
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/heterograph_index.py", line 255, in copy_to
+    return _CAPI_DGLHeteroCopyTo(self, ctx.device_type, ctx.device_id)
+  File "dgl/_ffi/_cython/./function.pxi", line 295, in dgl._ffi._cy3.core.FunctionBase.__call__
+  File "dgl/_ffi/_cython/./function.pxi", line 227, in dgl._ffi._cy3.core.FuncCall
+  File "dgl/_ffi/_cython/./function.pxi", line 217, in dgl._ffi._cy3.core.FuncCall3
+dgl._ffi.base.DGLError: [19:26:31] /opt/dgl/src/runtime/c_runtime_api.cc:82: Check failed: allow_missing: Device API cuda is not enabled. Please install the cuda version of dgl.
+Stack trace:
+  [bt] (0) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dmlc::LogMessageFatal::~LogMessageFatal()+0x75) [0x7c9b9f53e8f5]
+  [bt] (1) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::runtime::DeviceAPIManager::GetAPI(std::string, bool)+0x202) [0x7c9b9f8ada92]
+  [bt] (2) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::runtime::DeviceAPI::Get(DGLContext, bool)+0x1e1) [0x7c9b9f8aa071]
+  [bt] (3) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::runtime::NDArray::Empty(std::vector<long, std::allocator<long> >, DGLDataType, DGLContext)+0x13b) [0x7c9b9f8c554b]
+  [bt] (4) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::runtime::NDArray::CopyTo(DGLContext const&) const+0xc3) [0x7c9b9f8ffd53]
+  [bt] (5) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::UnitGraph::CopyTo(std::shared_ptr<dgl::BaseHeteroGraph>, DGLContext const&)+0x3ff) [0x7c9b9fa0d24f]
+  [bt] (6) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::HeteroGraph::CopyTo(std::shared_ptr<dgl::BaseHeteroGraph>, DGLContext const&)+0xf6) [0x7c9b9f90c5d6]
+  [bt] (7) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(+0x51b396) [0x7c9b9f91b396]
+  [bt] (8) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(DGLFuncCall+0x48) [0x7c9b9f8a92a8]
+
+
+"""
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 276, in <module>
+    predict()
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 268, in predict
+    common.chunked_parallel(all_batched_entries, producer_func, output_func=write_h5_func,
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/common/parallel_utils.py", line 102, in chunked_parallel
+    output_func(itertools.chain.from_iterable(iter_outputs))
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 250, in write_h5_func
+    for out_batch in out_entries:
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/tqdm/std.py", line 1181, in __iter__
+    for obj in iterable:
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/multiprocess/pool.py", line 873, in next
+    raise value
+dgl._ffi.base.DGLError: [19:26:31] /opt/dgl/src/runtime/c_runtime_api.cc:82: Check failed: allow_missing: Device API cuda is not enabled. Please install the cuda version of dgl.
+Stack trace:
+  [bt] (0) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dmlc::LogMessageFatal::~LogMessageFatal()+0x75) [0x7c9b9f53e8f5]
+  [bt] (1) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::runtime::DeviceAPIManager::GetAPI(std::string, bool)+0x202) [0x7c9b9f8ada92]
+  [bt] (2) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::runtime::DeviceAPI::Get(DGLContext, bool)+0x1e1) [0x7c9b9f8aa071]
+  [bt] (3) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::runtime::NDArray::Empty(std::vector<long, std::allocator<long> >, DGLDataType, DGLContext)+0x13b) [0x7c9b9f8c554b]
+  [bt] (4) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::runtime::NDArray::CopyTo(DGLContext const&) const+0xc3) [0x7c9b9f8ffd53]
+  [bt] (5) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::UnitGraph::CopyTo(std::shared_ptr<dgl::BaseHeteroGraph>, DGLContext const&)+0x3ff) [0x7c9b9fa0d24f]
+  [bt] (6) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::HeteroGraph::CopyTo(std::shared_ptr<dgl::BaseHeteroGraph>, DGLContext const&)+0xf6) [0x7c9b9f90c5d6]
+  [bt] (7) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(+0x51b396) [0x7c9b9f91b396]
+  [bt] (8) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(DGLFuncCall+0x48) [0x7c9b9f8a92a8]
+
+
+Seed set to 42
+2026-06-22 19:26:37,118 INFO: 
+adduct_shift: true
+batch_size: 4
+binned_out: false
+dataset_labels: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/d35b7577fb036341398b3aa9af85aac9/cands_df_scaling_96fea39a.tsv
+dataset_name: null
+debug: false
+gen_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt
+gpu: true
+inten_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+max_nodes: 100
+num_bins: 15000
+num_workers: 6
+save_dir: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/d35b7577fb036341398b3aa9af85aac9
+seed: 42
+sparse_k: 100
+sparse_out: true
+split_name: split_22.tsv
+subset_datasets: none
+threshold: 0.0
+upper_limit: 1500
+
+Lightning automatically upgraded your loaded checkpoint from v1.6.5 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt`
+Lightning automatically upgraded your loaded checkpoint from v1.6.0 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt`
+2026-06-22 19:26:37,822 INFO: Loaded gen / inten models from /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt & /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+2026-06-22 19:26:37,823 INFO: Preparing entries
+  0%|          | 0/4 [00:00<?, ?it/s] 25%|██▌       | 1/4 [00:05<00:15,  5.04s/it]100%|██████████| 4/4 [00:05<00:00,  1.26s/it]
+2026-06-22 19:26:42,901 INFO: There are 4 entries to process
+  0%|          | 0/1 [00:00<?, ?it/s]  0%|          | 0/1 [00:00<?, ?it/s]
+multiprocess.pool.RemoteTraceback: 
+"""
+Traceback (most recent call last):
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/multiprocess/pool.py", line 125, in worker
+    result = (True, func(*args, **kwds))
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/pathos/helpers/mp_helper.py", line 15, in <lambda>
+    func = lambda args: f(*args)
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/common/parallel_utils.py", line 79, in batch_func
+    outputs.append(function(i))
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 202, in producer_func
+    full_outputs = model.predict_mol(
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/joint_model.py", line 137, in predict_mol
+    frag_tree = self.gen_model_obj.predict_mol(**gen_kwargs)
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/gen_model.py", line 541, in predict_mol
+    root_repr = dgl.batch([rg["graph"] for rg in root_graph_dict]).to(device)
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/heterograph.py", line 5709, in to
+    ret._graph = self._graph.copy_to(utils.to_dgl_context(device))
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/heterograph_index.py", line 255, in copy_to
+    return _CAPI_DGLHeteroCopyTo(self, ctx.device_type, ctx.device_id)
+  File "dgl/_ffi/_cython/./function.pxi", line 295, in dgl._ffi._cy3.core.FunctionBase.__call__
+  File "dgl/_ffi/_cython/./function.pxi", line 227, in dgl._ffi._cy3.core.FuncCall
+  File "dgl/_ffi/_cython/./function.pxi", line 217, in dgl._ffi._cy3.core.FuncCall3
+dgl._ffi.base.DGLError: [19:26:43] /opt/dgl/src/runtime/c_runtime_api.cc:82: Check failed: allow_missing: Device API cuda is not enabled. Please install the cuda version of dgl.
+Stack trace:
+  [bt] (0) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dmlc::LogMessageFatal::~LogMessageFatal()+0x75) [0x7dddceb3e8f5]
+  [bt] (1) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::runtime::DeviceAPIManager::GetAPI(std::string, bool)+0x202) [0x7dddceeada92]
+  [bt] (2) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::runtime::DeviceAPI::Get(DGLContext, bool)+0x1e1) [0x7dddceeaa071]
+  [bt] (3) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::runtime::NDArray::Empty(std::vector<long, std::allocator<long> >, DGLDataType, DGLContext)+0x13b) [0x7dddceec554b]
+  [bt] (4) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::runtime::NDArray::CopyTo(DGLContext const&) const+0xc3) [0x7dddceeffd53]
+  [bt] (5) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::UnitGraph::CopyTo(std::shared_ptr<dgl::BaseHeteroGraph>, DGLContext const&)+0x3ff) [0x7dddcf00d24f]
+  [bt] (6) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::HeteroGraph::CopyTo(std::shared_ptr<dgl::BaseHeteroGraph>, DGLContext const&)+0xf6) [0x7dddcef0c5d6]
+  [bt] (7) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(+0x51b396) [0x7dddcef1b396]
+  [bt] (8) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(DGLFuncCall+0x48) [0x7dddceea92a8]
+
+
+"""
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 276, in <module>
+    predict()
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 268, in predict
+    common.chunked_parallel(all_batched_entries, producer_func, output_func=write_h5_func,
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/common/parallel_utils.py", line 102, in chunked_parallel
+    output_func(itertools.chain.from_iterable(iter_outputs))
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 250, in write_h5_func
+    for out_batch in out_entries:
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/tqdm/std.py", line 1181, in __iter__
+    for obj in iterable:
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/multiprocess/pool.py", line 873, in next
+    raise value
+dgl._ffi.base.DGLError: [19:26:43] /opt/dgl/src/runtime/c_runtime_api.cc:82: Check failed: allow_missing: Device API cuda is not enabled. Please install the cuda version of dgl.
+Stack trace:
+  [bt] (0) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dmlc::LogMessageFatal::~LogMessageFatal()+0x75) [0x7dddceb3e8f5]
+  [bt] (1) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::runtime::DeviceAPIManager::GetAPI(std::string, bool)+0x202) [0x7dddceeada92]
+  [bt] (2) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::runtime::DeviceAPI::Get(DGLContext, bool)+0x1e1) [0x7dddceeaa071]
+  [bt] (3) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::runtime::NDArray::Empty(std::vector<long, std::allocator<long> >, DGLDataType, DGLContext)+0x13b) [0x7dddceec554b]
+  [bt] (4) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::runtime::NDArray::CopyTo(DGLContext const&) const+0xc3) [0x7dddceeffd53]
+  [bt] (5) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::UnitGraph::CopyTo(std::shared_ptr<dgl::BaseHeteroGraph>, DGLContext const&)+0x3ff) [0x7dddcf00d24f]
+  [bt] (6) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::HeteroGraph::CopyTo(std::shared_ptr<dgl::BaseHeteroGraph>, DGLContext const&)+0xf6) [0x7dddcef0c5d6]
+  [bt] (7) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(+0x51b396) [0x7dddcef1b396]
+  [bt] (8) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(DGLFuncCall+0x48) [0x7dddceea92a8]
+
+
+Seed set to 42
+2026-06-22 19:26:49,114 INFO: 
+adduct_shift: true
+batch_size: 4
+binned_out: false
+dataset_labels: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/e99b94b6fff22b1e8898094d2f45135b/cands_df_scaling_697f64b9.tsv
+dataset_name: null
+debug: false
+gen_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt
+gpu: true
+inten_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+max_nodes: 100
+num_bins: 15000
+num_workers: 6
+save_dir: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/e99b94b6fff22b1e8898094d2f45135b
+seed: 42
+sparse_k: 100
+sparse_out: true
+split_name: split_22.tsv
+subset_datasets: none
+threshold: 0.0
+upper_limit: 1500
+
+Lightning automatically upgraded your loaded checkpoint from v1.6.5 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt`
+Lightning automatically upgraded your loaded checkpoint from v1.6.0 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt`
+2026-06-22 19:26:49,838 INFO: Loaded gen / inten models from /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt & /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+2026-06-22 19:26:49,841 INFO: Preparing entries
+  0%|          | 0/4 [00:00<?, ?it/s] 25%|██▌       | 1/4 [00:05<00:15,  5.09s/it]100%|██████████| 4/4 [00:05<00:00,  1.27s/it]
+2026-06-22 19:26:54,974 INFO: There are 4 entries to process
+  0%|          | 0/1 [00:00<?, ?it/s]  0%|          | 0/1 [00:00<?, ?it/s]
+multiprocess.pool.RemoteTraceback: 
+"""
+Traceback (most recent call last):
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/multiprocess/pool.py", line 125, in worker
+    result = (True, func(*args, **kwds))
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/pathos/helpers/mp_helper.py", line 15, in <lambda>
+    func = lambda args: f(*args)
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/common/parallel_utils.py", line 79, in batch_func
+    outputs.append(function(i))
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 202, in producer_func
+    full_outputs = model.predict_mol(
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/joint_model.py", line 137, in predict_mol
+    frag_tree = self.gen_model_obj.predict_mol(**gen_kwargs)
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/gen_model.py", line 541, in predict_mol
+    root_repr = dgl.batch([rg["graph"] for rg in root_graph_dict]).to(device)
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/heterograph.py", line 5709, in to
+    ret._graph = self._graph.copy_to(utils.to_dgl_context(device))
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/heterograph_index.py", line 255, in copy_to
+    return _CAPI_DGLHeteroCopyTo(self, ctx.device_type, ctx.device_id)
+  File "dgl/_ffi/_cython/./function.pxi", line 295, in dgl._ffi._cy3.core.FunctionBase.__call__
+  File "dgl/_ffi/_cython/./function.pxi", line 227, in dgl._ffi._cy3.core.FuncCall
+  File "dgl/_ffi/_cython/./function.pxi", line 217, in dgl._ffi._cy3.core.FuncCall3
+dgl._ffi.base.DGLError: [19:26:55] /opt/dgl/src/runtime/c_runtime_api.cc:82: Check failed: allow_missing: Device API cuda is not enabled. Please install the cuda version of dgl.
+Stack trace:
+  [bt] (0) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dmlc::LogMessageFatal::~LogMessageFatal()+0x75) [0x7c7c70b3e8f5]
+  [bt] (1) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::runtime::DeviceAPIManager::GetAPI(std::string, bool)+0x202) [0x7c7c70eada92]
+  [bt] (2) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::runtime::DeviceAPI::Get(DGLContext, bool)+0x1e1) [0x7c7c70eaa071]
+  [bt] (3) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::runtime::NDArray::Empty(std::vector<long, std::allocator<long> >, DGLDataType, DGLContext)+0x13b) [0x7c7c70ec554b]
+  [bt] (4) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::runtime::NDArray::CopyTo(DGLContext const&) const+0xc3) [0x7c7c70effd53]
+  [bt] (5) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::UnitGraph::CopyTo(std::shared_ptr<dgl::BaseHeteroGraph>, DGLContext const&)+0x3ff) [0x7c7c7100d24f]
+  [bt] (6) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::HeteroGraph::CopyTo(std::shared_ptr<dgl::BaseHeteroGraph>, DGLContext const&)+0xf6) [0x7c7c70f0c5d6]
+  [bt] (7) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(+0x51b396) [0x7c7c70f1b396]
+  [bt] (8) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(DGLFuncCall+0x48) [0x7c7c70ea92a8]
+
+
+"""
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 276, in <module>
+    predict()
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 268, in predict
+    common.chunked_parallel(all_batched_entries, producer_func, output_func=write_h5_func,
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/common/parallel_utils.py", line 102, in chunked_parallel
+    output_func(itertools.chain.from_iterable(iter_outputs))
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 250, in write_h5_func
+    for out_batch in out_entries:
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/tqdm/std.py", line 1181, in __iter__
+    for obj in iterable:
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/multiprocess/pool.py", line 873, in next
+    raise value
+dgl._ffi.base.DGLError: [19:26:55] /opt/dgl/src/runtime/c_runtime_api.cc:82: Check failed: allow_missing: Device API cuda is not enabled. Please install the cuda version of dgl.
+Stack trace:
+  [bt] (0) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dmlc::LogMessageFatal::~LogMessageFatal()+0x75) [0x7c7c70b3e8f5]
+  [bt] (1) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::runtime::DeviceAPIManager::GetAPI(std::string, bool)+0x202) [0x7c7c70eada92]
+  [bt] (2) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::runtime::DeviceAPI::Get(DGLContext, bool)+0x1e1) [0x7c7c70eaa071]
+  [bt] (3) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::runtime::NDArray::Empty(std::vector<long, std::allocator<long> >, DGLDataType, DGLContext)+0x13b) [0x7c7c70ec554b]
+  [bt] (4) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::runtime::NDArray::CopyTo(DGLContext const&) const+0xc3) [0x7c7c70effd53]
+  [bt] (5) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::UnitGraph::CopyTo(std::shared_ptr<dgl::BaseHeteroGraph>, DGLContext const&)+0x3ff) [0x7c7c7100d24f]
+  [bt] (6) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::HeteroGraph::CopyTo(std::shared_ptr<dgl::BaseHeteroGraph>, DGLContext const&)+0xf6) [0x7c7c70f0c5d6]
+  [bt] (7) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(+0x51b396) [0x7c7c70f1b396]
+  [bt] (8) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(DGLFuncCall+0x48) [0x7c7c70ea92a8]
+
+
+CUDA_VISIBLE_DEVICES=0 /home/nikolenko/work/Projects/FRIGID/.venv/bin/python src/ms_pred/dag_pred/predict_smis.py \
+               --batch-size 4 \
+               --num-workers 6 \
+               --dataset-labels /home/nikolenko/.cache/ms-pred/iceberg-elucidation/6f834cafe5957b0a14cdb504e9cacef2/cands_df_scaling_ed9969a5.tsv \
+               --sparse-out \
+               --sparse-k 100 \
+               --max-nodes 100 \
+               --threshold 0.0 \
+               --gen-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt \
+               --inten-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt \
+               --save-dir /home/nikolenko/.cache/ms-pred/iceberg-elucidation/6f834cafe5957b0a14cdb504e9cacef2 \
+               --adduct-shift \
+               --gpu
+  Running ICEBERG for 12 molecules at CE=30eV, instrument=QTOF, ionization=[M+Na]+...
+CUDA_VISIBLE_DEVICES=0 /home/nikolenko/work/Projects/FRIGID/.venv/bin/python src/ms_pred/dag_pred/predict_smis.py \
+               --batch-size 4 \
+               --num-workers 6 \
+               --dataset-labels /home/nikolenko/.cache/ms-pred/iceberg-elucidation/c1b179f9751e55ef434dfd49915400b2/cands_df_scaling_720243ec.tsv \
+               --sparse-out \
+               --sparse-k 100 \
+               --max-nodes 100 \
+               --threshold 0.0 \
+               --gen-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt \
+               --inten-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt \
+               --save-dir /home/nikolenko/.cache/ms-pred/iceberg-elucidation/c1b179f9751e55ef434dfd49915400b2 \
+               --adduct-shift \
+               --gpu
+  Running ICEBERG for 12 molecules at CE=40eV, instrument=QTOF, ionization=[M+Na]+...
+CUDA_VISIBLE_DEVICES=0 /home/nikolenko/work/Projects/FRIGID/.venv/bin/python src/ms_pred/dag_pred/predict_smis.py \
+               --batch-size 4 \
+               --num-workers 6 \
+               --dataset-labels /home/nikolenko/.cache/ms-pred/iceberg-elucidation/46e751485061a9e69833072c17dc33ac/cands_df_scaling_2d066bb6.tsv \
+               --sparse-out \
+               --sparse-k 100 \
+               --max-nodes 100 \
+               --threshold 0.0 \
+               --gen-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt \
+               --inten-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt \
+               --save-dir /home/nikolenko/.cache/ms-pred/iceberg-elucidation/46e751485061a9e69833072c17dc33ac \
+               --adduct-shift \
+               --gpu
+  Running ICEBERG for 12 molecules at CE=50eV, instrument=QTOF, ionization=[M+Na]+...
+CUDA_VISIBLE_DEVICES=0 /home/nikolenko/work/Projects/FRIGID/.venv/bin/python src/ms_pred/dag_pred/predict_smis.py \
+               --batch-size 4 \
+               --num-workers 6 \
+               --dataset-labels /home/nikolenko/.cache/ms-pred/iceberg-elucidation/03886b327360ca9110b9642cf03b9250/cands_df_scaling_6366364b.tsv \
+               --sparse-out \
+               --sparse-k 100 \
+               --max-nodes 100 \
+               --threshold 0.0 \
+               --gen-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt \
+               --inten-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt \
+               --save-dir /home/nikolenko/.cache/ms-pred/iceberg-elucidation/03886b327360ca9110b9642cf03b9250 \
+               --adduct-shift \
+               --gpu
+  Running ICEBERG for 4 molecules at CE=10eV, instrument=Orbitrap, ionization=[M+Na]+...
+CUDA_VISIBLE_DEVICES=0 /home/nikolenko/work/Projects/FRIGID/.venv/bin/python src/ms_pred/dag_pred/predict_smis.py \
+               --batch-size 4 \
+               --num-workers 6 \
+               --dataset-labels /home/nikolenko/.cache/ms-pred/iceberg-elucidation/704fb2f6e50777d616f2dbb3641aa0dd/cands_df_scaling_83f75727.tsv \
+               --sparse-out \
+               --sparse-k 100 \
+               --max-nodes 100 \
+               --threshold 0.0 \
+               --gen-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt \
+               --inten-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt \
+               --save-dir /home/nikolenko/.cache/ms-pred/iceberg-elucidation/704fb2f6e50777d616f2dbb3641aa0dd \
+               --adduct-shift \
+               --gpu
+  Running ICEBERG for 4 molecules at CE=20eV, instrument=Orbitrap, ionization=[M+Na]+...
+CUDA_VISIBLE_DEVICES=0 /home/nikolenko/work/Projects/FRIGID/.venv/bin/python src/ms_pred/dag_pred/predict_smis.py \
+               --batch-size 4 \
+               --num-workers 6 \
+               --dataset-labels /home/nikolenko/.cache/ms-pred/iceberg-elucidation/6555f8c1e11d5de02fe077fb26013214/cands_df_scaling_eb27b2b8.tsv \
+               --sparse-out \
+               --sparse-k 100 \
+               --max-nodes 100 \
+               --threshold 0.0 \
+               --gen-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt \
+               --inten-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt \
+               --save-dir /home/nikolenko/.cache/ms-pred/iceberg-elucidation/6555f8c1e11d5de02fe077fb26013214 \
+               --adduct-shift \
+               --gpu
+  Running ICEBERG for 4 molecules at CE=30eV, instrument=Orbitrap, ionization=[M+Na]+...
+CUDA_VISIBLE_DEVICES=0 /home/nikolenko/work/Projects/FRIGID/.venv/bin/python src/ms_pred/dag_pred/predict_smis.py \
+               --batch-size 4 \
+               --num-workers 6 \
+               --dataset-labels /home/nikolenko/.cache/ms-pred/iceberg-elucidation/d35b7577fb036341398b3aa9af85aac9/cands_df_scaling_96fea39a.tsv \
+               --sparse-out \
+               --sparse-k 100 \
+               --max-nodes 100 \
+               --threshold 0.0 \
+               --gen-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt \
+               --inten-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt \
+               --save-dir /home/nikolenko/.cache/ms-pred/iceberg-elucidation/d35b7577fb036341398b3aa9af85aac9 \
+               --adduct-shift \
+               --gpu
+  Running ICEBERG for 4 molecules at CE=40eV, instrument=Orbitrap, ionization=[M+Na]+...
+CUDA_VISIBLE_DEVICES=0 /home/nikolenko/work/Projects/FRIGID/.venv/bin/python src/ms_pred/dag_pred/predict_smis.py \
+               --batch-size 4 \
+               --num-workers 6 \
+               --dataset-labels /home/nikolenko/.cache/ms-pred/iceberg-elucidation/e99b94b6fff22b1e8898094d2f45135b/cands_df_scaling_697f64b9.tsv \
+               --sparse-out \
+               --sparse-k 100 \
+               --max-nodes 100 \
+               --threshold 0.0 \
+               --gen-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt \
+               --inten-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt \
+               --save-dir /home/nikolenko/.cache/ms-pred/iceberg-elucidation/e99b94b6fff22b1e8898094d2f45135b \
+               --adduct-shift \
+               --gpu
+  Running ICEBERG for 4 molecules at CE=50eV, instrument=Orbitrap, ionization=[M+Na]+...
+Seed set to 42
+2026-06-22 19:27:01,203 INFO: 
+adduct_shift: true
+batch_size: 4
+binned_out: false
+dataset_labels: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/1f621ef07b29888e76f01628e737a14f/cands_df_scaling_0d9a91a7.tsv
+dataset_name: null
+debug: false
+gen_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt
+gpu: true
+inten_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+max_nodes: 100
+num_bins: 15000
+num_workers: 6
+save_dir: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/1f621ef07b29888e76f01628e737a14f
+seed: 42
+sparse_k: 100
+sparse_out: true
+split_name: split_22.tsv
+subset_datasets: none
+threshold: 0.0
+upper_limit: 1500
+
+Lightning automatically upgraded your loaded checkpoint from v1.6.5 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt`
+Lightning automatically upgraded your loaded checkpoint from v1.6.0 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt`
+2026-06-22 19:27:01,916 INFO: Loaded gen / inten models from /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt & /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+2026-06-22 19:27:01,918 INFO: Preparing entries
+  0%|          | 0/4 [00:00<?, ?it/s] 25%|██▌       | 1/4 [00:05<00:15,  5.06s/it]100%|██████████| 4/4 [00:05<00:00,  1.27s/it]
+2026-06-22 19:27:07,020 INFO: There are 4 entries to process
+  0%|          | 0/1 [00:00<?, ?it/s]  0%|          | 0/1 [00:00<?, ?it/s]
+multiprocess.pool.RemoteTraceback: 
+"""
+Traceback (most recent call last):
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/multiprocess/pool.py", line 125, in worker
+    result = (True, func(*args, **kwds))
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/pathos/helpers/mp_helper.py", line 15, in <lambda>
+    func = lambda args: f(*args)
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/common/parallel_utils.py", line 79, in batch_func
+    outputs.append(function(i))
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 202, in producer_func
+    full_outputs = model.predict_mol(
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/joint_model.py", line 137, in predict_mol
+    frag_tree = self.gen_model_obj.predict_mol(**gen_kwargs)
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/gen_model.py", line 541, in predict_mol
+    root_repr = dgl.batch([rg["graph"] for rg in root_graph_dict]).to(device)
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/heterograph.py", line 5709, in to
+    ret._graph = self._graph.copy_to(utils.to_dgl_context(device))
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/heterograph_index.py", line 255, in copy_to
+    return _CAPI_DGLHeteroCopyTo(self, ctx.device_type, ctx.device_id)
+  File "dgl/_ffi/_cython/./function.pxi", line 295, in dgl._ffi._cy3.core.FunctionBase.__call__
+  File "dgl/_ffi/_cython/./function.pxi", line 227, in dgl._ffi._cy3.core.FuncCall
+  File "dgl/_ffi/_cython/./function.pxi", line 217, in dgl._ffi._cy3.core.FuncCall3
+dgl._ffi.base.DGLError: [19:27:07] /opt/dgl/src/runtime/c_runtime_api.cc:82: Check failed: allow_missing: Device API cuda is not enabled. Please install the cuda version of dgl.
+Stack trace:
+  [bt] (0) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dmlc::LogMessageFatal::~LogMessageFatal()+0x75) [0x76e23a73e8f5]
+  [bt] (1) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::runtime::DeviceAPIManager::GetAPI(std::string, bool)+0x202) [0x76e23aaada92]
+  [bt] (2) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::runtime::DeviceAPI::Get(DGLContext, bool)+0x1e1) [0x76e23aaaa071]
+  [bt] (3) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::runtime::NDArray::Empty(std::vector<long, std::allocator<long> >, DGLDataType, DGLContext)+0x13b) [0x76e23aac554b]
+  [bt] (4) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::runtime::NDArray::CopyTo(DGLContext const&) const+0xc3) [0x76e23aaffd53]
+  [bt] (5) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::UnitGraph::CopyTo(std::shared_ptr<dgl::BaseHeteroGraph>, DGLContext const&)+0x3ff) [0x76e23ac0d24f]
+  [bt] (6) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::HeteroGraph::CopyTo(std::shared_ptr<dgl::BaseHeteroGraph>, DGLContext const&)+0xf6) [0x76e23ab0c5d6]
+  [bt] (7) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(+0x51b396) [0x76e23ab1b396]
+  [bt] (8) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(DGLFuncCall+0x48) [0x76e23aaa92a8]
+
+
+"""
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 276, in <module>
+    predict()
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 268, in predict
+    common.chunked_parallel(all_batched_entries, producer_func, output_func=write_h5_func,
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/common/parallel_utils.py", line 102, in chunked_parallel
+    output_func(itertools.chain.from_iterable(iter_outputs))
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 250, in write_h5_func
+    for out_batch in out_entries:
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/tqdm/std.py", line 1181, in __iter__
+    for obj in iterable:
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/multiprocess/pool.py", line 873, in next
+    raise value
+dgl._ffi.base.DGLError: [19:27:07] /opt/dgl/src/runtime/c_runtime_api.cc:82: Check failed: allow_missing: Device API cuda is not enabled. Please install the cuda version of dgl.
+Stack trace:
+  [bt] (0) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dmlc::LogMessageFatal::~LogMessageFatal()+0x75) [0x76e23a73e8f5]
+  [bt] (1) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::runtime::DeviceAPIManager::GetAPI(std::string, bool)+0x202) [0x76e23aaada92]
+  [bt] (2) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::runtime::DeviceAPI::Get(DGLContext, bool)+0x1e1) [0x76e23aaaa071]
+  [bt] (3) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::runtime::NDArray::Empty(std::vector<long, std::allocator<long> >, DGLDataType, DGLContext)+0x13b) [0x76e23aac554b]
+  [bt] (4) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::runtime::NDArray::CopyTo(DGLContext const&) const+0xc3) [0x76e23aaffd53]
+  [bt] (5) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::UnitGraph::CopyTo(std::shared_ptr<dgl::BaseHeteroGraph>, DGLContext const&)+0x3ff) [0x76e23ac0d24f]
+  [bt] (6) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(dgl::HeteroGraph::CopyTo(std::shared_ptr<dgl::BaseHeteroGraph>, DGLContext const&)+0xf6) [0x76e23ab0c5d6]
+  [bt] (7) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(+0x51b396) [0x76e23ab1b396]
+  [bt] (8) /home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/libdgl.so(DGLFuncCall+0x48) [0x76e23aaa92a8]
+
+
+CUDA_VISIBLE_DEVICES=0 /home/nikolenko/work/Projects/FRIGID/.venv/bin/python src/ms_pred/dag_pred/predict_smis.py \
+               --batch-size 4 \
+               --num-workers 6 \
+               --dataset-labels /home/nikolenko/.cache/ms-pred/iceberg-elucidation/1f621ef07b29888e76f01628e737a14f/cands_df_scaling_0d9a91a7.tsv \
+               --sparse-out \
+               --sparse-k 100 \
+               --max-nodes 100 \
+               --threshold 0.0 \
+               --gen-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt \
+               --inten-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt \
+               --save-dir /home/nikolenko/.cache/ms-pred/iceberg-elucidation/1f621ef07b29888e76f01628e737a14f \
+               --adduct-shift \
+               --gpu
+  Total unique molecules: 495 (avg 24.8 per sample)
+  ICEBERG cache size: 0
+  Round time: 367.07s (18.3534s per sample)
+  Cumulative time: 367.07s (18.3534s per sample)
+
+  -> Saving intermediate predictions for round 1...
+Saved round 1 predictions to: repro_runs/20260622T_iceberg_scaling_msg_20_r1_fixeddeps/results/predictions_round_1.csv
+Saved timing data to: repro_runs/20260622T_iceberg_scaling_msg_20_r1_fixeddeps/results/round_timing.json
+
+Phase 3: Evaluating results...
+
+Saved aggregate statistics to: repro_runs/20260622T_iceberg_scaling_msg_20_r1_fixeddeps/results/aggregate_statistics.json
+Saved detailed results to: repro_runs/20260622T_iceberg_scaling_msg_20_r1_fixeddeps/results/detailed_results.csv
+Saved predictions to: repro_runs/20260622T_iceberg_scaling_msg_20_r1_fixeddeps/results/predictions.csv
+
+======================================================================
+BENCHMARK SUMMARY
+======================================================================
+
+Total spectra: 20
+Time: 368.6s
+Speed: 0.05 spectra/s
+
+--- MIST Encoder Quality ---
+Mean Tanimoto (pred vs GT FP): 0.5447
+
+--- Core Metrics ---
+Exact Match Top-1: 10.00%
+Exact Match Top-10: 10.00%
+Tanimoto Top-1: 0.4469
+Tanimoto Top-10: 0.4912
+
+--- Scaling Statistics ---
+
+--- Per-Round GPU Timing ---
+round_1: cumulative=367.07s, per_sample=18.3534s
+======================================================================
+
+--- Round Timing Summary ---
+Round 1: cumulative=367.07s, per_sample=18.3534s
+
+Results saved to: repro_runs/20260622T_iceberg_scaling_msg_20_r1_fixeddeps/results/
+DONE_UTC 2026-06-22T16:27:12Z

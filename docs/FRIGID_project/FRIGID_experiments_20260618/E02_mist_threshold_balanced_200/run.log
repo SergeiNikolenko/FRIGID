@@ -1,0 +1,17 @@
+Using device: cuda
+Subset rows requested: 200
+Thresholds: [0.05, 0.1, 0.15, 0.187, 0.2, 0.25, 0.3, 0.4, 0.5]
+
+Loading test split...
+Finding spectra files:   0%|          | 0/17556 [00:00<?, ?it/s]Finding spectra files:  17%|█▋        | 2910/17556 [00:00<00:00, 29095.31it/s]Finding spectra files:  34%|███▍      | 5969/17556 [00:00<00:00, 29970.84it/s]Finding spectra files:  52%|█████▏    | 9059/17556 [00:00<00:00, 30393.56it/s]Finding spectra files:  69%|██████▉   | 12099/17556 [00:00<00:00, 30326.56it/s]Finding spectra files:  87%|████████▋ | 15245/17556 [00:00<00:00, 30731.90it/s]                                                                               0it [00:00, ?it/s]17556it [00:00, 1022469.71it/s]
+0it [00:00, ?it/s]779it [00:00, 7785.94it/s]1642it [00:00, 8281.21it/s]2471it [00:00, 7957.96it/s]3313it [00:00, 8134.41it/s]4128it [00:00, 7416.39it/s]4880it [00:00, 7301.46it/s]5617it [00:00, 6991.08it/s]6322it [00:01, 4310.26it/s]7208it [00:01, 5246.01it/s]8067it [00:01, 6004.38it/s]8928it [00:01, 6642.65it/s]9691it [00:01, 6824.21it/s]10449it [00:01, 7026.32it/s]11204it [00:01, 7050.11it/s]11946it [00:01, 7122.11it/s]12685it [00:01, 7017.69it/s]13405it [00:02, 6844.86it/s]14103it [00:02, 6607.24it/s]14774it [00:02, 6514.37it/s]15433it [00:02, 6508.32it/s]16117it [00:02, 6602.21it/s]16781it [00:02, 6467.96it/s]17431it [00:02, 6341.90it/s]17556it [00:02, 6594.30it/s]
+0it [00:00, ?it/s]17556it [00:00, 4771591.56it/s]
+Loaded 17082 total spectra-molecule pairs
+Using 17082 samples from test split
+
+Loading MIST encoder from: repro_cache/mist_msg.pt
+✓ Loaded MIST encoder weights
+MIST sweep:   0%|          | 0/200 [00:00<?, ?it/s]MIST sweep:   0%|          | 1/200 [00:00<00:51,  3.89it/s]MIST sweep:   9%|▉         | 18/200 [00:00<00:02, 62.47it/s]MIST sweep:  18%|█▊        | 36/200 [00:00<00:01, 100.61it/s]MIST sweep:  27%|██▋       | 54/200 [00:00<00:01, 124.17it/s]MIST sweep:  36%|███▌      | 72/200 [00:00<00:00, 139.41it/s]MIST sweep:  45%|████▌     | 90/200 [00:00<00:00, 149.93it/s]MIST sweep:  54%|█████▎    | 107/200 [00:00<00:00, 155.16it/s]MIST sweep:  62%|██████▏   | 124/200 [00:00<00:00, 157.68it/s]MIST sweep:  71%|███████   | 142/200 [00:01<00:00, 162.26it/s]MIST sweep:  80%|███████▉  | 159/200 [00:01<00:00, 164.15it/s]MIST sweep:  88%|████████▊ | 177/200 [00:01<00:00, 168.46it/s]MIST sweep:  98%|█████████▊| 195/200 [00:01<00:00, 170.61it/s]MIST sweep: 100%|██████████| 200/200 [00:01<00:00, 140.72it/s]
+Wrote repro_runs/20260618T_spectrum_msg_paper_repro/experiments/E02_mist_threshold_balanced_200/per_case_thresholds.csv
+Best mean MIST Tanimoto threshold: 0.25 = 0.5218228963389993
+WALL_SECONDS 17.49

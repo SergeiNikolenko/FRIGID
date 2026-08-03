@@ -1,0 +1,18 @@
+Using device: cuda
+Subset rows requested: 20
+Thresholds: [0.05, 0.1, 0.15, 0.187, 0.2, 0.25, 0.3, 0.4, 0.5]
+Top-N values: [16, 32, 48, 64, 80, 96, 128, 160, 256]
+
+Loading test split...
+Finding spectra files:   0%|          | 0/17556 [00:00<?, ?it/s]Finding spectra files:  17%|█▋        | 2936/17556 [00:00<00:00, 29351.63it/s]Finding spectra files:  33%|███▎      | 5872/17556 [00:00<00:00, 28736.71it/s]Finding spectra files:  51%|█████     | 8926/17556 [00:00<00:00, 29550.20it/s]Finding spectra files:  68%|██████▊   | 11952/17556 [00:00<00:00, 29828.23it/s]Finding spectra files:  85%|████████▌ | 14953/17556 [00:00<00:00, 29889.88it/s]                                                                               0it [00:00, ?it/s]17556it [00:00, 1041383.71it/s]
+0it [00:00, ?it/s]707it [00:00, 7064.08it/s]1492it [00:00, 7522.71it/s]2300it [00:00, 7775.76it/s]3127it [00:00, 7968.61it/s]3924it [00:00, 7560.61it/s]4684it [00:00, 7243.42it/s]5413it [00:00, 7065.84it/s]6123it [00:01, 3923.60it/s]6995it [00:01, 4846.81it/s]7884it [00:01, 5717.21it/s]8761it [00:01, 6435.61it/s]9530it [00:01, 6668.77it/s]10289it [00:01, 6815.83it/s]11036it [00:01, 6892.64it/s]11772it [00:01, 6996.72it/s]12505it [00:01, 7004.92it/s]13229it [00:02, 6813.36it/s]13928it [00:02, 6641.21it/s]14605it [00:02, 6592.13it/s]15273it [00:02, 6495.36it/s]15939it [00:02, 6540.46it/s]16598it [00:02, 6427.67it/s]17244it [00:02, 6339.05it/s]17556it [00:02, 6441.50it/s]
+0it [00:00, ?it/s]17556it [00:00, 4922797.23it/s]
+Loaded 17082 total spectra-molecule pairs
+Using 17082 samples from test split
+
+Loading MIST encoder from: repro_cache/mist_msg.pt
+✓ Loaded MIST encoder weights
+MIST sweep:   0%|          | 0/20 [00:00<?, ?it/s]MIST sweep:   5%|▌         | 1/20 [00:00<00:04,  4.00it/s]MIST sweep:  80%|████████  | 16/20 [00:00<00:00, 56.69it/s]MIST sweep: 100%|██████████| 20/20 [00:00<00:00, 53.20it/s]
+Wrote repro_runs/20260618T_spectrum_msg_paper_repro/experiments/E11_mist_strategy_sample20/per_case_thresholds.csv
+Best mean MIST Tanimoto strategy: threshold=0.3 = 0.5122189667075873
+WALL_SECONDS 16.14

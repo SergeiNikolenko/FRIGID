@@ -1,0 +1,9 @@
+{
+  "rows": 4,
+  "predictions": 8,
+  "exact_match_rate": 0.0,
+  "mean_candidate_tanimoto": 0.03967504250897412,
+  "mean_refined_tanimoto": 0.04626033591006745,
+  "checkpoint": "/home/nikolenko/work/Projects/FRIGID/repro_runs/oracle_refinement_e2e_20260622T124305Z/smoke_training/checkpoints/last.ckpt",
+  "oracle_traces": "/home/nikolenko/work/Projects/FRIGID/repro_runs/oracle_refinement_e2e_20260622T124305Z/val_oracle_traces.jsonl"
+}

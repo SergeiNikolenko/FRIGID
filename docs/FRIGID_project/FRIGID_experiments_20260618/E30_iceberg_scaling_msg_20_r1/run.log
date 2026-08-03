@@ -1,0 +1,629 @@
+START_UTC 2026-06-22T16:08:32Z
+HOST spectrum
+COMMIT bcf395a249d9313b4fe1d60a5c048bce23408dbe
+Loading token model from token_models/models/best_ngboost_MSG.joblib
+Detected NGBoost model - will use sigma-based sampling
+Loaded 14 features from token_models/models/best_ngboost_MSG_features.json
+Using device: cuda
+config['mist_encoder']: {'checkpoint': 'repro_cache/mist_msg.pt', 'hidden_size': 640, 'magma_modulo': 2048, 'peak_attn_layers': 2, 'num_heads': 8, 'spectra_dropout': 0.1, 'output_size': 4096, 'form_embedder': 'pos-cos', 'set_pooling': 'cls', 'refine_layers': 4, 'pairwise_featurization': True, 'embed_instrument': False, 'inten_transform': 'float', 'inten_prob': 0.1, 'remove_prob': 0.5, 'cls_type': 'ms1', 'spec_features': 'peakformula', 'mol_features': 'fingerprint', 'top_layers': 1, 'max_peaks': None}
+
+Loading test split...
+Loaded instrument information for 231104 spectra
+  Instrument distribution: {'Orbitrap': 177281, 'QTOF': 53823}
+  Ionization distribution: {'[M+H]+': 195237, '[M+Na]+': 35867}
+Finding spectra files:   0%|          | 0/17556 [00:00<?, ?it/s]Finding spectra files:  17%|█▋        | 2932/17556 [00:00<00:00, 29306.19it/s]Finding spectra files:  34%|███▍      | 5957/17556 [00:00<00:00, 29860.40it/s]Finding spectra files:  52%|█████▏    | 9157/17556 [00:00<00:00, 30836.75it/s]Finding spectra files:  70%|██████▉   | 12270/17556 [00:00<00:00, 30951.15it/s]Finding spectra files:  88%|████████▊ | 15385/17556 [00:00<00:00, 31021.08it/s]                                                                               0it [00:00, ?it/s]17556it [00:00, 951174.85it/s]
+0it [00:00, ?it/s]667it [00:00, 6666.14it/s]1452it [00:00, 7361.14it/s]2252it [00:00, 7650.76it/s]3057it [00:00, 7805.23it/s]3838it [00:00, 7599.62it/s]4599it [00:00, 7274.47it/s]5330it [00:00, 7100.15it/s]6042it [00:00, 6930.94it/s]6921it [00:00, 7483.68it/s]7824it [00:01, 7943.10it/s]8713it [00:01, 8224.63it/s]9540it [00:01, 7955.98it/s]10340it [00:01, 7695.10it/s]11114it [00:01, 7525.61it/s]11870it [00:01, 7458.79it/s]12618it [00:01, 7361.52it/s]13356it [00:01, 7043.26it/s]14064it [00:01, 6857.63it/s]14752it [00:02, 6741.21it/s]15428it [00:02, 6632.30it/s]16126it [00:02, 6730.34it/s]16801it [00:02, 6591.57it/s]17462it [00:02, 6462.70it/s]17556it [00:02, 7174.89it/s]
+0it [00:00, ?it/s]17556it [00:00, 4706628.38it/s]
+Loaded 17082 total spectra-molecule pairs
+Using 17082 samples from test split
+Shuffling split data
+
+Loading MIST encoder from: repro_cache/mist_msg.pt
+✓ Loaded MIST encoder weights
+
+Loading DLM decoder from: /home/nikolenko/work/Projects/FRIGID/repro_runs/oracle_fingerprint_ablation_20260622/DLM.local_hf_cache.ckpt
+Using SHARED cross-attention mode
+[load_model] Removed 120 fingerprint_conditioner.cross_attention_layers keys for shared mode
+[DLM] Loading checkpoint with missing buffers (safe to skip): {'token_atom_counts'}
+[Sampler] Warning: data/len.pk not found. Using default length range.
+✓ Fingerprint conditioning: ENABLED
+✓ Formula conditioning: ENABLED
+Using masking strategy: SimpleMaskingStrategy
+
+======================================================================
+SPEC2MOL BENCHMARK WITH BATCHED ICEBERG SCALING
+======================================================================
+Total spectra in dataset: 17082
+Scaling config:
+  - Batch size (B): 32
+  - Unique to refine (K): 4
+  - Masks per molecule (M): 2
+  - Num rounds (R): 1
+  - Mask probability: 0.5
+  - Collision energies: [10, 20, 30, 40, 50]
+FP threshold: 0.187
+Token model: ENABLED (NGBoost=True, sigma_lambda=3.0)
+======================================================================
+
+Phase 1: Preprocessing all test samples...
+Loading spectra:   0%|          | 0/20 [00:00<?, ?it/s]Loading spectra:   5%|▌         | 1/20 [00:00<00:02,  7.07it/s]Loading spectra:  85%|████████▌ | 17/20 [00:00<00:00, 83.67it/s]Loading spectra: 100%|██████████| 20/20 [00:00<00:00, 76.37it/s]
+DGL backend not selected or invalid.  Assuming PyTorch for now.
+Setting the default backend to "pytorch". You can change it in the ~/.dgl/config.json file or export the DGLBACKEND environment variable.  Valid options are: pytorch, mxnet, tensorflow (all lowercase)
+Traceback (most recent call last):
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 24, in <module>
+    from ms_pred.dag_pred import inten_model, gen_model, joint_model
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/inten_model.py", line 8, in <module>
+    import dgl.nn as dgl_nn
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/__init__.py", line 16, in <module>
+    from . import (
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/dataloading/__init__.py", line 13, in <module>
+    from .dataloader import *
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/dataloading/dataloader.py", line 27, in <module>
+    from ..distributed import DistGraph
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/distributed/__init__.py", line 5, in <module>
+    from .dist_graph import DistGraph, DistGraphServer, edge_split, node_split
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/distributed/dist_graph.py", line 11, in <module>
+    from .. import backend as F, graphbolt as gb, heterograph_index
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/graphbolt/__init__.py", line 8, in <module>
+    from .base import *
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/graphbolt/base.py", line 8, in <module>
+    from torchdata.datapipes.iter import IterDataPipe
+ModuleNotFoundError: No module named 'torchdata.datapipes'
+Traceback (most recent call last):
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 24, in <module>
+    from ms_pred.dag_pred import inten_model, gen_model, joint_model
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/inten_model.py", line 8, in <module>
+    import dgl.nn as dgl_nn
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/__init__.py", line 16, in <module>
+    from . import (
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/dataloading/__init__.py", line 13, in <module>
+    from .dataloader import *
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/dataloading/dataloader.py", line 27, in <module>
+    from ..distributed import DistGraph
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/distributed/__init__.py", line 5, in <module>
+    from .dist_graph import DistGraph, DistGraphServer, edge_split, node_split
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/distributed/dist_graph.py", line 11, in <module>
+    from .. import backend as F, graphbolt as gb, heterograph_index
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/graphbolt/__init__.py", line 8, in <module>
+    from .base import *
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/graphbolt/base.py", line 8, in <module>
+    from torchdata.datapipes.iter import IterDataPipe
+ModuleNotFoundError: No module named 'torchdata.datapipes'
+Traceback (most recent call last):
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 24, in <module>
+    from ms_pred.dag_pred import inten_model, gen_model, joint_model
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/inten_model.py", line 8, in <module>
+    import dgl.nn as dgl_nn
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/__init__.py", line 16, in <module>
+    from . import (
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/dataloading/__init__.py", line 13, in <module>
+    from .dataloader import *
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/dataloading/dataloader.py", line 27, in <module>
+    from ..distributed import DistGraph
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/distributed/__init__.py", line 5, in <module>
+    from .dist_graph import DistGraph, DistGraphServer, edge_split, node_split
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/distributed/dist_graph.py", line 11, in <module>
+    from .. import backend as F, graphbolt as gb, heterograph_index
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/graphbolt/__init__.py", line 8, in <module>
+    from .base import *
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/graphbolt/base.py", line 8, in <module>
+    from torchdata.datapipes.iter import IterDataPipe
+ModuleNotFoundError: No module named 'torchdata.datapipes'
+Traceback (most recent call last):
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 24, in <module>
+    from ms_pred.dag_pred import inten_model, gen_model, joint_model
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/inten_model.py", line 8, in <module>
+    import dgl.nn as dgl_nn
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/__init__.py", line 16, in <module>
+    from . import (
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/dataloading/__init__.py", line 13, in <module>
+    from .dataloader import *
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/dataloading/dataloader.py", line 27, in <module>
+    from ..distributed import DistGraph
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/distributed/__init__.py", line 5, in <module>
+    from .dist_graph import DistGraph, DistGraphServer, edge_split, node_split
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/distributed/dist_graph.py", line 11, in <module>
+    from .. import backend as F, graphbolt as gb, heterograph_index
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/graphbolt/__init__.py", line 8, in <module>
+    from .base import *
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/graphbolt/base.py", line 8, in <module>
+    from torchdata.datapipes.iter import IterDataPipe
+ModuleNotFoundError: No module named 'torchdata.datapipes'
+Traceback (most recent call last):
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 24, in <module>
+    from ms_pred.dag_pred import inten_model, gen_model, joint_model
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/inten_model.py", line 8, in <module>
+    import dgl.nn as dgl_nn
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/__init__.py", line 16, in <module>
+    from . import (
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/dataloading/__init__.py", line 13, in <module>
+    from .dataloader import *
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/dataloading/dataloader.py", line 27, in <module>
+    from ..distributed import DistGraph
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/distributed/__init__.py", line 5, in <module>
+    from .dist_graph import DistGraph, DistGraphServer, edge_split, node_split
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/distributed/dist_graph.py", line 11, in <module>
+    from .. import backend as F, graphbolt as gb, heterograph_index
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/graphbolt/__init__.py", line 8, in <module>
+    from .base import *
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/graphbolt/base.py", line 8, in <module>
+    from torchdata.datapipes.iter import IterDataPipe
+ModuleNotFoundError: No module named 'torchdata.datapipes'
+Traceback (most recent call last):
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 24, in <module>
+    from ms_pred.dag_pred import inten_model, gen_model, joint_model
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/inten_model.py", line 8, in <module>
+    import dgl.nn as dgl_nn
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/__init__.py", line 16, in <module>
+    from . import (
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/dataloading/__init__.py", line 13, in <module>
+    from .dataloader import *
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/dataloading/dataloader.py", line 27, in <module>
+    from ..distributed import DistGraph
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/distributed/__init__.py", line 5, in <module>
+    from .dist_graph import DistGraph, DistGraphServer, edge_split, node_split
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/distributed/dist_graph.py", line 11, in <module>
+    from .. import backend as F, graphbolt as gb, heterograph_index
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/graphbolt/__init__.py", line 8, in <module>
+    from .base import *
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/graphbolt/base.py", line 8, in <module>
+    from torchdata.datapipes.iter import IterDataPipe
+ModuleNotFoundError: No module named 'torchdata.datapipes'
+Loaded 20 valid test samples
+
+Phase 2: Running batched scaling with 1 rounds...
+
+============================================================
+SCALING ROUND 1/1
+============================================================
+
+  Round 1: Generating 32 molecules from scratch...
+  Round 1: Running ICEBERG predictions for top 4 molecules...
+  Running ICEBERG for 64 molecules at CE=10eV, instrument=Orbitrap, ionization=[M+H]+...
+CUDA_VISIBLE_DEVICES=0 /home/nikolenko/work/Projects/FRIGID/.venv/bin/python src/ms_pred/dag_pred/predict_smis.py \
+               --batch-size 4 \
+               --num-workers 6 \
+               --dataset-labels /home/nikolenko/.cache/ms-pred/iceberg-elucidation/1155b2a48d0e16ab4c2df7838ba3e16a/cands_df_scaling_e4ccf6ff.tsv \
+               --sparse-out \
+               --sparse-k 100 \
+               --max-nodes 100 \
+               --threshold 0.0 \
+               --gen-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt \
+               --inten-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt \
+               --save-dir /home/nikolenko/.cache/ms-pred/iceberg-elucidation/1155b2a48d0e16ab4c2df7838ba3e16a \
+               --adduct-shift \
+               --gpu
+Warning: ICEBERG prediction failed: [Errno 2] Unable to synchronously open file (unable to open file: name = '/home/nikolenko/.cache/ms-pred/iceberg-elucidation/1155b2a48d0e16ab4c2df7838ba3e16a/preds.hdf5', errno = 2, error message = 'No such file or directory', flags = 0, o_flags = 0)
+  Running ICEBERG for 64 molecules at CE=20eV, instrument=Orbitrap, ionization=[M+H]+...
+CUDA_VISIBLE_DEVICES=0 /home/nikolenko/work/Projects/FRIGID/.venv/bin/python src/ms_pred/dag_pred/predict_smis.py \
+               --batch-size 4 \
+               --num-workers 6 \
+               --dataset-labels /home/nikolenko/.cache/ms-pred/iceberg-elucidation/0e69aff9358002d37be5ee944f924656/cands_df_scaling_ecabe78c.tsv \
+               --sparse-out \
+               --sparse-k 100 \
+               --max-nodes 100 \
+               --threshold 0.0 \
+               --gen-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt \
+               --inten-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt \
+               --save-dir /home/nikolenko/.cache/ms-pred/iceberg-elucidation/0e69aff9358002d37be5ee944f924656 \
+               --adduct-shift \
+               --gpu
+Warning: ICEBERG prediction failed: [Errno 2] Unable to synchronously open file (unable to open file: name = '/home/nikolenko/.cache/ms-pred/iceberg-elucidation/0e69aff9358002d37be5ee944f924656/preds.hdf5', errno = 2, error message = 'No such file or directory', flags = 0, o_flags = 0)
+  Running ICEBERG for 64 molecules at CE=30eV, instrument=Orbitrap, ionization=[M+H]+...
+CUDA_VISIBLE_DEVICES=0 /home/nikolenko/work/Projects/FRIGID/.venv/bin/python src/ms_pred/dag_pred/predict_smis.py \
+               --batch-size 4 \
+               --num-workers 6 \
+               --dataset-labels /home/nikolenko/.cache/ms-pred/iceberg-elucidation/1694c4f1da35761a52c1911a55cb945e/cands_df_scaling_df492e65.tsv \
+               --sparse-out \
+               --sparse-k 100 \
+               --max-nodes 100 \
+               --threshold 0.0 \
+               --gen-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt \
+               --inten-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt \
+               --save-dir /home/nikolenko/.cache/ms-pred/iceberg-elucidation/1694c4f1da35761a52c1911a55cb945e \
+               --adduct-shift \
+               --gpu
+Warning: ICEBERG prediction failed: [Errno 2] Unable to synchronously open file (unable to open file: name = '/home/nikolenko/.cache/ms-pred/iceberg-elucidation/1694c4f1da35761a52c1911a55cb945e/preds.hdf5', errno = 2, error message = 'No such file or directory', flags = 0, o_flags = 0)
+  Running ICEBERG for 64 molecules at CE=40eV, instrument=Orbitrap, ionization=[M+H]+...
+CUDA_VISIBLE_DEVICES=0 /home/nikolenko/work/Projects/FRIGID/.venv/bin/python src/ms_pred/dag_pred/predict_smis.py \
+               --batch-size 4 \
+               --num-workers 6 \
+               --dataset-labels /home/nikolenko/.cache/ms-pred/iceberg-elucidation/d58c86f4d53d605d4259a4c6a3e6cb9a/cands_df_scaling_9d40bdaf.tsv \
+               --sparse-out \
+               --sparse-k 100 \
+               --max-nodes 100 \
+               --threshold 0.0 \
+               --gen-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt \
+               --inten-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt \
+               --save-dir /home/nikolenko/.cache/ms-pred/iceberg-elucidation/d58c86f4d53d605d4259a4c6a3e6cb9a \
+               --adduct-shift \
+               --gpu
+Warning: ICEBERG prediction failed: [Errno 2] Unable to synchronously open file (unable to open file: name = '/home/nikolenko/.cache/ms-pred/iceberg-elucidation/d58c86f4d53d605d4259a4c6a3e6cb9a/preds.hdf5', errno = 2, error message = 'No such file or directory', flags = 0, o_flags = 0)
+  Running ICEBERG for 64 molecules at CE=50eV, instrument=Orbitrap, ionization=[M+H]+...
+CUDA_VISIBLE_DEVICES=0 /home/nikolenko/work/Projects/FRIGID/.venv/bin/python src/ms_pred/dag_pred/predict_smis.py \
+               --batch-size 4 \
+               --num-workers 6 \
+               --dataset-labels /home/nikolenko/.cache/ms-pred/iceberg-elucidation/4de8f80f5351494bb7e01ab581068318/cands_df_scaling_73ce9e56.tsv \
+               --sparse-out \
+               --sparse-k 100 \
+               --max-nodes 100 \
+               --threshold 0.0 \
+               --gen-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt \
+               --inten-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt \
+               --save-dir /home/nikolenko/.cache/ms-pred/iceberg-elucidation/4de8f80f5351494bb7e01ab581068318 \
+               --adduct-shift \
+               --gpu
+Warning: ICEBERG prediction failed: [Errno 2] Unable to synchronously open file (unable to open file: name = '/home/nikolenko/.cache/ms-pred/iceberg-elucidation/4de8f80f5351494bb7e01ab581068318/preds.hdf5', errno = 2, error message = 'No such file or directory', flags = 0, o_flags = 0)
+  Running ICEBERG for 12 molecules at CE=10eV, instrument=QTOF, ionization=[M+Na]+...
+CUDA_VISIBLE_DEVICES=0 /home/nikolenko/work/Projects/FRIGID/.venv/bin/python src/ms_pred/dag_pred/predict_smis.py \
+               --batch-size 4 \
+               --num-workers 6 \
+               --dataset-labels /home/nikolenko/.cache/ms-pred/iceberg-elucidation/0979799579d2f55c807f4d59e4a31222/cands_df_scaling_86c20b5a.tsv \
+               --sparse-out \
+               --sparse-k 100 \
+               --max-nodes 100 \
+               --threshold 0.0 \
+               --gen-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt \
+               --inten-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt \
+               --save-dir /home/nikolenko/.cache/ms-pred/iceberg-elucidation/0979799579d2f55c807f4d59e4a31222 \
+               --adduct-shift \
+               --gpu
+Warning: ICEBERG prediction failed: [Errno 2] Unable to synchronously open file (unable to open file: name = '/home/nikolenko/.cache/ms-pred/iceberg-elucidation/0979799579d2f55c807f4d59e4a31222/preds.hdf5', errno = 2, error message = 'No such file or directory', flags = 0, o_flags = 0)
+  Running ICEBERG for 12 molecules at CE=20eV, instrument=QTOF, ionization=[M+Na]+...
+Traceback (most recent call last):
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 24, in <module>
+    from ms_pred.dag_pred import inten_model, gen_model, joint_model
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/inten_model.py", line 8, in <module>
+    import dgl.nn as dgl_nn
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/__init__.py", line 16, in <module>
+    from . import (
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/dataloading/__init__.py", line 13, in <module>
+    from .dataloader import *
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/dataloading/dataloader.py", line 27, in <module>
+    from ..distributed import DistGraph
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/distributed/__init__.py", line 5, in <module>
+    from .dist_graph import DistGraph, DistGraphServer, edge_split, node_split
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/distributed/dist_graph.py", line 11, in <module>
+    from .. import backend as F, graphbolt as gb, heterograph_index
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/graphbolt/__init__.py", line 8, in <module>
+    from .base import *
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/graphbolt/base.py", line 8, in <module>
+    from torchdata.datapipes.iter import IterDataPipe
+ModuleNotFoundError: No module named 'torchdata.datapipes'
+Traceback (most recent call last):
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 24, in <module>
+    from ms_pred.dag_pred import inten_model, gen_model, joint_model
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/inten_model.py", line 8, in <module>
+    import dgl.nn as dgl_nn
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/__init__.py", line 16, in <module>
+    from . import (
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/dataloading/__init__.py", line 13, in <module>
+    from .dataloader import *
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/dataloading/dataloader.py", line 27, in <module>
+    from ..distributed import DistGraph
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/distributed/__init__.py", line 5, in <module>
+    from .dist_graph import DistGraph, DistGraphServer, edge_split, node_split
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/distributed/dist_graph.py", line 11, in <module>
+    from .. import backend as F, graphbolt as gb, heterograph_index
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/graphbolt/__init__.py", line 8, in <module>
+    from .base import *
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/graphbolt/base.py", line 8, in <module>
+    from torchdata.datapipes.iter import IterDataPipe
+ModuleNotFoundError: No module named 'torchdata.datapipes'
+Traceback (most recent call last):
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 24, in <module>
+    from ms_pred.dag_pred import inten_model, gen_model, joint_model
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/inten_model.py", line 8, in <module>
+    import dgl.nn as dgl_nn
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/__init__.py", line 16, in <module>
+    from . import (
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/dataloading/__init__.py", line 13, in <module>
+    from .dataloader import *
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/dataloading/dataloader.py", line 27, in <module>
+    from ..distributed import DistGraph
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/distributed/__init__.py", line 5, in <module>
+    from .dist_graph import DistGraph, DistGraphServer, edge_split, node_split
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/distributed/dist_graph.py", line 11, in <module>
+    from .. import backend as F, graphbolt as gb, heterograph_index
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/graphbolt/__init__.py", line 8, in <module>
+    from .base import *
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/graphbolt/base.py", line 8, in <module>
+    from torchdata.datapipes.iter import IterDataPipe
+ModuleNotFoundError: No module named 'torchdata.datapipes'
+Traceback (most recent call last):
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 24, in <module>
+    from ms_pred.dag_pred import inten_model, gen_model, joint_model
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/inten_model.py", line 8, in <module>
+    import dgl.nn as dgl_nn
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/__init__.py", line 16, in <module>
+    from . import (
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/dataloading/__init__.py", line 13, in <module>
+    from .dataloader import *
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/dataloading/dataloader.py", line 27, in <module>
+    from ..distributed import DistGraph
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/distributed/__init__.py", line 5, in <module>
+    from .dist_graph import DistGraph, DistGraphServer, edge_split, node_split
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/distributed/dist_graph.py", line 11, in <module>
+    from .. import backend as F, graphbolt as gb, heterograph_index
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/graphbolt/__init__.py", line 8, in <module>
+    from .base import *
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/graphbolt/base.py", line 8, in <module>
+    from torchdata.datapipes.iter import IterDataPipe
+ModuleNotFoundError: No module named 'torchdata.datapipes'
+Traceback (most recent call last):
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 24, in <module>
+    from ms_pred.dag_pred import inten_model, gen_model, joint_model
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/inten_model.py", line 8, in <module>
+    import dgl.nn as dgl_nn
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/__init__.py", line 16, in <module>
+    from . import (
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/dataloading/__init__.py", line 13, in <module>
+    from .dataloader import *
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/dataloading/dataloader.py", line 27, in <module>
+    from ..distributed import DistGraph
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/distributed/__init__.py", line 5, in <module>
+    from .dist_graph import DistGraph, DistGraphServer, edge_split, node_split
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/distributed/dist_graph.py", line 11, in <module>
+    from .. import backend as F, graphbolt as gb, heterograph_index
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/graphbolt/__init__.py", line 8, in <module>
+    from .base import *
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/graphbolt/base.py", line 8, in <module>
+    from torchdata.datapipes.iter import IterDataPipe
+ModuleNotFoundError: No module named 'torchdata.datapipes'
+Traceback (most recent call last):
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 24, in <module>
+    from ms_pred.dag_pred import inten_model, gen_model, joint_model
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/inten_model.py", line 8, in <module>
+    import dgl.nn as dgl_nn
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/__init__.py", line 16, in <module>
+    from . import (
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/dataloading/__init__.py", line 13, in <module>
+    from .dataloader import *
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/dataloading/dataloader.py", line 27, in <module>
+    from ..distributed import DistGraph
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/distributed/__init__.py", line 5, in <module>
+    from .dist_graph import DistGraph, DistGraphServer, edge_split, node_split
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/distributed/dist_graph.py", line 11, in <module>
+    from .. import backend as F, graphbolt as gb, heterograph_index
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/graphbolt/__init__.py", line 8, in <module>
+    from .base import *
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/graphbolt/base.py", line 8, in <module>
+    from torchdata.datapipes.iter import IterDataPipe
+ModuleNotFoundError: No module named 'torchdata.datapipes'
+CUDA_VISIBLE_DEVICES=0 /home/nikolenko/work/Projects/FRIGID/.venv/bin/python src/ms_pred/dag_pred/predict_smis.py \
+               --batch-size 4 \
+               --num-workers 6 \
+               --dataset-labels /home/nikolenko/.cache/ms-pred/iceberg-elucidation/c8af07afb721718f04ba1748f952bf9b/cands_df_scaling_4f610b07.tsv \
+               --sparse-out \
+               --sparse-k 100 \
+               --max-nodes 100 \
+               --threshold 0.0 \
+               --gen-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt \
+               --inten-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt \
+               --save-dir /home/nikolenko/.cache/ms-pred/iceberg-elucidation/c8af07afb721718f04ba1748f952bf9b \
+               --adduct-shift \
+               --gpu
+Warning: ICEBERG prediction failed: [Errno 2] Unable to synchronously open file (unable to open file: name = '/home/nikolenko/.cache/ms-pred/iceberg-elucidation/c8af07afb721718f04ba1748f952bf9b/preds.hdf5', errno = 2, error message = 'No such file or directory', flags = 0, o_flags = 0)
+  Running ICEBERG for 12 molecules at CE=30eV, instrument=QTOF, ionization=[M+Na]+...
+CUDA_VISIBLE_DEVICES=0 /home/nikolenko/work/Projects/FRIGID/.venv/bin/python src/ms_pred/dag_pred/predict_smis.py \
+               --batch-size 4 \
+               --num-workers 6 \
+               --dataset-labels /home/nikolenko/.cache/ms-pred/iceberg-elucidation/b06605264a4b3d8bbbf8d118d11f1aae/cands_df_scaling_e9c8600f.tsv \
+               --sparse-out \
+               --sparse-k 100 \
+               --max-nodes 100 \
+               --threshold 0.0 \
+               --gen-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt \
+               --inten-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt \
+               --save-dir /home/nikolenko/.cache/ms-pred/iceberg-elucidation/b06605264a4b3d8bbbf8d118d11f1aae \
+               --adduct-shift \
+               --gpu
+Warning: ICEBERG prediction failed: [Errno 2] Unable to synchronously open file (unable to open file: name = '/home/nikolenko/.cache/ms-pred/iceberg-elucidation/b06605264a4b3d8bbbf8d118d11f1aae/preds.hdf5', errno = 2, error message = 'No such file or directory', flags = 0, o_flags = 0)
+  Running ICEBERG for 12 molecules at CE=40eV, instrument=QTOF, ionization=[M+Na]+...
+CUDA_VISIBLE_DEVICES=0 /home/nikolenko/work/Projects/FRIGID/.venv/bin/python src/ms_pred/dag_pred/predict_smis.py \
+               --batch-size 4 \
+               --num-workers 6 \
+               --dataset-labels /home/nikolenko/.cache/ms-pred/iceberg-elucidation/062fd3179293bc4a9f527d892842cfc1/cands_df_scaling_a50ff5f5.tsv \
+               --sparse-out \
+               --sparse-k 100 \
+               --max-nodes 100 \
+               --threshold 0.0 \
+               --gen-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt \
+               --inten-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt \
+               --save-dir /home/nikolenko/.cache/ms-pred/iceberg-elucidation/062fd3179293bc4a9f527d892842cfc1 \
+               --adduct-shift \
+               --gpu
+Warning: ICEBERG prediction failed: [Errno 2] Unable to synchronously open file (unable to open file: name = '/home/nikolenko/.cache/ms-pred/iceberg-elucidation/062fd3179293bc4a9f527d892842cfc1/preds.hdf5', errno = 2, error message = 'No such file or directory', flags = 0, o_flags = 0)
+  Running ICEBERG for 12 molecules at CE=50eV, instrument=QTOF, ionization=[M+Na]+...
+CUDA_VISIBLE_DEVICES=0 /home/nikolenko/work/Projects/FRIGID/.venv/bin/python src/ms_pred/dag_pred/predict_smis.py \
+               --batch-size 4 \
+               --num-workers 6 \
+               --dataset-labels /home/nikolenko/.cache/ms-pred/iceberg-elucidation/d04c842763b662b1ee4351084d2d18d1/cands_df_scaling_5a2acb28.tsv \
+               --sparse-out \
+               --sparse-k 100 \
+               --max-nodes 100 \
+               --threshold 0.0 \
+               --gen-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt \
+               --inten-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt \
+               --save-dir /home/nikolenko/.cache/ms-pred/iceberg-elucidation/d04c842763b662b1ee4351084d2d18d1 \
+               --adduct-shift \
+               --gpu
+Warning: ICEBERG prediction failed: [Errno 2] Unable to synchronously open file (unable to open file: name = '/home/nikolenko/.cache/ms-pred/iceberg-elucidation/d04c842763b662b1ee4351084d2d18d1/preds.hdf5', errno = 2, error message = 'No such file or directory', flags = 0, o_flags = 0)
+  Running ICEBERG for 4 molecules at CE=10eV, instrument=Orbitrap, ionization=[M+Na]+...
+CUDA_VISIBLE_DEVICES=0 /home/nikolenko/work/Projects/FRIGID/.venv/bin/python src/ms_pred/dag_pred/predict_smis.py \
+               --batch-size 4 \
+               --num-workers 6 \
+               --dataset-labels /home/nikolenko/.cache/ms-pred/iceberg-elucidation/a92dcbe3f5ba531eb06d915417820e1d/cands_df_scaling_8a32dabd.tsv \
+               --sparse-out \
+               --sparse-k 100 \
+               --max-nodes 100 \
+               --threshold 0.0 \
+               --gen-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt \
+               --inten-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt \
+               --save-dir /home/nikolenko/.cache/ms-pred/iceberg-elucidation/a92dcbe3f5ba531eb06d915417820e1d \
+               --adduct-shift \
+               --gpu
+Warning: ICEBERG prediction failed: [Errno 2] Unable to synchronously open file (unable to open file: name = '/home/nikolenko/.cache/ms-pred/iceberg-elucidation/a92dcbe3f5ba531eb06d915417820e1d/preds.hdf5', errno = 2, error message = 'No such file or directory', flags = 0, o_flags = 0)
+  Running ICEBERG for 4 molecules at CE=20eV, instrument=Orbitrap, ionization=[M+Na]+...
+CUDA_VISIBLE_DEVICES=0 /home/nikolenko/work/Projects/FRIGID/.venv/bin/python src/ms_pred/dag_pred/predict_smis.py \
+               --batch-size 4 \
+               --num-workers 6 \
+               --dataset-labels /home/nikolenko/.cache/ms-pred/iceberg-elucidation/00fdb4a9cdf044e7a482436ff5eecafb/cands_df_scaling_a6086881.tsv \
+               --sparse-out \
+               --sparse-k 100 \
+               --max-nodes 100 \
+               --threshold 0.0 \
+               --gen-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt \
+               --inten-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt \
+               --save-dir /home/nikolenko/.cache/ms-pred/iceberg-elucidation/00fdb4a9cdf044e7a482436ff5eecafb \
+               --adduct-shift \
+               --gpu
+Warning: ICEBERG prediction failed: [Errno 2] Unable to synchronously open file (unable to open file: name = '/home/nikolenko/.cache/ms-pred/iceberg-elucidation/00fdb4a9cdf044e7a482436ff5eecafb/preds.hdf5', errno = 2, error message = 'No such file or directory', flags = 0, o_flags = 0)
+  Running ICEBERG for 4 molecules at CE=30eV, instrument=Orbitrap, ionization=[M+Na]+...
+Traceback (most recent call last):
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 24, in <module>
+    from ms_pred.dag_pred import inten_model, gen_model, joint_model
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/inten_model.py", line 8, in <module>
+    import dgl.nn as dgl_nn
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/__init__.py", line 16, in <module>
+    from . import (
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/dataloading/__init__.py", line 13, in <module>
+    from .dataloader import *
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/dataloading/dataloader.py", line 27, in <module>
+    from ..distributed import DistGraph
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/distributed/__init__.py", line 5, in <module>
+    from .dist_graph import DistGraph, DistGraphServer, edge_split, node_split
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/distributed/dist_graph.py", line 11, in <module>
+    from .. import backend as F, graphbolt as gb, heterograph_index
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/graphbolt/__init__.py", line 8, in <module>
+    from .base import *
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/graphbolt/base.py", line 8, in <module>
+    from torchdata.datapipes.iter import IterDataPipe
+ModuleNotFoundError: No module named 'torchdata.datapipes'
+Traceback (most recent call last):
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 24, in <module>
+    from ms_pred.dag_pred import inten_model, gen_model, joint_model
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/inten_model.py", line 8, in <module>
+    import dgl.nn as dgl_nn
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/__init__.py", line 16, in <module>
+    from . import (
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/dataloading/__init__.py", line 13, in <module>
+    from .dataloader import *
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/dataloading/dataloader.py", line 27, in <module>
+    from ..distributed import DistGraph
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/distributed/__init__.py", line 5, in <module>
+    from .dist_graph import DistGraph, DistGraphServer, edge_split, node_split
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/distributed/dist_graph.py", line 11, in <module>
+    from .. import backend as F, graphbolt as gb, heterograph_index
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/graphbolt/__init__.py", line 8, in <module>
+    from .base import *
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/graphbolt/base.py", line 8, in <module>
+    from torchdata.datapipes.iter import IterDataPipe
+ModuleNotFoundError: No module named 'torchdata.datapipes'
+Traceback (most recent call last):
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/predict_smis.py", line 24, in <module>
+    from ms_pred.dag_pred import inten_model, gen_model, joint_model
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/inten_model.py", line 8, in <module>
+    import dgl.nn as dgl_nn
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/__init__.py", line 16, in <module>
+    from . import (
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/dataloading/__init__.py", line 13, in <module>
+    from .dataloader import *
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/dataloading/dataloader.py", line 27, in <module>
+    from ..distributed import DistGraph
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/distributed/__init__.py", line 5, in <module>
+    from .dist_graph import DistGraph, DistGraphServer, edge_split, node_split
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/distributed/dist_graph.py", line 11, in <module>
+    from .. import backend as F, graphbolt as gb, heterograph_index
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/graphbolt/__init__.py", line 8, in <module>
+    from .base import *
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/dgl/graphbolt/base.py", line 8, in <module>
+    from torchdata.datapipes.iter import IterDataPipe
+ModuleNotFoundError: No module named 'torchdata.datapipes'
+CUDA_VISIBLE_DEVICES=0 /home/nikolenko/work/Projects/FRIGID/.venv/bin/python src/ms_pred/dag_pred/predict_smis.py \
+               --batch-size 4 \
+               --num-workers 6 \
+               --dataset-labels /home/nikolenko/.cache/ms-pred/iceberg-elucidation/13663dfbfe8ed755b0053d1b22fe35ff/cands_df_scaling_0158ef95.tsv \
+               --sparse-out \
+               --sparse-k 100 \
+               --max-nodes 100 \
+               --threshold 0.0 \
+               --gen-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt \
+               --inten-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt \
+               --save-dir /home/nikolenko/.cache/ms-pred/iceberg-elucidation/13663dfbfe8ed755b0053d1b22fe35ff \
+               --adduct-shift \
+               --gpu
+Warning: ICEBERG prediction failed: [Errno 2] Unable to synchronously open file (unable to open file: name = '/home/nikolenko/.cache/ms-pred/iceberg-elucidation/13663dfbfe8ed755b0053d1b22fe35ff/preds.hdf5', errno = 2, error message = 'No such file or directory', flags = 0, o_flags = 0)
+  Running ICEBERG for 4 molecules at CE=40eV, instrument=Orbitrap, ionization=[M+Na]+...
+CUDA_VISIBLE_DEVICES=0 /home/nikolenko/work/Projects/FRIGID/.venv/bin/python src/ms_pred/dag_pred/predict_smis.py \
+               --batch-size 4 \
+               --num-workers 6 \
+               --dataset-labels /home/nikolenko/.cache/ms-pred/iceberg-elucidation/978bd8561a57a450bfe126e152efa021/cands_df_scaling_52dc1b45.tsv \
+               --sparse-out \
+               --sparse-k 100 \
+               --max-nodes 100 \
+               --threshold 0.0 \
+               --gen-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt \
+               --inten-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt \
+               --save-dir /home/nikolenko/.cache/ms-pred/iceberg-elucidation/978bd8561a57a450bfe126e152efa021 \
+               --adduct-shift \
+               --gpu
+Warning: ICEBERG prediction failed: [Errno 2] Unable to synchronously open file (unable to open file: name = '/home/nikolenko/.cache/ms-pred/iceberg-elucidation/978bd8561a57a450bfe126e152efa021/preds.hdf5', errno = 2, error message = 'No such file or directory', flags = 0, o_flags = 0)
+  Running ICEBERG for 4 molecules at CE=50eV, instrument=Orbitrap, ionization=[M+Na]+...
+CUDA_VISIBLE_DEVICES=0 /home/nikolenko/work/Projects/FRIGID/.venv/bin/python src/ms_pred/dag_pred/predict_smis.py \
+               --batch-size 4 \
+               --num-workers 6 \
+               --dataset-labels /home/nikolenko/.cache/ms-pred/iceberg-elucidation/d5fd311e8d029c2619bba657b3e0c6c1/cands_df_scaling_7bdc52d5.tsv \
+               --sparse-out \
+               --sparse-k 100 \
+               --max-nodes 100 \
+               --threshold 0.0 \
+               --gen-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt \
+               --inten-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt \
+               --save-dir /home/nikolenko/.cache/ms-pred/iceberg-elucidation/d5fd311e8d029c2619bba657b3e0c6c1 \
+               --adduct-shift \
+               --gpu
+Warning: ICEBERG prediction failed: [Errno 2] Unable to synchronously open file (unable to open file: name = '/home/nikolenko/.cache/ms-pred/iceberg-elucidation/d5fd311e8d029c2619bba657b3e0c6c1/preds.hdf5', errno = 2, error message = 'No such file or directory', flags = 0, o_flags = 0)
+  Total unique molecules: 495 (avg 24.8 per sample)
+  ICEBERG cache size: 0
+  Round time: 215.27s (10.7634s per sample)
+  Cumulative time: 215.27s (10.7634s per sample)
+
+  -> Saving intermediate predictions for round 1...
+Saved round 1 predictions to: repro_runs/20260622T_iceberg_scaling_msg_20_r1/results/predictions_round_1.csv
+Saved timing data to: repro_runs/20260622T_iceberg_scaling_msg_20_r1/results/round_timing.json
+
+Phase 3: Evaluating results...
+
+Saved aggregate statistics to: repro_runs/20260622T_iceberg_scaling_msg_20_r1/results/aggregate_statistics.json
+Saved detailed results to: repro_runs/20260622T_iceberg_scaling_msg_20_r1/results/detailed_results.csv
+Saved predictions to: repro_runs/20260622T_iceberg_scaling_msg_20_r1/results/predictions.csv
+
+======================================================================
+BENCHMARK SUMMARY
+======================================================================
+
+Total spectra: 20
+Time: 216.5s
+Speed: 0.09 spectra/s
+
+--- MIST Encoder Quality ---
+Mean Tanimoto (pred vs GT FP): 0.5447
+
+--- Core Metrics ---
+Exact Match Top-1: 10.00%
+Exact Match Top-10: 10.00%
+Tanimoto Top-1: 0.4469
+Tanimoto Top-10: 0.4912
+
+--- Scaling Statistics ---
+
+--- Per-Round GPU Timing ---
+round_1: cumulative=215.27s, per_sample=10.7634s
+======================================================================
+
+--- Round Timing Summary ---
+Round 1: cumulative=215.27s, per_sample=10.7634s
+
+Results saved to: repro_runs/20260622T_iceberg_scaling_msg_20_r1/results/
+DONE_UTC 2026-06-22T16:12:44Z

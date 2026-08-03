@@ -1,0 +1,11 @@
+{
+  "source_labels": "/home/nikolenko/work/Projects/FRIGID/repro_cache/msg/labels.tsv",
+  "source_split": "/home/nikolenko/work/Projects/FRIGID/repro_cache/msg/split.tsv",
+  "test_samples": 17556,
+  "shard_size": 500,
+  "num_shards": 36,
+  "paper_target_msg_frigid_base_top1": 0.1609,
+  "paper_target_msg_frigid_base_top10": 0.1819,
+  "token_model": "token_models/models/best_ngboost_MSG.joblib",
+  "note": "FRIGID-base benchmark_spec2mol sharded over detected MSG test split with NGBoost token length model enabled."
+}

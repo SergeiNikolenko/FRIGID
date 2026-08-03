@@ -1,0 +1,17 @@
+{
+  "spectra": 10,
+  "threshold": 0.25,
+  "formula_matches": 10,
+  "max_attempts": 100,
+  "exact_any_count": 0,
+  "exact_any_rate": 0.0,
+  "top1_exact_count": 0,
+  "top10_exact_count": 0,
+  "mean_saved_top1_tanimoto": 0.7043633222579956,
+  "mean_oracle_best_tanimoto": 0.7043633165353158,
+  "mean_oracle_gain": -5.72267976339802e-09,
+  "median_oracle_gain": -1.3245476604417661e-08,
+  "mean_num_candidates": 5.0,
+  "mean_valid_candidates": 5.0,
+  "cases_with_oracle_gain_gt_0_05": 0
+}

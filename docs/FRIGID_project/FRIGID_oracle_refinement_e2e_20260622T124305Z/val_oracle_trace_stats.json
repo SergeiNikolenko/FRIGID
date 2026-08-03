@@ -1,0 +1,29 @@
+{
+  "candidate_formula_match_rate": 0.0,
+  "candidate_rank_counts": {
+    "1": 32,
+    "2": 32,
+    "3": 32,
+    "4": 32,
+    "5": 32
+  },
+  "config": {
+    "fp_bits": 4096,
+    "fp_radius": 2,
+    "mask_policy": "mcs_lock_wrong_region_mask_v1",
+    "mcs_timeout_seconds": 2,
+    "oracle_type": "rdkit_mcs_v1",
+    "split": "val"
+  },
+  "detailed_results_csv": null,
+  "exact_match_rate": 0.0,
+  "mean_candidate_tanimoto_to_true": 0.05220746325794608,
+  "mean_target_coverage": 0.17358369883040933,
+  "output_jsonl": "repro_runs/oracle_refinement_e2e_20260622T124305Z/val_oracle_traces.jsonl",
+  "predictions_csv": "repro_runs/oracle_refinement_e2e_20260622T124305Z/val_candidate_predictions.csv",
+  "split_counts": {
+    "val": 160
+  },
+  "total_spectra": 32,
+  "total_traces": 160
+}

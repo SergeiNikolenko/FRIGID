@@ -1,0 +1,76 @@
+{
+  "baseline_thresholds": [
+    0.187,
+    0.25,
+    0.3
+  ],
+  "calibration_count": 1000,
+  "calibration_split": "val",
+  "calibration_stats": {
+    "bits_with_positive_examples": 3594,
+    "bits_without_positive_examples": 502,
+    "mean_best_f1": 0.5225611925125122,
+    "mean_threshold": 0.18001367151737213,
+    "median_threshold": 0.15000000596046448
+  },
+  "eval_count": 20,
+  "eval_subset_csv": "repro_runs/oracle_fingerprint_ablation_20260622/oracle_ablation_sample20.csv",
+  "strategies": [
+    {
+      "count": 20,
+      "max_tanimoto": 0.9285714030265808,
+      "mean_predicted_active_bits": 68.45,
+      "mean_tanimoto": 0.502012613043189,
+      "mean_target_active_bits": 68.1,
+      "median_predicted_active_bits": 74.5,
+      "median_tanimoto": 0.5501465499401093,
+      "min_tanimoto": 0.08163265138864517,
+      "strategy": "global_threshold_0.187"
+    },
+    {
+      "count": 20,
+      "max_tanimoto": 0.9047619104385376,
+      "mean_predicted_active_bits": 60.55,
+      "mean_tanimoto": 0.5060236614197493,
+      "mean_target_active_bits": 68.1,
+      "median_predicted_active_bits": 63.5,
+      "median_tanimoto": 0.53125,
+      "min_tanimoto": 0.08695652335882187,
+      "strategy": "global_threshold_0.25"
+    },
+    {
+      "count": 20,
+      "max_tanimoto": 0.9150943160057068,
+      "mean_predicted_active_bits": 56.3,
+      "mean_tanimoto": 0.5122189667075873,
+      "mean_target_active_bits": 68.1,
+      "median_predicted_active_bits": 60.0,
+      "median_tanimoto": 0.5243615657091141,
+      "min_tanimoto": 0.08695652335882187,
+      "strategy": "global_threshold_0.3"
+    },
+    {
+      "count": 20,
+      "max_tanimoto": 0.8409090638160706,
+      "mean_predicted_active_bits": 70.25,
+      "mean_tanimoto": 0.4717920109629631,
+      "mean_target_active_bits": 68.1,
+      "median_predicted_active_bits": 76.5,
+      "median_tanimoto": 0.48912546038627625,
+      "min_tanimoto": 0.09183673560619354,
+      "strategy": "per_bit_f1_thresholds"
+    }
+  ],
+  "threshold_grid": [
+    0.05,
+    0.1,
+    0.15,
+    0.187,
+    0.2,
+    0.25,
+    0.3,
+    0.35,
+    0.4,
+    0.5
+  ]
+}

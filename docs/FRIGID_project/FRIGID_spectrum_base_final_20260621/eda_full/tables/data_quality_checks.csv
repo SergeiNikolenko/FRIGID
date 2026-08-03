@@ -1,0 +1,9 @@
+check,value,status
+aggregate_detailed_rows,17082,ok
+sharded_detailed_rows,17082,ok
+prediction_rows,17082,ok
+unique_spec_names,17082,ok
+prediction_name_set_matches_detailed_spec_set,True,ok
+completed_shard_count,36,ok
+all_rows_have_10_predictions_recorded,17081,review
+all_rows_have_formula_proposal_source,17082,ok

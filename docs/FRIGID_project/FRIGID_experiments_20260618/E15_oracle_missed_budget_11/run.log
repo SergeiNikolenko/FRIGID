@@ -1,0 +1,78 @@
+Loading token model from /home/nikolenko/work/Projects/FRIGID/token_models/models/best_ngboost_MSG.joblib
+Detected NGBoost model - will use sigma-based sampling
+Loaded 14 features from /home/nikolenko/work/Projects/FRIGID/token_models/models/best_ngboost_MSG_features.json
+Using device: cuda
+
+Loading test split...
+Finding spectra files:   0%|          | 0/17556 [00:00<?, ?it/s]Finding spectra files:  17%|█▋        | 2986/17556 [00:00<00:00, 29857.75it/s]Finding spectra files:  35%|███▍      | 6120/17556 [00:00<00:00, 30726.98it/s]Finding spectra files:  52%|█████▏    | 9193/17556 [00:00<00:00, 30601.62it/s]Finding spectra files:  70%|██████▉   | 12254/17556 [00:00<00:00, 30463.24it/s]Finding spectra files:  87%|████████▋ | 15301/17556 [00:00<00:00, 30341.43it/s]                                                                               0it [00:00, ?it/s]17556it [00:00, 1024048.08it/s]
+0it [00:00, ?it/s]638it [00:00, 6372.99it/s]1424it [00:00, 7245.32it/s]2236it [00:00, 7642.83it/s]3001it [00:00, 3999.37it/s]3716it [00:00, 4716.63it/s]4394it [00:00, 5222.90it/s]5112it [00:00, 5729.47it/s]5774it [00:01, 5805.80it/s]6573it [00:01, 6400.67it/s]7477it [00:01, 7139.17it/s]8386it [00:01, 7694.93it/s]9189it [00:01, 7177.86it/s]9937it [00:01, 7249.57it/s]10684it [00:01, 7252.22it/s]11424it [00:01, 7207.51it/s]12166it [00:01, 7266.44it/s]12901it [00:01, 6936.84it/s]13603it [00:02, 6661.22it/s]14276it [00:02, 6579.24it/s]14939it [00:02, 6499.79it/s]15592it [00:02, 6446.24it/s]16270it [00:02, 6538.91it/s]16926it [00:02, 6396.11it/s]17556it [00:02, 6412.10it/s]
+0it [00:00, ?it/s]17556it [00:00, 4764182.26it/s]
+Loaded 17082 total spectra-molecule pairs
+Using 17082 samples from test split
+
+Loading MIST encoder from: repro_cache/mist_msg.pt
+✓ Loaded MIST encoder weights
+
+Loading DLM decoder from: repro_cache/DLM.ckpt
+Using SHARED cross-attention mode
+[load_model] Removed 120 fingerprint_conditioner.cross_attention_layers keys for shared mode
+[DLM] Loading checkpoint with missing buffers (safe to skip): {'token_atom_counts'}
+[Sampler] Warning: data/len.pk not found. Using default length range.
+✓ Fingerprint conditioning: ENABLED
+✓ Formula conditioning: ENABLED
+Cross-attention mode: SHARED
+
+======================================================================
+SPEC2MOL BENCHMARK
+======================================================================
+Total spectra: 17082
+Formula matches required: 20
+Max attempts: 200
+Batch size: 16
+Temperature: 1.0
+Randomness: 10.0
+FP threshold: 0.25
+Oracle fingerprint conditioning: True
+======================================================================
+
+Subset CSV spectra requested: 11
+Subset spectra found: 11
+Processing spectra:   0%|          | 0/11 [00:00<?, ?it/s]Processing spectra:   9%|▉         | 1/11 [00:52<08:40, 52.04s/it]Processing spectra:  18%|█▊        | 2/11 [02:01<09:20, 62.26s/it]Processing spectra:  27%|██▋       | 3/11 [03:13<08:53, 66.68s/it]Processing spectra:  36%|███▋      | 4/11 [04:13<07:28, 64.14s/it]Processing spectra:  45%|████▌     | 5/11 [05:17<06:24, 64.07s/it]Processing spectra:  55%|█████▍    | 6/11 [06:37<05:48, 69.60s/it]Processing spectra:  64%|██████▎   | 7/11 [07:17<03:59, 59.90s/it]Processing spectra:  73%|███████▎  | 8/11 [08:45<03:25, 68.60s/it]Processing spectra:  82%|████████▏ | 9/11 [09:09<01:49, 54.83s/it]Processing spectra:  91%|█████████ | 10/11 [10:51<01:09, 69.49s/it]Processing spectra: 100%|██████████| 11/11 [12:48<00:00, 83.87s/it]Processing spectra: 100%|██████████| 11/11 [12:48<00:00, 69.86s/it]
+
+Saved aggregate statistics to: repro_runs/20260618T_spectrum_msg_paper_repro/experiments/E15_oracle_missed_budget_11/aggregate_statistics.json
+Saved detailed results to: repro_runs/20260618T_spectrum_msg_paper_repro/experiments/E15_oracle_missed_budget_11/detailed_results.csv
+Saved predictions to: repro_runs/20260618T_spectrum_msg_paper_repro/experiments/E15_oracle_missed_budget_11/predictions.csv
+Saved all matched candidates to: repro_runs/20260618T_spectrum_msg_paper_repro/experiments/E15_oracle_missed_budget_11/all_matched_candidates.csv
+
+======================================================================
+BENCHMARK SUMMARY
+======================================================================
+
+Total spectra: 11
+Time: 785.8s
+Speed: 0.01 spectra/s
+
+--- Generation Timing ---
+Time in generation functions: 765.3s
+Percentage of total time: 97.4%
+
+--- MIST Encoder Quality ---
+Mean Tanimoto (pred vs GT FP): 0.5487
+
+--- Core Metrics ---
+Exact Match Top-1: 27.27%
+Exact Match Top-10: 27.27%
+Tanimoto Top-1: 0.7776
+Tanimoto Top-10: 0.7776
+
+--- Formula Matching ---
+Success rate: 100.00%
+Never matched: 0.00%
+Avg actual formula matches: 12.5
+Avg predictions collected (incl. padding): 20.0
+Avg generations: 189.5
+Avg attempts per match (successful only): 24.0
+======================================================================
+
+Results saved to: repro_runs/20260618T_spectrum_msg_paper_repro/experiments/E15_oracle_missed_budget_11/
+WALL_SECONDS 811.24

@@ -1,0 +1,8 @@
+{
+  "labels": "/home/nikolenko/work/Projects/FRIGID/repro_cache/msg/labels.tsv",
+  "splits": "/home/nikolenko/work/Projects/FRIGID/repro_cache/msg/split.tsv",
+  "split": "val",
+  "rows": 32,
+  "candidates_per_row": 5,
+  "candidate_source": "same formula within the same split; fallback same split"
+}

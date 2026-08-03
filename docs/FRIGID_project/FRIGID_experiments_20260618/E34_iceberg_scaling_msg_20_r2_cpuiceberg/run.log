@@ -1,0 +1,1474 @@
+START_UTC 2026-06-22T16:56:09Z
+HOST spectrum
+COMMIT bcf395a249d9313b4fe1d60a5c048bce23408dbe
+ENV torch 2.6.0+cu124
+ENV torchdata 0.7.1
+ENV dgl 1.1.3
+ENV ray 2.55.1
+ENV pathos 0.3.5
+Loading token model from token_models/models/best_ngboost_MSG.joblib
+Detected NGBoost model - will use sigma-based sampling
+Loaded 14 features from token_models/models/best_ngboost_MSG_features.json
+Using device: cuda
+config['mist_encoder']: {'checkpoint': 'repro_cache/mist_msg.pt', 'hidden_size': 640, 'magma_modulo': 2048, 'peak_attn_layers': 2, 'num_heads': 8, 'spectra_dropout': 0.1, 'output_size': 4096, 'form_embedder': 'pos-cos', 'set_pooling': 'cls', 'refine_layers': 4, 'pairwise_featurization': True, 'embed_instrument': False, 'inten_transform': 'float', 'inten_prob': 0.1, 'remove_prob': 0.5, 'cls_type': 'ms1', 'spec_features': 'peakformula', 'mol_features': 'fingerprint', 'top_layers': 1, 'max_peaks': None}
+
+Loading test split...
+Loaded instrument information for 231104 spectra
+  Instrument distribution: {'Orbitrap': 177281, 'QTOF': 53823}
+  Ionization distribution: {'[M+H]+': 195237, '[M+Na]+': 35867}
+Finding spectra files:   0%|          | 0/17556 [00:00<?, ?it/s]Finding spectra files:  16%|█▌        | 2850/17556 [00:00<00:00, 28497.99it/s]Finding spectra files:  33%|███▎      | 5781/17556 [00:00<00:00, 28972.76it/s]Finding spectra files:  50%|█████     | 8794/17556 [00:00<00:00, 29497.21it/s]Finding spectra files:  67%|██████▋   | 11754/17556 [00:00<00:00, 29535.35it/s]Finding spectra files:  84%|████████▍ | 14742/17556 [00:00<00:00, 29657.46it/s]                                                                               0it [00:00, ?it/s]17556it [00:00, 1004723.78it/s]
+0it [00:00, ?it/s]668it [00:00, 6669.42it/s]1447it [00:00, 7326.31it/s]2242it [00:00, 7610.05it/s]3042it [00:00, 7761.51it/s]3819it [00:00, 7419.89it/s]4564it [00:00, 7262.45it/s]5293it [00:00, 7026.88it/s]5998it [00:00, 6782.91it/s]6891it [00:00, 7413.50it/s]7800it [00:01, 7907.18it/s]8693it [00:01, 8209.60it/s]9519it [00:01, 7960.55it/s]10320it [00:01, 7737.13it/s]11098it [00:01, 7587.44it/s]11860it [00:01, 7520.22it/s]12614it [00:01, 7348.23it/s]13351it [00:01, 7028.19it/s]14057it [00:01, 6798.96it/s]14740it [00:02, 6674.75it/s]15409it [00:02, 6542.51it/s]16085it [00:02, 6601.96it/s]16747it [00:02, 6506.45it/s]17399it [00:02, 6343.23it/s]17556it [00:02, 7114.97it/s]
+0it [00:00, ?it/s]17556it [00:00, 4932690.32it/s]
+Loaded 17082 total spectra-molecule pairs
+Using 17082 samples from test split
+Shuffling split data
+
+Loading MIST encoder from: repro_cache/mist_msg.pt
+✓ Loaded MIST encoder weights
+
+Loading DLM decoder from: /home/nikolenko/work/Projects/FRIGID/repro_runs/oracle_fingerprint_ablation_20260622/DLM.local_hf_cache.ckpt
+Using SHARED cross-attention mode
+[load_model] Removed 120 fingerprint_conditioner.cross_attention_layers keys for shared mode
+[DLM] Loading checkpoint with missing buffers (safe to skip): {'token_atom_counts'}
+[Sampler] Warning: data/len.pk not found. Using default length range.
+✓ Fingerprint conditioning: ENABLED
+✓ Formula conditioning: ENABLED
+Using masking strategy: SimpleMaskingStrategy
+
+======================================================================
+SPEC2MOL BENCHMARK WITH BATCHED ICEBERG SCALING
+======================================================================
+Total spectra in dataset: 17082
+Scaling config:
+  - Batch size (B): 32
+  - Unique to refine (K): 4
+  - Masks per molecule (M): 2
+  - Num rounds (R): 2
+  - Mask probability: 0.5
+  - Collision energies: [10, 20, 30, 40, 50]
+FP threshold: 0.187
+Token model: ENABLED (NGBoost=True, sigma_lambda=3.0)
+======================================================================
+
+Phase 1: Preprocessing all test samples...
+Loading spectra:   0%|          | 0/20 [00:00<?, ?it/s]Loading spectra:   5%|▌         | 1/20 [00:00<00:02,  7.78it/s]Loading spectra:  90%|█████████ | 18/20 [00:00<00:00, 90.60it/s]Loading spectra: 100%|██████████| 20/20 [00:00<00:00, 80.69it/s]
+Seed set to 42
+2026-06-22 19:59:01,061 INFO: 
+adduct_shift: true
+batch_size: 4
+binned_out: false
+dataset_labels: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/1b846926856168258b3fb93e869b0d17/cands_df_scaling_488298d6.tsv
+dataset_name: null
+debug: false
+gen_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt
+gpu: false
+inten_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+max_nodes: 100
+num_bins: 15000
+num_workers: 6
+save_dir: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/1b846926856168258b3fb93e869b0d17
+seed: 42
+sparse_k: 100
+sparse_out: true
+split_name: split_22.tsv
+subset_datasets: none
+threshold: 0.0
+upper_limit: 1500
+
+Lightning automatically upgraded your loaded checkpoint from v1.6.5 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt`
+Lightning automatically upgraded your loaded checkpoint from v1.6.0 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt`
+2026-06-22 19:59:01,577 INFO: Loaded gen / inten models from /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt & /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+2026-06-22 19:59:01,580 INFO: Preparing entries
+  0%|          | 0/64 [00:00<?, ?it/s]  2%|▏         | 1/64 [00:05<05:19,  5.06s/it]100%|██████████| 64/64 [00:05<00:00, 12.45it/s]
+2026-06-22 19:59:06,766 INFO: There are 64 entries to process
+  0%|          | 0/16 [00:00<?, ?it/s]/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+  6%|▋         | 1/16 [00:09<02:21,  9.42s/it] 44%|████▍     | 7/16 [00:09<00:09,  1.03s/it] 56%|█████▋    | 9/16 [00:10<00:05,  1.22it/s] 62%|██████▎   | 10/16 [00:12<00:06,  1.05s/it] 75%|███████▌  | 12/16 [00:15<00:04,  1.25s/it] 88%|████████▊ | 14/16 [00:16<00:01,  1.00it/s]100%|██████████| 16/16 [00:16<00:00,  1.05s/it]
+2026-06-22 19:59:23,497 INFO: Program finished in: 22.439629316329956 seconds
+Seed set to 42
+2026-06-22 19:59:30,511 INFO: 
+adduct_shift: true
+batch_size: 4
+binned_out: false
+dataset_labels: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/68cedf254e5d0bca9bd94dd4d774f2bc/cands_df_scaling_cd80e86d.tsv
+dataset_name: null
+debug: false
+gen_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt
+gpu: false
+inten_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+max_nodes: 100
+num_bins: 15000
+num_workers: 6
+save_dir: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/68cedf254e5d0bca9bd94dd4d774f2bc
+seed: 42
+sparse_k: 100
+sparse_out: true
+split_name: split_22.tsv
+subset_datasets: none
+threshold: 0.0
+upper_limit: 1500
+
+Lightning automatically upgraded your loaded checkpoint from v1.6.5 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt`
+Lightning automatically upgraded your loaded checkpoint from v1.6.0 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt`
+2026-06-22 19:59:30,986 INFO: Loaded gen / inten models from /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt & /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+2026-06-22 19:59:30,989 INFO: Preparing entries
+  0%|          | 0/64 [00:00<?, ?it/s]  2%|▏         | 1/64 [00:05<05:22,  5.12s/it]100%|██████████| 64/64 [00:05<00:00, 12.26it/s]
+2026-06-22 19:59:36,250 INFO: There are 64 entries to process
+  0%|          | 0/16 [00:00<?, ?it/s]/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+  6%|▋         | 1/16 [00:09<02:18,  9.21s/it] 44%|████▍     | 7/16 [00:09<00:09,  1.01s/it] 56%|█████▋    | 9/16 [00:10<00:05,  1.23it/s] 62%|██████▎   | 10/16 [00:12<00:05,  1.02it/s] 75%|███████▌  | 12/16 [00:14<00:04,  1.13s/it] 88%|████████▊ | 14/16 [00:15<00:01,  1.06it/s]100%|██████████| 16/16 [00:15<00:00,  1.00it/s]
+2026-06-22 19:59:52,246 INFO: Program finished in: 21.739450931549072 seconds
+Seed set to 42
+2026-06-22 19:59:58,827 INFO: 
+adduct_shift: true
+batch_size: 4
+binned_out: false
+dataset_labels: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/4aa887baa557c50407869b844d61a9b8/cands_df_scaling_d4953a92.tsv
+dataset_name: null
+debug: false
+gen_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt
+gpu: false
+inten_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+max_nodes: 100
+num_bins: 15000
+num_workers: 6
+save_dir: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/4aa887baa557c50407869b844d61a9b8
+seed: 42
+sparse_k: 100
+sparse_out: true
+split_name: split_22.tsv
+subset_datasets: none
+threshold: 0.0
+upper_limit: 1500
+
+Lightning automatically upgraded your loaded checkpoint from v1.6.5 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt`
+Lightning automatically upgraded your loaded checkpoint from v1.6.0 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt`
+2026-06-22 19:59:59,283 INFO: Loaded gen / inten models from /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt & /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+2026-06-22 19:59:59,286 INFO: Preparing entries
+  0%|          | 0/64 [00:00<?, ?it/s]  2%|▏         | 1/64 [00:04<05:11,  4.94s/it]100%|██████████| 64/64 [00:05<00:00, 12.73it/s]
+2026-06-22 20:00:04,355 INFO: There are 64 entries to process
+  0%|          | 0/16 [00:00<?, ?it/s]/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+  6%|▋         | 1/16 [00:09<02:20,  9.38s/it] 38%|███▊      | 6/16 [00:09<00:11,  1.17s/it] 56%|█████▋    | 9/16 [00:09<00:05,  1.39it/s] 69%|██████▉   | 11/16 [00:11<00:03,  1.25it/s] 81%|████████▏ | 13/16 [00:15<00:03,  1.04s/it] 88%|████████▊ | 14/16 [00:15<00:01,  1.04it/s]100%|██████████| 16/16 [00:15<00:00,  1.02it/s]
+2026-06-22 20:00:20,011 INFO: Program finished in: 21.18767237663269 seconds
+Seed set to 42
+2026-06-22 20:00:26,761 INFO: 
+adduct_shift: true
+batch_size: 4
+binned_out: false
+dataset_labels: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/444e89eab3d2d5e17fa29487be5f9aa9/cands_df_scaling_7f1f4127.tsv
+dataset_name: null
+debug: false
+gen_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt
+gpu: false
+inten_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+max_nodes: 100
+num_bins: 15000
+num_workers: 6
+save_dir: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/444e89eab3d2d5e17fa29487be5f9aa9
+seed: 42
+sparse_k: 100
+sparse_out: true
+split_name: split_22.tsv
+subset_datasets: none
+threshold: 0.0
+upper_limit: 1500
+
+Lightning automatically upgraded your loaded checkpoint from v1.6.5 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt`
+Lightning automatically upgraded your loaded checkpoint from v1.6.0 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt`
+2026-06-22 20:00:27,213 INFO: Loaded gen / inten models from /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt & /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+2026-06-22 20:00:27,216 INFO: Preparing entries
+  0%|          | 0/64 [00:00<?, ?it/s]  2%|▏         | 1/64 [00:04<05:09,  4.91s/it]100%|██████████| 64/64 [00:05<00:00, 12.79it/s]
+2026-06-22 20:00:32,263 INFO: There are 64 entries to process
+  0%|          | 0/16 [00:00<?, ?it/s]/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+  6%|▋         | 1/16 [00:09<02:15,  9.05s/it] 44%|████▍     | 7/16 [00:09<00:08,  1.04it/s] 69%|██████▉   | 11/16 [00:11<00:03,  1.25it/s] 81%|████████▏ | 13/16 [00:14<00:02,  1.04it/s] 94%|█████████▍| 15/16 [00:15<00:00,  1.22it/s]100%|██████████| 16/16 [00:15<00:00,  1.04it/s]
+2026-06-22 20:00:47,612 INFO: Program finished in: 20.85480546951294 seconds
+Seed set to 42
+2026-06-22 20:00:54,550 INFO: 
+adduct_shift: true
+batch_size: 4
+binned_out: false
+dataset_labels: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/787076d80ac47519ce730ef928e714e2/cands_df_scaling_c6b70a67.tsv
+dataset_name: null
+debug: false
+gen_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt
+gpu: false
+inten_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+max_nodes: 100
+num_bins: 15000
+num_workers: 6
+save_dir: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/787076d80ac47519ce730ef928e714e2
+seed: 42
+sparse_k: 100
+sparse_out: true
+split_name: split_22.tsv
+subset_datasets: none
+threshold: 0.0
+upper_limit: 1500
+
+Lightning automatically upgraded your loaded checkpoint from v1.6.5 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt`
+Lightning automatically upgraded your loaded checkpoint from v1.6.0 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt`
+2026-06-22 20:00:55,022 INFO: Loaded gen / inten models from /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt & /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+2026-06-22 20:00:55,025 INFO: Preparing entries
+  0%|          | 0/64 [00:00<?, ?it/s]  2%|▏         | 1/64 [00:04<05:14,  4.98s/it]100%|██████████| 64/64 [00:05<00:00, 12.61it/s]
+2026-06-22 20:01:00,149 INFO: There are 64 entries to process
+  0%|          | 0/16 [00:00<?, ?it/s]/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+  6%|▋         | 1/16 [00:09<02:17,  9.14s/it] 44%|████▍     | 7/16 [00:09<00:08,  1.03it/s] 69%|██████▉   | 11/16 [00:11<00:04,  1.23it/s] 81%|████████▏ | 13/16 [00:14<00:02,  1.08it/s] 94%|█████████▍| 15/16 [00:15<00:00,  1.19it/s]100%|██████████| 16/16 [00:15<00:00,  1.03it/s]
+2026-06-22 20:01:15,638 INFO: Program finished in: 21.091589212417603 seconds
+Seed set to 42
+2026-06-22 20:01:21,968 INFO: 
+adduct_shift: true
+batch_size: 4
+binned_out: false
+dataset_labels: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/0da0eca37ba1f3725a669d3a05551ddd/cands_df_scaling_2f44b539.tsv
+dataset_name: null
+debug: false
+gen_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt
+gpu: false
+inten_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+max_nodes: 100
+num_bins: 15000
+num_workers: 6
+save_dir: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/0da0eca37ba1f3725a669d3a05551ddd
+seed: 42
+sparse_k: 100
+sparse_out: true
+split_name: split_22.tsv
+subset_datasets: none
+threshold: 0.0
+upper_limit: 1500
+
+Lightning automatically upgraded your loaded checkpoint from v1.6.5 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt`
+Lightning automatically upgraded your loaded checkpoint from v1.6.0 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt`
+2026-06-22 20:01:22,447 INFO: Loaded gen / inten models from /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt & /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+2026-06-22 20:01:22,449 INFO: Preparing entries
+  0%|          | 0/12 [00:00<?, ?it/s]  8%|▊         | 1/12 [00:04<00:54,  5.00s/it]100%|██████████| 12/12 [00:05<00:00,  2.40it/s]
+2026-06-22 20:01:27,501 INFO: There are 12 entries to process
+  0%|          | 0/3 [00:00<?, ?it/s]/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+ 33%|███▎      | 1/3 [00:07<00:15,  7.81s/it]100%|██████████| 3/3 [00:07<00:00,  2.61s/it]
+2026-06-22 20:01:35,323 INFO: Program finished in: 13.35875916481018 seconds
+Seed set to 42
+2026-06-22 20:01:41,590 INFO: 
+adduct_shift: true
+batch_size: 4
+binned_out: false
+dataset_labels: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/e1d9a3f24e9cc5359e50f7edcb2685dc/cands_df_scaling_7e9e424a.tsv
+dataset_name: null
+debug: false
+gen_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt
+gpu: false
+inten_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+max_nodes: 100
+num_bins: 15000
+num_workers: 6
+save_dir: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/e1d9a3f24e9cc5359e50f7edcb2685dc
+seed: 42
+sparse_k: 100
+sparse_out: true
+split_name: split_22.tsv
+subset_datasets: none
+threshold: 0.0
+upper_limit: 1500
+
+Lightning automatically upgraded your loaded checkpoint from v1.6.5 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt`
+Lightning automatically upgraded your loaded checkpoint from v1.6.0 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt`
+2026-06-22 20:01:42,057 INFO: Loaded gen / inten models from /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt & /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+2026-06-22 20:01:42,059 INFO: Preparing entries
+  0%|          | 0/12 [00:00<?, ?it/s]  8%|▊         | 1/12 [00:04<00:53,  4.86s/it]100%|██████████| 12/12 [00:04<00:00,  2.46it/s]
+2026-06-22 20:01:46,972 INFO: There are 12 entries to process
+  0%|          | 0/3 [00:00<?, ?it/s]/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+ 33%|███▎      | 1/3 [00:07<00:14,  7.32s/it]100%|██████████| 3/3 [00:07<00:00,  2.44s/it]
+2026-06-22 20:01:54,302 INFO: Program finished in: 12.714903593063354 seconds
+Seed set to 42
+2026-06-22 20:02:00,559 INFO: 
+adduct_shift: true
+batch_size: 4
+binned_out: false
+dataset_labels: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/83a2f2eac879c489d36000b2228f23d0/cands_df_scaling_b639a665.tsv
+dataset_name: null
+debug: false
+gen_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt
+gpu: false
+inten_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+max_nodes: 100
+num_bins: 15000
+num_workers: 6
+save_dir: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/83a2f2eac879c489d36000b2228f23d0
+seed: 42
+sparse_k: 100
+sparse_out: true
+split_name: split_22.tsv
+subset_datasets: none
+threshold: 0.0
+upper_limit: 1500
+
+Lightning automatically upgraded your loaded checkpoint from v1.6.5 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt`
+Lightning automatically upgraded your loaded checkpoint from v1.6.0 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt`
+2026-06-22 20:02:01,055 INFO: Loaded gen / inten models from /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt & /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+2026-06-22 20:02:01,056 INFO: Preparing entries
+  0%|          | 0/12 [00:00<?, ?it/s]  8%|▊         | 1/12 [00:05<00:55,  5.03s/it]100%|██████████| 12/12 [00:05<00:00,  2.38it/s]
+2026-06-22 20:02:06,136 INFO: There are 12 entries to process
+  0%|          | 0/3 [00:00<?, ?it/s]/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+ 33%|███▎      | 1/3 [00:07<00:14,  7.25s/it]100%|██████████| 3/3 [00:07<00:00,  2.42s/it]
+2026-06-22 20:02:13,400 INFO: Program finished in: 12.845108032226562 seconds
+Loaded 20 valid test samples
+
+Phase 2: Running batched scaling with 2 rounds...
+
+============================================================
+SCALING ROUND 1/2
+============================================================
+
+  Round 1: Generating 32 molecules from scratch...
+  Round 1: Running ICEBERG predictions for top 4 molecules...
+  Running ICEBERG for 64 molecules at CE=10eV, instrument=Orbitrap, ionization=[M+H]+...
+/home/nikolenko/work/Projects/FRIGID/.venv/bin/python src/ms_pred/dag_pred/predict_smis.py \
+               --batch-size 4 \
+               --num-workers 6 \
+               --dataset-labels /home/nikolenko/.cache/ms-pred/iceberg-elucidation/1b846926856168258b3fb93e869b0d17/cands_df_scaling_488298d6.tsv \
+               --sparse-out \
+               --sparse-k 100 \
+               --max-nodes 100 \
+               --threshold 0.0 \
+               --gen-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt \
+               --inten-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt \
+               --save-dir /home/nikolenko/.cache/ms-pred/iceberg-elucidation/1b846926856168258b3fb93e869b0d17 \
+               --adduct-shift
+  Running ICEBERG for 64 molecules at CE=20eV, instrument=Orbitrap, ionization=[M+H]+...
+/home/nikolenko/work/Projects/FRIGID/.venv/bin/python src/ms_pred/dag_pred/predict_smis.py \
+               --batch-size 4 \
+               --num-workers 6 \
+               --dataset-labels /home/nikolenko/.cache/ms-pred/iceberg-elucidation/68cedf254e5d0bca9bd94dd4d774f2bc/cands_df_scaling_cd80e86d.tsv \
+               --sparse-out \
+               --sparse-k 100 \
+               --max-nodes 100 \
+               --threshold 0.0 \
+               --gen-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt \
+               --inten-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt \
+               --save-dir /home/nikolenko/.cache/ms-pred/iceberg-elucidation/68cedf254e5d0bca9bd94dd4d774f2bc \
+               --adduct-shift
+  Running ICEBERG for 64 molecules at CE=30eV, instrument=Orbitrap, ionization=[M+H]+...
+/home/nikolenko/work/Projects/FRIGID/.venv/bin/python src/ms_pred/dag_pred/predict_smis.py \
+               --batch-size 4 \
+               --num-workers 6 \
+               --dataset-labels /home/nikolenko/.cache/ms-pred/iceberg-elucidation/4aa887baa557c50407869b844d61a9b8/cands_df_scaling_d4953a92.tsv \
+               --sparse-out \
+               --sparse-k 100 \
+               --max-nodes 100 \
+               --threshold 0.0 \
+               --gen-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt \
+               --inten-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt \
+               --save-dir /home/nikolenko/.cache/ms-pred/iceberg-elucidation/4aa887baa557c50407869b844d61a9b8 \
+               --adduct-shift
+  Running ICEBERG for 64 molecules at CE=40eV, instrument=Orbitrap, ionization=[M+H]+...
+/home/nikolenko/work/Projects/FRIGID/.venv/bin/python src/ms_pred/dag_pred/predict_smis.py \
+               --batch-size 4 \
+               --num-workers 6 \
+               --dataset-labels /home/nikolenko/.cache/ms-pred/iceberg-elucidation/444e89eab3d2d5e17fa29487be5f9aa9/cands_df_scaling_7f1f4127.tsv \
+               --sparse-out \
+               --sparse-k 100 \
+               --max-nodes 100 \
+               --threshold 0.0 \
+               --gen-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt \
+               --inten-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt \
+               --save-dir /home/nikolenko/.cache/ms-pred/iceberg-elucidation/444e89eab3d2d5e17fa29487be5f9aa9 \
+               --adduct-shift
+  Running ICEBERG for 64 molecules at CE=50eV, instrument=Orbitrap, ionization=[M+H]+...
+/home/nikolenko/work/Projects/FRIGID/.venv/bin/python src/ms_pred/dag_pred/predict_smis.py \
+               --batch-size 4 \
+               --num-workers 6 \
+               --dataset-labels /home/nikolenko/.cache/ms-pred/iceberg-elucidation/787076d80ac47519ce730ef928e714e2/cands_df_scaling_c6b70a67.tsv \
+               --sparse-out \
+               --sparse-k 100 \
+               --max-nodes 100 \
+               --threshold 0.0 \
+               --gen-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt \
+               --inten-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt \
+               --save-dir /home/nikolenko/.cache/ms-pred/iceberg-elucidation/787076d80ac47519ce730ef928e714e2 \
+               --adduct-shift
+  Running ICEBERG for 12 molecules at CE=10eV, instrument=QTOF, ionization=[M+Na]+...
+/home/nikolenko/work/Projects/FRIGID/.venv/bin/python src/ms_pred/dag_pred/predict_smis.py \
+               --batch-size 4 \
+               --num-workers 6 \
+               --dataset-labels /home/nikolenko/.cache/ms-pred/iceberg-elucidation/0da0eca37ba1f3725a669d3a05551ddd/cands_df_scaling_2f44b539.tsv \
+               --sparse-out \
+               --sparse-k 100 \
+               --max-nodes 100 \
+               --threshold 0.0 \
+               --gen-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt \
+               --inten-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt \
+               --save-dir /home/nikolenko/.cache/ms-pred/iceberg-elucidation/0da0eca37ba1f3725a669d3a05551ddd \
+               --adduct-shift
+  Running ICEBERG for 12 molecules at CE=20eV, instrument=QTOF, ionization=[M+Na]+...
+/home/nikolenko/work/Projects/FRIGID/.venv/bin/python src/ms_pred/dag_pred/predict_smis.py \
+               --batch-size 4 \
+               --num-workers 6 \
+               --dataset-labels /home/nikolenko/.cache/ms-pred/iceberg-elucidation/e1d9a3f24e9cc5359e50f7edcb2685dc/cands_df_scaling_7e9e424a.tsv \
+               --sparse-out \
+               --sparse-k 100 \
+               --max-nodes 100 \
+               --threshold 0.0 \
+               --gen-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt \
+               --inten-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt \
+               --save-dir /home/nikolenko/.cache/ms-pred/iceberg-elucidation/e1d9a3f24e9cc5359e50f7edcb2685dc \
+               --adduct-shift
+  Running ICEBERG for 12 molecules at CE=30eV, instrument=QTOF, ionization=[M+Na]+...
+/home/nikolenko/work/Projects/FRIGID/.venv/bin/python src/ms_pred/dag_pred/predict_smis.py \
+               --batch-size 4 \
+               --num-workers 6 \
+               --dataset-labels /home/nikolenko/.cache/ms-pred/iceberg-elucidation/83a2f2eac879c489d36000b2228f23d0/cands_df_scaling_b639a665.tsv \
+               --sparse-out \
+               --sparse-k 100 \
+               --max-nodes 100 \
+               --threshold 0.0 \
+               --gen-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt \
+               --inten-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt \
+               --save-dir /home/nikolenko/.cache/ms-pred/iceberg-elucidation/83a2f2eac879c489d36000b2228f23d0 \
+               --adduct-shift
+  Running ICEBERG for 12 molecules at CE=40eV, instrument=QTOF, ionization=[M+Na]+...
+Seed set to 42
+2026-06-22 20:02:19,573 INFO: 
+adduct_shift: true
+batch_size: 4
+binned_out: false
+dataset_labels: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/a06bb38ccfd252564c880793782911a8/cands_df_scaling_1d647661.tsv
+dataset_name: null
+debug: false
+gen_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt
+gpu: false
+inten_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+max_nodes: 100
+num_bins: 15000
+num_workers: 6
+save_dir: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/a06bb38ccfd252564c880793782911a8
+seed: 42
+sparse_k: 100
+sparse_out: true
+split_name: split_22.tsv
+subset_datasets: none
+threshold: 0.0
+upper_limit: 1500
+
+Lightning automatically upgraded your loaded checkpoint from v1.6.5 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt`
+Lightning automatically upgraded your loaded checkpoint from v1.6.0 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt`
+2026-06-22 20:02:20,047 INFO: Loaded gen / inten models from /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt & /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+2026-06-22 20:02:20,049 INFO: Preparing entries
+  0%|          | 0/12 [00:00<?, ?it/s]  8%|▊         | 1/12 [00:05<00:56,  5.15s/it]100%|██████████| 12/12 [00:05<00:00,  2.33it/s]
+2026-06-22 20:02:25,240 INFO: There are 12 entries to process
+  0%|          | 0/3 [00:00<?, ?it/s]/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+ 33%|███▎      | 1/3 [00:07<00:14,  7.36s/it]100%|██████████| 3/3 [00:07<00:00,  2.46s/it]
+2026-06-22 20:02:32,610 INFO: Program finished in: 13.040829181671143 seconds
+Seed set to 42
+2026-06-22 20:02:38,756 INFO: 
+adduct_shift: true
+batch_size: 4
+binned_out: false
+dataset_labels: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/2019c5e33c8bca18aca593d81c6db5f8/cands_df_scaling_c27f72f1.tsv
+dataset_name: null
+debug: false
+gen_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt
+gpu: false
+inten_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+max_nodes: 100
+num_bins: 15000
+num_workers: 6
+save_dir: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/2019c5e33c8bca18aca593d81c6db5f8
+seed: 42
+sparse_k: 100
+sparse_out: true
+split_name: split_22.tsv
+subset_datasets: none
+threshold: 0.0
+upper_limit: 1500
+
+Lightning automatically upgraded your loaded checkpoint from v1.6.5 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt`
+Lightning automatically upgraded your loaded checkpoint from v1.6.0 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt`
+2026-06-22 20:02:39,239 INFO: Loaded gen / inten models from /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt & /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+2026-06-22 20:02:39,241 INFO: Preparing entries
+  0%|          | 0/12 [00:00<?, ?it/s]  8%|▊         | 1/12 [00:05<00:55,  5.03s/it]100%|██████████| 12/12 [00:05<00:00,  2.38it/s]
+2026-06-22 20:02:44,330 INFO: There are 12 entries to process
+  0%|          | 0/3 [00:00<?, ?it/s]/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+ 33%|███▎      | 1/3 [00:07<00:14,  7.11s/it]100%|██████████| 3/3 [00:07<00:00,  1.89s/it]100%|██████████| 3/3 [00:07<00:00,  2.41s/it]
+2026-06-22 20:02:51,565 INFO: Program finished in: 12.813205242156982 seconds
+Seed set to 42
+2026-06-22 20:02:57,712 INFO: 
+adduct_shift: true
+batch_size: 4
+binned_out: false
+dataset_labels: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/c6a94337e4b6df1644fc19bc336d7760/cands_df_scaling_068b9bdb.tsv
+dataset_name: null
+debug: false
+gen_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt
+gpu: false
+inten_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+max_nodes: 100
+num_bins: 15000
+num_workers: 6
+save_dir: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/c6a94337e4b6df1644fc19bc336d7760
+seed: 42
+sparse_k: 100
+sparse_out: true
+split_name: split_22.tsv
+subset_datasets: none
+threshold: 0.0
+upper_limit: 1500
+
+Lightning automatically upgraded your loaded checkpoint from v1.6.5 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt`
+Lightning automatically upgraded your loaded checkpoint from v1.6.0 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt`
+2026-06-22 20:02:58,185 INFO: Loaded gen / inten models from /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt & /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+2026-06-22 20:02:58,187 INFO: Preparing entries
+  0%|          | 0/4 [00:00<?, ?it/s] 25%|██▌       | 1/4 [00:04<00:14,  4.90s/it]100%|██████████| 4/4 [00:04<00:00,  1.22s/it]
+2026-06-22 20:03:03,130 INFO: There are 4 entries to process
+  0%|          | 0/1 [00:00<?, ?it/s]/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+100%|██████████| 1/1 [00:05<00:00,  5.51s/it]100%|██████████| 1/1 [00:05<00:00,  5.51s/it]
+2026-06-22 20:03:08,643 INFO: Program finished in: 10.934946775436401 seconds
+Seed set to 42
+2026-06-22 20:03:14,639 INFO: 
+adduct_shift: true
+batch_size: 4
+binned_out: false
+dataset_labels: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/9a3898110ac67436cedba920718c2d2d/cands_df_scaling_991a679a.tsv
+dataset_name: null
+debug: false
+gen_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt
+gpu: false
+inten_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+max_nodes: 100
+num_bins: 15000
+num_workers: 6
+save_dir: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/9a3898110ac67436cedba920718c2d2d
+seed: 42
+sparse_k: 100
+sparse_out: true
+split_name: split_22.tsv
+subset_datasets: none
+threshold: 0.0
+upper_limit: 1500
+
+Lightning automatically upgraded your loaded checkpoint from v1.6.5 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt`
+Lightning automatically upgraded your loaded checkpoint from v1.6.0 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt`
+2026-06-22 20:03:15,124 INFO: Loaded gen / inten models from /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt & /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+2026-06-22 20:03:15,126 INFO: Preparing entries
+  0%|          | 0/4 [00:00<?, ?it/s] 25%|██▌       | 1/4 [00:04<00:14,  5.00s/it]100%|██████████| 4/4 [00:04<00:00,  1.25s/it]
+2026-06-22 20:03:20,161 INFO: There are 4 entries to process
+  0%|          | 0/1 [00:00<?, ?it/s]/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+100%|██████████| 1/1 [00:05<00:00,  5.41s/it]100%|██████████| 1/1 [00:05<00:00,  5.41s/it]
+2026-06-22 20:03:25,576 INFO: Program finished in: 10.940275192260742 seconds
+Seed set to 42
+2026-06-22 20:03:31,549 INFO: 
+adduct_shift: true
+batch_size: 4
+binned_out: false
+dataset_labels: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/ffb423934f3348b8c0b245f49d45afd4/cands_df_scaling_8a279740.tsv
+dataset_name: null
+debug: false
+gen_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt
+gpu: false
+inten_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+max_nodes: 100
+num_bins: 15000
+num_workers: 6
+save_dir: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/ffb423934f3348b8c0b245f49d45afd4
+seed: 42
+sparse_k: 100
+sparse_out: true
+split_name: split_22.tsv
+subset_datasets: none
+threshold: 0.0
+upper_limit: 1500
+
+Lightning automatically upgraded your loaded checkpoint from v1.6.5 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt`
+Lightning automatically upgraded your loaded checkpoint from v1.6.0 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt`
+2026-06-22 20:03:32,023 INFO: Loaded gen / inten models from /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt & /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+2026-06-22 20:03:32,024 INFO: Preparing entries
+  0%|          | 0/4 [00:00<?, ?it/s] 25%|██▌       | 1/4 [00:04<00:14,  4.97s/it]100%|██████████| 4/4 [00:04<00:00,  1.24s/it]
+2026-06-22 20:03:37,039 INFO: There are 4 entries to process
+  0%|          | 0/1 [00:00<?, ?it/s]/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+100%|██████████| 1/1 [00:05<00:00,  5.33s/it]100%|██████████| 1/1 [00:05<00:00,  5.33s/it]
+2026-06-22 20:03:42,367 INFO: Program finished in: 10.822139024734497 seconds
+Seed set to 42
+2026-06-22 20:03:48,285 INFO: 
+adduct_shift: true
+batch_size: 4
+binned_out: false
+dataset_labels: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/ed423c1d949f3822e941d9daf3a4f823/cands_df_scaling_2187282f.tsv
+dataset_name: null
+debug: false
+gen_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt
+gpu: false
+inten_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+max_nodes: 100
+num_bins: 15000
+num_workers: 6
+save_dir: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/ed423c1d949f3822e941d9daf3a4f823
+seed: 42
+sparse_k: 100
+sparse_out: true
+split_name: split_22.tsv
+subset_datasets: none
+threshold: 0.0
+upper_limit: 1500
+
+Lightning automatically upgraded your loaded checkpoint from v1.6.5 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt`
+Lightning automatically upgraded your loaded checkpoint from v1.6.0 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt`
+2026-06-22 20:03:48,768 INFO: Loaded gen / inten models from /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt & /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+2026-06-22 20:03:48,769 INFO: Preparing entries
+  0%|          | 0/4 [00:00<?, ?it/s] 25%|██▌       | 1/4 [00:04<00:14,  4.95s/it]100%|██████████| 4/4 [00:04<00:00,  1.24s/it]
+2026-06-22 20:03:53,757 INFO: There are 4 entries to process
+  0%|          | 0/1 [00:00<?, ?it/s]/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+100%|██████████| 1/1 [00:05<00:00,  5.38s/it]100%|██████████| 1/1 [00:05<00:00,  5.38s/it]
+2026-06-22 20:03:59,136 INFO: Program finished in: 10.855648279190063 seconds
+Seed set to 42
+2026-06-22 20:04:05,038 INFO: 
+adduct_shift: true
+batch_size: 4
+binned_out: false
+dataset_labels: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/21c11f5097e811c9e8ef8f2a60b1ee68/cands_df_scaling_1c7e8efe.tsv
+dataset_name: null
+debug: false
+gen_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt
+gpu: false
+inten_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+max_nodes: 100
+num_bins: 15000
+num_workers: 6
+save_dir: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/21c11f5097e811c9e8ef8f2a60b1ee68
+seed: 42
+sparse_k: 100
+sparse_out: true
+split_name: split_22.tsv
+subset_datasets: none
+threshold: 0.0
+upper_limit: 1500
+
+Lightning automatically upgraded your loaded checkpoint from v1.6.5 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt`
+Lightning automatically upgraded your loaded checkpoint from v1.6.0 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt`
+2026-06-22 20:04:05,499 INFO: Loaded gen / inten models from /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt & /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+2026-06-22 20:04:05,501 INFO: Preparing entries
+  0%|          | 0/4 [00:00<?, ?it/s] 25%|██▌       | 1/4 [00:04<00:14,  4.99s/it]100%|██████████| 4/4 [00:04<00:00,  1.25s/it]
+2026-06-22 20:04:10,545 INFO: There are 4 entries to process
+  0%|          | 0/1 [00:00<?, ?it/s]/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+100%|██████████| 1/1 [00:05<00:00,  5.26s/it]100%|██████████| 1/1 [00:05<00:00,  5.26s/it]
+2026-06-22 20:04:15,802 INFO: Program finished in: 10.767930030822754 seconds
+/home/nikolenko/work/Projects/FRIGID/.venv/bin/python src/ms_pred/dag_pred/predict_smis.py \
+               --batch-size 4 \
+               --num-workers 6 \
+               --dataset-labels /home/nikolenko/.cache/ms-pred/iceberg-elucidation/a06bb38ccfd252564c880793782911a8/cands_df_scaling_1d647661.tsv \
+               --sparse-out \
+               --sparse-k 100 \
+               --max-nodes 100 \
+               --threshold 0.0 \
+               --gen-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt \
+               --inten-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt \
+               --save-dir /home/nikolenko/.cache/ms-pred/iceberg-elucidation/a06bb38ccfd252564c880793782911a8 \
+               --adduct-shift
+  Running ICEBERG for 12 molecules at CE=50eV, instrument=QTOF, ionization=[M+Na]+...
+/home/nikolenko/work/Projects/FRIGID/.venv/bin/python src/ms_pred/dag_pred/predict_smis.py \
+               --batch-size 4 \
+               --num-workers 6 \
+               --dataset-labels /home/nikolenko/.cache/ms-pred/iceberg-elucidation/2019c5e33c8bca18aca593d81c6db5f8/cands_df_scaling_c27f72f1.tsv \
+               --sparse-out \
+               --sparse-k 100 \
+               --max-nodes 100 \
+               --threshold 0.0 \
+               --gen-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt \
+               --inten-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt \
+               --save-dir /home/nikolenko/.cache/ms-pred/iceberg-elucidation/2019c5e33c8bca18aca593d81c6db5f8 \
+               --adduct-shift
+  Running ICEBERG for 4 molecules at CE=10eV, instrument=Orbitrap, ionization=[M+Na]+...
+/home/nikolenko/work/Projects/FRIGID/.venv/bin/python src/ms_pred/dag_pred/predict_smis.py \
+               --batch-size 4 \
+               --num-workers 6 \
+               --dataset-labels /home/nikolenko/.cache/ms-pred/iceberg-elucidation/c6a94337e4b6df1644fc19bc336d7760/cands_df_scaling_068b9bdb.tsv \
+               --sparse-out \
+               --sparse-k 100 \
+               --max-nodes 100 \
+               --threshold 0.0 \
+               --gen-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt \
+               --inten-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt \
+               --save-dir /home/nikolenko/.cache/ms-pred/iceberg-elucidation/c6a94337e4b6df1644fc19bc336d7760 \
+               --adduct-shift
+  Running ICEBERG for 4 molecules at CE=20eV, instrument=Orbitrap, ionization=[M+Na]+...
+/home/nikolenko/work/Projects/FRIGID/.venv/bin/python src/ms_pred/dag_pred/predict_smis.py \
+               --batch-size 4 \
+               --num-workers 6 \
+               --dataset-labels /home/nikolenko/.cache/ms-pred/iceberg-elucidation/9a3898110ac67436cedba920718c2d2d/cands_df_scaling_991a679a.tsv \
+               --sparse-out \
+               --sparse-k 100 \
+               --max-nodes 100 \
+               --threshold 0.0 \
+               --gen-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt \
+               --inten-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt \
+               --save-dir /home/nikolenko/.cache/ms-pred/iceberg-elucidation/9a3898110ac67436cedba920718c2d2d \
+               --adduct-shift
+  Running ICEBERG for 4 molecules at CE=30eV, instrument=Orbitrap, ionization=[M+Na]+...
+/home/nikolenko/work/Projects/FRIGID/.venv/bin/python src/ms_pred/dag_pred/predict_smis.py \
+               --batch-size 4 \
+               --num-workers 6 \
+               --dataset-labels /home/nikolenko/.cache/ms-pred/iceberg-elucidation/ffb423934f3348b8c0b245f49d45afd4/cands_df_scaling_8a279740.tsv \
+               --sparse-out \
+               --sparse-k 100 \
+               --max-nodes 100 \
+               --threshold 0.0 \
+               --gen-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt \
+               --inten-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt \
+               --save-dir /home/nikolenko/.cache/ms-pred/iceberg-elucidation/ffb423934f3348b8c0b245f49d45afd4 \
+               --adduct-shift
+  Running ICEBERG for 4 molecules at CE=40eV, instrument=Orbitrap, ionization=[M+Na]+...
+/home/nikolenko/work/Projects/FRIGID/.venv/bin/python src/ms_pred/dag_pred/predict_smis.py \
+               --batch-size 4 \
+               --num-workers 6 \
+               --dataset-labels /home/nikolenko/.cache/ms-pred/iceberg-elucidation/ed423c1d949f3822e941d9daf3a4f823/cands_df_scaling_2187282f.tsv \
+               --sparse-out \
+               --sparse-k 100 \
+               --max-nodes 100 \
+               --threshold 0.0 \
+               --gen-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt \
+               --inten-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt \
+               --save-dir /home/nikolenko/.cache/ms-pred/iceberg-elucidation/ed423c1d949f3822e941d9daf3a4f823 \
+               --adduct-shift
+  Running ICEBERG for 4 molecules at CE=50eV, instrument=Orbitrap, ionization=[M+Na]+...
+/home/nikolenko/work/Projects/FRIGID/.venv/bin/python src/ms_pred/dag_pred/predict_smis.py \
+               --batch-size 4 \
+               --num-workers 6 \
+               --dataset-labels /home/nikolenko/.cache/ms-pred/iceberg-elucidation/21c11f5097e811c9e8ef8f2a60b1ee68/cands_df_scaling_1c7e8efe.tsv \
+               --sparse-out \
+               --sparse-k 100 \
+               --max-nodes 100 \
+               --threshold 0.0 \
+               --gen-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt \
+               --inten-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt \
+               --save-dir /home/nikolenko/.cache/ms-pred/iceberg-elucidation/21c11f5097e811c9e8ef8f2a60b1ee68 \
+               --adduct-shift
+  Total unique molecules: 495 (avg 24.8 per sample)
+  ICEBERG cache size: 400
+  Round time: 455.01s (22.7505s per sample)
+  Cumulative time: 455.01s (22.7505s per sample)
+
+  -> Saving intermediate predictions for round 1...
+Saved round 1 predictions to: repro_runs/20260622T_iceberg_scaling_msg_20_r2_cpuiceberg/results/predictions_round_1.csv
+Saved timing data to: repro_runs/20260622T_iceberg_scaling_msg_20_r2_cpuiceberg/results/round_timing.json
+
+============================================================
+SCALING ROUND 2/2
+============================================================
+
+  Round 2: Generating 24 from scratch + up to 8 refined...
+Warning [get_hallucinated_peaks]: Failed to get spectra for comparison: 10.0
+Warning [get_hallucinated_peaks]: Failed to get spectra for comparison: 10.0
+Warning [get_hallucinated_peaks]: Failed to get spectra for comparison: 10.0
+Warning [get_hallucinated_peaks]: Failed to get spectra for comparison: 10.0
+Warning [get_hallucinated_peaks]: Failed to get spectra for comparison: 10.0
+Warning [get_hallucinated_peaks]: Failed to get spectra for comparison: 10.0
+Warning [get_hallucinated_peaks]: Failed to get spectra for comparison: 10.0
+Warning [get_hallucinated_peaks]: Failed to get spectra for comparison: 10.0
+Warning [get_hallucinated_peaks]: Failed to get spectra for comparison: 10.0
+Warning [get_hallucinated_peaks]: Failed to get spectra for comparison: 10.0
+Warning [get_hallucinated_peaks]: Failed to get spectra for comparison: 10.0
+Warning [get_hallucinated_peaks]: Failed to get spectra for comparison: 10.0
+Warning [get_hallucinated_peaks]: Failed to get spectra for comparison: 10.0
+Warning [get_hallucinated_peaks]: Failed to get spectra for comparison: 10.0
+Warning [get_hallucinated_peaks]: Failed to get spectra for comparison: 10.0
+Seed set to 42
+2026-06-22 20:06:40,681 INFO: 
+adduct_shift: true
+batch_size: 4
+binned_out: false
+dataset_labels: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/6ea164f6706ace508f72a537315b3447/cands_df_scaling_b1c07d64.tsv
+dataset_name: null
+debug: false
+gen_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt
+gpu: false
+inten_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+max_nodes: 100
+num_bins: 15000
+num_workers: 6
+save_dir: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/6ea164f6706ace508f72a537315b3447
+seed: 42
+sparse_k: 100
+sparse_out: true
+split_name: split_22.tsv
+subset_datasets: none
+threshold: 0.0
+upper_limit: 1500
+
+Lightning automatically upgraded your loaded checkpoint from v1.6.5 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt`
+Lightning automatically upgraded your loaded checkpoint from v1.6.0 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt`
+2026-06-22 20:06:41,173 INFO: Loaded gen / inten models from /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt & /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+2026-06-22 20:06:41,175 INFO: Preparing entries
+  0%|          | 0/24 [00:00<?, ?it/s]  4%|▍         | 1/24 [00:04<01:54,  4.96s/it]100%|██████████| 24/24 [00:04<00:00,  4.82it/s]
+2026-06-22 20:06:46,195 INFO: There are 24 entries to process
+  0%|          | 0/6 [00:00<?, ?it/s]/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+ 17%|█▋        | 1/6 [00:05<00:26,  5.21s/it] 33%|███▎      | 2/6 [00:07<00:12,  3.24s/it]100%|██████████| 6/6 [00:07<00:00,  1.19s/it]
+2026-06-22 20:06:53,363 INFO: Program finished in: 12.686254978179932 seconds
+Seed set to 42
+2026-06-22 20:06:59,804 INFO: 
+adduct_shift: true
+batch_size: 4
+binned_out: false
+dataset_labels: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/50a811458aac66851164b97064aeeafd/cands_df_scaling_2336fc31.tsv
+dataset_name: null
+debug: false
+gen_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt
+gpu: false
+inten_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+max_nodes: 100
+num_bins: 15000
+num_workers: 6
+save_dir: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/50a811458aac66851164b97064aeeafd
+seed: 42
+sparse_k: 100
+sparse_out: true
+split_name: split_22.tsv
+subset_datasets: none
+threshold: 0.0
+upper_limit: 1500
+
+Lightning automatically upgraded your loaded checkpoint from v1.6.5 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt`
+Lightning automatically upgraded your loaded checkpoint from v1.6.0 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt`
+2026-06-22 20:07:00,285 INFO: Loaded gen / inten models from /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt & /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+2026-06-22 20:07:00,287 INFO: Preparing entries
+  0%|          | 0/24 [00:00<?, ?it/s]  4%|▍         | 1/24 [00:04<01:52,  4.90s/it]100%|██████████| 24/24 [00:04<00:00,  4.87it/s]
+2026-06-22 20:07:05,258 INFO: There are 24 entries to process
+  0%|          | 0/6 [00:00<?, ?it/s]/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+ 17%|█▋        | 1/6 [00:05<00:25,  5.13s/it] 33%|███▎      | 2/6 [00:06<00:11,  2.86s/it]100%|██████████| 6/6 [00:07<00:00,  1.13it/s]100%|██████████| 6/6 [00:07<00:00,  1.27s/it]
+2026-06-22 20:07:12,867 INFO: Program finished in: 13.066754341125488 seconds
+Seed set to 42
+2026-06-22 20:07:19,284 INFO: 
+adduct_shift: true
+batch_size: 4
+binned_out: false
+dataset_labels: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/ec61e8f71fe8068d8bcc4f5e48852084/cands_df_scaling_4e900430.tsv
+dataset_name: null
+debug: false
+gen_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt
+gpu: false
+inten_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+max_nodes: 100
+num_bins: 15000
+num_workers: 6
+save_dir: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/ec61e8f71fe8068d8bcc4f5e48852084
+seed: 42
+sparse_k: 100
+sparse_out: true
+split_name: split_22.tsv
+subset_datasets: none
+threshold: 0.0
+upper_limit: 1500
+
+Lightning automatically upgraded your loaded checkpoint from v1.6.5 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt`
+Lightning automatically upgraded your loaded checkpoint from v1.6.0 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt`
+2026-06-22 20:07:19,777 INFO: Loaded gen / inten models from /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt & /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+2026-06-22 20:07:19,779 INFO: Preparing entries
+  0%|          | 0/24 [00:00<?, ?it/s]  4%|▍         | 1/24 [00:04<01:54,  4.99s/it]100%|██████████| 24/24 [00:05<00:00,  4.79it/s]
+2026-06-22 20:07:24,830 INFO: There are 24 entries to process
+  0%|          | 0/6 [00:00<?, ?it/s]/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+ 17%|█▋        | 1/6 [00:04<00:24,  4.99s/it] 33%|███▎      | 2/6 [00:06<00:11,  2.82s/it]100%|██████████| 6/6 [00:07<00:00,  1.13it/s]100%|██████████| 6/6 [00:07<00:00,  1.26s/it]
+2026-06-22 20:07:32,369 INFO: Program finished in: 13.089066743850708 seconds
+Warning [get_hallucinated_peaks]: Failed to get spectra for comparison: 10.0
+Warning [get_hallucinated_peaks]: Failed to get spectra for comparison: 10.0
+Warning [get_hallucinated_peaks]: Failed to get spectra for comparison: 10.0
+Warning [get_hallucinated_peaks]: Failed to get spectra for comparison: 10.0
+Warning [get_hallucinated_peaks]: Failed to get spectra for comparison: 10.0
+Warning [get_hallucinated_peaks]: Failed to get spectra for comparison: 10.0
+Warning [get_hallucinated_peaks]: Failed to get spectra for comparison: 10.0
+Warning [get_hallucinated_peaks]: Failed to get spectra for comparison: 10.0
+Warning [get_hallucinated_peaks]: Failed to get spectra for comparison: 10.0
+Warning [get_hallucinated_peaks]: Failed to get spectra for comparison: 10.0
+Warning [get_hallucinated_peaks]: Failed to get spectra for comparison: 10.0
+Warning [get_hallucinated_peaks]: Failed to get spectra for comparison: 10.0
+Warning [get_hallucinated_peaks]: Failed to get spectra for comparison: 10.0
+Warning [get_hallucinated_peaks]: Failed to get spectra for comparison: 10.0
+Warning [get_hallucinated_peaks]: Failed to get spectra for comparison: 10.0
+Warning [get_hallucinated_peaks]: Failed to get spectra for comparison: 10.0
+Warning [get_hallucinated_peaks]: Failed to get spectra for comparison: 10.0
+Warning [get_hallucinated_peaks]: Failed to get spectra for comparison: 10.0
+Warning [get_hallucinated_peaks]: Failed to get spectra for comparison: 10.0
+Warning [get_hallucinated_peaks]: Failed to get spectra for comparison: 10.0
+Warning [get_hallucinated_peaks]: Failed to get spectra for comparison: 10.0
+Warning [get_hallucinated_peaks]: Failed to get spectra for comparison: 10.0
+Warning [get_hallucinated_peaks]: Failed to get spectra for comparison: 10.0
+Warning [get_hallucinated_peaks]: Failed to get spectra for comparison: 10.0
+Warning [get_hallucinated_peaks]: Failed to get spectra for comparison: 10.0
+Warning [get_hallucinated_peaks]: Failed to get spectra for comparison: 10.0
+Warning [get_hallucinated_peaks]: Failed to get spectra for comparison: 10.0
+Warning [get_hallucinated_peaks]: Failed to get spectra for comparison: 10.0
+Warning [get_hallucinated_peaks]: Failed to get spectra for comparison: 10.0
+Warning [get_hallucinated_peaks]: Failed to get spectra for comparison: 10.0
+Warning [get_hallucinated_peaks]: Failed to get spectra for comparison: 10.0
+Warning [get_hallucinated_peaks]: Failed to get spectra for comparison: 10.0
+Warning [get_hallucinated_peaks]: Failed to get spectra for comparison: 10.0
+Warning [get_hallucinated_peaks]: Failed to get spectra for comparison: 10.0
+Warning [get_hallucinated_peaks]: Failed to get spectra for comparison: 10.0
+Warning [get_hallucinated_peaks]: Failed to get spectra for comparison: 10.0
+Warning [get_hallucinated_peaks]: Failed to get spectra for comparison: 10.0
+Warning [get_hallucinated_peaks]: Failed to get spectra for comparison: 10.0
+Warning [get_hallucinated_peaks]: Failed to get spectra for comparison: 10.0
+Warning [get_hallucinated_peaks]: Failed to get spectra for comparison: 10.0
+Warning [get_hallucinated_peaks]: Failed to get spectra for comparison: 10.0
+Warning [get_hallucinated_peaks]: Failed to get spectra for comparison: 10.0
+Warning [get_hallucinated_peaks]: Failed to get spectra for comparison: 10.0
+Warning [get_hallucinated_peaks]: Failed to get spectra for comparison: 10.0
+Warning [get_hallucinated_peaks]: Failed to get spectra for comparison: 10.0
+Warning [get_hallucinated_peaks]: Failed to get spectra for comparison: 10.0
+Warning [get_hallucinated_peaks]: Failed to get spectra for comparison: 10.0
+Warning [get_hallucinated_peaks]: Failed to get spectra for comparison: 10.0
+Warning [get_hallucinated_peaks]: Failed to get spectra for comparison: 10.0
+Warning [get_hallucinated_peaks]: Failed to get spectra for comparison: 10.0
+Warning [get_hallucinated_peaks]: Failed to get spectra for comparison: 10.0
+Warning [get_hallucinated_peaks]: Failed to get spectra for comparison: 10.0
+Warning [get_hallucinated_peaks]: Failed to get spectra for comparison: 10.0
+Warning [get_hallucinated_peaks]: Failed to get spectra for comparison: 10.0
+Warning [get_hallucinated_peaks]: Failed to get spectra for comparison: 10.0
+Warning [get_hallucinated_peaks]: Failed to get spectra for comparison: 10.0
+Warning [get_hallucinated_peaks]: Failed to get spectra for comparison: 10.0
+Warning [get_hallucinated_peaks]: Failed to get spectra for comparison: 10.0
+Warning [get_hallucinated_peaks]: Failed to get spectra for comparison: 10.0
+Warning [get_hallucinated_peaks]: Failed to get spectra for comparison: 10.0
+Warning [get_hallucinated_peaks]: Failed to get spectra for comparison: 10.0
+Warning [get_hallucinated_peaks]: Failed to get spectra for comparison: 10.0
+Warning [get_hallucinated_peaks]: Failed to get spectra for comparison: 10.0
+Warning [get_hallucinated_peaks]: Failed to get spectra for comparison: 10.0
+Warning [get_hallucinated_peaks]: Failed to get spectra for comparison: 10.0
+  Round 2: Running ICEBERG predictions for top 4 molecules...
+  Running ICEBERG for 24 molecules at CE=10eV, instrument=Orbitrap, ionization=[M+H]+...
+/home/nikolenko/work/Projects/FRIGID/.venv/bin/python src/ms_pred/dag_pred/predict_smis.py \
+               --batch-size 4 \
+               --num-workers 6 \
+               --dataset-labels /home/nikolenko/.cache/ms-pred/iceberg-elucidation/6ea164f6706ace508f72a537315b3447/cands_df_scaling_b1c07d64.tsv \
+               --sparse-out \
+               --sparse-k 100 \
+               --max-nodes 100 \
+               --threshold 0.0 \
+               --gen-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt \
+               --inten-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt \
+               --save-dir /home/nikolenko/.cache/ms-pred/iceberg-elucidation/6ea164f6706ace508f72a537315b3447 \
+               --adduct-shift
+  Running ICEBERG for 24 molecules at CE=20eV, instrument=Orbitrap, ionization=[M+H]+...
+/home/nikolenko/work/Projects/FRIGID/.venv/bin/python src/ms_pred/dag_pred/predict_smis.py \
+               --batch-size 4 \
+               --num-workers 6 \
+               --dataset-labels /home/nikolenko/.cache/ms-pred/iceberg-elucidation/50a811458aac66851164b97064aeeafd/cands_df_scaling_2336fc31.tsv \
+               --sparse-out \
+               --sparse-k 100 \
+               --max-nodes 100 \
+               --threshold 0.0 \
+               --gen-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt \
+               --inten-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt \
+               --save-dir /home/nikolenko/.cache/ms-pred/iceberg-elucidation/50a811458aac66851164b97064aeeafd \
+               --adduct-shift
+  Running ICEBERG for 24 molecules at CE=30eV, instrument=Orbitrap, ionization=[M+H]+...
+/home/nikolenko/work/Projects/FRIGID/.venv/bin/python src/ms_pred/dag_pred/predict_smis.py \
+               --batch-size 4 \
+               --num-workers 6 \
+               --dataset-labels /home/nikolenko/.cache/ms-pred/iceberg-elucidation/ec61e8f71fe8068d8bcc4f5e48852084/cands_df_scaling_4e900430.tsv \
+               --sparse-out \
+               --sparse-k 100 \
+               --max-nodes 100 \
+               --threshold 0.0 \
+               --gen-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt \
+               --inten-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt \
+               --save-dir /home/nikolenko/.cache/ms-pred/iceberg-elucidation/ec61e8f71fe8068d8bcc4f5e48852084 \
+               --adduct-shift
+  Running ICEBERG for 24 molecules at CE=40eV, instrument=Orbitrap, ionization=[M+H]+...
+Seed set to 42
+2026-06-22 20:07:38,817 INFO: 
+adduct_shift: true
+batch_size: 4
+binned_out: false
+dataset_labels: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/79d55a0f92f8ec3c971934573d5f6158/cands_df_scaling_44c730af.tsv
+dataset_name: null
+debug: false
+gen_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt
+gpu: false
+inten_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+max_nodes: 100
+num_bins: 15000
+num_workers: 6
+save_dir: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/79d55a0f92f8ec3c971934573d5f6158
+seed: 42
+sparse_k: 100
+sparse_out: true
+split_name: split_22.tsv
+subset_datasets: none
+threshold: 0.0
+upper_limit: 1500
+
+Lightning automatically upgraded your loaded checkpoint from v1.6.5 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt`
+Lightning automatically upgraded your loaded checkpoint from v1.6.0 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt`
+2026-06-22 20:07:39,290 INFO: Loaded gen / inten models from /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt & /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+2026-06-22 20:07:39,292 INFO: Preparing entries
+  0%|          | 0/24 [00:00<?, ?it/s]  4%|▍         | 1/24 [00:04<01:54,  5.00s/it]100%|██████████| 24/24 [00:05<00:00,  4.78it/s]
+2026-06-22 20:07:44,361 INFO: There are 24 entries to process
+  0%|          | 0/6 [00:00<?, ?it/s]/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+ 17%|█▋        | 1/6 [00:04<00:24,  4.93s/it] 33%|███▎      | 2/6 [00:06<00:11,  2.91s/it]100%|██████████| 6/6 [00:07<00:00,  1.14it/s]100%|██████████| 6/6 [00:07<00:00,  1.25s/it]
+2026-06-22 20:07:51,872 INFO: Program finished in: 13.057997941970825 seconds
+Seed set to 42
+2026-06-22 20:07:58,475 INFO: 
+adduct_shift: true
+batch_size: 4
+binned_out: false
+dataset_labels: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/cb07e8b14bbb6cfa493ab920df80158d/cands_df_scaling_6bdce483.tsv
+dataset_name: null
+debug: false
+gen_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt
+gpu: false
+inten_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+max_nodes: 100
+num_bins: 15000
+num_workers: 6
+save_dir: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/cb07e8b14bbb6cfa493ab920df80158d
+seed: 42
+sparse_k: 100
+sparse_out: true
+split_name: split_22.tsv
+subset_datasets: none
+threshold: 0.0
+upper_limit: 1500
+
+Lightning automatically upgraded your loaded checkpoint from v1.6.5 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt`
+Lightning automatically upgraded your loaded checkpoint from v1.6.0 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt`
+2026-06-22 20:07:58,947 INFO: Loaded gen / inten models from /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt & /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+2026-06-22 20:07:58,949 INFO: Preparing entries
+  0%|          | 0/24 [00:00<?, ?it/s]  4%|▍         | 1/24 [00:04<01:52,  4.89s/it]100%|██████████| 24/24 [00:04<00:00,  4.89it/s]
+2026-06-22 20:08:03,894 INFO: There are 24 entries to process
+  0%|          | 0/6 [00:00<?, ?it/s]/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+ 17%|█▋        | 1/6 [00:05<00:25,  5.06s/it] 33%|███▎      | 2/6 [00:06<00:10,  2.73s/it]100%|██████████| 6/6 [00:07<00:00,  1.22it/s]100%|██████████| 6/6 [00:07<00:00,  1.20s/it]
+2026-06-22 20:08:11,071 INFO: Program finished in: 12.600769281387329 seconds
+Seed set to 42
+2026-06-22 20:08:17,365 INFO: 
+adduct_shift: true
+batch_size: 4
+binned_out: false
+dataset_labels: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/a16237ec8df7862eeded72689dba026c/cands_df_scaling_d841b1cd.tsv
+dataset_name: null
+debug: false
+gen_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt
+gpu: false
+inten_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+max_nodes: 100
+num_bins: 15000
+num_workers: 6
+save_dir: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/a16237ec8df7862eeded72689dba026c
+seed: 42
+sparse_k: 100
+sparse_out: true
+split_name: split_22.tsv
+subset_datasets: none
+threshold: 0.0
+upper_limit: 1500
+
+Lightning automatically upgraded your loaded checkpoint from v1.6.5 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt`
+Lightning automatically upgraded your loaded checkpoint from v1.6.0 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt`
+2026-06-22 20:08:17,830 INFO: Loaded gen / inten models from /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt & /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+2026-06-22 20:08:17,831 INFO: Preparing entries
+  0%|          | 0/4 [00:00<?, ?it/s] 25%|██▌       | 1/4 [00:04<00:14,  4.87s/it]100%|██████████| 4/4 [00:04<00:00,  1.22s/it]
+2026-06-22 20:08:22,746 INFO: There are 4 entries to process
+  0%|          | 0/1 [00:00<?, ?it/s]/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+100%|██████████| 1/1 [00:05<00:00,  5.21s/it]100%|██████████| 1/1 [00:05<00:00,  5.21s/it]
+2026-06-22 20:08:27,953 INFO: Program finished in: 10.591910362243652 seconds
+Seed set to 42
+2026-06-22 20:08:33,922 INFO: 
+adduct_shift: true
+batch_size: 4
+binned_out: false
+dataset_labels: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/c76f4cfabed55e88f57b51af75fe35c9/cands_df_scaling_2ee2e8b3.tsv
+dataset_name: null
+debug: false
+gen_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt
+gpu: false
+inten_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+max_nodes: 100
+num_bins: 15000
+num_workers: 6
+save_dir: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/c76f4cfabed55e88f57b51af75fe35c9
+seed: 42
+sparse_k: 100
+sparse_out: true
+split_name: split_22.tsv
+subset_datasets: none
+threshold: 0.0
+upper_limit: 1500
+
+Lightning automatically upgraded your loaded checkpoint from v1.6.5 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt`
+Lightning automatically upgraded your loaded checkpoint from v1.6.0 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt`
+2026-06-22 20:08:34,405 INFO: Loaded gen / inten models from /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt & /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+2026-06-22 20:08:34,406 INFO: Preparing entries
+  0%|          | 0/4 [00:00<?, ?it/s] 25%|██▌       | 1/4 [00:05<00:15,  5.07s/it]100%|██████████| 4/4 [00:05<00:00,  1.27s/it]
+2026-06-22 20:08:39,517 INFO: There are 4 entries to process
+  0%|          | 0/1 [00:00<?, ?it/s]/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+100%|██████████| 1/1 [00:05<00:00,  5.13s/it]100%|██████████| 1/1 [00:05<00:00,  5.13s/it]
+2026-06-22 20:08:44,647 INFO: Program finished in: 10.728184700012207 seconds
+Seed set to 42
+2026-06-22 20:08:50,654 INFO: 
+adduct_shift: true
+batch_size: 4
+binned_out: false
+dataset_labels: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/21cf097e9976f53b44694e29bda4d7b8/cands_df_scaling_497b2a66.tsv
+dataset_name: null
+debug: false
+gen_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt
+gpu: false
+inten_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+max_nodes: 100
+num_bins: 15000
+num_workers: 6
+save_dir: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/21cf097e9976f53b44694e29bda4d7b8
+seed: 42
+sparse_k: 100
+sparse_out: true
+split_name: split_22.tsv
+subset_datasets: none
+threshold: 0.0
+upper_limit: 1500
+
+Lightning automatically upgraded your loaded checkpoint from v1.6.5 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt`
+Lightning automatically upgraded your loaded checkpoint from v1.6.0 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt`
+2026-06-22 20:08:51,128 INFO: Loaded gen / inten models from /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt & /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+2026-06-22 20:08:51,129 INFO: Preparing entries
+  0%|          | 0/4 [00:00<?, ?it/s] 25%|██▌       | 1/4 [00:04<00:14,  4.91s/it]100%|██████████| 4/4 [00:04<00:00,  1.23s/it]
+2026-06-22 20:08:56,079 INFO: There are 4 entries to process
+  0%|          | 0/1 [00:00<?, ?it/s]/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+100%|██████████| 1/1 [00:05<00:00,  5.07s/it]100%|██████████| 1/1 [00:05<00:00,  5.07s/it]
+2026-06-22 20:09:01,154 INFO: Program finished in: 10.503349542617798 seconds
+Seed set to 42
+2026-06-22 20:09:07,127 INFO: 
+adduct_shift: true
+batch_size: 4
+binned_out: false
+dataset_labels: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/c4b929fd90e9d76a1935cdae3b254162/cands_df_scaling_df9f8871.tsv
+dataset_name: null
+debug: false
+gen_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt
+gpu: false
+inten_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+max_nodes: 100
+num_bins: 15000
+num_workers: 6
+save_dir: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/c4b929fd90e9d76a1935cdae3b254162
+seed: 42
+sparse_k: 100
+sparse_out: true
+split_name: split_22.tsv
+subset_datasets: none
+threshold: 0.0
+upper_limit: 1500
+
+Lightning automatically upgraded your loaded checkpoint from v1.6.5 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt`
+Lightning automatically upgraded your loaded checkpoint from v1.6.0 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt`
+2026-06-22 20:09:07,602 INFO: Loaded gen / inten models from /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt & /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+2026-06-22 20:09:07,603 INFO: Preparing entries
+  0%|          | 0/4 [00:00<?, ?it/s] 25%|██▌       | 1/4 [00:04<00:14,  4.98s/it]100%|██████████| 4/4 [00:04<00:00,  1.25s/it]
+2026-06-22 20:09:12,627 INFO: There are 4 entries to process
+  0%|          | 0/1 [00:00<?, ?it/s]/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+100%|██████████| 1/1 [00:04<00:00,  4.93s/it]100%|██████████| 1/1 [00:04<00:00,  4.93s/it]
+2026-06-22 20:09:17,563 INFO: Program finished in: 10.439805030822754 seconds
+Seed set to 42
+2026-06-22 20:09:23,553 INFO: 
+adduct_shift: true
+batch_size: 4
+binned_out: false
+dataset_labels: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/c4058ae6933ceeaf98ed0d0075a9e8ce/cands_df_scaling_61f8cd62.tsv
+dataset_name: null
+debug: false
+gen_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt
+gpu: false
+inten_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+max_nodes: 100
+num_bins: 15000
+num_workers: 6
+save_dir: /home/nikolenko/.cache/ms-pred/iceberg-elucidation/c4058ae6933ceeaf98ed0d0075a9e8ce
+seed: 42
+sparse_k: 100
+sparse_out: true
+split_name: split_22.tsv
+subset_datasets: none
+threshold: 0.0
+upper_limit: 1500
+
+Lightning automatically upgraded your loaded checkpoint from v1.6.5 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt`
+Lightning automatically upgraded your loaded checkpoint from v1.6.0 to v2.6.5. To apply the upgrade to your files permanently, run `python -m pytorch_lightning.utilities.upgrade_checkpoint ../repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt`
+2026-06-22 20:09:24,038 INFO: Loaded gen / inten models from /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt & /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+2026-06-22 20:09:24,040 INFO: Preparing entries
+  0%|          | 0/4 [00:00<?, ?it/s] 25%|██▌       | 1/4 [00:05<00:15,  5.13s/it]100%|██████████| 4/4 [00:05<00:00,  1.28s/it]
+2026-06-22 20:09:29,219 INFO: There are 4 entries to process
+  0%|          | 0/1 [00:00<?, ?it/s]/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/nn_utils/nn_utils.py:858: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  out = out @ adj
+100%|██████████| 1/1 [00:04<00:00,  4.96s/it]100%|██████████| 1/1 [00:04<00:00,  4.96s/it]
+2026-06-22 20:09:34,183 INFO: Program finished in: 10.634294271469116 seconds
+/home/nikolenko/work/Projects/FRIGID/.venv/bin/python src/ms_pred/dag_pred/predict_smis.py \
+               --batch-size 4 \
+               --num-workers 6 \
+               --dataset-labels /home/nikolenko/.cache/ms-pred/iceberg-elucidation/79d55a0f92f8ec3c971934573d5f6158/cands_df_scaling_44c730af.tsv \
+               --sparse-out \
+               --sparse-k 100 \
+               --max-nodes 100 \
+               --threshold 0.0 \
+               --gen-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt \
+               --inten-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt \
+               --save-dir /home/nikolenko/.cache/ms-pred/iceberg-elucidation/79d55a0f92f8ec3c971934573d5f6158 \
+               --adduct-shift
+  Running ICEBERG for 24 molecules at CE=50eV, instrument=Orbitrap, ionization=[M+H]+...
+/home/nikolenko/work/Projects/FRIGID/.venv/bin/python src/ms_pred/dag_pred/predict_smis.py \
+               --batch-size 4 \
+               --num-workers 6 \
+               --dataset-labels /home/nikolenko/.cache/ms-pred/iceberg-elucidation/cb07e8b14bbb6cfa493ab920df80158d/cands_df_scaling_6bdce483.tsv \
+               --sparse-out \
+               --sparse-k 100 \
+               --max-nodes 100 \
+               --threshold 0.0 \
+               --gen-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt \
+               --inten-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt \
+               --save-dir /home/nikolenko/.cache/ms-pred/iceberg-elucidation/cb07e8b14bbb6cfa493ab920df80158d \
+               --adduct-shift
+  Running ICEBERG for 4 molecules at CE=10eV, instrument=QTOF, ionization=[M+Na]+...
+/home/nikolenko/work/Projects/FRIGID/.venv/bin/python src/ms_pred/dag_pred/predict_smis.py \
+               --batch-size 4 \
+               --num-workers 6 \
+               --dataset-labels /home/nikolenko/.cache/ms-pred/iceberg-elucidation/a16237ec8df7862eeded72689dba026c/cands_df_scaling_d841b1cd.tsv \
+               --sparse-out \
+               --sparse-k 100 \
+               --max-nodes 100 \
+               --threshold 0.0 \
+               --gen-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt \
+               --inten-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt \
+               --save-dir /home/nikolenko/.cache/ms-pred/iceberg-elucidation/a16237ec8df7862eeded72689dba026c \
+               --adduct-shift
+  Running ICEBERG for 4 molecules at CE=20eV, instrument=QTOF, ionization=[M+Na]+...
+/home/nikolenko/work/Projects/FRIGID/.venv/bin/python src/ms_pred/dag_pred/predict_smis.py \
+               --batch-size 4 \
+               --num-workers 6 \
+               --dataset-labels /home/nikolenko/.cache/ms-pred/iceberg-elucidation/c76f4cfabed55e88f57b51af75fe35c9/cands_df_scaling_2ee2e8b3.tsv \
+               --sparse-out \
+               --sparse-k 100 \
+               --max-nodes 100 \
+               --threshold 0.0 \
+               --gen-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt \
+               --inten-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt \
+               --save-dir /home/nikolenko/.cache/ms-pred/iceberg-elucidation/c76f4cfabed55e88f57b51af75fe35c9 \
+               --adduct-shift
+  Running ICEBERG for 4 molecules at CE=30eV, instrument=QTOF, ionization=[M+Na]+...
+/home/nikolenko/work/Projects/FRIGID/.venv/bin/python src/ms_pred/dag_pred/predict_smis.py \
+               --batch-size 4 \
+               --num-workers 6 \
+               --dataset-labels /home/nikolenko/.cache/ms-pred/iceberg-elucidation/21cf097e9976f53b44694e29bda4d7b8/cands_df_scaling_497b2a66.tsv \
+               --sparse-out \
+               --sparse-k 100 \
+               --max-nodes 100 \
+               --threshold 0.0 \
+               --gen-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt \
+               --inten-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt \
+               --save-dir /home/nikolenko/.cache/ms-pred/iceberg-elucidation/21cf097e9976f53b44694e29bda4d7b8 \
+               --adduct-shift
+  Running ICEBERG for 4 molecules at CE=40eV, instrument=QTOF, ionization=[M+Na]+...
+/home/nikolenko/work/Projects/FRIGID/.venv/bin/python src/ms_pred/dag_pred/predict_smis.py \
+               --batch-size 4 \
+               --num-workers 6 \
+               --dataset-labels /home/nikolenko/.cache/ms-pred/iceberg-elucidation/c4b929fd90e9d76a1935cdae3b254162/cands_df_scaling_df9f8871.tsv \
+               --sparse-out \
+               --sparse-k 100 \
+               --max-nodes 100 \
+               --threshold 0.0 \
+               --gen-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt \
+               --inten-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt \
+               --save-dir /home/nikolenko/.cache/ms-pred/iceberg-elucidation/c4b929fd90e9d76a1935cdae3b254162 \
+               --adduct-shift
+  Running ICEBERG for 4 molecules at CE=50eV, instrument=QTOF, ionization=[M+Na]+...
+/home/nikolenko/work/Projects/FRIGID/.venv/bin/python src/ms_pred/dag_pred/predict_smis.py \
+               --batch-size 4 \
+               --num-workers 6 \
+               --dataset-labels /home/nikolenko/.cache/ms-pred/iceberg-elucidation/c4058ae6933ceeaf98ed0d0075a9e8ce/cands_df_scaling_61f8cd62.tsv \
+               --sparse-out \
+               --sparse-k 100 \
+               --max-nodes 100 \
+               --threshold 0.0 \
+               --gen-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt \
+               --inten-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt \
+               --save-dir /home/nikolenko/.cache/ms-pred/iceberg-elucidation/c4058ae6933ceeaf98ed0d0075a9e8ce \
+               --adduct-shift
+  Total unique molecules: 966 (avg 48.3 per sample)
+  ICEBERG cache size: 540
+  Round time: 318.19s (15.9094s per sample)
+  Cumulative time: 773.20s (38.6600s per sample)
+
+  -> Saving intermediate predictions for round 2...
+Saved round 2 predictions to: repro_runs/20260622T_iceberg_scaling_msg_20_r2_cpuiceberg/results/predictions_round_2.csv
+Saved timing data to: repro_runs/20260622T_iceberg_scaling_msg_20_r2_cpuiceberg/results/round_timing.json
+
+Phase 3: Evaluating results...
+
+Saved aggregate statistics to: repro_runs/20260622T_iceberg_scaling_msg_20_r2_cpuiceberg/results/aggregate_statistics.json
+Saved detailed results to: repro_runs/20260622T_iceberg_scaling_msg_20_r2_cpuiceberg/results/detailed_results.csv
+Saved predictions to: repro_runs/20260622T_iceberg_scaling_msg_20_r2_cpuiceberg/results/predictions.csv
+
+======================================================================
+BENCHMARK SUMMARY
+======================================================================
+
+Total spectra: 20
+Time: 775.5s
+Speed: 0.03 spectra/s
+
+--- MIST Encoder Quality ---
+Mean Tanimoto (pred vs GT FP): 0.5447
+
+--- Core Metrics ---
+Exact Match Top-1: 15.00%
+Exact Match Top-10: 15.00%
+Tanimoto Top-1: 0.4712
+Tanimoto Top-10: 0.5050
+
+--- Scaling Statistics ---
+
+--- Per-Round GPU Timing ---
+round_1: cumulative=455.01s, per_sample=22.7505s
+round_2: cumulative=773.20s, per_sample=38.6600s
+======================================================================
+
+--- Round Timing Summary ---
+Round 1: cumulative=455.01s, per_sample=22.7505s
+Round 2: cumulative=773.20s, per_sample=38.6600s
+
+Results saved to: repro_runs/20260622T_iceberg_scaling_msg_20_r2_cpuiceberg/results/
+DONE_UTC 2026-06-22T17:09:40Z

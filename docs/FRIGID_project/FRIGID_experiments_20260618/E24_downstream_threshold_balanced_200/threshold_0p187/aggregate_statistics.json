@@ -1,0 +1,25 @@
+{
+  "total_spectra": 200,
+  "elapsed_time_seconds": 1155.2152481079102,
+  "spectra_per_second": 0.1731279086971658,
+  "exact_match_top1": 0.095,
+  "exact_match_top10": 0.095,
+  "tanimoto_top1_mean": 0.4216148009523749,
+  "tanimoto_top10_mean": 0.43153225895017383,
+  "mist_tanimoto_mean": 0.5162259753420949,
+  "avg_formula_matches": 2.245,
+  "avg_predictions_collected": 3.0,
+  "avg_total_generated": 26.085,
+  "formula_match_success_rate": 0.825,
+  "avg_attempts_to_match": 12.684761904761906,
+  "never_matched_rate": 0.175,
+  "total_generation_time": 1115.5681586265564,
+  "generation_time_percentage": 96.56799115608192,
+  "total_elapsed_time_seconds": 1155.2152481079102,
+  "proposal_source_counts": [
+    [
+      "formula",
+      200
+    ]
+  ]
+}
