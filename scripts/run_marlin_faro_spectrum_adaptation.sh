@@ -34,6 +34,11 @@ CHECKPOINT="$(
     --output-name "checkpoint.ckpt"
 )"
 
+SOFT_FINGERPRINT_ARGS=()
+if [[ "${MARLIN_SOFT_FINGERPRINT:-0}" == "1" ]]; then
+  SOFT_FINGERPRINT_ARGS+=(--soft-fingerprint)
+fi
+
 test ! -e "$RUN_ROOT"
 
 python -X faulthandler scripts/train_marlin_spectrum_adaptation.py \
@@ -44,6 +49,7 @@ python -X faulthandler scripts/train_marlin_spectrum_adaptation.py \
   --fingerprints "$RUNTIME_ROOT/train/dreams_predictions.npz" \
   --fingerprint-key probs \
   --fingerprint-threshold "${MARLIN_TRAIN_FINGERPRINT_THRESHOLD:-0.90}" \
+  "${SOFT_FINGERPRINT_ARGS[@]}" \
   --exclude-inchikeys "$RUNTIME_ROOT/nplib1_test_inchikeys.csv" \
   --exclude-metadata "$RUNTIME_ROOT/val/metadata.csv" \
   --validation-metadata "$RUNTIME_ROOT/val/metadata.csv" \
