@@ -246,3 +246,45 @@ def test_mass_reachability_prune_allows_eos_when_hydrogens_close_the_target():
     constrained = grammar([], logits, 444.103807533379)
 
     assert constrained[2] == 0.0
+
+
+def _syntax_grammar(prefix: str, tokens: tuple[str, ...]) -> SafeGrammarMask:
+    return SafeGrammarMask(
+        tokens,
+        lambda _ids: prefix,
+        eos_token_id=2,
+        special_token_ids=(0, 1, 2, 3, 4),
+    )
+
+
+def test_safe_grammar_rejects_bracket_digits_that_no_element_can_complete():
+    # A carbonyl oxygen carrying a branch admits no element, so the isotope digits
+    # opened by "[" lead to a trap state the decoder can never leave.
+    tokens = ("[UNK]", "[CLS]", "[SEP]", "[PAD]", "[MASK]", "6", "7", "C", "O", "Br]")
+    grammar = _syntax_grammar("CC(C)=O(-[", tokens)
+
+    constrained = grammar([], torch.zeros(len(tokens)))
+
+    assert bool(torch.isinf(constrained).all())
+
+
+def test_safe_grammar_keeps_bracket_digits_that_an_element_can_complete():
+    # "1" opens the isotope of [13C]; it survives only while the vocabulary can
+    # still finish it.
+    completable = ("[UNK]", "[CLS]", "[SEP]", "[PAD]", "[MASK]", "1", "3C]", "C]")
+    grammar = _syntax_grammar("CCO[", completable)
+
+    constrained = grammar([], torch.zeros(len(completable)))
+
+    assert constrained[5] == 0.0
+    assert constrained[7] == 0.0
+
+
+def test_safe_grammar_drops_bracket_digits_once_the_vocabulary_cannot_finish_them():
+    incompletable = ("[UNK]", "[CLS]", "[SEP]", "[PAD]", "[MASK]", "1", "C]")
+    grammar = _syntax_grammar("CCO[", incompletable)
+
+    constrained = grammar([], torch.zeros(len(incompletable)))
+
+    assert bool(torch.isinf(constrained[5]))
+    assert constrained[6] == 0.0

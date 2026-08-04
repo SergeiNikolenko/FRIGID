@@ -727,6 +727,29 @@ class SafeGrammarMask:
         self.mass_reachability_prune = mass_reachability_prune
 
     @lru_cache(maxsize=32_768)
+    def _has_syntactic_completion(self, text: str) -> bool:
+        """Report whether any vocabulary token can close a partial SAFE token.
+
+        A partial token such as the isotope digits opened by "[" stays lexically
+        valid on its own, so admitting it without checking that some token can
+        finish it lets the decoder walk into a state with no legal successor.
+        """
+        has_open_bracket = text.rfind("[") > text.rfind("]")
+        trailing_percent = text.rfind("%") > max(text.rfind("["), text.rfind("]"))
+        for token in self.token_strings:
+            if has_open_bracket:
+                close = token.find("]")
+                nested_open = token.find("[")
+                if close < 0 or (nested_open >= 0 and nested_open < close):
+                    continue
+            elif trailing_percent and (not token or not token[0].isdigit()):
+                continue
+            completed = _scan(text + token)
+            if completed is not None and not completed.incomplete_token:
+                return True
+        return False
+
+    @lru_cache(maxsize=32_768)
     def _valid_token_ids(self, prefix: str) -> tuple[int, ...]:
         state = _scan(prefix)
         if state is None:
@@ -738,7 +761,15 @@ class SafeGrammarMask:
             elif token_id in self.special_token_ids:
                 valid = False
             else:
-                valid = _scan(prefix + token) is not None
+                completed = _scan(prefix + token)
+                if completed is None:
+                    valid = False
+                elif completed.incomplete_token:
+                    # Lexical SAFE support excludes partial tokens the vocabulary
+                    # cannot finish; admitting them creates unreachable dead ends.
+                    valid = self._has_syntactic_completion(prefix + token)
+                else:
+                    valid = True
             if valid:
                 valid_ids.append(token_id)
         return tuple(valid_ids)
