@@ -1237,3 +1237,32 @@ def test_sampler_supplies_the_isotope_token_that_training_always_emits():
     assert supplied is not None
     assert supplied.shape == (3, 2)
     assert torch.allclose(supplied[0], torch.tensor([0.033, 0.002]))
+
+
+def test_soft_fingerprints_use_the_threshold_for_sparsity():
+    import tempfile
+    from pathlib import Path
+
+    import numpy as np
+    import pandas as pd
+
+    from marlin.evaluation import load_fingerprints
+
+    probabilities = np.zeros((1, 4096), dtype=np.float32)
+    probabilities[0, 0] = 0.97
+    probabilities[0, 1] = 0.62
+    probabilities[0, 2] = 0.10
+    with tempfile.TemporaryDirectory() as directory:
+        path = Path(directory) / "soft.npz"
+        np.savez(path, probs=probabilities, spectrum_ids=np.array(["s0"], dtype="U8"))
+        metadata = pd.DataFrame({"spec_name": ["s0"]})
+
+        values = load_fingerprints(
+            path, "probs", 0.95, metadata, preserve_probabilities=True
+        )
+
+    # The encoder activates any bit above 0.5, so a sub-threshold probability
+    # would silently join the conditioning set unless it is zeroed here.
+    assert values[0, 0] == pytest.approx(0.97)
+    assert values[0, 1] == 0.0
+    assert values[0, 2] == 0.0

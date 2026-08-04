@@ -123,11 +123,17 @@ def load_fingerprints(
         raise ValueError(
             f"fingerprints must have shape ({len(metadata)}, 4096), got {values.shape}"
         )
-    if threshold is not None and not preserve_probabilities:
-        values = values >= threshold
-    elif not np.array_equal(values, values.astype(bool)):
-        if not preserve_probabilities:
+    if not preserve_probabilities:
+        if threshold is not None:
+            values = values >= threshold
+        elif not np.array_equal(values, values.astype(bool)):
             raise ValueError("non-binary fingerprints require --threshold")
+    else:
         if np.any(values < 0.0) or np.any(values > 1.0):
             raise ValueError("soft fingerprints must be probabilities in [0, 1]")
+        if threshold is not None:
+            # The conditioning encoder activates every bit above 0.5, so a soft
+            # bundle needs the threshold applied as a sparsity gate; keeping the
+            # amplitude only on surviving bits is what --soft-fingerprint means.
+            values = np.where(values >= threshold, values, 0.0)
     return values.astype(np.float32, copy=False)

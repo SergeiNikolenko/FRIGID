@@ -257,6 +257,10 @@ class MarlinSpectrumFingerprintDataset(torch.utils.data.Dataset):
             if preserve_probabilities:
                 if np.any(fingerprint < 0.0) or np.any(fingerprint > 1.0):
                     raise ValueError("soft fingerprints must be probabilities in [0, 1]")
+                # The encoder activates every bit above 0.5, so without this gate
+                # a soft bundle conditions on far more bits than the threshold
+                # the run records.
+                fingerprint = np.where(fingerprint >= threshold, fingerprint, 0.0)
             else:
                 fingerprint = fingerprint >= threshold
             rows.append(
