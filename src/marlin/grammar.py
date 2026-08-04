@@ -6,7 +6,7 @@ import re
 from dataclasses import dataclass
 from functools import lru_cache
 from math import ceil, floor
-from typing import Callable, Sequence
+from typing import Callable, NamedTuple, Sequence
 
 import numpy as np
 import torch
@@ -14,6 +14,7 @@ from rdkit import Chem
 
 
 _TWO_CHARACTER_ATOMS = ("Br", "Cl")
+_TWO_CHARACTER_ATOM_STARTS = frozenset(atom[0] for atom in _TWO_CHARACTER_ATOMS)
 _ONE_CHARACTER_ATOMS = frozenset("BCNOPSFIbcnosp*")
 _PERIODIC_TABLE = Chem.GetPeriodicTable()
 _ELEMENT_PATTERN = "|".join(
@@ -122,8 +123,11 @@ def _has_mass_viable_bracket_completion(
     content = text[bracket + 1 :]
     if content and not content.isdigit():
         return True
+    base = _scan_base(text)
+    if base is None:
+        return False
     return any(
-        (state := _scan(text + element + "]")) is not None
+        (state := _scan_continuation(base, element + "]")) is not None
         and state.minimum_mass(valence_slack) <= target_mass + tolerance
         for element in _BRACKET_COMPLETION_ELEMENTS
     )
@@ -134,9 +138,14 @@ def _has_mass_viable_atom_completion(
     target_mass: float,
     valence_slack: float,
     tolerance: float,
+    base: _ScanBase | None = None,
 ) -> bool:
+    if base is None:
+        base = _scan_base(text)
+        if base is None:
+            return False
     return any(
-        (state := _scan(text + atom)) is not None
+        (state := _scan_continuation(base, atom)) is not None
         and state.minimum_mass(valence_slack) <= target_mass + tolerance
         and _has_reachable_exact_mass(
             state,
@@ -158,10 +167,13 @@ def _has_mass_viable_percent_completion(
     suffix = text[percent + 1 :] if percent >= 0 else ""
     if percent < 0 or len(suffix) >= 2 or (suffix and not suffix.isdigit()):
         return True
+    base = _scan_base(text[: percent + 1])
+    if base is None:
+        return False
     completions = (str(value) for value in range(10, 100))
     return any(
         completion.startswith(suffix)
-        and (state := _scan(text[: percent + 1] + completion)) is not None
+        and (state := _scan_continuation(base, completion)) is not None
         and state.minimum_mass(valence_slack) <= target_mass + tolerance
         for completion in completions
     )
@@ -234,6 +246,37 @@ class _GrammarState:
             self.atom_symbols = {}
         if self.explicit_hydrogens is None:
             self.explicit_hydrogens = {}
+
+    def copy(self) -> "_GrammarState":
+        """Clone the state so a candidate token can be scanned on top of it.
+
+        Every mutable container is duplicated, so advancing the clone leaves the
+        state it was taken from untouched. ``__new__`` skips ``__post_init__``
+        because every field is assigned here; a field added without a line here
+        raises ``AttributeError`` on first use instead of leaking a shared
+        container.
+        """
+        clone = _GrammarState.__new__(_GrammarState)
+        clone.expect_atom = self.expect_atom
+        clone.allow_bond = self.allow_bond
+        clone.allow_ring = self.allow_ring
+        clone.branch_depth = self.branch_depth
+        clone.atom_index = self.atom_index
+        clone.current_atom = self.current_atom
+        clone.branch_atoms = list(self.branch_atoms)
+        clone.open_rings = dict(self.open_rings)
+        clone.open_ring_orders = dict(self.open_ring_orders)
+        clone.bond_counts = dict(self.bond_counts)
+        clone.bond_limits = dict(self.bond_limits)
+        clone.bond_order_sums = dict(self.bond_order_sums)
+        clone.valence_usage_sums = dict(self.valence_usage_sums)
+        clone.valence_limits = dict(self.valence_limits)
+        clone.atom_masses = dict(self.atom_masses)
+        clone.atom_symbols = dict(self.atom_symbols)
+        clone.explicit_hydrogens = dict(self.explicit_hydrogens)
+        clone.pending_bond_order = self.pending_bond_order
+        clone.incomplete_token = self.incomplete_token
+        return clone
 
     @property
     def terminal(self) -> bool:
@@ -321,8 +364,25 @@ def _has_reachable_exact_mass(
     return False
 
 
-def _scan(text: str) -> _GrammarState | None:
-    state = _GrammarState()
+def _advance(
+    state: _GrammarState,
+    text: str,
+    *,
+    stop_before_lookahead: bool = False,
+) -> int | None:
+    """Fold ``text`` into ``state`` and report how much of it was consumed.
+
+    Returns ``None`` when ``text`` cannot continue the state, otherwise the
+    index one past the last consumed character. Every decision reads the state,
+    the current character and characters *after* it, never characters before
+    it, so a scan may be resumed from any index this returns.
+
+    With ``stop_before_lookahead`` the scan stops in front of a trailing element
+    whose parse depends on characters beyond ``text``: an unterminated "[", a
+    "%" that has fewer than two characters behind it, or a final "B"/"C" that a
+    following "r"/"l" would turn into a two-character atom. Splitting there lets
+    a caller reuse the state for many different continuations.
+    """
 
     def within_valence(atom: int) -> bool:
         return (
@@ -412,16 +472,24 @@ def _scan(text: str) -> _GrammarState | None:
     index = 0
     while index < len(text):
         char = text[index]
+        if (
+            stop_before_lookahead
+            and index + 1 == len(text)
+            and char in _TWO_CHARACTER_ATOM_STARTS
+        ):
+            return index
         if char == "[":
             close = text.find("]", index + 1)
             if close < 0:
+                if stop_before_lookahead:
+                    return index
                 symbol = _partial_bracket_symbol(text[index + 1 :])
                 if symbol is None:
                     return None
                 if symbol and not add_atom(symbol):
                     return None
                 state.incomplete_token = True
-                return state
+                return len(text)
             symbol = _partial_bracket_symbol(text[index + 1 : close])
             if not symbol:
                 return None
@@ -504,9 +572,11 @@ def _scan(text: str) -> _GrammarState | None:
         if char == "%":
             remaining = text[index + 1 :]
             if len(remaining) < 2:
+                if stop_before_lookahead:
+                    return index
                 if remaining.isdigit() or not remaining:
                     state.incomplete_token = True
-                    return state
+                    return len(text)
                 return None
             if not text[index + 1 : index + 3].isdigit():
                 return None
@@ -562,7 +632,69 @@ def _scan(text: str) -> _GrammarState | None:
         ):
             return None
         state.pending_bond_order = None
+    return len(text)
+
+
+def _scan(text: str) -> _GrammarState | None:
+    """Parse a SAFE prefix into its grammar state.
+
+    Deliberately uncached. Memoising this was measured at 0.98x on a realistic
+    prefix walk while retaining hundreds of megabytes of tracked containers and
+    turning ~45 garbage collections into ~2,500; the incremental path is what
+    removes the repeated work. All mutation happens in :func:`_advance`.
+    """
+    state = _GrammarState()
+    if _advance(state, text) is None:
+        return None
     return state
+
+
+class _ScanBase(NamedTuple):
+    """A scanned prefix plus the trailing characters left for a continuation.
+
+    ``state`` covers everything before ``pending``; ``pending`` holds the few
+    characters :func:`_advance` refused to consume because their parse depends
+    on what comes next. Callers must not mutate ``state``.
+    """
+
+    state: _GrammarState
+    pending: str
+
+
+def _scan_base(text: str) -> _ScanBase | None:
+    """Scan the part of ``text`` that no continuation can reinterpret.
+
+    Returns ``None`` only when ``text`` is already invalid, in which case
+    ``_scan(text + suffix)`` is ``None`` for every ``suffix``.
+    """
+    state = _GrammarState()
+    consumed = _advance(state, text, stop_before_lookahead=True)
+    if consumed is None:
+        return None
+    return _ScanBase(state, text[consumed:])
+
+
+def _scan_continuation(base: _ScanBase, suffix: str) -> _GrammarState | None:
+    """Return the state of ``base`` extended by ``suffix``.
+
+    Equivalent to ``_scan(text + suffix)`` for the ``text`` that produced
+    ``base``, but the shared prefix is scanned once instead of once per
+    candidate suffix.
+    """
+    state = base.state.copy()
+    if _advance(state, base.pending + suffix) is None:
+        return None
+    return state
+
+
+def _extend_base(base: _ScanBase, suffix: str) -> _ScanBase | None:
+    """Return the base of ``text + suffix`` for the ``text`` behind ``base``."""
+    state = base.state.copy()
+    text = base.pending + suffix
+    consumed = _advance(state, text, stop_before_lookahead=True)
+    if consumed is None:
+        return None
+    return _ScanBase(state, text[consumed:])
 
 
 def _has_hydrogen_only_exact_mass(
@@ -585,6 +717,7 @@ def _has_structurally_viable_continuation(
     target_mass: float,
     valence_slack: float,
     tolerance: float,
+    base: _ScanBase | None = None,
 ) -> bool:
     if state.incomplete_token:
         return True
@@ -595,9 +728,13 @@ def _has_structurally_viable_continuation(
         tolerance,
     ):
         return True
+    if base is None:
+        base = _scan_base(text)
+        if base is None:
+            return False
     if state.expect_atom and state.allow_ring:
         for label in state.open_rings:
-            closed = _scan(text + label)
+            closed = _scan_continuation(base, label)
             if closed is not None and _has_reachable_exact_mass(
                 closed,
                 target_mass,
@@ -611,6 +748,7 @@ def _has_structurally_viable_continuation(
             target_mass,
             valence_slack,
             tolerance,
+            base,
         )
     if state.current_atom is not None and (
         state.bond_counts[state.current_atom] < state.bond_limits[state.current_atom]
@@ -620,10 +758,11 @@ def _has_structurally_viable_continuation(
             target_mass,
             valence_slack,
             tolerance,
+            base,
         ):
             return True
     for label in state.open_rings:
-        closed = _scan(text + label)
+        closed = _scan_continuation(base, label)
         if closed is not None and _has_reachable_exact_mass(
             closed,
             target_mass,
@@ -636,10 +775,11 @@ def _has_structurally_viable_continuation(
                 target_mass,
                 valence_slack,
                 tolerance,
+                _extend_base(base, label),
             ):
                 return True
     if state.branch_depth:
-        closed = _scan(text + ")")
+        closed = _scan_continuation(base, ")")
         if closed is not None and _has_reachable_exact_mass(
             closed,
             target_mass,
@@ -652,13 +792,15 @@ def _has_structurally_viable_continuation(
                 target_mass,
                 valence_slack,
                 tolerance,
+                _extend_base(base, ")"),
             )
-    disconnected = _scan(text + ".")
+    disconnected = _scan_continuation(base, ".")
     return disconnected is not None and _has_mass_viable_atom_completion(
         text + ".",
         target_mass,
         valence_slack,
         tolerance,
+        _extend_base(base, "."),
     )
 
 
@@ -671,6 +813,9 @@ def _has_vocabulary_completion(
 ) -> bool:
     has_open_bracket = text.rfind("[") > text.rfind("]")
     trailing_percent = text.rfind("%") > max(text.rfind("["), text.rfind("]"))
+    base = _scan_base(text)
+    if base is None:
+        return False
     for token in token_strings:
         if has_open_bracket:
             close = token.find("]")
@@ -679,7 +824,7 @@ def _has_vocabulary_completion(
                 continue
         elif trailing_percent and (not token or not token[0].isdigit()):
             continue
-        completed = _scan(text + token)
+        completed = _scan_continuation(base, token)
         if completed is None or completed.incomplete_token:
             continue
         if not _has_reachable_exact_mass(
@@ -695,6 +840,7 @@ def _has_vocabulary_completion(
             target_mass,
             valence_slack,
             tolerance,
+            _extend_base(base, token),
         ):
             return True
     return False
@@ -736,6 +882,9 @@ class SafeGrammarMask:
         """
         has_open_bracket = text.rfind("[") > text.rfind("]")
         trailing_percent = text.rfind("%") > max(text.rfind("["), text.rfind("]"))
+        base = _scan_base(text)
+        if base is None:
+            return False
         for token in self.token_strings:
             if has_open_bracket:
                 close = token.find("]")
@@ -744,7 +893,7 @@ class SafeGrammarMask:
                     continue
             elif trailing_percent and (not token or not token[0].isdigit()):
                 continue
-            completed = _scan(text + token)
+            completed = _scan_continuation(base, token)
             if completed is not None and not completed.incomplete_token:
                 return True
         return False
@@ -754,6 +903,9 @@ class SafeGrammarMask:
         state = _scan(prefix)
         if state is None:
             return ()
+        # A prefix that scans always has a base; only its deferred tail can fail.
+        base = _scan_base(prefix)
+        assert base is not None
         valid_ids = []
         for token_id, token in enumerate(self.token_strings):
             if token_id == self.eos_token_id:
@@ -761,7 +913,7 @@ class SafeGrammarMask:
             elif token_id in self.special_token_ids:
                 valid = False
             else:
-                completed = _scan(prefix + token)
+                completed = _scan_continuation(base, token)
                 if completed is None:
                     valid = False
                 elif completed.incomplete_token:
@@ -781,6 +933,9 @@ class SafeGrammarMask:
         state = _scan(prefix)
         if state is None:
             return ()
+        # A prefix that scans always has a base; only its deferred tail can fail.
+        base = _scan_base(prefix)
+        assert base is not None
         tolerance = self.ppm_tolerance * 1e-6 * target_mass
         valid_ids = []
         for token_id, token in enumerate(self.token_strings):
@@ -792,7 +947,10 @@ class SafeGrammarMask:
                 valid = False
             else:
                 text = prefix + token
-                completed = _scan(text)
+                token_base = _extend_base(base, token)
+                completed = (
+                    None if token_base is None else _scan_continuation(token_base, "")
+                )
                 if completed is None:
                     valid = False
                 elif completed.incomplete_token:
@@ -807,7 +965,12 @@ class SafeGrammarMask:
                     valid = _has_reachable_exact_mass(
                         completed, target_mass, self.valence_slack, tolerance
                     ) and _has_structurally_viable_continuation(
-                        text, completed, target_mass, self.valence_slack, tolerance
+                        text,
+                        completed,
+                        target_mass,
+                        self.valence_slack,
+                        tolerance,
+                        token_base,
                     )
             if valid:
                 valid_ids.append(token_id)

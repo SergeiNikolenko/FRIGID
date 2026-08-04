@@ -1,7 +1,12 @@
+from functools import lru_cache
+from pathlib import Path
+
+import pytest
 import torch
 
 from marlin.grammar import (
     SafeGrammarMask,
+    _GrammarState,
     _has_reachable_exact_mass,
     _has_structurally_viable_continuation,
     _has_vocabulary_completion,
@@ -9,7 +14,67 @@ from marlin.grammar import (
     _has_mass_viable_bracket_completion,
     _has_mass_viable_percent_completion,
     _scan,
+    _scan_base,
+    _scan_continuation,
 )
+from marlin.tokenizer import load_safe_tokenizer
+
+
+TOKENIZER_PATHS = (
+    Path(
+        "/mnt/netstorage/nikolenko/marlin/cache/runtime-inputs-spectrum-v1/"
+        "16b1af5276034c041e85a4b7c43129a790b4fc091826485b691c93f9f7b699b3/"
+        "tokenizer.json"
+    ),
+    Path(
+        "/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/"
+        "data/safe-gpt/tokenizer.json"
+    ),
+)
+# Prefixes the decoder actually reaches, plus every shape whose parse depends on
+# characters a candidate token supplies: a bare "B"/"C" a token can turn into
+# "Br"/"Cl", an unterminated bracket, and a "%" waiting for its two digits.
+EQUIVALENCE_PREFIXES = (
+    "",
+    "C",
+    "CB",
+    "CCl",
+    "COc1cc(",
+    "COc1cc(C",
+    "COc1cc(C2C3(O)C(O)C4CC2(O)",
+    "COc1cc(C2C3(O)C(O)C4CC2(O)C(O)(C(=O)O4)C3C(=O)c2ccccc2)oc(=O)c1",
+    "CCO[",
+    "C[13C",
+    "C%1",
+    "C%12",
+    "C1CCCCC-",
+    "CN(C)C(=O)",
+    "C1CCCCC1.C",
+    "[NH",
+)
+
+
+@lru_cache(maxsize=1)
+def real_vocabulary() -> tuple[str, ...]:
+    for path in TOKENIZER_PATHS:
+        if path.exists():
+            tokenizer = load_safe_tokenizer(path)
+            return tuple(
+                tokenizer.convert_ids_to_tokens(index)
+                for index in range(len(tokenizer))
+            )
+    pytest.skip(f"no real SAFE tokenizer under {TOKENIZER_PATHS}")
+
+
+def scan_signature(state: _GrammarState | None):
+    if state is None:
+        return None
+    return (
+        state.terminal,
+        state.incomplete_token,
+        sum(state.atom_masses.values()),
+        state.hydrogen_bounds(4.0),
+    )
 
 
 def test_safe_grammar_accepts_balanced_ring_and_rejects_same_atom_closure():
@@ -288,3 +353,50 @@ def test_safe_grammar_drops_bracket_digits_once_the_vocabulary_cannot_finish_the
 
     assert bool(torch.isinf(constrained[5]))
     assert constrained[6] == 0.0
+
+
+@pytest.mark.parametrize("prefix", EQUIVALENCE_PREFIXES)
+def test_incremental_scan_matches_a_full_rescan_of_every_real_token(prefix):
+    # The mask scans the prefix once and advances a copy over each candidate
+    # token. Nothing in the decoder would reveal a divergence from the full
+    # rescan, so pin it over the whole vocabulary.
+    vocabulary = real_vocabulary()
+    base = _scan_base(prefix)
+
+    assert base is not None
+    for token in vocabulary:
+        assert scan_signature(_scan_continuation(base, token)) == scan_signature(
+            _scan(prefix + token)
+        ), f"{prefix!r} + {token!r}"
+
+
+def test_scan_base_defers_a_tail_that_a_token_can_reinterpret():
+    # "B" alone is boron, but the vocabulary holds "r", so the base must leave
+    # the trailing character to the continuation.
+    boron = _scan_base("CB")
+    bromine = _scan_continuation(boron, "r")
+
+    assert boron.pending == "B"
+    assert sum(boron.state.atom_masses.values()) == sum(_scan("C").atom_masses.values())
+    assert sum(bromine.atom_masses.values()) == sum(_scan("CBr").atom_masses.values())
+    assert _scan_base("CCO[").pending == "["
+    assert _scan_base("C%1").pending == "%1"
+    assert _scan_base("C%12").pending == ""
+
+
+def test_grammar_state_copy_shares_no_mutable_container():
+    state = _scan("C1CCCCC(N)[13CH3]")
+    clone = state.copy()
+
+    # Equality over the whole __dict__ catches a field the clone forgot to carry.
+    assert vars(clone) == vars(state)
+    for name, value in vars(clone).items():
+        if isinstance(value, (dict, list)):
+            assert value is not getattr(state, name), name
+    clone.atom_masses[99] = 1.0
+    clone.branch_atoms.append(99)
+    clone.open_rings["9"] = 99
+
+    assert 99 not in state.atom_masses
+    assert 99 not in state.branch_atoms
+    assert "9" not in state.open_rings
