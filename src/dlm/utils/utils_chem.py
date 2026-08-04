@@ -31,7 +31,11 @@ def safe_to_smiles(safe_str, fix=True):
                              ) is not None])
     return sf.decode(safe_str, canonical=True, fix=fix, ignore_errors=True)
 
-_SAFE_CONVERTER = sf.SAFEConverter(slicer=None, ignore_stereo=True)
+# datamol-io/safe-gpt, the pretraining corpus every MARLIN checkpoint warm
+# starts from, stores BRICS-sliced stereo-preserving SAFE. These settings
+# reproduce its `safe` column exactly; slicer=None emits plain single-fragment
+# SMILES instead, which is a different language from the one the decoder learned.
+_SAFE_CONVERTER = sf.SAFEConverter(slicer="brics", ignore_stereo=False)
 def smiles_to_safe(smiles: str) -> str:
     """Convert SMILES to SAFE representation."""
     try:

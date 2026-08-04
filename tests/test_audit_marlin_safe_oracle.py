@@ -21,14 +21,17 @@ def test_audit_safe_sequence_matches_metadata_training_path(tmp_path):
 
     dataset = MarlinMetadataDataset(metadata, tokenizer, max_length=256)
     audited_safe, audited_token_ids = encode_audit_sequence(smiles, tokenizer)
-    legacy_safe = safe.encode(
+    # datamol-io/safe-gpt stores BRICS-sliced stereo-preserving SAFE, and every
+    # checkpoint warm starts from it, so the training path must speak that
+    # convention rather than a private one.
+    corpus_safe = safe.encode(
         smiles,
         canonical=True,
         randomize=False,
-        ignore_stereo=True,
+        ignore_stereo=False,
     )
 
-    assert legacy_safe != dataset[0]["safe"]
+    assert corpus_safe == dataset[0]["safe"]
     assert audited_safe == dataset[0]["safe"]
 
     batch = MarlinCollator(
