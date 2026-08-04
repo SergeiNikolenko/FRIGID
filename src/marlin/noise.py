@@ -39,8 +39,13 @@ def symmetric_fingerprint_noise(
             continue
         drop = on[torch.randperm(on.numel(), device=device, generator=generator)[:count]]
         add = off[torch.randperm(off.numel(), device=device, generator=generator)[:count]]
+        # Move the amplitude rather than saturating the injected bit. Binary
+        # fingerprints are unaffected, while a soft DreaMS bundle would otherwise
+        # get its false bits written at 1.0, above every genuine probability, so
+        # the most confident conditioning tokens would be pure noise.
+        moved = output[row, drop].clone()
         output[row, drop] = 0.0
-        output[row, add] = 1.0
+        output[row, add] = moved
     return output.to(dtype=fingerprints.dtype)
 
 

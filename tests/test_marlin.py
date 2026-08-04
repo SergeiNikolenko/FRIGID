@@ -1266,3 +1266,23 @@ def test_soft_fingerprints_use_the_threshold_for_sparsity():
     assert values[0, 0] == pytest.approx(0.97)
     assert values[0, 1] == 0.0
     assert values[0, 2] == 0.0
+
+
+def test_symmetric_noise_moves_soft_amplitudes_instead_of_saturating_them():
+    fingerprint = torch.tensor([[0.92, 0.96, 0.0, 0.0, 0.0, 0.0]], dtype=torch.float32)
+    generator = torch.Generator().manual_seed(3)
+
+    noisy = symmetric_fingerprint_noise(
+        fingerprint,
+        corruption_probability=1.0,
+        min_fraction=0.5,
+        max_fraction=0.5,
+        generator=generator,
+    )
+
+    # A saturated injected bit would outrank every genuine DreaMS probability and
+    # make the noise the most confident conditioning token in the batch.
+    assert noisy.max() <= fingerprint.max()
+    assert sorted(noisy[noisy > 0].tolist()) == sorted(
+        fingerprint[fingerprint > 0].tolist()
+    )
