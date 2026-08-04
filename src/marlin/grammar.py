@@ -321,7 +321,14 @@ def _has_reachable_exact_mass(
     return False
 
 
+@lru_cache(maxsize=131_072)
 def _scan(text: str) -> _GrammarState | None:
+    """Parse a SAFE prefix into its grammar state.
+
+    Every mask evaluation rescans ``prefix + token`` for the whole vocabulary,
+    and the mass-reachability path rescans the same strings again, so the result
+    is cached. Callers only read the state; all mutation happens here.
+    """
     state = _GrammarState()
 
     def within_valence(atom: int) -> bool:
