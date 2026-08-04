@@ -75,11 +75,32 @@ class MarlinSampler:
         input_ids: torch.Tensor,
         precursor_mass: torch.Tensor,
         fingerprint: torch.Tensor,
+        isotope_ratios: torch.Tensor | None = None,
     ) -> torch.Tensor:
         sampling_logits = getattr(self.model, "sampling_logits", None)
-        if sampling_logits is not None:
-            return sampling_logits(input_ids, precursor_mass, fingerprint)
-        return self.model(input_ids, precursor_mass, fingerprint)
+        forward = (
+            sampling_logits
+            if sampling_logits is not None
+            else lambda *arguments: self.model(*arguments)
+        )
+        if isotope_ratios is None:
+            return forward(input_ids, precursor_mass, fingerprint)
+        return forward(input_ids, precursor_mass, fingerprint, isotope_ratios)
+
+    def _isotope_batch(
+        self, isotope_ratios: Sequence[float] | None, rows: int, device: torch.device
+    ) -> torch.Tensor | None:
+        """Expand a per-spectrum isotope pair to one conditioning token per row.
+
+        Training always emits this token, so omitting it at sampling time moves
+        every forward pass off the training conditioning layout.
+        """
+        if isotope_ratios is None:
+            return None
+        values = tuple(float(value) for value in isotope_ratios)
+        if len(values) != 2:
+            raise ValueError("isotope_ratios must hold M+1/M and M+2/M")
+        return torch.tensor(values, device=device, dtype=torch.float32).expand(rows, 2)
 
     def _decode_prefix(self, token_ids: Sequence[int]) -> str:
         try:
@@ -216,6 +237,7 @@ class MarlinSampler:
         temperature: float = 1.0,
         generator: torch.Generator | None = None,
         candidate_batch_size: int | None = None,
+        isotope_ratios: Sequence[float] | None = None,
     ) -> tuple[list[MarlinCandidate], MarlinGenerationStats]:
         if candidates <= 0:
             raise ValueError("candidates must be positive")
@@ -248,6 +270,7 @@ class MarlinSampler:
                 diversity_dropout=diversity_dropout,
                 temperature=temperature,
                 generator=generator,
+                isotope_ratios=isotope_ratios,
             )
             generated.extend(batch_generated)
             valid += batch_valid
@@ -319,9 +342,11 @@ class MarlinSampler:
         diversity_dropout: float,
         temperature: float,
         generator: torch.Generator | None,
+        isotope_ratios: Sequence[float] | None = None,
     ) -> tuple[list[tuple[str, str, bool] | None], int, dict[str, int | list[str]]]:
         """Generate candidates in one GPU batch and retain per-row constraints."""
         device = next(self.model.parameters()).device
+        isotopes = self._isotope_batch(isotope_ratios, candidates, device)
         fingerprint = fingerprint.to(device=device, dtype=torch.float32)
         conditioned = torch.stack(
             [
@@ -380,7 +405,9 @@ class MarlinSampler:
                     dtype=torch.bfloat16,
                     enabled=device.type == "cuda",
                 ):
-                    logits = self._sampling_logits(prefix, masses, conditioned)
+                    logits = self._sampling_logits(
+                        prefix, masses, conditioned, isotopes
+                    )
                 for row in torch.nonzero(active, as_tuple=False).flatten().tolist():
                     positions = torch.nonzero(unresolved[row], as_tuple=False).flatten()
                     if positions.numel() == 0:
@@ -523,9 +550,11 @@ class MarlinSampler:
         diversity_dropout: float,
         temperature: float,
         generator: torch.Generator | None,
+        isotope_ratios: Sequence[float] | None = None,
     ) -> tuple[list[tuple[str, str, bool] | None], int, dict[str, int | list[str]]]:
         """Generate candidates by filling a fixed masked canvas like DLM sampling."""
         device = next(self.model.parameters()).device
+        isotopes = self._isotope_batch(isotope_ratios, candidates, device)
         fingerprint = fingerprint.to(device=device, dtype=torch.float32)
         conditioned = torch.stack(
             [
@@ -568,7 +597,7 @@ class MarlinSampler:
                 dtype=torch.bfloat16,
                 enabled=device.type == "cuda",
             ):
-                logits = self._sampling_logits(canvas, masses, conditioned)
+                logits = self._sampling_logits(canvas, masses, conditioned, isotopes)
             for row in torch.nonzero(unresolved.any(dim=1), as_tuple=False).flatten().tolist():
                 positions = torch.nonzero(unresolved[row], as_tuple=False).flatten()
                 if positions.numel() == 0:

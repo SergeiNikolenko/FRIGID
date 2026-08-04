@@ -36,11 +36,30 @@ from marlin.evaluation import (
     validate_mist_lane_provenance,
 )
 from marlin.grammar import SafeGrammarMask
+from marlin.isotopes import theoretical_isotope_ratios
 from marlin.mass_shell import MassShellConstraint
 from marlin.model import MarlinDecoder, MarlinDecoderConfig
 from marlin.sampler import MarlinSampler
 from marlin.token_properties import build_token_property_table
 from marlin.tokenizer import load_safe_tokenizer
+
+
+def sampling_isotope_ratios(mode: str, record) -> tuple[float, float] | None:
+    """Choose the isotope conditioning token supplied to the sampler.
+
+    Training always emits this token, so ``omit`` leaves every sampling forward
+    pass one conditioning token short of the training layout.
+    """
+    if mode == "omit":
+        return None
+    if mode == "zeros":
+        return (0.0, 0.0)
+    if mode == "oracle":
+        molecule = Chem.MolFromSmiles(str(record["smiles"]))
+        if molecule is None:
+            raise ValueError("oracle isotope token needs a parsable target SMILES")
+        return tuple(theoretical_isotope_ratios(molecule).tolist())
+    raise ValueError(f"unknown isotope token mode: {mode}")
 
 
 def parse_args() -> argparse.Namespace:
@@ -96,6 +115,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--disable-mass-shell", action="store_true")
     parser.add_argument("--sample-tokens", action="store_true")
     parser.add_argument("--fix-safe-decode", action="store_true")
+    parser.add_argument(
+        "--isotope-token",
+        choices=("omit", "zeros", "oracle"),
+        default="omit",
+        help=(
+            "conditioning parity with training, which always emits this token; "
+            "'oracle' reads the target molecule and is a diagnostic only"
+        ),
+    )
     parser.add_argument("--no-ema", action="store_true")
     parser.add_argument("--layer0-long-residual-scale", type=float)
     parser.add_argument("--clearml-project")
@@ -591,6 +619,7 @@ def main() -> None:
         "mass_shell_constraint": not args.disable_mass_shell,
         "mass_reachability_prune": args.mass_reachability_prune,
         "safe_decode_fix": args.fix_safe_decode,
+        "isotope_token": args.isotope_token,
         "token_selection": "multinomial" if args.sample_tokens else "argmax",
         "seed": args.seed,
         "max_spectra": args.max_spectra,
@@ -667,6 +696,7 @@ def main() -> None:
                     args.seed + position
                 ),
                 candidate_batch_size=args.candidate_batch_size,
+                isotope_ratios=sampling_isotope_ratios(args.isotope_token, record),
             )
             if torch.cuda.is_available():
                 torch.cuda.synchronize()

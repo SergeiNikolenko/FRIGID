@@ -63,6 +63,10 @@ fi
 if [[ "$FIX_SAFE_DECODE" == "1" ]]; then
   ARGS+=(--fix-safe-decode)
 fi
+if [[ "${MARLIN_MASS_REACHABILITY_PRUNE:-0}" == "1" ]]; then
+  ARGS+=(--mass-reachability-prune)
+fi
+ARGS+=(--isotope-token "${MARLIN_ISOTOPE_TOKEN:-omit}")
 if [[ "$DISABLE_MASS_SHELL" == "1" ]]; then
   ARGS+=(--disable-mass-shell)
 fi

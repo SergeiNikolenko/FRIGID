@@ -1183,3 +1183,57 @@ def test_batched_sampler_aligns_first_generated_block_after_bos():
 
     assert stats.mass_valid == 1
     assert [candidate.smiles for candidate in ranked] == ["C"]
+
+
+def test_sampler_supplies_the_isotope_token_that_training_always_emits():
+    captured: dict[str, object] = {}
+
+    class CapturingModel(torch.nn.Module):
+        def __init__(self) -> None:
+            super().__init__()
+            self.anchor = torch.nn.Parameter(torch.zeros(()))
+            self.config = MarlinDecoderConfig(
+                vocab_size=4,
+                hidden_size=4,
+                num_layers=1,
+                num_heads=1,
+                intermediate_size=4,
+                fingerprint_bits=8,
+                max_length=3,
+                block_width=2,
+                dropout=0.0,
+                mask_token_id=3,
+                pad_token_id=0,
+            )
+
+        def sampling_logits(
+            self, input_ids, precursor_mass, fingerprint, isotope_ratios=None
+        ):
+            captured["isotope_ratios"] = isotope_ratios
+            logits = torch.zeros((*input_ids.shape, 4), device=input_ids.device)
+            logits[..., 1] = 10.0
+            return logits
+
+    molecule = Chem.MolFromSmiles("C")
+    sampler = MarlinSampler(
+        CapturingModel(),
+        MassShellConstraint([0.0] * 4, eos_token_id=2, ppm_tolerance=10),
+        bos_token_id=0,
+        eos_token_id=2,
+        mask_token_id=3,
+        decode_tokens=lambda _: "C",
+        safe_to_smiles=lambda _: "C",
+        forbidden_token_ids=(0, 3),
+    )
+    target_mass = Descriptors.ExactMolWt(molecule)
+
+    sampler.generate_ranked_with_stats(torch.zeros(8), target_mass, candidates=3)
+    assert captured["isotope_ratios"] is None
+
+    sampler.generate_ranked_with_stats(
+        torch.zeros(8), target_mass, candidates=3, isotope_ratios=(0.033, 0.002)
+    )
+    supplied = captured["isotope_ratios"]
+    assert supplied is not None
+    assert supplied.shape == (3, 2)
+    assert torch.allclose(supplied[0], torch.tensor([0.033, 0.002]))
