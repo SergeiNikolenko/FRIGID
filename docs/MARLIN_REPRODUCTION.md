@@ -147,6 +147,17 @@ filtering eligibility before batching; the collator now fails closed. No job
 - DreaMS job 214 produced a formula-free test fingerprint Tanimoto of
   `0.337694`. The frozen-head fitting protocol remains a clean-room choice
   because the paper does not publish its encoder-training details.
+- Formula-blind MIST is now measured. Job 693 exported MIST fingerprints for the 803
+  NPLIB1 test spectra through the connectivity-clean MIST-CF top-1 subformula adapter,
+  with no ground-truth formula anywhere in the path. Against Morgan radius 2, 4096 bits,
+  its best mean Tanimoto is `0.376` at threshold 0.30 (24.7 active bits, recall 0.418,
+  precision 0.780). DreaMS on the same 803 spectra reaches `0.338` at threshold 0.95
+  (47.2 active bits, recall 0.504, precision 0.490). The clean MIST advantage is therefore
+  1.11x, not the 1.58x the leaked `0.533575` implied, so replacing DreaMS with MIST does
+  not change the conditioning regime. The two predictors do fail differently: MIST is
+  precision-heavy and recall-poor, DreaMS is balanced. FRIGID already rejected blending
+  and residual correction between the two, with a best gain of `+0.00068` against a
+  `+0.005` gate.
 - MIST job 215 produced `0.533575`, but its peak-to-subformula features used the
   NPLIB1 ground-truth formula. It is therefore a leakage-positive oracle, not a
   MARLIN(MIST) result. Final MIST evaluation requires formula-blind MIST-CF
