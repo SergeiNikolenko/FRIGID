@@ -415,7 +415,16 @@ class MarlinSampler:
                     best_position = None
                     best_token = None
                     best_confidence = -torch.inf
-                    for relative_position in positions.tolist():
+                    candidate_positions = positions.tolist()
+                    if self.grammar_mask is not None and self.mask_token_id is not None:
+                        # Every position except the leftmost unresolved one still
+                        # has a hole behind it, and the grammar mask gives such a
+                        # position no support at all, so its softmax is NaN and it
+                        # can never win the confidence comparison. Scoring it costs
+                        # a mass-shell pass, a forbidden-token scatter and a full
+                        # vocabulary walk for a result that is discarded.
+                        candidate_positions = candidate_positions[:1]
+                    for relative_position in candidate_positions:
                         position = block_start + relative_position
                         position_logits = logits[row, position] / temperature
                         if self.mass_shell_enabled:
