@@ -374,6 +374,7 @@ def publish_clearml_evaluation(
             "Formula@10": "formula_top10_all",
             "Candidate return": "candidate_return_rate",
             "Validity": "validity",
+            "Completed validity": "completed_validity",
             "Mass validity": "mass_validity",
             "Uniqueness": "uniqueness",
             "Internal diversity": "internal_diversity",
@@ -742,6 +743,12 @@ def main() -> None:
                 "sample_terminal_safes": stats.sample_terminal_safes,
                 "sample_dead_ends": stats.sample_dead_ends,
                 "validity": stats.valid / stats.attempts,
+                # validity divides by every attempt, so a branch the constraints
+                # killed before it emitted anything is scored as an invalid
+                # molecule. Report the completed branches separately, otherwise a
+                # decoder defect and a constraint defect look identical.
+                "completed_validity": stats.valid
+                / max(stats.attempts - stats.constraint_dead_ends, 1),
                 "mass_validity": stats.mass_valid / max(stats.valid, 1),
                 "uniqueness": stats.unique_mass_valid / max(stats.mass_valid, 1),
                 "candidate_returned": bool(candidates),
@@ -797,6 +804,7 @@ def main() -> None:
         **formula_metric_summary(rows),
         "mass_bins": mass_bin_metrics(rows),
         "validity": mean_metric(rows, "validity"),
+        "completed_validity": mean_metric(rows, "completed_validity"),
         "mass_validity": mean_metric(rows, "mass_validity"),
         "uniqueness": mean_metric(rows, "uniqueness"),
         "internal_diversity": float(
@@ -820,6 +828,7 @@ def main() -> None:
             "formula_top10_all": "all rows",
             "formula_top10_returned": "rows with a returned candidate",
             "validity": "all rows",
+            "completed_validity": "all rows, branches that were not killed by a constraint",
             "mass_validity": "all rows",
             "uniqueness": "all rows",
             "internal_diversity": "mean within-spectrum pairwise Morgan distance",
