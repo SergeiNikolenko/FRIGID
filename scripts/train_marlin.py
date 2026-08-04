@@ -609,7 +609,9 @@ def main(config: DictConfig) -> None:
         dirpath=config.output.checkpoints,
         filename="{step}",
         every_n_train_steps=config.output.checkpoint_interval,
-        save_top_k=1,
+        # Without a monitor, save_top_k=1 makes Lightning delete the previous
+        # periodic checkpoint, leaving no history to compare or fall back to.
+        save_top_k=-1,
     )
     molecular_evaluation = PeriodicMolecularEvaluation(
         config,

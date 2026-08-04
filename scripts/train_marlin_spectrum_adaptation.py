@@ -356,7 +356,10 @@ def main() -> None:
         dirpath=checkpoint_dir,
         filename="{step}",
         every_n_train_steps=args.checkpoint_interval,
-        save_top_k=1,
+        # Without a monitor, save_top_k=1 makes Lightning delete the previous
+        # periodic checkpoint, so an adaptation run keeps no history to compare
+        # or fall back to.
+        save_top_k=-1,
     )
     trainer = L.Trainer(
         accelerator="gpu",
