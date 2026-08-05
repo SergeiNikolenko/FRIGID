@@ -124,7 +124,7 @@ evaluation behind `--mass-reachability-prune`.
 
 | run | step | initial weights | state |
 | --- | --- | --- | --- |
-| control | 89,000 | from scratch, no fixes | past its peak, regressing |
+| control | 90,000 | from scratch, no fixes | training saturated, held-out flat within panel noise |
 | with twelve fixes | 25,000 | from scratch | flat |
 | **FRIGID warm start** | starting | **correct weights and architecture** | launched 5 August |
 
@@ -138,8 +138,10 @@ all 257 tensors exactly.
 1. Read the first evaluation of the FRIGID run at step 10,000. The control reported
    `Validity 0.246` and 5.375 constraint dead ends there, with everything else zero.
    A working warm start should show materially higher validity from the start.
-2. Match the training budget to the adaptation set: about 2,000 epochs rather than
-   3,850, with early stopping on a held-out signal that the recipe does not yet have.
+2. Give the recipe a held-out signal it can act on. The molecular evaluation on 32
+   spectra swings by up to 0.12 between neighbouring points, which is larger than any
+   effect it would need to detect, so a validation loss or a wider panel is required
+   before the 3,850-epoch budget can be tuned on evidence rather than guessed.
 3. Keep mass-reachability pruning on in evaluation.
 
 One caveat must not be lost. A FRIGID warm start is a necessary condition, not a
