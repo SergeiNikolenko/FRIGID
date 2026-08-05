@@ -151,17 +151,20 @@ monotonically: loss `1.2936` at step 10,000 falls to `0.0435` at 70,000, masked 
 accuracy reaches `0.996`, whole-sequence accuracy reaches `0.956`, and the first-block
 conditioning gain flattens at `10.41` to `10.45` between steps 60,000 and 70,000.
 
-Generation on the held-out panel does not follow. Validity rises `0.2461 -> 0.3320` between
-steps 10,000 and 60,000 and then falls to `0.2109` at 70,000, while constraint dead ends
-improve `5.375 -> 4.563` and then regress to `5.531`. Candidate return never leaves the
-0 to 2 spectra of 32 range, which is noise at this panel size. The best held-out point is
-therefore near step 60,000, about 2,300 epochs, and the remaining 40,000 steps of the
-configured budget are spent past it.
+Generation on the held-out panel does not follow, but neither does it clearly turn. The nine
+evaluation points to step 90,000 read `0.2461, 0.2695, 0.2930, 0.3125, 0.2891, 0.3320, 0.2109,
+0.2305, 0.3164`, i.e. a mild rise with swings of up to 0.12 between adjacent points. An earlier
+revision of this section read a regression into the 70,000 and 80,000 points; step 90,000
+returned to 0.3164 and withdrew it. At 32 spectra and 8 candidates the panel cannot resolve a
+trend of this size, so the held-out signal neither confirms nor rules out overfitting. Candidate return never leaves the
+0 to 2 spectra of 32 range, which is noise at this panel size.
 
-Two consequences. The recipe carries no validation loss and no early-stopping signal, so
-nothing in the run can detect this; the periodic molecular evaluation is the only held-out
-measurement and it runs once per 10,000 steps. And "train longer" cannot close the gap to
-the paper's Exact@1, because the held-out curve has already turned.
+Two consequences. The recipe carries no validation loss and no early-stopping signal, so a
+turn could not be detected if it happened; the periodic molecular evaluation is the only
+held-out measurement, it runs once per 10,000 steps, and its variance exceeds the effect it
+would need to show. And the training-side saturation means additional steps buy very little:
+whole-sequence accuracy is already 0.956 and the conditioning gain is flat, so "train longer"
+is not a route to the paper's Exact@1 even though the held-out curve has not visibly turned.
 
 ## Encoder evidence status
 

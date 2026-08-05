@@ -107,10 +107,13 @@ returns zero molecules throughout, with the dead-end share moving only `87% -> 8
 and formula-blind MIST 0.421 against true Morgan r=2/4096. The paper reaches 16.94%
 with DreaMS, so the choice of encoder is not what separates us from it.
 
-**The adaptation overfits well before its budget ends.** 6,649 molecules at global
-batch 256 is 26 steps per epoch, so 100,000 steps are about 3,850 epochs. Whole
-sequence accuracy on training data reaches 0.956 while held-out validity peaks at
-step 60,000 and then falls. The recipe has no validation loss and no early stopping.
+**The training budget is far larger than the adaptation set warrants.** 6,649 molecules
+at global batch 256 is 26 steps per epoch, so 100,000 steps are about 3,850 epochs, and
+whole-sequence accuracy on training data reaches 0.956 with the conditioning gain flat.
+Held-out validity does not clearly turn, however: the nine points to step 90,000 swing by
+up to 0.12 between neighbours and end near their maximum, so a 32-spectrum panel cannot
+resolve whether overfitting has begun. The recipe has no validation loss and no early
+stopping, so it could not detect a turn either way.
 
 **Mass-reachability pruning works and was switched off.** Enabling it raises candidate
 return 5x and mass validity 3.8x, and walking the gold SAFE string of all 32 panel
