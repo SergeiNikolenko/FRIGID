@@ -142,6 +142,27 @@ examples. Commit `a7a49f6` fixed both defects by forwarding strict decoding and
 filtering eligibility before batching; the collator now fails closed. No job
 298 checkpoint may be resumed for canonical training.
 
+## Adaptation budget versus adaptation set
+
+The spectrum-fingerprint adaptation trains on 6,649 molecules at global batch 256, so one
+epoch is 26 optimizer steps and the configured 100,000 steps are about 3,850 epochs over
+that set. Task `e12af44a` shows what that produces. Training-side metrics saturate
+monotonically: loss `1.2936` at step 10,000 falls to `0.0435` at 70,000, masked token
+accuracy reaches `0.996`, whole-sequence accuracy reaches `0.956`, and the first-block
+conditioning gain flattens at `10.41` to `10.45` between steps 60,000 and 70,000.
+
+Generation on the held-out panel does not follow. Validity rises `0.2461 -> 0.3320` between
+steps 10,000 and 60,000 and then falls to `0.2109` at 70,000, while constraint dead ends
+improve `5.375 -> 4.563` and then regress to `5.531`. Candidate return never leaves the
+0 to 2 spectra of 32 range, which is noise at this panel size. The best held-out point is
+therefore near step 60,000, about 2,300 epochs, and the remaining 40,000 steps of the
+configured budget are spent past it.
+
+Two consequences. The recipe carries no validation loss and no early-stopping signal, so
+nothing in the run can detect this; the periodic molecular evaluation is the only held-out
+measurement and it runs once per 10,000 steps. And "train longer" cannot close the gap to
+the paper's Exact@1, because the held-out curve has already turned.
+
 ## Encoder evidence status
 
 - DreaMS job 214 produced a formula-free test fingerprint Tanimoto of
