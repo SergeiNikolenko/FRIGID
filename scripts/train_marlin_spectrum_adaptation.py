@@ -85,6 +85,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--noise-min-fraction", type=float, default=0.1)
     parser.add_argument("--noise-max-fraction", type=float, default=0.3)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument(
+        "--mass-reachability-prune",
+        action="store_true",
+        help=(
+            "fold mass reachability into the periodic evaluation's syntax mask; "
+            "measured at 5x candidate return and 3.8x mass validity on the "
+            "32-spectrum panel"
+        ),
+    )
     return parser.parse_args()
 
 
@@ -334,6 +343,7 @@ def main() -> None:
                 "temperature": 1.0,
                 "sample_tokens": True,
                 "soft_fingerprint": args.soft_fingerprint,
+                "mass_reachability_prune": args.mass_reachability_prune,
                 "ppm_tolerance": 10.0,
                 "seed": args.seed,
             },

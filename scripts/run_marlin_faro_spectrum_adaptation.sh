@@ -43,6 +43,9 @@ SOFT_FINGERPRINT_ARGS=()
 if [[ "${MARLIN_SOFT_FINGERPRINT:-0}" == "1" ]]; then
   SOFT_FINGERPRINT_ARGS+=(--soft-fingerprint)
 fi
+if [[ "${MARLIN_MASS_REACHABILITY_PRUNE:-0}" == "1" ]]; then
+  SOFT_FINGERPRINT_ARGS+=(--mass-reachability-prune)
+fi
 
 test ! -e "$RUN_ROOT"
 

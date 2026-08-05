@@ -90,6 +90,8 @@ class PeriodicMolecularEvaluation(L.Callback):
             command.append("--sample-tokens")
         if bool(evaluation.get("soft_fingerprint", False)):
             command.append("--soft-fingerprint")
+        if bool(evaluation.get("mass_reachability_prune", False)):
+            command.append("--mass-reachability-prune")
         if str(self.config.get("architecture", "marlin")) == "expanding":
             command.extend(
                 [
