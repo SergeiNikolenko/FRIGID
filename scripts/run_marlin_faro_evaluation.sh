@@ -23,7 +23,14 @@ export PYTHONPATH="$PWD/src${PYTHONPATH:+:$PYTHONPATH}"
 
 python scripts/materialize_marlin_runtime_inputs.py
 
-if [[ ! -f "$CHECKPOINT" && -n "${MARLIN_EVAL_CHECKPOINT_TASK_ID:-}" ]]; then
+if [[ ! -f "$CHECKPOINT" && -n "${MARLIN_EVAL_CHECKPOINT_MODEL_ID:-}" ]]; then
+  CHECKPOINT="$(
+    python scripts/materialize_marlin_checkpoint.py \
+      --model-id "$MARLIN_EVAL_CHECKPOINT_MODEL_ID" \
+      --cache-root "$SHARED_ROOT/checkpoints/marlin" \
+      --output-name "step=$SOURCE_STEP.ckpt"
+  )"
+elif [[ ! -f "$CHECKPOINT" && -n "${MARLIN_EVAL_CHECKPOINT_TASK_ID:-}" ]]; then
   CHECKPOINT="$(
     python scripts/materialize_marlin_checkpoint.py \
       --task-id "$MARLIN_EVAL_CHECKPOINT_TASK_ID" \

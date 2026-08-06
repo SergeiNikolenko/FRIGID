@@ -96,3 +96,33 @@ def test_materialize_checkpoint_downloads_from_verified_artifact_uri(
 
     assert checkpoint.read_bytes() == payload
     assert checkpoint == tmp_path / "cache" / digest / "checkpoint.ckpt"
+
+
+def test_materialize_checkpoint_hashes_and_caches_clearml_model(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    payload = b"checkpoint from output model"
+    digest = hashlib.sha256(payload).hexdigest()
+    downloaded = tmp_path / "downloaded.ckpt"
+    downloaded.write_bytes(payload)
+
+    class FakeModel:
+        def __init__(self, *, model_id):
+            assert model_id == "model-id"
+
+        def get_local_copy(self):
+            return str(downloaded)
+
+    monkeypatch.setattr("clearml.Model", FakeModel)
+    checkpoint = materialize_checkpoint(
+        task_id=None,
+        artifact_name=None,
+        model_id="model-id",
+        expected_sha256=None,
+        cache_root=tmp_path / "cache",
+        output_name="step=30000.ckpt",
+    )
+
+    assert checkpoint.read_bytes() == payload
+    assert checkpoint == tmp_path / "cache" / digest / "step=30000.ckpt"
