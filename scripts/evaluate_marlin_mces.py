@@ -20,7 +20,36 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--threshold", type=int, default=15)
     parser.add_argument("--solver", default="PULP_CBC_CMD")
     parser.add_argument("--time-limit", type=int, default=600)
+    parser.add_argument("--clearml-task-id")
+    parser.add_argument("--clearml-iteration", type=int)
     return parser.parse_args()
+
+
+def publish_clearml_mces(
+    metrics: dict,
+    *,
+    task_id: str | None,
+    iteration: int | None,
+) -> None:
+    """Attach paper MCES summaries to the same task as molecular generation."""
+    if task_id is None:
+        return
+    from clearml import Task
+
+    logger = Task.get_task(task_id=task_id).get_logger()
+    report_iteration = int(metrics["rows"] if iteration is None else iteration)
+    for series, key in (
+        ("MCES@1 (returned)", "mces_top1"),
+        ("MCES@10 (returned)", "mces_top10"),
+    ):
+        value = float(metrics[key])
+        if np.isfinite(value):
+            logger.report_scalar(
+                title="Paper parity",
+                series=series,
+                value=value,
+                iteration=report_iteration,
+            )
 
 
 def sha256(path: Path) -> str:
@@ -131,6 +160,11 @@ def main() -> None:
     }
     (args.output_dir / "mces_metrics.json").write_text(
         json.dumps(metrics, indent=2, sort_keys=True) + "\n"
+    )
+    publish_clearml_mces(
+        metrics,
+        task_id=args.clearml_task_id,
+        iteration=args.clearml_iteration,
     )
 
 

@@ -8,6 +8,13 @@ CHECKPOINT="${MARLIN_EVAL_CHECKPOINT:-}"
 SOURCE_STEP="${MARLIN_EVAL_STEP:?MARLIN_EVAL_STEP is required}"
 TASK_ID="${CLEARML_TASK_ID:?CLEARML_TASK_ID is required}"
 OUTPUT_ROOT="$SHARED_ROOT/evaluations/faro-paper-gate-$TASK_ID"
+EVALUATION_PROFILE="${MARLIN_EVAL_PROFILE:-screening}"
+EVALUATION_SEED="${MARLIN_EVAL_SEED:-42}"
+if [[ "$EVALUATION_PROFILE" == "paper-parity" ]]; then
+  EVALUATION_CANDIDATES="${MARLIN_EVAL_CANDIDATES:-384}"
+else
+  EVALUATION_CANDIDATES="${MARLIN_EVAL_CANDIDATES:-16}"
+fi
 
 export NO_PROXY="${NO_PROXY:+$NO_PROXY,}.clearai.innopolis.university,.university.innopolis.ru"
 export no_proxy="${no_proxy:+$no_proxy,}.clearai.innopolis.university,.university.innopolis.ru"
@@ -53,6 +60,16 @@ fi
 if [[ "${MARLIN_EVAL_NO_EMA:-0}" == "1" ]]; then
   EXTRA_ARGS+=(--no-ema)
 fi
+if [[ "${MARLIN_EVAL_SOFT_FINGERPRINT:-0}" == "1" ]]; then
+  EXTRA_ARGS+=(--soft-fingerprint)
+fi
+
+PANEL_ARGS=()
+if [[ -n "${MARLIN_EVAL_SPEC_MANIFEST:-}" ]]; then
+  PANEL_ARGS+=(--spec-manifest "$MARLIN_EVAL_SPEC_MANIFEST")
+else
+  PANEL_ARGS+=(--max-spectra "${MARLIN_EVAL_MAX_SPECTRA:-4}")
+fi
 
 python -X faulthandler scripts/evaluate_marlin_nplib1.py \
   --checkpoint "$CHECKPOINT" \
@@ -62,13 +79,23 @@ python -X faulthandler scripts/evaluate_marlin_nplib1.py \
   --fingerprint-key "${MARLIN_EVAL_FINGERPRINT_KEY:-ground_truth}" \
   --lane dreams \
   --output-dir "$OUTPUT_ROOT" \
-  --candidates "${MARLIN_EVAL_CANDIDATES:-16}" \
-  --max-spectra "${MARLIN_EVAL_MAX_SPECTRA:-4}" \
+  --candidates "$EVALUATION_CANDIDATES" \
   --diversity-dropout "${MARLIN_EVAL_DIVERSITY_DROPOUT:-0.3}" \
   --temperature 1.0 \
   --generation-mode "${MARLIN_EVAL_GENERATION_MODE:-block}" \
   --ppm-tolerance 10.0 \
-  --seed 42 \
+  --seed "$EVALUATION_SEED" \
   --clearml-iteration "$SOURCE_STEP" \
   --clearml-task-id "$TASK_ID" \
+  --evaluation-profile "$EVALUATION_PROFILE" \
+  "${PANEL_ARGS[@]}" \
   "${EXTRA_ARGS[@]}"
+
+if [[ "$EVALUATION_PROFILE" == "paper-parity" ]]; then
+  python -X faulthandler scripts/evaluate_marlin_mces.py \
+    --predictions "$OUTPUT_ROOT/predictions.jsonl" \
+    --output-dir "$OUTPUT_ROOT/mces" \
+    --workers "${MARLIN_EVAL_MCES_WORKERS:-8}" \
+    --clearml-task-id "$TASK_ID" \
+    --clearml-iteration "$SOURCE_STEP"
+fi

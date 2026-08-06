@@ -132,6 +132,13 @@ def test_faro_evaluation_isolated_from_training_process():
     assert "MARLIN_EVAL_FINGERPRINTS_REL" in script
     assert "MARLIN_EVAL_FINGERPRINT_KEY" in script
     assert "MARLIN_EVAL_THRESHOLD" in script
+    assert 'EVALUATION_PROFILE="${MARLIN_EVAL_PROFILE:-screening}"' in script
+    assert 'EVALUATION_CANDIDATES="${MARLIN_EVAL_CANDIDATES:-384}"' in script
+    assert 'PANEL_ARGS+=(--spec-manifest "$MARLIN_EVAL_SPEC_MANIFEST")' in script
+    assert '--evaluation-profile "$EVALUATION_PROFILE"' in script
+    assert '--seed "$EVALUATION_SEED"' in script
+    assert "MARLIN_EVAL_SOFT_FINGERPRINT" in script
+    assert "scripts/evaluate_marlin_mces.py" in script
 
 
 def test_faro_frigid_parity_uses_official_sampler_recipe():

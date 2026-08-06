@@ -74,6 +74,7 @@ class PeriodicMolecularEvaluation(L.Callback):
             "--ppm-tolerance", str(evaluation.ppm_tolerance),
             "--seed", str(evaluation.seed),
             "--clearml-iteration", str(step),
+            "--evaluation-profile", "screening",
         ]
         max_spectra = evaluation.get("max_spectra")
         if max_spectra is not None and str(max_spectra):

@@ -131,7 +131,35 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--clearml-task-id")
     parser.add_argument("--clearml-iteration", type=int)
     parser.add_argument("--clearml-tag", action="append", default=[])
+    parser.add_argument(
+        "--evaluation-profile",
+        choices=("screening", "paper-parity"),
+        default="screening",
+        help="ClearML metric namespace and evaluation-contract guard",
+    )
     return parser.parse_args()
+
+
+def validate_evaluation_profile(
+    profile: str,
+    *,
+    candidates: int,
+    spec_manifest: Path | None,
+    max_spectra: int | None,
+) -> None:
+    """Reject configurations that could be mistaken for paper-parity results."""
+    if profile == "screening":
+        return
+    if candidates != 384:
+        raise ValueError("paper-parity evaluation requires exactly 384 candidates")
+    if spec_manifest is None:
+        raise ValueError("paper-parity evaluation requires a validation manifest")
+    if max_spectra is not None:
+        raise ValueError("paper-parity evaluation cannot truncate its manifest")
+    if not spec_manifest.name.startswith("nplib1_val_"):
+        raise ValueError(
+            "paper-parity checkpoint selection requires an nplib1_val_* manifest"
+        )
 
 
 def sha256(path: Path) -> str:
@@ -341,6 +369,7 @@ def publish_clearml_evaluation(
     task_id: str | None = None,
     iteration: int | None = None,
     evaluation_label: str = "MARLIN",
+    evaluation_profile: str | None = None,
 ) -> dict[str, str] | None:
     """Publish a completed evaluation only when explicitly configured."""
     if task_id is None and project_name is None and task_name is None:
@@ -367,11 +396,17 @@ def publish_clearml_evaluation(
             task.connect(dict(settings), name="evaluation_settings")
         logger = task.get_logger()
         report_iteration = int(metrics["rows"] if iteration is None else iteration)
+        metric_title = {
+            "screening": "Molecular screening",
+            "paper-parity": "Paper parity",
+        }.get(evaluation_profile, "Molecular metrics")
         scalar_metrics = {
             "Exact@1": "exact_top1",
             "Exact@10": "exact_top10",
             "Formula@1": "formula_top1_all",
             "Formula@10": "formula_top10_all",
+            "Formula@1 (returned)": "formula_top1_returned",
+            "Formula@10 (returned)": "formula_top10_returned",
             "Candidate return": "candidate_return_rate",
             "Validity": "validity",
             "Completed validity": "completed_validity",
@@ -391,9 +426,26 @@ def publish_clearml_evaluation(
             if not math.isfinite(value):
                 continue
             logger.report_scalar(
-                title="Molecular metrics",
+                title=metric_title,
                 series=series,
                 value=value,
+                iteration=report_iteration,
+            )
+        for mass_bin, values in metrics.get("mass_bins", {}).items():
+            if "exact_top1" not in values:
+                continue
+            exact_top1 = float(values["exact_top1"])
+            if math.isfinite(exact_top1):
+                logger.report_scalar(
+                    title=f"{metric_title} by mass bin",
+                    series=f"{mass_bin} Exact@1",
+                    value=exact_top1,
+                    iteration=report_iteration,
+                )
+            logger.report_scalar(
+                title=f"{metric_title} by mass bin",
+                series=f"{mass_bin} rows",
+                value=float(values["rows"]),
                 iteration=report_iteration,
             )
         logger.report_table(
@@ -407,6 +459,22 @@ def publish_clearml_evaluation(
             series="Terminal samples",
             iteration=report_iteration,
             table_plot=_clearml_decoding_diagnostic_table(rows),
+        )
+        logger.report_table(
+            title=f"{evaluation_label} provenance",
+            series="Settings",
+            iteration=report_iteration,
+            table_plot=pd.DataFrame(
+                [
+                    {
+                        "setting": key,
+                        "value": json.dumps(value, sort_keys=True)
+                        if isinstance(value, (dict, list))
+                        else value,
+                    }
+                    for key, value in sorted(settings.items())
+                ]
+            ),
         )
         molecules = []
         legends = []
@@ -448,6 +516,12 @@ def main() -> None:
         raise ValueError("--candidates must be positive")
     if args.candidate_batch_size is not None and args.candidate_batch_size <= 0:
         raise ValueError("--candidate-batch-size must be positive")
+    validate_evaluation_profile(
+        args.evaluation_profile,
+        candidates=args.candidates,
+        spec_manifest=args.spec_manifest,
+        max_spectra=args.max_spectra,
+    )
     if args.clearml_task_id and (args.clearml_project or args.clearml_task_name):
         raise ValueError("--clearml-task-id is mutually exclusive with project/task name")
     if not args.clearml_task_id and bool(args.clearml_project) != bool(args.clearml_task_name):
@@ -591,7 +665,14 @@ def main() -> None:
             sample_tokens=args.sample_tokens,
         )
 
+    current_git_commit = git_commit()
     settings = {
+        "evaluation_profile": args.evaluation_profile,
+        "git_commit": current_git_commit,
+        "checkpoint_sha256": sha256(args.checkpoint),
+        "spec_manifest_sha256": sha256(args.spec_manifest)
+        if args.spec_manifest
+        else None,
         "lane": args.lane,
         "fingerprint_key": args.fingerprint_key,
         "fingerprint_threshold": args.threshold,
@@ -633,7 +714,7 @@ def main() -> None:
     }
     signature = {
         "schema_version": 2,
-        "git_commit": git_commit(),
+        "git_commit": current_git_commit,
         "settings": settings,
         "inputs": {
             str(path.resolve()): {"sha256": sha256(path), "bytes": path.stat().st_size}
@@ -879,6 +960,12 @@ def main() -> None:
         settings=settings,
         task_id=args.clearml_task_id,
         iteration=args.clearml_iteration,
+        evaluation_label=(
+            "MARLIN paper parity"
+            if args.evaluation_profile == "paper-parity"
+            else "MARLIN screening"
+        ),
+        evaluation_profile=args.evaluation_profile,
     )
     if clearml_task is not None:
         clearml_task["slurm_job_id"] = os.environ.get("SLURM_JOB_ID")

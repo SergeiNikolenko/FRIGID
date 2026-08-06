@@ -3,6 +3,8 @@ from pathlib import Path
 import sys
 from types import SimpleNamespace
 
+import pytest
+
 from scripts.evaluate_marlin_nplib1 import (
     _clearml_candidate_table,
     _clearml_decoding_diagnostic_table,
@@ -10,6 +12,7 @@ from scripts.evaluate_marlin_nplib1 import (
     formula_metric_summary,
     parse_args,
     publish_clearml_evaluation,
+    validate_evaluation_profile,
 )
 
 
@@ -37,6 +40,33 @@ def test_mass_reachability_prune_flag_enables_the_deviation(monkeypatch):
     )
 
     assert parse_args().mass_reachability_prune is True
+
+
+def test_paper_parity_requires_the_paper_candidate_budget():
+    with pytest.raises(ValueError, match="exactly 384"):
+        validate_evaluation_profile(
+            "paper-parity",
+            candidates=16,
+            spec_manifest=Path("nplib1_val_micro64_v1.tsv"),
+            max_spectra=None,
+        )
+
+
+def test_paper_parity_rejects_locked_test_and_truncated_panels():
+    with pytest.raises(ValueError, match="nplib1_val"):
+        validate_evaluation_profile(
+            "paper-parity",
+            candidates=384,
+            spec_manifest=Path("nplib1_test_locked_full803_v1.tsv"),
+            max_spectra=None,
+        )
+    with pytest.raises(ValueError, match="cannot truncate"):
+        validate_evaluation_profile(
+            "paper-parity",
+            candidates=384,
+            spec_manifest=Path("nplib1_val_micro64_v1.tsv"),
+            max_spectra=64,
+        )
 
 
 def test_mass_reachability_prune_reaches_the_grammar_mask_and_the_manifest():
@@ -291,6 +321,48 @@ def test_publish_clearml_evaluation_reports_molecular_scalars_and_table(
     ] == "spectrum-1"
     assert connected == [("evaluation_settings", {"lane": "dreams"})]
     assert closed == [True]
+
+
+def test_publish_clearml_evaluation_uses_separate_profile_namespaces(monkeypatch):
+    scalar_calls = []
+
+    class FakeLogger:
+        def report_scalar(self, **kwargs):
+            scalar_calls.append(kwargs)
+
+        def report_table(self, **kwargs):
+            pass
+
+    class FakeTask:
+        TaskTypes = SimpleNamespace(testing="testing")
+
+        @staticmethod
+        def init(**kwargs):
+            return SimpleNamespace(
+                id="task-id",
+                name=kwargs["task_name"],
+                get_logger=lambda: FakeLogger(),
+                connect=lambda value, name: None,
+                get_output_log_web_page=lambda: "https://clearml.example/task-id",
+                close=lambda: None,
+            )
+
+    monkeypatch.setitem(sys.modules, "clearml", SimpleNamespace(Task=FakeTask))
+    for profile, expected_title in (
+        ("screening", "Molecular screening"),
+        ("paper-parity", "Paper parity"),
+    ):
+        scalar_calls.clear()
+        publish_clearml_evaluation(
+            project_name="MARLIN",
+            task_name=f"{profile}-eval",
+            tags=[],
+            metrics={"rows": 1, "exact_top1": 0.0},
+            rows=[],
+            settings={},
+            evaluation_profile=profile,
+        )
+        assert scalar_calls[0]["title"] == expected_title
 
 
 def test_publish_clearml_evaluation_attaches_without_editing_completed_task(
