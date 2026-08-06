@@ -1,4 +1,4 @@
-# MARLIN reproduction status, 15 July to 5 August 2026
+# MARLIN reproduction status, 15 July to 6 August 2026
 
 ## Summary
 
@@ -6,13 +6,17 @@ The goal is to reproduce MARLIN (arXiv:2607.04774), de novo molecular structure
 generation from an MS/MS spectrum. The paper reports `Exact@1 = 16.94%` on NPLIB1
 in the formula-unknown setting with the DreaMS encoder.
 
-This reproduction reports `Exact@1 = 0%`.
+Through 5 August this reproduction reported `Exact@1 = 0%` everywhere, including a
+completed 100,000-step run. On 6 August the first non-zero value appeared: `0.0312`
+at step 30,000 of a run started from the released FRIGID checkpoint, reproduced
+exactly by an independent offline evaluation. That is one molecule of 32 and far from
+the paper, but it is the first departure from zero in three weeks.
 
-The cause was identified on 4 and 5 August and it is structural: **every adaptation
-run so far started from the wrong decoder.** The paper's only stated initialization
-is a warm start from the released FRIGID model. This lineage instead adapted a
-from-scratch decoder trained for 30,000 steps, and that decoder's architecture made
-a FRIGID warm start impossible to apply.
+The cause of the zero was identified on 4 and 5 August and it is structural: **every
+adaptation run before that started from the wrong decoder.** The paper's only stated
+initialization is a warm start from the released FRIGID model. This lineage instead
+adapted a from-scratch decoder trained for 30,000 steps, and that decoder's
+architecture made a FRIGID warm start impossible to apply.
 
 ## Work completed
 
@@ -104,8 +108,11 @@ returns zero molecules throughout, with the dead-end share moving only `87% -> 8
 79.5%`. The failure is deterministic and more attempts cannot reach it.
 
 **Fingerprint quality is not the primary blocker.** On NPLIB1, DreaMS reaches 0.338
-and formula-blind MIST 0.421 against true Morgan r=2/4096. The paper reaches 16.94%
-with DreaMS, so the choice of encoder is not what separates us from it.
+at threshold 0.95 and formula-blind MIST 0.421 at threshold 0.15 against true Morgan
+r=2/4096. An earlier revision reported 0.376 for MIST, measured on a threshold grid
+that started at 0.30 and missed its optimum; MIST is calibrated far lower than DreaMS
+and each predictor needs its own threshold. The paper reaches 16.94% with DreaMS, so
+the choice of encoder is not what separates us from it.
 
 **The training budget is far larger than the adaptation set warrants.** 6,649 molecules
 at global batch 256 is 26 steps per epoch, so 100,000 steps are about 3,850 epochs, and
@@ -122,22 +129,69 @@ evaluation behind `--mass-reachability-prune`.
 
 ## State on 5 August
 
-| run | step | initial weights | state |
-| --- | --- | --- | --- |
-| control | 90,000 | from scratch, no fixes | training saturated, held-out flat within panel noise |
-| with twelve fixes | 25,000 | from scratch | flat |
-| **FRIGID warm start** | starting | **correct weights and architecture** | launched 5 August |
+| run | step | initial weights | Exact@1 | state |
+| --- | --- | --- | --- | --- |
+| control | 100,000 | from scratch, no fixes | 0.0000 at all ten points | completed; train token and sequence accuracy both 1.000, loss 0.002 |
+| with twelve fixes | 40,000 | from scratch | 0.0000 | stopped after four consecutive declining points, validity `0.0898 -> 0.0586` |
+| **FRIGID warm start** | 32,000 | **released FRIGID DLM** | **0.0312 at step 30,000** | running |
+
+The FRIGID run's trajectory is the first that improves:
+
+| step | validity | dead ends | mass validity | candidate return | Exact@1 |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 10,000 | 0.0039 | 7.844 | 0.0000 | 0.0000 | 0.0000 |
+| 20,000 | 0.0547 | 7.438 | 0.0000 | 0.0000 | 0.0000 |
+| 30,000 | 0.1328 | 6.625 | 0.0208 | 0.0312 | 0.0312 |
+
+Note that it is *below* the control on validity at the same steps, 0.133 against 0.293,
+while being the only run with a non-zero Exact@1. The control learned to write
+syntactically valid strings that are never the target; validity therefore cannot serve
+as the progress indicator, because on it the best run looks like the worst.
 
 The third run is the first in this project to start from what the paper prescribes.
 Its checkpoint was built from the released FRIGID DLM (EMA, 520,000 updates,
 sha256 `b6177c2d...`) against the canonical MARLIN config, and reloading it reproduces
 all 257 tensors exactly.
 
+## Withdrawn claims
+
+Four readings were published and then withdrawn against later measurement. They are
+listed because the pattern matters more than any of them.
+
+| claim | why it fell |
+| --- | --- |
+| held-out validity peaked at step 60,000 and then declined | step 90,000 returned 0.3164, the second highest value; the 32-spectrum panel swings by up to 0.12 between neighbouring points |
+| formula-blind MIST reaches only 0.376 | the threshold grid started at 0.30; MIST's optimum is 0.15, where it reaches 0.421 |
+| the FRIGID run is not learning | it left a plateau after about 10,000 steps; loss fell from 16.0 to 0.78 and token accuracy rose from 0.318 to 0.972 |
+| the block-causal mask destroys the FRIGID weights | the comparison was unseeded, and the mass bridge is randomly initialized |
+
+The last one produced a finding of its own. `load_frigid_decoder` transfers every
+architecture-compatible weight and leaves the Fourier mass encoder new, so its
+projection is randomly initialized. Across five seeds with identical weights and data,
+token accuracy on the pretraining corpus ranges `0.0938` to `0.1387`, a 1.48x spread
+from one untrained tensor. Zero-initializing that projection removes the variance, as
+all seeds then return exactly `0.0156`, but makes the absolute result worse, so the
+obvious repair is not the right one. What this establishes is narrower than it first
+appeared: any single measurement of the warm start is a draw from a distribution, not
+a value, even though 99.9% of the weights are loaded deterministically from a file.
+
+## Infrastructure
+
+The ClearML worker `aiagent01:gpu0` is registered and accepts tasks but fails within
+seconds with `RuntimeError: No CUDA GPUs are available`, thrown from
+`trainer.fit` during `strategy.setup_environment()` before any project code runs. It
+serves `high_q_80`, `sience_80` and `default`, and because it is usually idle it takes
+the next task before the busy workers do. It killed two runs on 5 August, each costing
+about an hour to notice. Both were relaunched on the `sience` queue, which only
+`aiagent03` serves, and both then ran normally.
+
 ## Next steps
 
-1. Read the first evaluation of the FRIGID run at step 10,000. The control reported
-   `Validity 0.246` and 5.375 constraint dead ends there, with everything else zero.
-   A working warm start should show materially higher validity from the start.
+1. Read the FRIGID run's step 40,000 and 50,000 evaluations. One molecule of 32 is a
+   single hit, not a measured rate; the question is whether Exact@1 rises. Offline
+   evaluations of the step 30,000 checkpoint at 8 and 64 candidates, with and without
+   the mass-reachability prune, are queued to test whether the failure has become
+   probabilistic, since raising the budget previously changed nothing at all.
 2. Give the recipe a held-out signal it can act on. The molecular evaluation on 32
    spectra swings by up to 0.12 between neighbouring points, which is larger than any
    effect it would need to detect, so a validation loss or a wider panel is required
