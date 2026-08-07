@@ -137,10 +137,33 @@ outside CHNOPS and the halogens. Tokenizing all 7,144 adaptation targets uses no
 either group. Withholding both in the mask rather than only in the sampler logits cuts
 mass-reachable support per position from 1,208 to 234 tokens and runs the mask 4.59x
 faster; on the full panel the isotope ban alone cuts wall clock from 7.30 h to 4.19 h
-with `Exact@1`, candidate return and uniqueness unchanged. This is a throughput result,
-not an accuracy result, and it is what makes the paper's 384-candidate protocol
-approachable at all. Only 53 of the 1,880 entries appear in any target; narrowing to
+with `Exact@1`, candidate return and uniqueness unchanged. Only 53 of the 1,880 entries appear in any target; narrowing to
 those would be fitting the answer set, so it was not done.
+
+All four configurations were then run end to end on the same 32-spectrum panel,
+same checkpoint, same seed, 8 candidates:
+
+| | no prune | prune | prune + isotope | prune + isotope + elements |
+| --- | ---: | ---: | ---: | ---: |
+| Exact@1 | 0.0312 | 0.0312 | 0.0312 | 0.0312 |
+| completed validity | 0.5156 | 0.5707 | 0.5368 | **0.6679** |
+| mass validity | 0.0208 | 0.1125 | 0.1146 | **0.1594** |
+| candidate return | 0.0312 | 0.2500 | 0.2500 | **0.2812** |
+| uniqueness | 0.0078 | 0.2321 | 0.2321 | **0.2634** |
+| dead ends of 8 | 6.63 | 5.28 | 5.06 | 5.44 |
+| Tanimoto@1 | 1.0000 | 0.2889 | 0.2938 | 0.2731 |
+| panel wall clock | 0.53 h | 7.30 h | 4.19 h | **1.50 h** |
+
+The element restriction is therefore not only a throughput result: against the prune
+alone it raises completed validity by 17%, mass validity by 42% and candidate return
+by 12.5% while running 4.87x faster. Two rows move the other way and are recorded as
+such: Tanimoto@1 on returned candidates falls from 0.2889 to 0.2731, and dead ends per
+eight attempts rise from 5.06 to 5.44 against the isotope-only arm, which is
+consistent with a narrower support wasting fewer attempts on chemistry that cannot
+finish while walling off more individual branches. Exact@1 is unchanged everywhere
+because one molecule of 32 is this panel's resolution floor, so no configuration can
+be separated from another on it. The Tanimoto@1 of 1.0000 in the no-prune column is an
+artifact of a single returned candidate that happened to be the exact answer.
 
 ## State on 5 August
 
