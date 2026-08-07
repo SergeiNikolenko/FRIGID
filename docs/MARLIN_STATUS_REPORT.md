@@ -180,14 +180,21 @@ The FRIGID run's trajectory is the first that improves:
 | 10,000 | 0.0039 | 7.844 | 0.0000 | 0.0000 | 0.0000 |
 | 20,000 | 0.0547 | 7.438 | 0.0000 | 0.0000 | 0.0000 |
 | 30,000 | 0.1328 | 6.625 | 0.0208 | 0.0312 | 0.0312 |
-| 40,000 | 0.2031 | 6.125 | — | 0.0312 | 0.0312 |
+| 40,000 | 0.2031 | 6.125 | 0.0156 | 0.0312 | 0.0312 |
+| 50,000 | 0.1992 | 6.156 | 0.0156 | 0.0312 | 0.0312 |
 
-Step 40,000 answers the first question asked of this run: the hit held across a
-10,000-step gap rather than vanishing, and validity and dead ends both kept
-improving. It does not yet show a rising rate, and cannot: one molecule of 32 is
-the resolution floor of this panel, so `Exact@1 = 0.0312` twice is consistent with
-any true rate between roughly 1.6% and 4.7%. Resolving movement needs a wider panel
-or more candidates, not more steps.
+The hit has now held at three consecutive evaluation points rather than vanishing,
+so it is not a single lucky draw. It does not yet show a rising rate, and cannot:
+one molecule of 32 is the resolution floor of this panel, so `Exact@1 = 0.0312`
+three times is consistent with any true rate between roughly 1.6% and 4.7%.
+Resolving movement needs a wider panel or more candidates, not more steps.
+
+Nothing should be read into the 40,000 to 50,000 interval in either direction. Every
+change across it — validity `0.2031 -> 0.1992`, completed validity `0.6849 -> 0.6599`,
+dead ends `6.125 -> 6.156` — is smaller than the up-to-0.12 swing this 32-spectrum
+panel shows between neighbouring points, which is what forced the earlier withdrawal
+of a claimed peak-and-decline. What is outside that band is the rise in completed
+validity over the run as a whole, `0.0312 -> 0.6599`.
 
 Note that it is *below* the control on validity at the same steps, 0.133 against 0.293,
 while being the only run with a non-zero Exact@1. The control learned to write
