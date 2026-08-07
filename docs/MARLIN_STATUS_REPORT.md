@@ -102,10 +102,26 @@ memory regression.
 
 ## Measurements that close whole directions
 
-**The generation budget is not the constraint.** The paper prescribes 384 candidates
-per spectrum and this lineage evaluated 4 to 8. Scaling 4 to 32 to 128 candidates
-returns zero molecules throughout, with the dead-end share moving only `87% -> 81% ->
-79.5%`. The failure is deterministic and more attempts cannot reach it.
+**The generation budget was not the constraint, and now it is.** Measured before the
+warm start, scaling 4 to 32 to 128 candidates returned zero molecules throughout, with
+the dead-end share moving only `87% -> 81% -> 79.5%`: the failure was deterministic and
+more attempts could not reach it. That has changed. On the step=30000 warm-start
+checkpoint with the prune and both vocabulary restrictions, over the identical 23
+spectra and with only the budget differing:
+
+| | returned | mass valid | Exact@1 | dead ends per attempt |
+| --- | ---: | ---: | ---: | ---: |
+| 8 candidates | 9/23 (0.391) | 9 | 1 | 0.620 |
+| 64 candidates | 12/23 (0.522) | 12 | 1 | 0.677 |
+
+Candidate return rises by a third when the budget rises eightfold, so the failure mode
+is now probabilistic rather than deterministic, and the paper's 384 candidates finally
+have a mechanism through which to help. The exact hit reproduces at 64 candidates on
+the same spectrum, there with 6 candidates returned instead of 1. Exact@1 stays at one
+molecule because the extra returns were not the right molecule and because 1/32 is the
+panel floor; more returns is the precondition for a rate, not the rate itself. Dead
+ends per attempt rise slightly, which is expected when a narrower support walls off
+more individual branches while wasting fewer attempts overall.
 
 **Fingerprint quality is not the primary blocker.** On NPLIB1, DreaMS reaches 0.338
 at threshold 0.95 and formula-blind MIST 0.421 at threshold 0.15 against true Morgan
@@ -182,6 +198,7 @@ The FRIGID run's trajectory is the first that improves:
 | 30,000 | 0.1328 | 6.625 | 0.0208 | 0.0312 | 0.0312 |
 | 40,000 | 0.2031 | 6.125 | 0.0156 | 0.0312 | 0.0312 |
 | 50,000 | 0.1992 | 6.156 | 0.0156 | 0.0312 | 0.0312 |
+| 60,000 | 0.1602 | 6.375 | — | 0.0312 | 0.0312 |
 
 The hit has now held at three consecutive evaluation points rather than vanishing,
 so it is not a single lucky draw. It does not yet show a rising rate, and cannot:
@@ -195,6 +212,14 @@ dead ends `6.125 -> 6.156` — is smaller than the up-to-0.12 swing this 32-spec
 panel shows between neighbouring points, which is what forced the earlier withdrawal
 of a claimed peak-and-decline. What is outside that band is the rise in completed
 validity over the run as a whole, `0.0312 -> 0.6599`.
+
+Step 60,000 needs a different reading and is deliberately not yet a claim. Exact@1 held
+for a fourth consecutive point, but completed validity fell `0.6599 -> 0.5005` and
+validity `0.1992 -> 0.1602`. The completed-validity drop of 0.159 is larger than the
+0.12 swing band, so unlike the previous interval it is not obviously noise. Two points
+are still not a trend, and a claimed peak-and-decline on this same panel had to be
+withdrawn once already, so this is recorded as the thing to watch at step 70,000 rather
+than as a turn.
 
 Note that it is *below* the control on validity at the same steps, 0.133 against 0.293,
 while being the only run with a non-zero Exact@1. The control learned to write
