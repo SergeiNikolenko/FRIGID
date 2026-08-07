@@ -17,6 +17,7 @@ from marlin.grammar import (
     _scan_base,
     _scan_continuation,
 )
+from marlin.token_properties import isotope_token_ids
 from marlin.tokenizer import load_safe_tokenizer
 
 
@@ -400,3 +401,37 @@ def test_grammar_state_copy_shares_no_mutable_container():
     assert 99 not in state.atom_masses
     assert 99 not in state.branch_atoms
     assert "9" not in state.open_rings
+
+
+def test_forbidden_token_ids_withhold_support_without_touching_neighbours():
+    tokens = ("[UNK]", "[CLS]", "[SEP]", "[PAD]", "[MASK]", "C", "O", "[13C]")
+    decode = lambda ids: "".join(tokens[index] for index in ids if index >= 5)
+    logits = torch.full((len(tokens),), 1.0)
+
+    open_mask = SafeGrammarMask(
+        tokens,
+        decode,
+        eos_token_id=2,
+        mask_token_id=4,
+        special_token_ids=(0, 1, 2, 3, 4),
+    )
+    closed_mask = SafeGrammarMask(
+        tokens,
+        decode,
+        eos_token_id=2,
+        mask_token_id=4,
+        special_token_ids=(0, 1, 2, 3, 4),
+        forbidden_token_ids=(7,),
+    )
+
+    assert torch.isfinite(open_mask([], logits)[7])
+    constrained = closed_mask([], logits)
+    assert torch.isneginf(constrained[7])
+    # The tokens a real target actually needs keep the support they had.
+    assert torch.isfinite(constrained[5:7]).all()
+
+
+def test_isotope_token_ids_match_only_mass_numbered_bracket_atoms():
+    tokens = ("C", "[13C]", "[nH]", "[C@@H]", "[1", "[100Tc+3]", "O", "[Na+]")
+
+    assert isotope_token_ids(tokens) == (1, 4, 5)

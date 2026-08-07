@@ -857,6 +857,7 @@ class SafeGrammarMask:
         eos_token_id: int,
         mask_token_id: int | None = None,
         special_token_ids: Sequence[int],
+        forbidden_token_ids: Sequence[int] = (),
         ppm_tolerance: float = 10.0,
         valence_slack: float = 4.0,
         mass_reachability_prune: bool = False,
@@ -866,6 +867,11 @@ class SafeGrammarMask:
         self.eos_token_id = eos_token_id
         self.mask_token_id = mask_token_id
         self.special_token_ids = frozenset(special_token_ids)
+        # Withholding support here rather than only zeroing the sampler logits
+        # keeps these tokens out of the per-token mass reachability search,
+        # which is the dominant cost of a constrained decode.
+        self.forbidden_token_ids = frozenset(forbidden_token_ids)
+        self._blocked_token_ids = self.special_token_ids | self.forbidden_token_ids
         self.ppm_tolerance = ppm_tolerance
         self.valence_slack = valence_slack
         # Off by default: the paper's syntax mask carries no chemical mass
@@ -910,7 +916,7 @@ class SafeGrammarMask:
         for token_id, token in enumerate(self.token_strings):
             if token_id == self.eos_token_id:
                 valid = state.terminal
-            elif token_id in self.special_token_ids:
+            elif token_id in self._blocked_token_ids:
                 valid = False
             else:
                 completed = _scan_continuation(base, token)
@@ -943,7 +949,7 @@ class SafeGrammarMask:
                 valid = state.terminal and _has_hydrogen_only_exact_mass(
                     state, target_mass, self.valence_slack, tolerance
                 )
-            elif token_id in self.special_token_ids:
+            elif token_id in self._blocked_token_ids:
                 valid = False
             else:
                 text = prefix + token

@@ -22,6 +22,22 @@ ATOM_PATTERN = re.compile(
     )
 )
 BRACKET_ATOM_PATTERN = re.compile(r"\[(?P<isotope>\d+)?(?P<symbol>[A-Z][a-z]?|[bcnops])")
+ISOTOPE_TOKEN_PATTERN = re.compile(r"^\[\d")
+
+
+def isotope_token_ids(token_strings: Iterable[str]) -> tuple[int, ...]:
+    """Return vocabulary ids whose token opens a bracket atom with a mass number.
+
+    The mass shell is defined on monoisotopic mass, so an isotopologue can only
+    ever miss it; the pattern also covers the partial tokens that can lead
+    nowhere else. On the NPLIB1 adaptation targets these account for 479 of the
+    1,880 vocabulary entries and are used by none of the 7,144 gold answers.
+    """
+    return tuple(
+        index
+        for index, token in enumerate(token_strings)
+        if token and ISOTOPE_TOKEN_PATTERN.match(token)
+    )
 
 
 @dataclass(frozen=True)

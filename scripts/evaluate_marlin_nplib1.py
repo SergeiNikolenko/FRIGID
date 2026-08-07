@@ -40,7 +40,7 @@ from marlin.isotopes import theoretical_isotope_ratios
 from marlin.mass_shell import MassShellConstraint
 from marlin.model import MarlinDecoder, MarlinDecoderConfig
 from marlin.sampler import MarlinSampler
-from marlin.token_properties import build_token_property_table
+from marlin.token_properties import build_token_property_table, isotope_token_ids
 from marlin.tokenizer import load_safe_tokenizer
 
 
@@ -110,6 +110,14 @@ def parse_args() -> argparse.Namespace:
         help=(
             "documented deviation: fold chemical mass reachability into the "
             "syntax mask instead of the paper's syntax-only support"
+        ),
+    )
+    parser.add_argument(
+        "--forbid-isotope-tokens",
+        action="store_true",
+        help=(
+            "documented deviation: withhold support from bracket atoms carrying "
+            "a mass number, which the monoisotopic mass shell can never accept"
         ),
     )
     parser.add_argument("--disable-mass-shell", action="store_true")
@@ -603,13 +611,19 @@ def main() -> None:
         eos_boost=args.eos_boost,
         eos_token_id=tokenizer.eos_token_id,
     )
+    token_strings = [
+        tokenizer.convert_ids_to_tokens(index) for index in range(len(tokenizer))
+    ]
+    isotope_ids = (
+        isotope_token_ids(token_strings) if args.forbid_isotope_tokens else ()
+    )
     forbidden_token_ids = (
         tokenizer.unk_token_id,
         tokenizer.bos_token_id,
         tokenizer.eos_token_id,
         tokenizer.mask_token_id,
         tokenizer.pad_token_id,
-    )
+    ) + isotope_ids
     if args.architecture == "expanding":
         sampler = ExpandingMarlinSampler(
             model,
@@ -643,14 +657,12 @@ def main() -> None:
             grammar_mask=None
             if args.disable_grammar_mask
             else SafeGrammarMask(
-                [
-                    tokenizer.convert_ids_to_tokens(index)
-                    for index in range(len(tokenizer))
-                ],
+                token_strings,
                 lambda ids: tokenizer.decode(ids, skip_special_tokens=True),
                 eos_token_id=tokenizer.eos_token_id,
                 mask_token_id=tokenizer.mask_token_id,
                 special_token_ids=tuple(special_ids) + (tokenizer.unk_token_id,),
+                forbidden_token_ids=isotope_ids,
                 ppm_tolerance=args.ppm_tolerance,
                 valence_slack=args.valence_slack,
                 mass_reachability_prune=args.mass_reachability_prune,
@@ -700,6 +712,8 @@ def main() -> None:
         ),
         "mass_shell_constraint": not args.disable_mass_shell,
         "mass_reachability_prune": args.mass_reachability_prune,
+        "forbid_isotope_tokens": args.forbid_isotope_tokens,
+        "forbidden_isotope_token_count": len(isotope_ids),
         "safe_decode_fix": args.fix_safe_decode,
         "isotope_token": args.isotope_token,
         "token_selection": "multinomial" if args.sample_tokens else "argmax",
