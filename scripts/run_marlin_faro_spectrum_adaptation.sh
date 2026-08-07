@@ -49,6 +49,9 @@ fi
 if [[ "${MARLIN_FORBID_ISOTOPE_TOKENS:-0}" == "1" ]]; then
   SOFT_FINGERPRINT_ARGS+=(--forbid-isotope-tokens)
 fi
+if [[ "${MARLIN_RESTRICT_ORGANIC_ELEMENTS:-0}" == "1" ]]; then
+  SOFT_FINGERPRINT_ARGS+=(--restrict-organic-elements)
+fi
 
 test ! -e "$RUN_ROOT"
 

@@ -95,6 +95,8 @@ class PeriodicMolecularEvaluation(L.Callback):
             command.append("--mass-reachability-prune")
         if bool(evaluation.get("forbid_isotope_tokens", False)):
             command.append("--forbid-isotope-tokens")
+        if bool(evaluation.get("restrict_organic_elements", False)):
+            command.append("--restrict-organic-elements")
         if str(self.config.get("architecture", "marlin")) == "expanding":
             command.extend(
                 [

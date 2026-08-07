@@ -103,6 +103,15 @@ def parse_args() -> argparse.Namespace:
             "monoisotopic mass shell can never accept"
         ),
     )
+    parser.add_argument(
+        "--restrict-organic-elements",
+        action="store_true",
+        help=(
+            "withhold periodic-evaluation support from tokens introducing an "
+            "element outside CHNOPS and the halogens, which no adaptation "
+            "target uses"
+        ),
+    )
     return parser.parse_args()
 
 
@@ -354,6 +363,7 @@ def main() -> None:
                 "soft_fingerprint": args.soft_fingerprint,
                 "mass_reachability_prune": args.mass_reachability_prune,
                 "forbid_isotope_tokens": args.forbid_isotope_tokens,
+                "restrict_organic_elements": args.restrict_organic_elements,
                 "ppm_tolerance": 10.0,
                 "seed": args.seed,
             },

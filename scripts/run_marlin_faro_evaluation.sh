@@ -76,6 +76,9 @@ fi
 if [[ "${MARLIN_EVAL_FORBID_ISOTOPE_TOKENS:-0}" == "1" ]]; then
   EXTRA_ARGS+=(--forbid-isotope-tokens)
 fi
+if [[ "${MARLIN_EVAL_RESTRICT_ORGANIC_ELEMENTS:-0}" == "1" ]]; then
+  EXTRA_ARGS+=(--restrict-organic-elements)
+fi
 
 PANEL_ARGS=()
 if [[ -n "${MARLIN_EVAL_SPEC_MANIFEST:-}" ]]; then
