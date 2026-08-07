@@ -125,7 +125,22 @@ stopping, so it could not detect a turn either way.
 **Mass-reachability pruning works and was switched off.** Enabling it raises candidate
 return 5x and mass validity 3.8x, and walking the gold SAFE string of all 32 panel
 targets shows it never rejects the correct molecule. It is now wired into the periodic
-evaluation behind `--mass-reachability-prune`.
+evaluation behind `--mass-reachability-prune`. Re-measured end to end on the
+step=30000 warm-start checkpoint at 8 candidates, the prune moves candidate return
+`0.0312 -> 0.2500`, mass validity `0.0208 -> 0.1125` and uniqueness `0.0078 -> 0.2321`
+while `Exact@1` holds at 0.0312, so it does not cost the hit.
+
+**Two thirds of the vocabulary can never be right, and withholding it is free.** The
+tokenizer is inherited from the pretraining corpus and can write 123 distinct
+elements; 479 entries are isotope-labelled bracket atoms and 959 introduce an element
+outside CHNOPS and the halogens. Tokenizing all 7,144 adaptation targets uses none of
+either group. Withholding both in the mask rather than only in the sampler logits cuts
+mass-reachable support per position from 1,208 to 234 tokens and runs the mask 4.59x
+faster; on the full panel the isotope ban alone cuts wall clock from 7.30 h to 4.19 h
+with `Exact@1`, candidate return and uniqueness unchanged. This is a throughput result,
+not an accuracy result, and it is what makes the paper's 384-candidate protocol
+approachable at all. Only 53 of the 1,880 entries appear in any target; narrowing to
+those would be fitting the answer set, so it was not done.
 
 ## State on 5 August
 
@@ -142,6 +157,14 @@ The FRIGID run's trajectory is the first that improves:
 | 10,000 | 0.0039 | 7.844 | 0.0000 | 0.0000 | 0.0000 |
 | 20,000 | 0.0547 | 7.438 | 0.0000 | 0.0000 | 0.0000 |
 | 30,000 | 0.1328 | 6.625 | 0.0208 | 0.0312 | 0.0312 |
+| 40,000 | 0.2031 | 6.125 | — | 0.0312 | 0.0312 |
+
+Step 40,000 answers the first question asked of this run: the hit held across a
+10,000-step gap rather than vanishing, and validity and dead ends both kept
+improving. It does not yet show a rising rate, and cannot: one molecule of 32 is
+the resolution floor of this panel, so `Exact@1 = 0.0312` twice is consistent with
+any true rate between roughly 1.6% and 4.7%. Resolving movement needs a wider panel
+or more candidates, not more steps.
 
 Note that it is *below* the control on validity at the same steps, 0.133 against 0.293,
 while being the only run with a non-zero Exact@1. The control learned to write
