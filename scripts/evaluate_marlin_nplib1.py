@@ -40,7 +40,11 @@ from marlin.isotopes import theoretical_isotope_ratios
 from marlin.mass_shell import MassShellConstraint
 from marlin.model import MarlinDecoder, MarlinDecoderConfig
 from marlin.sampler import MarlinSampler
-from marlin.token_properties import build_token_property_table, isotope_token_ids
+from marlin.token_properties import (
+    build_token_property_table,
+    foreign_element_token_ids,
+    isotope_token_ids,
+)
 from marlin.tokenizer import load_safe_tokenizer
 
 
@@ -118,6 +122,15 @@ def parse_args() -> argparse.Namespace:
         help=(
             "documented deviation: withhold support from bracket atoms carrying "
             "a mass number, which the monoisotopic mass shell can never accept"
+        ),
+    )
+    parser.add_argument(
+        "--restrict-organic-elements",
+        action="store_true",
+        help=(
+            "documented deviation: withhold support from tokens introducing an "
+            "element outside CHNOPS and the halogens, the set small-molecule MS "
+            "structure elucidation works in"
         ),
     )
     parser.add_argument("--disable-mass-shell", action="store_true")
@@ -614,8 +627,15 @@ def main() -> None:
     token_strings = [
         tokenizer.convert_ids_to_tokens(index) for index in range(len(tokenizer))
     ]
-    isotope_ids = (
-        isotope_token_ids(token_strings) if args.forbid_isotope_tokens else ()
+    chemistry_forbidden_ids = tuple(
+        sorted(
+            set(isotope_token_ids(token_strings) if args.forbid_isotope_tokens else ())
+            | set(
+                foreign_element_token_ids(token_strings)
+                if args.restrict_organic_elements
+                else ()
+            )
+        )
     )
     forbidden_token_ids = (
         tokenizer.unk_token_id,
@@ -623,7 +643,7 @@ def main() -> None:
         tokenizer.eos_token_id,
         tokenizer.mask_token_id,
         tokenizer.pad_token_id,
-    ) + isotope_ids
+    ) + chemistry_forbidden_ids
     if args.architecture == "expanding":
         sampler = ExpandingMarlinSampler(
             model,
@@ -662,7 +682,7 @@ def main() -> None:
                 eos_token_id=tokenizer.eos_token_id,
                 mask_token_id=tokenizer.mask_token_id,
                 special_token_ids=tuple(special_ids) + (tokenizer.unk_token_id,),
-                forbidden_token_ids=isotope_ids,
+                forbidden_token_ids=chemistry_forbidden_ids,
                 ppm_tolerance=args.ppm_tolerance,
                 valence_slack=args.valence_slack,
                 mass_reachability_prune=args.mass_reachability_prune,
@@ -713,7 +733,8 @@ def main() -> None:
         "mass_shell_constraint": not args.disable_mass_shell,
         "mass_reachability_prune": args.mass_reachability_prune,
         "forbid_isotope_tokens": args.forbid_isotope_tokens,
-        "forbidden_isotope_token_count": len(isotope_ids),
+        "restrict_organic_elements": args.restrict_organic_elements,
+        "chemistry_forbidden_token_count": len(chemistry_forbidden_ids),
         "safe_decode_fix": args.fix_safe_decode,
         "isotope_token": args.isotope_token,
         "token_selection": "multinomial" if args.sample_tokens else "argmax",

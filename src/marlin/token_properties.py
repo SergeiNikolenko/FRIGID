@@ -55,8 +55,8 @@ def _canonical_element_symbol(symbol: str) -> str | None:
         return None
 
 
-def token_properties(token: str) -> TokenProperties:
-    """Return a lower-bound mass and a conservative valence budget."""
+def _token_atoms(token: str) -> list[tuple[str, int | None]]:
+    """Return the (element, mass number) pairs a token introduces."""
     bracket_atoms = list(BRACKET_ATOM_PATTERN.finditer(token))
     bracket_ranges = [match.span() for match in bracket_atoms]
     atoms: list[tuple[str, int | None]] = []
@@ -75,6 +75,40 @@ def token_properties(token: str) -> TokenProperties:
             continue
         symbol = match.group()
         atoms.append((symbol.capitalize() if len(symbol) == 1 else symbol, None))
+    return atoms
+
+
+ORGANIC_ELEMENTS = frozenset({"C", "H", "N", "O", "P", "S", "F", "Cl", "Br", "I"})
+
+
+def foreign_element_token_ids(
+    token_strings: Iterable[str],
+    allowed_elements: Iterable[str] = ORGANIC_ELEMENTS,
+) -> tuple[int, ...]:
+    """Return vocabulary ids that introduce an element outside ``allowed_elements``.
+
+    The default set is the one small-molecule MS structure elucidation works in,
+    declared from the assay rather than from the answers. The vocabulary
+    inherited from the pretraining corpus can write 123 distinct elements, of
+    which 1,014 token entries fall outside this set; the 7,144 NPLIB1 adaptation
+    targets between them use only C, N, O, P, S, F and Cl.
+
+    A token whose element cannot be resolved is left supported, so the filter
+    never removes more than it can justify.
+    """
+    allowed = frozenset(allowed_elements)
+    return tuple(
+        index
+        for index, token in enumerate(token_strings)
+        if token
+        and (symbols := {symbol for symbol, _ in _token_atoms(token)})
+        and not symbols <= allowed
+    )
+
+
+def token_properties(token: str) -> TokenProperties:
+    """Return a lower-bound mass and a conservative valence budget."""
+    atoms = _token_atoms(token)
     mass = 0.0
     valence = 0.0
     for symbol, isotope in atoms:

@@ -17,7 +17,7 @@ from marlin.grammar import (
     _scan_base,
     _scan_continuation,
 )
-from marlin.token_properties import isotope_token_ids
+from marlin.token_properties import foreign_element_token_ids, isotope_token_ids
 from marlin.tokenizer import load_safe_tokenizer
 
 
@@ -435,3 +435,16 @@ def test_isotope_token_ids_match_only_mass_numbered_bracket_atoms():
     tokens = ("C", "[13C]", "[nH]", "[C@@H]", "[1", "[100Tc+3]", "O", "[Na+]")
 
     assert isotope_token_ids(tokens) == (1, 4, 5)
+
+
+def test_foreign_element_token_ids_keep_the_organic_set_and_drop_metals():
+    tokens = ("C", "c", "O", "[nH]", "Cl", "Br", "[Se]", "[100Tc+3]", "[Fe+2]", "1")
+
+    foreign = foreign_element_token_ids(tokens)
+
+    assert [tokens[i] for i in foreign] == ["[Se]", "[100Tc+3]", "[Fe+2]"]
+
+
+def test_foreign_element_token_ids_leave_unresolvable_tokens_supported():
+    # A partial token whose element cannot be read must not be banned on a guess.
+    assert foreign_element_token_ids(("[", "(", ")", "=", "%10")) == ()
