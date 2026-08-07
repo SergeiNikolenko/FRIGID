@@ -70,6 +70,12 @@ fi
 if [[ "${MARLIN_EVAL_SOFT_FINGERPRINT:-0}" == "1" ]]; then
   EXTRA_ARGS+=(--soft-fingerprint)
 fi
+if [[ "${MARLIN_EVAL_MASS_REACHABILITY_PRUNE:-0}" == "1" ]]; then
+  EXTRA_ARGS+=(--mass-reachability-prune)
+fi
+if [[ "${MARLIN_EVAL_FORBID_ISOTOPE_TOKENS:-0}" == "1" ]]; then
+  EXTRA_ARGS+=(--forbid-isotope-tokens)
+fi
 
 PANEL_ARGS=()
 if [[ -n "${MARLIN_EVAL_SPEC_MANIFEST:-}" ]]; then

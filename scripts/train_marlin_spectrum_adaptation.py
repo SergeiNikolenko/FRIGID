@@ -94,6 +94,15 @@ def parse_args() -> argparse.Namespace:
             "32-spectrum panel"
         ),
     )
+    parser.add_argument(
+        "--forbid-isotope-tokens",
+        action="store_true",
+        help=(
+            "withhold periodic-evaluation support from the 479 isotope-labelled "
+            "vocabulary tokens, which no adaptation target uses and the "
+            "monoisotopic mass shell can never accept"
+        ),
+    )
     return parser.parse_args()
 
 
@@ -344,6 +353,7 @@ def main() -> None:
                 "sample_tokens": True,
                 "soft_fingerprint": args.soft_fingerprint,
                 "mass_reachability_prune": args.mass_reachability_prune,
+                "forbid_isotope_tokens": args.forbid_isotope_tokens,
                 "ppm_tolerance": 10.0,
                 "seed": args.seed,
             },

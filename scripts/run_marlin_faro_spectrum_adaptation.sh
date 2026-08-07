@@ -46,6 +46,9 @@ fi
 if [[ "${MARLIN_MASS_REACHABILITY_PRUNE:-0}" == "1" ]]; then
   SOFT_FINGERPRINT_ARGS+=(--mass-reachability-prune)
 fi
+if [[ "${MARLIN_FORBID_ISOTOPE_TOKENS:-0}" == "1" ]]; then
+  SOFT_FINGERPRINT_ARGS+=(--forbid-isotope-tokens)
+fi
 
 test ! -e "$RUN_ROOT"
 
