@@ -257,6 +257,41 @@ Its checkpoint was built from the released FRIGID DLM (EMA, 520,000 updates,
 sha256 `b6177c2d...`) against the canonical MARLIN config, and reloading it reproduces
 all 257 tensors exactly.
 
+## The paper learning rate, isolated
+
+The paper specifies `5e-5` and every adaptation run in this lineage used `1e-5`. A
+clone of the running warm-start adaptation was launched differing in that one training
+parameter, same FRIGID checkpoint and sha256, same seed, same data, same 100,000-step
+budget; the starting `grad_norm` agrees to four decimals, `518.5015` against `518.5046`,
+so the initialisations are the same.
+
+Its periodic evaluation, however, runs with the prune and both vocabulary restrictions
+that the older run does not have, and the prune alone is worth an eightfold candidate
+return. Read naively the new run looked ahead on every metric at step 10,000. The
+control's step=10,000 checkpoint was therefore re-evaluated offline under the identical
+evaluation configuration, which isolates the learning rate:
+
+| step 10,000, matched evaluation | control `1e-5` | paper `5e-5` |
+| --- | ---: | ---: |
+| validity | 0.0273 | 0.0273 |
+| constraint dead ends of 8 | 7.0938 | 7.0938 |
+| mass validity | 0.0000 | 0.0156 |
+| uniqueness | 0.0000 | 0.0312 |
+| Formula@1 | 0.0000 | 0.0312 |
+| Exact@1 | 0.0000 | 0.0000 |
+
+Validity and dead ends agree to four decimals. The apparent advantage was the evaluation
+configuration, not the learning rate, and it is withdrawn. What survives is one unique
+mass-valid molecule carrying the correct formula on the `5e-5` side against none on the
+`1e-5` side. That is a single molecule out of 32 spectra, which is the panel floor and
+within one draw, so **the learning rate has no demonstrated effect at step 10,000**. The
+question stays open until the later evaluation points, and the matched offline
+re-evaluation has to be repeated at each of them for the comparison to mean anything.
+
+This run also exercised the new per-spectrum time budget at 900 s: `truncated_spectra`
+is 0, so the cap never bound on this checkpoint, and `attempts_total` is exactly
+32 x 8 = 256.
+
 ## Withdrawn claims
 
 Four readings were published and then withdrawn against later measurement. They are
