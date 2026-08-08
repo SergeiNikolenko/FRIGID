@@ -284,9 +284,40 @@ Validity and dead ends agree to four decimals. The apparent advantage was the ev
 configuration, not the learning rate, and it is withdrawn. What survives is one unique
 mass-valid molecule carrying the correct formula on the `5e-5` side against none on the
 `1e-5` side. That is a single molecule out of 32 spectra, which is the panel floor and
-within one draw, so **the learning rate has no demonstrated effect at step 10,000**. The
-question stays open until the later evaluation points, and the matched offline
-re-evaluation has to be repeated at each of them for the comparison to mean anything.
+within one draw, so the learning rate had no demonstrated effect at step 10,000.
+
+Step 20,000 settles it, again with the evaluation matched:
+
+| step 20,000, matched evaluation | control `1e-5` | paper `5e-5` |
+| --- | ---: | ---: |
+| Exact@1 | **0.0312** | 0.0000 |
+| validity | **0.1953** | 0.0117 |
+| completed validity | **0.5221** | — |
+| mass validity | **0.2419** | 0.0000 |
+| candidate return | **0.3438** | — |
+| uniqueness | **0.3333** | 0.0000 |
+| constraint dead ends of 8 | **5.8438** | 7.0625 |
+
+Between steps 10,000 and 20,000 the control's validity rose sevenfold while the
+`5e-5` run's fell by half, and its mass validity and uniqueness went from non-zero to
+exactly zero. Three independent metrics collapsing together in one direction is not the
+panel's noise, which moves a level up and down rather than to zero.
+
+**The paper's prescribed learning rate is incompatible with the paper's prescribed warm
+start**, at least as we implement both: `5e-5` moves the weights away from the released
+FRIGID decoder faster than the fingerprint conditioning is learned. One of the two lines
+in the hyperparameter table must therefore be incomplete, and the `1e-5` this lineage
+used is a defensible reading rather than an unexplained divergence. The run was stopped
+at step 22,965 with its 10,000 and 20,000 checkpoints retained; continuing it would have
+held two A100s to refine a settled negative.
+
+A second, larger finding falls out of the same measurement. The control's first exact
+hit was **not** at step 30,000. Under the matched evaluation it is already there at step
+20,000, where the run's own periodic evaluation reported `Exact@1 = 0` and candidate
+return `0.0000` against an actual `0.3438`. The periodic evaluation was too weak to see
+what the model could already do, so the whole reported trajectory understates it. All
+control checkpoints from 30,000 to 70,000 are being re-evaluated under the matched
+configuration to establish the real curve.
 
 This run also exercised the new per-spectrum time budget at 900 s: `truncated_spectra`
 is 0, so the cap never bound on this checkpoint, and `attempts_total` is exactly
