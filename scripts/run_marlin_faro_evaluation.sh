@@ -79,6 +79,9 @@ fi
 if [[ "${MARLIN_EVAL_RESTRICT_ORGANIC_ELEMENTS:-0}" == "1" ]]; then
   EXTRA_ARGS+=(--restrict-organic-elements)
 fi
+if [[ -n "${MARLIN_EVAL_PER_SPECTRUM_SECONDS:-}" ]]; then
+  EXTRA_ARGS+=(--per-spectrum-seconds "$MARLIN_EVAL_PER_SPECTRUM_SECONDS")
+fi
 
 PANEL_ARGS=()
 if [[ -n "${MARLIN_EVAL_SPEC_MANIFEST:-}" ]]; then

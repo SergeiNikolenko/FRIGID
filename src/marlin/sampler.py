@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass
 from typing import Callable, Sequence
 
@@ -33,6 +34,10 @@ class MarlinGenerationStats:
     max_length_terminated: int
     sample_terminal_safes: tuple[str, ...]
     sample_dead_ends: tuple[dict[str, float | int | str], ...]
+    # True when a time budget stopped generation before the requested budget was
+    # spent. ``attempts`` then reports what was actually tried, so a truncated
+    # spectrum can never be mistaken for a fully searched one.
+    truncated: bool = False
 
 
 class MarlinSampler:
@@ -238,6 +243,7 @@ class MarlinSampler:
         generator: torch.Generator | None = None,
         candidate_batch_size: int | None = None,
         isotope_ratios: Sequence[float] | None = None,
+        time_budget_seconds: float | None = None,
     ) -> tuple[list[MarlinCandidate], MarlinGenerationStats]:
         if candidates <= 0:
             raise ValueError("candidates must be positive")
@@ -245,6 +251,8 @@ class MarlinSampler:
             raise ValueError("temperature must be positive")
         if candidate_batch_size is not None and candidate_batch_size <= 0:
             raise ValueError("candidate_batch_size must be positive")
+        if time_budget_seconds is not None and time_budget_seconds <= 0:
+            raise ValueError("time_budget_seconds must be positive")
         original = fingerprint.to(torch.float32)
         generator_fn = (
             self._generate_many_canvas
@@ -261,8 +269,20 @@ class MarlinSampler:
             "sample_terminal_safes": [],
             "sample_dead_ends": [],
         }
+        attempted = 0
+        truncated = False
+        deadline = (
+            None if time_budget_seconds is None
+            else time.perf_counter() + time_budget_seconds
+        )
         for start in range(0, candidates, batch_size):
+            # Checked at batch boundaries only, so no candidate is ever half
+            # generated and the RNG stream stays exactly as it would have been.
+            if deadline is not None and start > 0 and time.perf_counter() >= deadline:
+                truncated = True
+                break
             batch_candidates = min(batch_size, candidates - start)
+            attempted += batch_candidates
             batch_generated, batch_valid, batch_diagnostics = generator_fn(
                 original,
                 target_mass,
@@ -322,7 +342,7 @@ class MarlinSampler:
             key=lambda candidate: (-candidate.tanimoto, abs(candidate.mass_error_ppm)),
         )
         return ranked, MarlinGenerationStats(
-            attempts=candidates,
+            attempts=attempted,
             valid=valid,
             mass_valid=mass_valid,
             unique_mass_valid=unique_mass_valid,
@@ -331,6 +351,7 @@ class MarlinSampler:
             max_length_terminated=diagnostics["max_length_terminated"],
             sample_terminal_safes=tuple(diagnostics["sample_terminal_safes"]),
             sample_dead_ends=tuple(diagnostics["sample_dead_ends"]),
+            truncated=truncated,
         )
 
     def _generate_many(

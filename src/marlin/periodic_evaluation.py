@@ -97,6 +97,9 @@ class PeriodicMolecularEvaluation(L.Callback):
             command.append("--forbid-isotope-tokens")
         if bool(evaluation.get("restrict_organic_elements", False)):
             command.append("--restrict-organic-elements")
+        per_spectrum_seconds = evaluation.get("per_spectrum_seconds")
+        if per_spectrum_seconds is not None and str(per_spectrum_seconds):
+            command.extend(["--per-spectrum-seconds", str(per_spectrum_seconds)])
         if str(self.config.get("architecture", "marlin")) == "expanding":
             command.extend(
                 [

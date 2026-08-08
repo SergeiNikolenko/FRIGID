@@ -1286,3 +1286,63 @@ def test_symmetric_noise_moves_soft_amplitudes_instead_of_saturating_them():
     assert sorted(noisy[noisy > 0].tolist()) == sorted(
         fingerprint[fingerprint > 0].tolist()
     )
+
+
+def test_time_budget_truncates_between_batches_and_says_so():
+    class FixedModel(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.anchor = torch.nn.Parameter(torch.zeros(()))
+            self.config = MarlinDecoderConfig(
+                vocab_size=4,
+                hidden_size=4,
+                num_layers=1,
+                num_heads=1,
+                intermediate_size=4,
+                max_length=3,
+                block_width=2,
+                fingerprint_bits=8,
+                dropout=0.0,
+                mask_token_id=3,
+                pad_token_id=0,
+            )
+
+        def forward(self, input_ids, precursor_mass, fingerprint):
+            logits = torch.zeros((*input_ids.shape, 4), device=input_ids.device)
+            logits[..., 1] = 10.0
+            return logits
+
+    target_mass = Descriptors.ExactMolWt(Chem.MolFromSmiles("C"))
+    sampler = MarlinSampler(
+        FixedModel(),
+        MassShellConstraint([0.0] * 4, eos_token_id=2, ppm_tolerance=10),
+        bos_token_id=0,
+        eos_token_id=2,
+        mask_token_id=3,
+        decode_tokens=lambda _: "C",
+        safe_to_smiles=lambda _: "C",
+        forbidden_token_ids=(0, 3),
+    )
+
+    _, full = sampler.generate_ranked_with_stats(
+        torch.zeros(8), target_mass, candidates=8, candidate_batch_size=2
+    )
+    assert full.attempts == 8
+    assert not full.truncated
+
+    # A budget already spent must stop after the first batch, never mid candidate.
+    _, capped = sampler.generate_ranked_with_stats(
+        torch.zeros(8),
+        target_mass,
+        candidates=8,
+        candidate_batch_size=2,
+        time_budget_seconds=1e-9,
+    )
+    assert capped.truncated
+    assert capped.attempts == 2
+    assert capped.valid <= capped.attempts
+
+    with pytest.raises(ValueError):
+        sampler.generate_ranked_with_stats(
+            torch.zeros(8), target_mass, candidates=2, time_budget_seconds=0
+        )

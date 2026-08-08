@@ -133,6 +133,15 @@ def parse_args() -> argparse.Namespace:
             "structure elucidation works in"
         ),
     )
+    parser.add_argument(
+        "--per-spectrum-seconds",
+        type=float,
+        help=(
+            "stop generating further candidates for a spectrum after this many "
+            "seconds; truncation is recorded per row and counted in the metrics, "
+            "never applied silently"
+        ),
+    )
     parser.add_argument("--disable-mass-shell", action="store_true")
     parser.add_argument("--sample-tokens", action="store_true")
     parser.add_argument("--fix-safe-decode", action="store_true")
@@ -732,6 +741,7 @@ def main() -> None:
         ),
         "mass_shell_constraint": not args.disable_mass_shell,
         "mass_reachability_prune": args.mass_reachability_prune,
+        "per_spectrum_seconds": args.per_spectrum_seconds,
         "forbid_isotope_tokens": args.forbid_isotope_tokens,
         "restrict_organic_elements": args.restrict_organic_elements,
         "chemistry_forbidden_token_count": len(chemistry_forbidden_ids),
@@ -795,6 +805,12 @@ def main() -> None:
                 completed.add(row["spec_name"])
                 rows.append(row)
 
+    candidate_batch_size = args.candidate_batch_size
+    if args.per_spectrum_seconds is not None and candidate_batch_size is None:
+        # The deadline is only observable between batches, so a single batch of
+        # every candidate would make the budget unenforceable.
+        candidate_batch_size = min(8, args.candidates)
+
     with predictions_path.open("a") as output:
         for position, record in metadata.reset_index(drop=True).iterrows():
             spec_name = str(record["spec_name"])
@@ -812,8 +828,9 @@ def main() -> None:
                 generator=torch.Generator(device=device).manual_seed(
                     args.seed + position
                 ),
-                candidate_batch_size=args.candidate_batch_size,
+                candidate_batch_size=candidate_batch_size,
                 isotope_ratios=sampling_isotope_ratios(args.isotope_token, record),
+                time_budget_seconds=args.per_spectrum_seconds,
             )
             if torch.cuda.is_available():
                 torch.cuda.synchronize()
@@ -850,6 +867,7 @@ def main() -> None:
                 "neutral_mass": float(record["neutral_mass"]),
                 "runtime_seconds": elapsed,
                 "attempts": stats.attempts,
+                "truncated": stats.truncated,
                 "valid": stats.valid,
                 "mass_valid": stats.mass_valid,
                 "unique_mass_valid": stats.unique_mass_valid,
@@ -931,6 +949,8 @@ def main() -> None:
         "max_length_terminated_mean": mean_metric(
             rows, "max_length_terminated"
         ),
+        "truncated_spectra": int(sum(1 for row in rows if row.get("truncated"))),
+        "attempts_total": int(sum(row.get("attempts", 0) for row in rows)),
         "runtime_seconds_total": float(sum(row["runtime_seconds"] for row in rows)),
         "runtime_seconds_mean": mean_metric(rows, "runtime_seconds"),
         "metric_denominators": {
