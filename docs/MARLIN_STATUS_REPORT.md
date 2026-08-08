@@ -117,11 +117,37 @@ spectra and with only the budget differing:
 Candidate return rises by a third when the budget rises eightfold, so the failure mode
 is now probabilistic rather than deterministic, and the paper's 384 candidates finally
 have a mechanism through which to help. The exact hit reproduces at 64 candidates on
-the same spectrum, there with 6 candidates returned instead of 1. Exact@1 stays at one
-molecule because the extra returns were not the right molecule and because 1/32 is the
-panel floor; more returns is the precondition for a rate, not the rate itself. Dead
-ends per attempt rise slightly, which is expected when a narrower support walls off
-more individual branches while wasting fewer attempts overall.
+the same spectrum, there with 6 candidates returned instead of 1.
+
+Both arms then completed all 32 spectra:
+
+| | 8 candidates | 64 candidates |
+| --- | ---: | ---: |
+| Exact@1 | 0.0312 | 0.0312 |
+| Exact@10 | 0.0312 | 0.0312 |
+| candidate return | 0.2812 | **0.5312** |
+| uniqueness | 0.2634 | **0.4981** |
+| mass validity | 0.1594 | 0.1879 |
+| Tanimoto@10 | 0.2731 | 0.3201 |
+| validity | 0.2539 | 0.2104 |
+| completed validity | 0.6679 | 0.6442 |
+| dead ends per attempt | 0.680 | 0.712 |
+| panel wall clock | 1.50 h | 15.23 h |
+
+The honest reading has two halves. An eightfold budget nearly doubles candidate return
+and uniqueness, and moves Tanimoto@10 from 0.2731 to 0.3201, so the extra candidates
+are both more numerous and somewhat closer to the target. It produces **no additional
+exact hit**: both Exact@1 and Exact@10 stay at the same single molecule. So the regime
+change is established for returning candidates, while whether exact accuracy scales
+with budget is not, and cannot be settled on a panel whose floor is 1/32.
+
+That result also bounds the paper protocol in wall clock. At 15.23 h for 32 spectra and
+64 candidates, one spectrum-candidate costs about 27 s. The paper's 384 candidates on
+this same 32-spectrum panel is therefore about 91 h, and on the full 803-spectrum
+validation split about 2,290 GPU-hours, roughly 95 days on one device. That is after the
+4.87x already gained from the support restrictions. The paper protocol needs either
+parallelism across many workers or another order of magnitude in decode speed; it is not
+reachable by waiting.
 
 **Fingerprint quality is not the primary blocker.** On NPLIB1, DreaMS reaches 0.338
 at threshold 0.95 and formula-blind MIST 0.421 at threshold 0.15 against true Morgan
