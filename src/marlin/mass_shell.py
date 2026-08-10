@@ -11,6 +11,26 @@ from rdkit.Chem import Descriptors
 
 
 HYDROGEN_MASS = 1.00782503223
+PROTON_MASS = 1.007276466621
+
+
+def conditioning_mass(molecule: Chem.Mol) -> float:
+    """Return the mass the run conditions on for ``molecule``.
+
+    The conditioning mass is derived from the precursor as
+    ``precursor_mz - proton``, which is the neutral mass of the species that was
+    protonated. A molecule carrying its own formal charge is *already* the ion:
+    its precursor m/z is its own mass, so the same subtraction has to be applied
+    to the molecule before the two are comparable. Doing it here, from the charge
+    written in the candidate's own SMILES, needs no adduct annotation and no
+    knowledge of the answer: ``ExactMolWt`` already accounts for the missing
+    electron, so one proton per unit of formal charge is the whole correction.
+
+    For the 7,533 uncharged NPLIB1 targets this is ``ExactMolWt`` unchanged; for
+    the 14 charged ones it removes an error of 1.0073 Da, 1,269 to 5,354 ppm
+    against a 10 ppm acceptance window.
+    """
+    return Descriptors.ExactMolWt(molecule) - Chem.GetFormalCharge(molecule) * PROTON_MASS
 
 
 @dataclass(frozen=True)

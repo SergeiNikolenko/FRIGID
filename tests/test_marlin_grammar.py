@@ -426,6 +426,47 @@ def test_mass_reachability_prune_allows_eos_when_hydrogens_close_the_target():
     assert constrained[2] == 0.0
 
 
+def test_admits_answers_for_one_token_what_the_whole_support_says():
+    # The gold-answer walk asks about one token per position instead of building
+    # the whole support, so the two paths have to agree token for token.
+    tokens = ("[UNK]", "[CLS]", "[SEP]", "[PAD]", "[MASK]", "1", "C", "O", "=", "[N+]")
+    target = 444.103807533379
+    for prefix in ("C", "CC", "C" * 32, "COc1cc(C2C3(O)C(O)C4CC2(O)C(O)(C(=O)O4)C3C(=O)c2ccccc2)oc(=O)c1"):
+        grammar = _reachability_grammar(prefix, tokens)
+        support = set(grammar._mass_reachable_token_ids(prefix, target))
+        assert {
+            token_id
+            for token_id in range(len(tokens))
+            if grammar.admits([], token_id, target)
+        } == support, prefix
+
+    # Without a target mass the answer follows the pure syntax support.
+    syntax = SafeGrammarMask(
+        tokens,
+        lambda _ids: "CC",
+        eos_token_id=2,
+        special_token_ids=(0, 1, 2, 3, 4),
+        mass_reachability_prune=True,
+    )
+    assert {
+        token_id for token_id in range(len(tokens)) if syntax.admits([], token_id)
+    } == set(syntax._valid_token_ids("CC"))
+
+
+def test_admits_refuses_everything_after_an_unresolved_hole():
+    tokens = ("[UNK]", "[CLS]", "[SEP]", "[PAD]", "[MASK]", "C")
+    grammar = SafeGrammarMask(
+        tokens,
+        lambda _ids: "C",
+        eos_token_id=2,
+        mask_token_id=4,
+        special_token_ids=(0, 1, 2, 3, 4),
+    )
+
+    assert grammar.admits([5], 5)
+    assert not grammar.admits([4, 5], 5)
+
+
 def _syntax_grammar(prefix: str, tokens: tuple[str, ...]) -> SafeGrammarMask:
     return SafeGrammarMask(
         tokens,

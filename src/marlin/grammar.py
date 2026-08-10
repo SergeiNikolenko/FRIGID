@@ -1017,6 +1017,28 @@ class SafeGrammarMask:
                 return True
         return False
 
+    def _token_is_valid(
+        self,
+        prefix: str,
+        state: _GrammarState,
+        base: _ScanBase,
+        token_id: int,
+    ) -> bool:
+        """Report whether ``token_id`` is in the lexical support of ``prefix``."""
+        if token_id == self.eos_token_id:
+            return state.terminal
+        if token_id in self._blocked_token_ids:
+            return False
+        token = self.token_strings[token_id]
+        completed = _scan_continuation(base, token)
+        if completed is None:
+            return False
+        if completed.incomplete_token:
+            # Lexical SAFE support excludes partial tokens the vocabulary cannot
+            # finish; admitting them creates unreachable dead ends.
+            return self._has_syntactic_completion(prefix + token)
+        return True
+
     @lru_cache(maxsize=32_768)
     def _valid_token_ids(self, prefix: str) -> tuple[int, ...]:
         state = _scan(prefix)
@@ -1025,25 +1047,52 @@ class SafeGrammarMask:
         # A prefix that scans always has a base; only its deferred tail can fail.
         base = _scan_base(prefix)
         assert base is not None
-        valid_ids = []
-        for token_id, token in enumerate(self.token_strings):
-            if token_id == self.eos_token_id:
-                valid = state.terminal
-            elif token_id in self._blocked_token_ids:
-                valid = False
-            else:
-                completed = _scan_continuation(base, token)
-                if completed is None:
-                    valid = False
-                elif completed.incomplete_token:
-                    # Lexical SAFE support excludes partial tokens the vocabulary
-                    # cannot finish; admitting them creates unreachable dead ends.
-                    valid = self._has_syntactic_completion(prefix + token)
-                else:
-                    valid = True
-            if valid:
-                valid_ids.append(token_id)
-        return tuple(valid_ids)
+        return tuple(
+            token_id
+            for token_id in range(len(self.token_strings))
+            if self._token_is_valid(prefix, state, base, token_id)
+        )
+
+    def _token_is_mass_reachable(
+        self,
+        prefix: str,
+        state: _GrammarState,
+        base: _ScanBase,
+        token_id: int,
+        target_mass: float,
+        tolerance: float,
+    ) -> bool:
+        """Report whether ``token_id`` keeps ``target_mass`` reachable."""
+        if token_id == self.eos_token_id:
+            return state.terminal and _has_hydrogen_only_exact_mass(
+                state, target_mass, self.valence_slack, tolerance
+            )
+        if token_id in self._blocked_token_ids:
+            return False
+        token = self.token_strings[token_id]
+        text = prefix + token
+        token_base = _extend_base(base, token)
+        completed = None if token_base is None else _scan_continuation(token_base, "")
+        if completed is None:
+            return False
+        if completed.incomplete_token:
+            return _has_vocabulary_completion(
+                text,
+                self.token_strings,
+                target_mass,
+                self.valence_slack,
+                tolerance,
+            )
+        return _has_reachable_exact_mass(
+            completed, target_mass, self.valence_slack, tolerance
+        ) and _has_structurally_viable_continuation(
+            text,
+            completed,
+            target_mass,
+            self.valence_slack,
+            tolerance,
+            token_base,
+        )
 
     @lru_cache(maxsize=32_768)
     def _mass_reachable_token_ids(
@@ -1056,44 +1105,45 @@ class SafeGrammarMask:
         base = _scan_base(prefix)
         assert base is not None
         tolerance = self.ppm_tolerance * 1e-6 * target_mass
-        valid_ids = []
-        for token_id, token in enumerate(self.token_strings):
-            if token_id == self.eos_token_id:
-                valid = state.terminal and _has_hydrogen_only_exact_mass(
-                    state, target_mass, self.valence_slack, tolerance
-                )
-            elif token_id in self._blocked_token_ids:
-                valid = False
-            else:
-                text = prefix + token
-                token_base = _extend_base(base, token)
-                completed = (
-                    None if token_base is None else _scan_continuation(token_base, "")
-                )
-                if completed is None:
-                    valid = False
-                elif completed.incomplete_token:
-                    valid = _has_vocabulary_completion(
-                        text,
-                        self.token_strings,
-                        target_mass,
-                        self.valence_slack,
-                        tolerance,
-                    )
-                else:
-                    valid = _has_reachable_exact_mass(
-                        completed, target_mass, self.valence_slack, tolerance
-                    ) and _has_structurally_viable_continuation(
-                        text,
-                        completed,
-                        target_mass,
-                        self.valence_slack,
-                        tolerance,
-                        token_base,
-                    )
-            if valid:
-                valid_ids.append(token_id)
-        return tuple(valid_ids)
+        return tuple(
+            token_id
+            for token_id in range(len(self.token_strings))
+            if self._token_is_mass_reachable(
+                prefix, state, base, token_id, target_mass, tolerance
+            )
+        )
+
+    def admits(
+        self,
+        prefix_ids: Sequence[int],
+        token_id: int,
+        target_mass: float | None = None,
+    ) -> bool:
+        """Report whether one token is in the support ``__call__`` would leave.
+
+        Asking about a single token instead of building the whole support is what
+        makes a token-by-token walk of every gold answer affordable, which is the
+        acceptance gate for any change to this mask
+        (``scripts/audit_marlin_gold_mask_walk.py``).
+        """
+        if self.mask_token_id is not None and self.mask_token_id in prefix_ids:
+            return False
+        prefix = self.decode_prefix(prefix_ids)
+        state = _scan(prefix)
+        if state is None:
+            return False
+        base = _scan_base(prefix)
+        assert base is not None
+        if self.mass_reachability_prune and target_mass is not None:
+            return self._token_is_mass_reachable(
+                prefix,
+                state,
+                base,
+                token_id,
+                target_mass,
+                self.ppm_tolerance * 1e-6 * target_mass,
+            )
+        return self._token_is_valid(prefix, state, base, token_id)
 
     def __call__(
         self,
