@@ -45,3 +45,31 @@
 - Judge progress with molecular generation metrics (validity, uniqueness,
   candidate return rate, mass validity, and structure similarity), not loss
   alone.
+
+## Evaluation panels
+
+- Do not make decisions on the 32-spectrum micro panel. Its floor is one molecule
+  in 32, so `Exact@1` cannot resolve anything below 3.1%, and it swings by up to
+  0.12 between neighbouring checkpoints. Several published-then-withdrawn readings
+  in `docs/MARLIN_STATUS_REPORT.md` came from reading that noise as signal.
+- Evaluate on a full split. `scripts/evaluate_marlin_sharded.sh` shards by spectrum
+  across cores; the constrained decoder is CPU bound, not GPU bound, so this is
+  close to linear in core count. The 803-spectrum locked test split at 8 candidates
+  takes about 1.1 h on 16 shards against about 17 h in one process.
+- Pin one BLAS thread per worker (`OMP_NUM_THREADS=1` and friends). Sixteen torch
+  processes each defaulting to all 24 cores drove the load average to 86 and ran
+  slower than serial.
+- Keep the split fixed and treat the candidate budget as the ladder: spectra count
+  is what makes a number comparable, budget only moves it along a measurable curve.
+  Label every result with its actual budget, never with the budget requested when
+  a per-spectrum time cap truncated it.
+- Report a metric with its denominator. `Exact@k` averages over all spectra; the
+  paper averages Tanimoto and MCES over spectra that produced a candidate, while
+  FRIGID's own report averages them over all spectra. Use
+  `scripts/score_frigid_convention.py` when comparing against FRIGID's report.
+- The periodic evaluation during training should use a full validation split, not
+  the micro panel. At about 30 min per checkpoint sharded, a real held-out signal
+  is affordable, and without one the recipe has no early stopping and no
+  checkpoint selection: the run's own evaluation reported a flat `Exact@1` while a
+  matched offline re-evaluation showed candidate return peaking at step 20,000 and
+  halving by 50,000.

@@ -352,6 +352,35 @@ This run also exercised the new per-spectrum time budget at 900 s: `truncated_sp
 is 0, so the cap never bound on this checkpoint, and `attempts_total` is exactly
 32 x 8 = 256.
 
+## The evaluation was CPU bound all along
+
+The decoder was treated as a GPU workload for three weeks. It is not. During a
+constrained decode a single worker sits at 99% of one core while the A100 shows 2%
+utilisation and 4 GB of 82 GB used: the grammar mask and the mass reachability search
+run on the host, and the model forward is a rounding error beside them.
+
+Sharding by spectrum across cores therefore buys close to linear speedup, and combined
+with the vocabulary restrictions it changes what is affordable:
+
+| 803-spectrum locked test split, 8 candidates | wall clock |
+| --- | ---: |
+| one process, before the vocabulary restrictions | about 3.5 days |
+| one process, after them | about 17 h |
+| 16 shards, after them | **1.1 h** |
+
+The restrictions give 4.87x and the sharding 16x, roughly 78x together. One worker per
+core with a single BLAS thread each is essential: sixteen torch processes defaulting to
+all 24 cores drove the load average to 86 and ran slower than serial.
+
+This retires the 32-spectrum micro panel, which existed only because a full split
+looked unaffordable. That false economy is responsible for a large share of this
+report's withdrawn claims: a panel whose floor is one molecule in 32 and which swings
+by up to 0.12 between neighbouring checkpoints cannot support the decisions that were
+made on it. It also removes the reason the recipe has no held-out signal — a full
+validation split costs about 30 min per checkpoint sharded, so early stopping and
+checkpoint selection become affordable. `scripts/evaluate_marlin_sharded.sh` is the
+driver and `AGENTS.md` records the rule.
+
 ## Withdrawn claims
 
 Four readings were published and then withdrawn against later measurement. They are
