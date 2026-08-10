@@ -3,19 +3,25 @@ from pathlib import Path
 
 import pytest
 import torch
+from rdkit import Chem
+from rdkit.Chem.Descriptors import ExactMolWt
 
 from marlin.grammar import (
     SafeGrammarMask,
     _GrammarState,
+    _HYDROGEN_MASS,
+    _has_hydrogen_only_exact_mass,
     _has_reachable_exact_mass,
     _has_structurally_viable_continuation,
     _has_vocabulary_completion,
     _has_mass_viable_atom_completion,
     _has_mass_viable_bracket_completion,
     _has_mass_viable_percent_completion,
+    _implicit_hydrogens,
     _scan,
     _scan_base,
     _scan_continuation,
+    _terminal_hydrogens,
 )
 from marlin.token_properties import foreign_element_token_ids, isotope_token_ids
 from marlin.tokenizer import load_safe_tokenizer
@@ -244,6 +250,112 @@ def test_safe_grammar_keeps_incomplete_bracket_and_bonded_ring_closure():
     )
 
 
+TERMINAL_HYDROGEN_CASES = (
+    # A thioether uses 2 of sulfur's [2, 4, 6], so it carries no hydrogen; a
+    # single maximum of 6 invented four, which is 4 Da against a 0.004 Da window.
+    "CSC",
+    "CSSC",
+    "CS",
+    "CS(=O)(=O)C",
+    "OP(=O)(O)O",
+    # Aromatic sulfur and oxygen: 2 x 1.5 = 3.0 accumulated, 2 after RDKit's
+    # fallback, so no hydrogen either.
+    "c1ccsc1",
+    "c1ccoc1",
+    "Cc1ccsc1",
+    "c1ccccc1",
+    "c1cc[nH]c1",
+    "Cn1cccc1",
+    "c1ccncc1",
+    "c1ccc2ccccc2c1",
+    # Bracket atoms hold exactly the hydrogens written between the brackets,
+    # whatever their charge.
+    "[O-]C(=O)C",
+    "C[N+](C)(C)C",
+    "C[N+](=O)[O-]",
+    "CC[N-]C",
+    "[C@@H](C)(N)C(=O)O",
+    "C[C]C",
+    "C[CH2]C",
+    # A real NPLIB1 target in SAFE, fragments and cross-fragment ring bonds.
+    "c13c[nH]c2ccccc12.NCC3",
+    "COc1cc(C2C3(O)C(O)C4CC2(O)C(O)(C(=O)O4)C3C(=O)c2ccccc2)oc(=O)c1",
+)
+
+
+@pytest.mark.parametrize("safe", TERMINAL_HYDROGEN_CASES)
+def test_terminal_hydrogen_count_matches_rdkit(safe):
+    # The terminal count is what decides whether EOS is allowed, so it has to be
+    # the count RDKit reads back rather than a valence upper bound.
+    state = _scan(safe)
+    molecule = Chem.MolFromSmiles(safe)
+
+    assert state is not None and state.terminal, safe
+    assert molecule is not None, safe
+    assert _terminal_hydrogens(state) == sum(
+        atom.GetTotalNumHs() for atom in molecule.GetAtoms()
+    ), safe
+
+
+@pytest.mark.parametrize("safe", TERMINAL_HYDROGEN_CASES)
+def test_terminal_gate_accepts_every_target_at_its_own_mass(safe):
+    molecule = Chem.MolFromSmiles(safe)
+    target_mass = ExactMolWt(molecule)
+
+    assert _has_hydrogen_only_exact_mass(
+        _scan(safe), target_mass, 4.0, 10e-6 * target_mass
+    ), safe
+
+
+def test_sulfur_takes_the_smallest_valence_that_covers_its_bonds():
+    # RDKit picks the first entry of [2, 4, 6] at or above the bond order used.
+    assert _implicit_hydrogens("S", 1.0) == 1
+    assert _implicit_hydrogens("S", 2.0) == 0
+    assert _implicit_hydrogens("S", 3.0) == 1
+    assert _implicit_hydrogens("S", 4.0) == 0
+    assert _implicit_hydrogens("S", 6.0) == 0
+    # Aromatic sulfur accumulates 3.0 from two aromatic bonds and falls back to
+    # 2, where the aliphatic reading of 3.0 would hand it a hydrogen.
+    assert _implicit_hydrogens("s", 3.0) == 0
+    assert _implicit_hydrogens("c", 3.0) == 1
+    assert _implicit_hydrogens("c", 4.5) == 0
+    assert _implicit_hydrogens("n", 3.0) == 0
+
+
+def test_bracket_atoms_hold_only_the_hydrogens_written_in_the_brackets():
+    # RDKit sets noImplicit on every bracket atom. This is why the charge never
+    # moves the count, and why "[CH2]" is not the CH3 a valence model would add.
+    assert _terminal_hydrogens(_scan("[O-]C(=O)C")) == 3
+    assert _terminal_hydrogens(_scan("C[N+](C)(C)C")) == 12
+    assert _terminal_hydrogens(_scan("CC[N-]C")) == 8
+    assert _terminal_hydrogens(_scan("C[C]C")) == 6
+    assert _terminal_hydrogens(_scan("C[CH2]C")) == 8
+    assert _scan("[O-]C(=O)C").bracket_atoms == {0}
+    assert _scan("CSC").bracket_atoms == set()
+
+
+def test_terminal_gate_admits_one_count_where_a_partial_state_admits_a_range():
+    # Propane is the only hydrogen count three sealed carbons can carry, but
+    # "CCC(" may still grow heavy atoms, so there the interval is all the gate
+    # can honestly assert.
+    terminal = _scan("CCC")
+    partial = _scan("CCC(")
+    heavy_mass = 3 * 12.0
+
+    def admitted(state):
+        return [
+            hydrogens
+            for hydrogens in range(12)
+            if _has_hydrogen_only_exact_mass(
+                state, heavy_mass + hydrogens * _HYDROGEN_MASS, 4.0, 5e-4
+            )
+        ]
+
+    assert terminal.terminal and not partial.terminal
+    assert admitted(terminal) == [8]
+    assert admitted(partial) == list(range(1, 9))
+
+
 def test_safe_grammar_treats_open_ring_atoms_as_active_hydrogen_sites():
     open_ring = _scan("C1CCCCC")
     closed_ring = _scan("C1CCCCC1")
@@ -392,7 +504,7 @@ def test_grammar_state_copy_shares_no_mutable_container():
     # Equality over the whole __dict__ catches a field the clone forgot to carry.
     assert vars(clone) == vars(state)
     for name, value in vars(clone).items():
-        if isinstance(value, (dict, list)):
+        if isinstance(value, (dict, list, set)):
             assert value is not getattr(state, name), name
     clone.atom_masses[99] = 1.0
     clone.branch_atoms.append(99)

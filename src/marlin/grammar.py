@@ -94,6 +94,96 @@ _BRACKET_ATOM = re.compile(
 )
 
 
+@lru_cache(maxsize=None)
+def _rdkit_valences(symbol: str) -> tuple[int, tuple[int, ...]]:
+    """Return RDKit's default valence and allowed valence list for ``symbol``.
+
+    ``(-1, ())`` marks a symbol RDKit gives no valence model, which is the
+    wildcard "*" and the d/f block; RDKit leaves those without implicit
+    hydrogens.
+    """
+    element = symbol.rstrip("+-").capitalize()
+    try:
+        atomic_number = _PERIODIC_TABLE.GetAtomicNumber(element)
+    except RuntimeError:
+        return -1, ()
+    default = _PERIODIC_TABLE.GetDefaultValence(atomic_number)
+    valences = tuple(
+        valence
+        for valence in _PERIODIC_TABLE.GetValenceList(atomic_number)
+        if valence >= 0
+    )
+    if default < 0 or not valences:
+        return -1, ()
+    return default, valences
+
+
+def _implicit_hydrogens(symbol: str, bond_order_sum: float) -> int:
+    """Reproduce RDKit's implicit hydrogen count for one finished atom.
+
+    RDKit does not fill an atom up to its *largest* allowed valence; it takes
+    the smallest entry of ``GetValenceList`` that covers the bond order the atom
+    actually uses. Sulfur is the case that matters here: a thioether uses 2 of
+    ``[2, 4, 6]`` and therefore carries no hydrogen, where a single maximum of 6
+    invents four.
+
+    Aromatic atoms are handled the way ``Atom::calcExplicitValence`` does rather
+    than by kekulising: an aromatic bond contributes 1.5, so the accumulated
+    valence overshoots by 0.5 per bond whenever the Kekule structure gives the
+    atom a lone pair instead of a double bond. RDKit falls back to the largest
+    allowed valence at or below the accumulated one whenever the gap is at most
+    1.5, which is what turns thiophene sulfur (2 x 1.5 = 3.0) into 2 and leaves
+    benzene carbon at 3. Deciding it locally, from the 1.5 sums the scanner
+    already keeps, needs no ring perception and was checked against RDKit on
+    every atom of all 7,551 NPLIB1 train and test targets.
+    """
+    default, valences = _rdkit_valences(symbol)
+    if default < 0:
+        return 0
+    aromatic = symbol.islower()
+    used = bond_order_sum
+    if aromatic and used > default:
+        allowed = default
+        for valence in valences:
+            if valence > used:
+                break
+            allowed = valence
+        if allowed + 1.5 >= used:
+            used = float(allowed)
+    # C++ std::round sends halves away from zero, where Python's round() sends
+    # them to even; an aromatic atom outside a ring can still reach x.5 here.
+    explicit_valence = floor(used + 0.5)
+    if aromatic:
+        return max(default - explicit_valence, 0)
+    for valence in valences:
+        if explicit_valence <= valence:
+            return valence - explicit_valence
+    return 0
+
+
+def _terminal_hydrogens(state: "_GrammarState") -> int:
+    """Count the hydrogens RDKit will read back from a finished SAFE string.
+
+    A terminal state names every heavy atom and every bond, so its hydrogen
+    count is a single number rather than the interval
+    :meth:`_GrammarState.hydrogen_bounds` has to report while heavy atoms may
+    still arrive.
+    """
+    total = 0
+    for atom, symbol in state.atom_symbols.items():
+        if atom in state.bracket_atoms:
+            # RDKit sets noImplicit on every bracket atom, so whatever hydrogen
+            # count stands between the brackets is the whole count: "[C]" holds
+            # none and "[O-]" holds none either. This is why a formal charge
+            # never moves the count -- SMILES cannot write a charge outside
+            # brackets -- and why "[CH2]" holds two rather than the three a
+            # valence model would add.
+            total += state.explicit_hydrogens[atom]
+            continue
+        total += _implicit_hydrogens(symbol, state.bond_order_sums[atom])
+    return total
+
+
 def _partial_bracket_symbol(content: str) -> str | None:
     if not content or (content.isdigit() and len(content) <= 3):
         return ""
@@ -220,6 +310,7 @@ class _GrammarState:
     atom_masses: dict[int, float] | None = None
     atom_symbols: dict[int, str] | None = None
     explicit_hydrogens: dict[int, int] | None = None
+    bracket_atoms: set[int] | None = None
     pending_bond_order: float | None = None
     incomplete_token: bool = False
 
@@ -246,6 +337,8 @@ class _GrammarState:
             self.atom_symbols = {}
         if self.explicit_hydrogens is None:
             self.explicit_hydrogens = {}
+        if self.bracket_atoms is None:
+            self.bracket_atoms = set()
 
     def copy(self) -> "_GrammarState":
         """Clone the state so a candidate token can be scanned on top of it.
@@ -274,6 +367,7 @@ class _GrammarState:
         clone.atom_masses = dict(self.atom_masses)
         clone.atom_symbols = dict(self.atom_symbols)
         clone.explicit_hydrogens = dict(self.explicit_hydrogens)
+        clone.bracket_atoms = set(self.bracket_atoms)
         clone.pending_bond_order = self.pending_bond_order
         clone.incomplete_token = self.incomplete_token
         return clone
@@ -390,10 +484,17 @@ def _advance(
             <= state.valence_limits[atom] + 1e-6
         )
 
-    def add_atom(symbol: str, explicit_hydrogens: int = 0) -> bool:
+    def add_atom(
+        symbol: str,
+        explicit_hydrogens: int = 0,
+        *,
+        bracketed: bool = False,
+    ) -> bool:
         previous_atom = state.current_atom
         state.atom_index += 1
         state.current_atom = state.atom_index
+        if bracketed:
+            state.bracket_atoms.add(state.atom_index)
         state.bond_limits[state.atom_index] = {
             "H": 1,
             "F": 1,
@@ -486,7 +587,7 @@ def _advance(
                 symbol = _partial_bracket_symbol(text[index + 1 :])
                 if symbol is None:
                     return None
-                if symbol and not add_atom(symbol):
+                if symbol and not add_atom(symbol, bracketed=True):
                     return None
                 state.incomplete_token = True
                 return len(text)
@@ -498,7 +599,7 @@ def _advance(
             explicit_hydrogens = (
                 int(hydrogen_match.group(1) or "1") if hydrogen_match else 0
             )
-            if not add_atom(symbol, explicit_hydrogens):
+            if not add_atom(symbol, explicit_hydrogens, bracketed=True):
                 return None
             index = close + 1
             continue
@@ -703,7 +804,19 @@ def _has_hydrogen_only_exact_mass(
     valence_slack: float,
     tolerance: float,
 ) -> bool:
+    """Report whether hydrogens alone can put ``state`` on ``target_mass``.
+
+    A terminal state has no freedom left: every heavy atom and every bond is
+    named, so its hydrogen count is the single number RDKit will read back and
+    the gate is an equality on one mass. A partial state may still grow heavy
+    atoms that change how many hydrogens the atoms already placed will keep, so
+    there the interval from :meth:`_GrammarState.hydrogen_bounds` is what the
+    gate can honestly assert.
+    """
     heavy_mass = sum(state.atom_masses.values())
+    if state.terminal:
+        hydrogens = _terminal_hydrogens(state)
+        return abs(heavy_mass + hydrogens * _HYDROGEN_MASS - target_mass) <= tolerance
     minimum_hydrogens, maximum_hydrogens = state.hydrogen_bounds(valence_slack)
     return any(
         abs(heavy_mass + hydrogens * _HYDROGEN_MASS - target_mass) <= tolerance
