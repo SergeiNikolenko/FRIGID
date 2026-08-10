@@ -8,6 +8,7 @@ from marlin.benchmark_selection import (
     hash_spec_names,
     load_spec_manifest,
     select_metadata,
+    write_interleaved_shard_manifests,
 )
 from scripts.compare_marlin_benchmark_runs import (
     compare_runs,
@@ -99,3 +100,30 @@ def test_signature_contract_rejects_changed_generation_budget(
 
     with pytest.raises(ValueError, match="settings mismatch"):
         validate_signatures(tmp_path / "reference", tmp_path / "candidate")
+
+
+def test_shard_manifests_partition_the_panel(tmp_path: Path) -> None:
+    manifest = tmp_path / "panel.tsv"
+    names = [f"spec{index}" for index in range(10)]
+    manifest.write_text(
+        "spec_name\tpanel\n" + "".join(f"{name}\tfull\n" for name in names)
+    )
+
+    shards = write_interleaved_shard_manifests(manifest, tmp_path / "shards", 3)
+
+    loaded = [load_spec_manifest(path) for path in shards]
+    assert len(shards) == 3
+    assert [name for shard in loaded for name in shard] != names  # interleaved
+    assert sorted(name for shard in loaded for name in shard) == sorted(names)
+    assert loaded[0] == ["spec0", "spec3", "spec6", "spec9"]
+    assert shards[0].read_text().splitlines()[0] == "spec_name\tpanel"
+
+
+def test_shard_manifests_reject_more_shards_than_spectra(tmp_path: Path) -> None:
+    manifest = tmp_path / "panel.tsv"
+    manifest.write_text("spec_name\na\nb\n")
+
+    with pytest.raises(ValueError, match="cannot split"):
+        write_interleaved_shard_manifests(manifest, tmp_path / "shards", 3)
+    with pytest.raises(ValueError, match="at least 1"):
+        write_interleaved_shard_manifests(manifest, tmp_path / "shards", 0)

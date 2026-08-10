@@ -23,6 +23,7 @@ import torch
 from clearml import Task
 from omegaconf import OmegaConf
 
+from marlin.checkpoint_selection import CheckpointSelector
 from marlin.clearml_metrics import ClearMLTrainingMetrics
 from marlin.model import MarlinDecoderConfig
 from marlin.periodic_evaluation import PeriodicMolecularEvaluation
@@ -31,6 +32,9 @@ from marlin.training import (
     MarlinCollator,
     MarlinLightningModule,
     MarlinSpectrumFingerprintDataset,
+    PeriodicHeldOutLoss,
+    holdout_split_report,
+    structure_disjoint_holdout,
 )
 from marlin.warm_start import load_marlin_decoder_weights, sha256_file
 
@@ -63,7 +67,13 @@ def parse_args() -> argparse.Namespace:
         "--evaluation-manifest",
         type=Path,
         default=PROJECT_ROOT
-        / "configs/benchmarks/nplib1_v1/nplib1_val_micro32_v1.tsv",
+        / "configs/benchmarks/nplib1_v1/nplib1_val_full396_v1.tsv",
+        help=(
+            "held-out molecular panel. The 32-spectrum micro panel is retired: "
+            "its floor is one molecule in 32 and it swings by up to 0.12 between "
+            "neighbouring checkpoints, which is where several withdrawn claims "
+            "in docs/MARLIN_STATUS_REPORT.md came from"
+        ),
     )
     parser.add_argument(
         "--validation-fingerprint-threshold",
@@ -74,8 +84,75 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-steps", type=int, default=100)
     parser.add_argument("--evaluation-interval", type=int, default=100)
     parser.add_argument("--checkpoint-interval", type=int, default=100)
-    parser.add_argument("--evaluation-spectra", type=int, default=32)
-    parser.add_argument("--evaluation-candidates", type=int, default=16)
+    parser.add_argument("--evaluation-spectra", type=int, default=396)
+    parser.add_argument(
+        "--evaluation-candidates",
+        type=int,
+        default=8,
+        help=(
+            "screening budget per spectrum; 8 is what the sharded cost figures "
+            "in docs/MARLIN_STATUS_REPORT.md were measured at"
+        ),
+    )
+    parser.add_argument(
+        "--evaluation-shards",
+        type=int,
+        default=16,
+        help=(
+            "split the panel across this many single-core evaluator processes. "
+            "The constrained decoder is CPU bound, so 16 shards take the "
+            "803-spectrum split from about 17 h to about 1.1 h; 1 restores the "
+            "single-process path"
+        ),
+    )
+    parser.add_argument(
+        "--validation-loss-fraction",
+        type=float,
+        default=0.0,
+        help=(
+            "hold out this fraction of the adaptation structures from the "
+            "optimizer and log the masked-diffusion objective on them at every "
+            "evaluation interval; 0 disables the held-out loss"
+        ),
+    )
+    parser.add_argument(
+        "--validation-loss-split-seed",
+        type=int,
+        default=0,
+        help=(
+            "seed of the structure hash that carves the held-out slice. Kept "
+            "separate from --seed so a multi-seed protocol scores every seed on "
+            "the same held-out molecules"
+        ),
+    )
+    parser.add_argument(
+        "--select-best-checkpoint",
+        action="store_true",
+        help=(
+            "record the best checkpoint on the held-out molecular panel and "
+            "enable early stopping; without it a run keeps its historical "
+            "behaviour of no selection signal at all"
+        ),
+    )
+    parser.add_argument(
+        "--selection-metric",
+        default="candidate_return_rate",
+        help=(
+            "held-out metric that drives selection. Exact@k is refused: it was "
+            "flat at 0.0312 from step 20,000 to 70,000 while candidate return, "
+            "uniqueness and mass validity all halved"
+        ),
+    )
+    parser.add_argument(
+        "--selection-patience",
+        type=int,
+        default=0,
+        help=(
+            "stop after this many periodic evaluations without improvement; "
+            "0 records the best checkpoint but never stops"
+        ),
+    )
+    parser.add_argument("--selection-min-delta", type=float, default=0.0)
     parser.add_argument("--batch-size", type=int, default=8)
     parser.add_argument("--accumulate-grad-batches", type=int, default=32)
     parser.add_argument("--num-workers", type=int, default=4)
@@ -182,8 +259,8 @@ def _clearml_task(args: argparse.Namespace, config: dict) -> Task:
     return task
 
 
-def main() -> None:
-    args = parse_args()
+def validate_args(args: argparse.Namespace) -> None:
+    """Reject configurations before any weights or datasets are touched."""
     if min(
         args.max_steps,
         args.evaluation_interval,
@@ -198,6 +275,31 @@ def main() -> None:
         raise ValueError("noise probability must be in [0, 1]")
     if not 0.0 <= args.noise_min_fraction <= args.noise_max_fraction <= 1.0:
         raise ValueError("noise fractions must satisfy 0 <= min <= max <= 1")
+    if args.evaluation_shards < 1:
+        raise ValueError("--evaluation-shards must be at least 1")
+    if args.evaluation_spectra > 128 and args.evaluation_shards < 2:
+        raise ValueError(
+            "a full validation panel needs sharding: at one process the "
+            f"{args.evaluation_spectra}-spectrum panel does not fit an "
+            "evaluation interval; pass --evaluation-shards"
+        )
+    if not 0.0 <= args.validation_loss_fraction < 0.5:
+        raise ValueError("--validation-loss-fraction must be in [0, 0.5)")
+    if args.selection_patience < 0:
+        raise ValueError("--selection-patience must be non-negative")
+    if args.select_best_checkpoint:
+        # Reject an unusable selection metric here rather than inside the
+        # callback, which is built after the run directory and the ClearML task.
+        CheckpointSelector(
+            metric=args.selection_metric,
+            patience=args.selection_patience,
+            min_delta=args.selection_min_delta,
+        )
+
+
+def main() -> None:
+    args = parse_args()
+    validate_args(args)
     if args.output_dir.exists():
         raise FileExistsError(f"output directory already exists: {args.output_dir}")
     observed_checkpoint_sha256 = _sha256(args.checkpoint)
@@ -244,19 +346,48 @@ def main() -> None:
         exclude_metadata_csvs=tuple(args.exclude_metadata),
         preserve_probabilities=args.soft_fingerprint,
     )
+    collator = MarlinCollator(
+        tokenizer,
+        max_length=decoder_config.max_length,
+        fingerprint_bits=decoder_config.fingerprint_bits,
+        exclude_inchikeys=args.exclude_inchikeys,
+        allow_soft_fingerprints=args.soft_fingerprint,
+    )
+    # The held-out slice is carved out of the adaptation set by connectivity
+    # block, not out of the validation split: the validation split is exactly the
+    # 396-spectrum molecular panel, so a loss measured on it would consume the
+    # panel it is supposed to complement.
+    train_indices, holdout_indices = structure_disjoint_holdout(
+        dataset.rows,
+        fraction=args.validation_loss_fraction,
+        seed=args.validation_loss_split_seed,
+    )
+    holdout_report = holdout_split_report(
+        dataset.rows, train_indices, holdout_indices
+    )
+    train_dataset = (
+        dataset
+        if not holdout_indices
+        else torch.utils.data.Subset(dataset, train_indices)
+    )
     loader = torch.utils.data.DataLoader(
-        dataset,
+        train_dataset,
         batch_size=args.batch_size,
         shuffle=True,
         num_workers=args.num_workers,
         pin_memory=True,
-        collate_fn=MarlinCollator(
-            tokenizer,
-            max_length=decoder_config.max_length,
-            fingerprint_bits=decoder_config.fingerprint_bits,
-            exclude_inchikeys=args.exclude_inchikeys,
-            allow_soft_fingerprints=args.soft_fingerprint,
-        ),
+        collate_fn=collator,
+    )
+    holdout_loader = (
+        torch.utils.data.DataLoader(
+            torch.utils.data.Subset(dataset, holdout_indices),
+            batch_size=args.batch_size,
+            shuffle=False,
+            num_workers=0,
+            collate_fn=collator,
+        )
+        if holdout_indices
+        else None
     )
 
     module = MarlinLightningModule(
@@ -303,6 +434,15 @@ def main() -> None:
             "equal_drop_add": True,
         },
         "global_batch_size": args.batch_size * args.accumulate_grad_batches,
+        "held_out_loss": {
+            "enabled": bool(holdout_indices),
+            "fraction": args.validation_loss_fraction,
+            "split_seed": args.validation_loss_split_seed,
+            "split_key": "inchikey_first_block",
+            "source": "adaptation set, not the molecular validation panel",
+            "fingerprint_corruption": False,
+            **holdout_report,
+        },
         "evaluation": {
             "metadata": str(args.validation_metadata),
             "fingerprints": str(args.validation_fingerprints),
@@ -311,8 +451,15 @@ def main() -> None:
             "spec_manifest": str(args.evaluation_manifest),
             "max_spectra": args.evaluation_spectra,
             "candidates": args.evaluation_candidates,
+            "shards": args.evaluation_shards,
             "sample_tokens": True,
             "soft_fingerprint": args.soft_fingerprint,
+            "selection": {
+                "enabled": bool(args.select_best_checkpoint),
+                "metric": args.selection_metric,
+                "patience": args.selection_patience,
+                "min_delta": args.selection_min_delta,
+            },
         },
     }
     manifest = {
@@ -357,6 +504,13 @@ def main() -> None:
                 "lane": "dreams",
                 "max_spectra": args.evaluation_spectra,
                 "candidates": args.evaluation_candidates,
+                "shards": args.evaluation_shards,
+                "selection": {
+                    "enabled": bool(args.select_best_checkpoint),
+                    "metric": args.selection_metric,
+                    "patience": args.selection_patience,
+                    "min_delta": args.selection_min_delta,
+                },
                 "diversity_dropout": 0.3,
                 "temperature": 1.0,
                 "sample_tokens": True,
@@ -391,6 +545,28 @@ def main() -> None:
         # or fall back to.
         save_top_k=-1,
     )
+    callbacks = [checkpoint_callback]
+    if holdout_loader is not None:
+        # Before the molecular panel, so the cheap held-out signal is logged even
+        # when the panel is still running or fails.
+        callbacks.append(
+            PeriodicHeldOutLoss(
+                holdout_loader,
+                interval_steps=args.evaluation_interval,
+                seed=args.validation_loss_split_seed,
+                clearml_task=clearml_task,
+            )
+        )
+    callbacks.extend(
+        [
+            PeriodicMolecularEvaluation(
+                config,
+                project_root=PROJECT_ROOT,
+                clearml_task=clearml_task,
+            ),
+            ClearMLTrainingMetrics(clearml_task),
+        ]
+    )
     trainer = L.Trainer(
         accelerator="gpu",
         devices=1,
@@ -399,15 +575,7 @@ def main() -> None:
         accumulate_grad_batches=args.accumulate_grad_batches,
         gradient_clip_val=1.0,
         log_every_n_steps=25,
-        callbacks=[
-            checkpoint_callback,
-            PeriodicMolecularEvaluation(
-                config,
-                project_root=PROJECT_ROOT,
-                clearml_task=clearml_task,
-            ),
-            ClearMLTrainingMetrics(clearml_task),
-        ],
+        callbacks=callbacks,
         default_root_dir=args.output_dir,
     )
     try:

@@ -3,9 +3,28 @@
 ## Objective
 
 Obtain reproducible non-zero Exact@1 and Exact@10 on structure-disjoint NPLIB1
-validation using spectrum-derived DreaMS fingerprints and precursor mass. The
-locked 803-spectrum test remains unused until the recipe passes validation
-with at least three seeds.
+validation using spectrum-derived DreaMS fingerprints and precursor mass.
+
+The locked 803-spectrum test split is reserved for final confirmation only. It is
+not a search surface: no recipe, hyperparameter, threshold, panel or checkpoint
+may be chosen against it, and every intermediate decision belongs on the
+396-spectrum validation panel.
+
+**It has already been consumed once, and this is recorded rather than hidden.**
+The step=100000 checkpoint of the FRIGID warm-start run was evaluated on the full
+locked split at 8 candidates, seed 42, with the mass prune and both vocabulary
+restrictions, returning `Exact@1 = 2.74%` and `Exact@10 = 3.24%`
+(`docs/MARLIN_STATUS_REPORT.md`). That measurement stands as the reproduction's
+headline number. Because the checkpoint that produced it was itself picked
+without a held-out selection signal, the split has paid for one arbitrary draw;
+any further use must be a pre-declared confirmation of a recipe already settled
+on validation, and must be added to the ledger below.
+
+### Locked test split usage ledger
+
+| date | checkpoint | candidates | seed | result | authorization |
+| --- | --- | ---: | ---: | --- | --- |
+| 10 August 2026 | FRIGID warm start, step=100000 | 8 | 42 | `Exact@1 2.74%`, `Exact@10 3.24%` | first and so far only use |
 
 ## Mechanistic baseline
 
@@ -28,20 +47,83 @@ between training fingerprints and predicted DreaMS fingerprints.
 
 ## Fixed search contract
 
-- early panel: `nplib1_val_micro32_v1.tsv`;
-- confirmation panels: nested micro64 and molecule-disjoint macro64;
+- search panel: `nplib1_val_full396_v1.tsv`, the whole validation split, sharded
+  across cores;
+- confirmation: the same 396 spectra at a higher candidate budget, on at least
+  three fixed seeds;
+- final confirmation: the locked 803-spectrum test split, once, on a recipe that
+  is already settled;
 - fingerprint input: DreaMS `probs`, threshold 0.95;
-- screening decoding: 16 candidates, seed 42, grammar and mass shell on;
-- paper-comparable confirmation: 384 candidates per spectrum, matching the
-  paper, on at least three fixed seeds;
+- screening decoding: 8 candidates, seed 42, grammar mask, mass shell, mass
+  reachability prune, isotope-token ban and CHNOPS-plus-halogen restriction;
+- paper-comparable confirmation: 384 candidates per spectrum, matching the paper;
 - final metrics: Exact@1 and Exact@10;
-- search metric while Exact is zero: lexicographic validity, mass-valid
-  decoding, strict candidate return, then Exact.
+- selection metric during a run: candidate return rate. Never Exact@k.
 
-The 16-candidate lane is only a technical/futility screen. It cannot establish
-an incumbent or be compared with the paper's 384-decode Top-1/Top-10 results.
-Promotion requires the unchanged paper-comparable inference settings:
-block width 8, 10 ppm mass acceptance, and conditioning-diversity dropout 0.3.
+The 32-spectrum micro panel is retired and must not be used for any decision. Its
+floor is one molecule in 32, it swings by up to 0.12 between neighbouring
+checkpoints, and several claims in `docs/MARLIN_STATUS_REPORT.md` were published
+and then withdrawn because that noise was read as signal. It existed only because
+a full split looked unaffordable, which is no longer true: the constrained decoder
+is CPU bound, so `scripts/evaluate_marlin_sharded.sh` and the periodic evaluation
+split a panel across cores at close to linear speedup. The 803-spectrum split at 8
+candidates takes about 1.1 h on 16 shards against about 17 h in one process, which
+puts the 396-spectrum validation panel at roughly 30 min per checkpoint.
+
+Screening at 8 candidates replaces the earlier 16-candidate lane: 8 is the budget
+every sharded cost figure and every matched re-evaluation in the status report was
+measured at, so keeping it makes those numbers comparable. It remains a technical
+screen. It cannot establish an incumbent or be compared with the paper's
+384-decode Top-1/Top-10 results. Promotion requires the unchanged
+paper-comparable inference settings: block width 8, 10 ppm mass acceptance, and
+conditioning-diversity dropout 0.3.
+
+## Held-out signal during a run
+
+Before 11 August 2026 an adaptation run had no held-out signal it could act on: no
+validation loss, no early stopping, and a periodic panel of 32 spectra whose
+resolution floor sat above the effect being looked for. The 100,000-step
+warm-start run therefore reported a flat `Exact@1 = 0.0312` from step 30,000
+onward while a matched offline re-evaluation of the same checkpoints showed it
+degrading. Three metrics moved together:
+
+| matched re-evaluation | 20k | 30k | 40k | 50k | 60k | 70k |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| candidate return | **0.3438** | 0.2812 | 0.2188 | 0.1562 | 0.3125 | 0.1875 |
+| uniqueness | **0.3333** | 0.2634 | 0.1979 | 0.1354 | 0.2917 | 0.1523 |
+| mass validity | **0.2419** | 0.1594 | 0.1161 | 0.0987 | 0.1990 | 0.1542 |
+| Exact@1 | 0.0312 | 0.0312 | 0.0312 | 0.0312 | 0.0312 | 0.0312 |
+
+The contract is now:
+
+- **candidate return rate** drives checkpoint selection and early stopping. It
+  halved from its step-20,000 peak while `Exact@1` did not move at all, its
+  denominator is every spectrum on the panel, and it is the coverage failure the
+  status report identifies as the binding one. Uniqueness and mass validity are
+  admitted alternatives; `Exact@1` and `Exact@10` are refused in code, because at
+  396 spectra their resolution is still 0.25% and on 32 spectra they were flat
+  while the model degraded;
+- patience is configurable and defaults to 3 evaluations. On the trajectory above
+  a patience of 3 stops after step 50,000 and keeps step 20,000, which is where
+  the status report places the useful checkpoint;
+- a **validation loss** is logged at every evaluation interval: the same
+  masked-diffusion objective, on a structure-disjoint 5% slice of the adaptation
+  set carved by InChIKey connectivity block. It is taken from the adaptation set
+  rather than from the validation split because the validation split *is* the
+  396-spectrum molecular panel, and a loss measured there would consume the panel
+  it is meant to complement. The fingerprint is not corrupted and the mask
+  generator is re-seeded every pass, so consecutive checkpoints differ only by
+  their weights;
+- evaluation stays fail-soft. A failed shard or an unusable metric is recorded in
+  `periodic_molecular/step=<n>/failure.json` and never stops training, and a
+  partial panel is refused rather than scored, because it is not comparable with a
+  full one.
+
+The knobs are `--evaluation-shards`, `--validation-loss-fraction`,
+`--select-best-checkpoint`, `--selection-metric`, `--selection-patience` and
+`--selection-min-delta` on `scripts/train_marlin_spectrum_adaptation.py`. The best
+checkpoint and the full selection history are written to
+`<run>/selection/{best.ckpt,selection.json}`.
 
 Ground-truth and oracle fingerprints are permitted only in explicitly labelled
 diagnostics. They cannot establish an incumbent.
@@ -115,8 +197,12 @@ The numbered audit of this run and its predecessor is maintained in
    ranking or Exact sampling yet.
 3. If strict candidate return is non-zero, compare Tanimoto/formula recall and
    train the smallest attributable conditioning change.
-4. If Exact becomes non-zero, repeat unchanged on three seeds, then micro64 and
-   macro64. Only a stable candidate advances to full validation-396.
+4. If Exact becomes non-zero, repeat unchanged on three seeds on the
+   396-spectrum validation panel, then raise the candidate budget on the same
+   panel. The nested micro64 and macro64 escalation is retired with the micro
+   panel: a run now starts on the full validation split, so there is no smaller
+   panel to be promoted from. Only a recipe stable across those seeds may be
+   confirmed once on the locked 803-spectrum test split.
 
 The trusted autoresearch controller currently exposes only a CPU-isolated
 `bubblewrap` evaluator. It cannot serve as promotion authority for A100 model

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import asdict
 from pathlib import Path
 
@@ -283,6 +285,208 @@ class MarlinSpectrumFingerprintDataset(torch.utils.data.Dataset):
 
     def __getitem__(self, index: int) -> dict[str, object]:
         return self.rows[index]
+
+
+def _unit_hash(payload: str) -> float:
+    """Map a string to [0, 1) deterministically across processes and versions."""
+    digest = hashlib.sha256(payload.encode()).digest()[:8]
+    return int.from_bytes(digest, "big") / 2**64
+
+
+def structure_disjoint_holdout(
+    rows: Sequence[Mapping[str, object]],
+    *,
+    fraction: float,
+    seed: int = 0,
+    key: str = "inchikey_first_block",
+) -> tuple[list[int], list[int]]:
+    """Split dataset rows into training and held-out indices by structure.
+
+    The split is taken on the InChIKey connectivity block rather than on the row,
+    so every spectrum of one molecule lands on the same side and the held-out
+    slice shares no structure with what the optimizer sees. It is a hash of the
+    key rather than a shuffle, so it depends on neither row order, row count, nor
+    global RNG state: adding spectra moves no existing structure across the
+    boundary, and two runs with the same seed hold out the same molecules.
+
+    ``fraction = 0`` returns every row as training data and an empty held-out
+    slice, which is the historical behaviour.
+    """
+    if not 0.0 <= fraction < 1.0:
+        raise ValueError("held-out fraction must be in [0, 1)")
+    train_indices: list[int] = []
+    holdout_indices: list[int] = []
+    for index, row in enumerate(rows):
+        value = row.get(key)
+        if value is None or not str(value):
+            raise ValueError(f"row {index} has no {key} to split on")
+        if fraction > 0.0 and _unit_hash(f"{seed}:{value}") < fraction:
+            holdout_indices.append(index)
+        else:
+            train_indices.append(index)
+    if fraction > 0.0 and not holdout_indices:
+        raise ValueError(
+            f"held-out fraction {fraction} selected no structures from "
+            f"{len(rows)} rows"
+        )
+    if not train_indices:
+        raise ValueError(
+            f"held-out fraction {fraction} selected every structure; nothing "
+            "would be left to train on"
+        )
+    return train_indices, holdout_indices
+
+
+def holdout_split_report(
+    rows: Sequence[Mapping[str, object]],
+    train_indices: Iterable[int],
+    holdout_indices: Iterable[int],
+    *,
+    key: str = "inchikey_first_block",
+) -> dict[str, int]:
+    """Verify and describe the disjointness of a held-out split.
+
+    Raises rather than reporting a violation: a validation loss measured on a
+    structure the optimizer also sees is not held out, and a run must not be able
+    to record one as if it were.
+    """
+    training = list(train_indices)
+    holdout = list(holdout_indices)
+    train_keys = {str(rows[index][key]) for index in training}
+    holdout_keys = {str(rows[index][key]) for index in holdout}
+    shared = sorted(train_keys & holdout_keys)
+    if shared:
+        raise ValueError(
+            "held-out slice shares structures with training: "
+            + ", ".join(shared[:5])
+        )
+    return {
+        "training_rows": len(training),
+        "holdout_rows": len(holdout),
+        "training_structures": len(train_keys),
+        "holdout_structures": len(holdout_keys),
+        "shared_structures": 0,
+    }
+
+
+class PeriodicHeldOutLoss(L.Callback):
+    """Log the masked-diffusion objective on a structure-disjoint slice.
+
+    The recipe had no validation loss at all, so a run could only be judged by a
+    molecular panel that cost hours. This is the cheap half of the held-out
+    signal: the same objective as ``training_step``, with the same weighting, on
+    molecules the optimizer never sees.
+
+    Two deliberate differences from training make consecutive checkpoints
+    comparable:
+
+    - the fingerprint is not corrupted. Symmetric corruption is a training
+      augmentation, and inference conditions on the uncorrupted predicted
+      fingerprint, so corrupting here would inject variance into the signal;
+    - the masking generator is re-seeded at every pass, so every checkpoint is
+      scored on the same mask draws and only the weights differ.
+    """
+
+    def __init__(
+        self,
+        loader,
+        *,
+        interval_steps: int,
+        seed: int = 0,
+        max_batches: int | None = None,
+        clearml_task=None,
+        title: str = "Held-out loss",
+    ) -> None:
+        super().__init__()
+        if interval_steps <= 0:
+            raise ValueError("held-out loss interval must be positive")
+        if max_batches is not None and max_batches <= 0:
+            raise ValueError("held-out loss max_batches must be positive")
+        self.loader = loader
+        self.interval_steps = interval_steps
+        self.seed = seed
+        self.max_batches = max_batches
+        self.clearml_task = clearml_task
+        self.title = title
+        self._last_step = -1
+
+    def evaluate(self, pl_module) -> dict[str, float]:
+        was_training = pl_module.training
+        pl_module.eval()
+        device = pl_module.device
+        generator = torch.Generator(device=device).manual_seed(self.seed)
+        totals: dict[str, float] = {}
+        batches = 0
+        try:
+            with torch.no_grad():
+                for index, batch in enumerate(self.loader):
+                    if self.max_batches is not None and index >= self.max_batches:
+                        break
+                    batch = {
+                        name: value.to(device) for name, value in batch.items()
+                    }
+                    loss, metrics = pl_module.decoder.diffusion_objective(
+                        batch["input_ids"],
+                        batch["precursor_mass"],
+                        batch["fingerprint"],
+                        isotope_ratios=batch["isotope_ratios"],
+                        generator=generator,
+                        eos_loss_weight=pl_module.eos_loss_weight,
+                        eos_mask_probability=pl_module.eos_mask_probability,
+                        balanced_token_loss_alpha=(
+                            pl_module.balanced_token_loss_alpha
+                        ),
+                        token_loss_weight_max=pl_module.token_loss_weight_max,
+                        full_sequence_mask_probability=(
+                            pl_module.full_sequence_mask_probability
+                        ),
+                        collect_metrics=True,
+                    )
+                    batches += 1
+                    totals["loss"] = totals.get("loss", 0.0) + float(loss)
+                    for name, value in metrics.items():
+                        totals[name] = totals.get(name, 0.0) + float(value)
+        finally:
+            pl_module.train(was_training)
+        if not batches:
+            raise ValueError("held-out loader produced no batches")
+        return {name: value / batches for name, value in totals.items()}
+
+    def _report(self, step: int, values: dict[str, float]) -> None:
+        if self.clearml_task is None:
+            return
+        logger = self.clearml_task.get_logger()
+        for name, value in values.items():
+            logger.report_scalar(
+                title=self.title,
+                series=f"val_{name}",
+                value=value,
+                iteration=step,
+            )
+
+    def on_train_batch_end(
+        self,
+        trainer,
+        pl_module,
+        outputs,
+        batch,
+        batch_idx,
+    ) -> None:
+        del outputs, batch, batch_idx
+        step = int(trainer.global_step)
+        if step <= 0 or step % self.interval_steps or step == self._last_step:
+            return
+        self._last_step = step
+        values = self.evaluate(pl_module)
+        for name, value in values.items():
+            pl_module.log(f"val_{name}", value, on_step=True, sync_dist=False)
+        print(
+            f"Held-out masked-diffusion loss at step {step}: "
+            f"{values['loss']:.6f}",
+            flush=True,
+        )
+        if trainer.is_global_zero:
+            self._report(step, values)
 
 
 class MarlinLightningModule(L.LightningModule):

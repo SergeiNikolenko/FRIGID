@@ -37,6 +37,42 @@ def load_spec_manifest(path: str | Path) -> list[str]:
     return names
 
 
+def write_interleaved_shard_manifests(
+    manifest: str | Path,
+    output_dir: str | Path,
+    shards: int,
+) -> list[Path]:
+    """Split a panel manifest into ``shards`` interleaved manifests.
+
+    Interleaved rather than contiguous, so no single shard inherits the whole
+    runtime tail: decode time grows with molecular size and the panels are
+    ordered by a stable selection order, not by mass. The union of the shards is
+    the panel, and every row keeps its original text.
+    """
+    if shards < 1:
+        raise ValueError("shard count must be at least 1")
+    manifest_path = Path(manifest).expanduser().resolve()
+    names = load_spec_manifest(manifest_path)
+    if shards > len(names):
+        raise ValueError(
+            f"cannot split a {len(names)}-spectrum panel into {shards} shards"
+        )
+    lines = manifest_path.read_text().splitlines()
+    header, rows = lines[0], [line for line in lines[1:] if line.strip()]
+    if len(rows) != len(names):
+        raise ValueError(
+            f"manifest row count {len(rows)} does not match {len(names)} spec names"
+        )
+    directory = Path(output_dir)
+    directory.mkdir(parents=True, exist_ok=True)
+    written = []
+    for index in range(shards):
+        shard_path = directory / f"shard{index:02d}{manifest_path.suffix}"
+        shard_path.write_text("\n".join([header, *rows[index::shards]]) + "\n")
+        written.append(shard_path)
+    return written
+
+
 def hash_spec_names(names: Sequence[str]) -> str:
     payload = "".join(f"{name}\n" for name in names).encode()
     return hashlib.sha256(payload).hexdigest()

@@ -183,3 +183,73 @@ def test_mist_lane_provenance_rejects_fingerprint_hash_mismatch(tmp_path):
             feature_bridge_manifest,
             mist_labels,
         )
+
+
+def _row(spec_name, *, returned, tanimoto=0.0, mass=350.0, formula=True):
+    row = {
+        "spec_name": spec_name,
+        "lane": "dreams",
+        "neutral_mass": mass,
+        "runtime_seconds": 2.0,
+        "attempts": 8,
+        "truncated": False,
+        "constraint_dead_ends": 5,
+        "eos_terminated": 1,
+        "max_length_terminated": 0,
+        "validity": 0.25,
+        "completed_validity": 0.5,
+        "mass_validity": 0.1,
+        "uniqueness": 0.2,
+        "candidate_returned": returned,
+        "exact_top1": False,
+        "exact_top10": False,
+        "tanimoto_top1": tanimoto,
+        "tanimoto_top10": tanimoto,
+    }
+    if formula:
+        row["formula_top1"] = returned
+        row["formula_top10"] = returned
+    return row
+
+
+def test_aggregate_prediction_metrics_keeps_each_metric_denominator():
+    """Shard metrics cannot be averaged: Tanimoto is over the spectra that
+    returned a candidate while candidate return is over every spectrum."""
+    from marlin.evaluation import aggregate_prediction_metrics
+
+    rows = [
+        _row("a", returned=True, tanimoto=0.6),
+        _row("b", returned=False),
+        _row("c", returned=False),
+        _row("d", returned=True, tanimoto=0.2, mass=250.0),
+    ]
+
+    metrics = aggregate_prediction_metrics(rows)
+
+    assert metrics["rows"] == 4
+    assert metrics["candidate_return_rate"] == pytest.approx(0.5)
+    assert metrics["tanimoto_top1"] == pytest.approx(0.4)
+    assert metrics["formula_top1_all"] == pytest.approx(0.5)
+    assert metrics["formula_top1_returned"] == pytest.approx(1.0)
+    assert metrics["validity"] == pytest.approx(0.25)
+    assert metrics["attempts_total"] == 32
+    assert metrics["runtime_seconds_total"] == pytest.approx(8.0)
+    assert metrics["mass_bins"]["lt_300"]["rows"] == 1
+    assert metrics["lane"] == "dreams"
+    # internal_diversity needs the candidate molecules re-fingerprinted, so it is
+    # absent rather than silently redefined on the merged path.
+    assert "internal_diversity" not in metrics
+
+
+def test_aggregate_prediction_metrics_refuses_mixed_lanes_and_missing_formula():
+    from marlin.evaluation import aggregate_prediction_metrics
+
+    mist = _row("b", returned=True)
+    mist["lane"] = "mist"
+    with pytest.raises(ValueError, match="mix lanes"):
+        aggregate_prediction_metrics([_row("a", returned=True), mist])
+
+    partial = aggregate_prediction_metrics(
+        [_row("a", returned=True), _row("b", returned=True, formula=False)]
+    )
+    assert "formula_top1_all" not in partial

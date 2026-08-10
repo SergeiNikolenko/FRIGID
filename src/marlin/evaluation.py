@@ -88,6 +88,89 @@ def mass_bin_metrics(rows: list[dict]) -> dict[str, dict[str, float | int]]:
     }
 
 
+# The scalar series published for a molecular evaluation. Shared so that a
+# merged sharded panel reports the same series as a single-process panel and the
+# two cannot drift apart on a ClearML plot.
+MOLECULAR_SCALAR_SERIES = {
+    "Exact@1": "exact_top1",
+    "Exact@10": "exact_top10",
+    "Formula@1": "formula_top1_all",
+    "Formula@10": "formula_top10_all",
+    "Formula@1 (returned)": "formula_top1_returned",
+    "Formula@10 (returned)": "formula_top10_returned",
+    "Candidate return": "candidate_return_rate",
+    "Validity": "validity",
+    "Completed validity": "completed_validity",
+    "Mass validity": "mass_validity",
+    "Uniqueness": "uniqueness",
+    "Internal diversity": "internal_diversity",
+    "Constraint dead ends": "constraint_dead_ends_mean",
+    "EOS terminated": "eos_terminated_mean",
+    "Max-length terminated": "max_length_terminated_mean",
+    "Tanimoto@1 (returned)": "tanimoto_top1",
+    "Tanimoto@10 (returned)": "tanimoto_top10",
+}
+
+
+def aggregate_prediction_metrics(
+    rows: list[dict],
+    *,
+    lane: str | None = None,
+) -> dict:
+    """Aggregate per-spectrum prediction rows into panel metrics.
+
+    Sharded evaluation writes one predictions file per shard, and shard metrics
+    cannot simply be averaged: ``tanimoto_*`` and ``formula_*_returned`` are
+    over the spectra that returned a candidate while the rest are over every
+    spectrum, so the denominators differ from shard to shard. Panel metrics are
+    therefore recomputed from the merged rows.
+
+    ``internal_diversity`` is deliberately absent: it needs the candidate
+    molecules re-fingerprinted rather than a row field, and a metric that is
+    only present on one of the two paths would silently change meaning.
+    """
+    returned = [row for row in rows if row["candidate_returned"]]
+    resolved_lane = lane
+    if resolved_lane is None and rows:
+        lanes = {str(row["lane"]) for row in rows if "lane" in row}
+        if len(lanes) > 1:
+            raise ValueError(f"merged predictions mix lanes: {sorted(lanes)}")
+        resolved_lane = lanes.pop() if lanes else None
+    metrics: dict = {
+        "lane": resolved_lane,
+        "rows": len(rows),
+        "exact_top1": mean_metric(rows, "exact_top1"),
+        "exact_top10": mean_metric(rows, "exact_top10"),
+        "candidate_return_rate": len(returned) / max(len(rows), 1),
+        "tanimoto_top1": mean_metric(returned, "tanimoto_top1"),
+        "tanimoto_top10": mean_metric(returned, "tanimoto_top10"),
+        "mass_bins": mass_bin_metrics(rows),
+        "validity": mean_metric(rows, "validity"),
+        "completed_validity": mean_metric(rows, "completed_validity"),
+        "mass_validity": mean_metric(rows, "mass_validity"),
+        "uniqueness": mean_metric(rows, "uniqueness"),
+        "constraint_dead_ends_mean": mean_metric(rows, "constraint_dead_ends"),
+        "eos_terminated_mean": mean_metric(rows, "eos_terminated"),
+        "max_length_terminated_mean": mean_metric(rows, "max_length_terminated"),
+        "truncated_spectra": int(sum(1 for row in rows if row.get("truncated"))),
+        "attempts_total": int(sum(int(row.get("attempts", 0)) for row in rows)),
+        "runtime_seconds_total": float(
+            sum(float(row["runtime_seconds"]) for row in rows)
+        ),
+        "runtime_seconds_mean": mean_metric(rows, "runtime_seconds"),
+    }
+    if all("formula_top1" in row for row in rows):
+        metrics.update(
+            {
+                "formula_top1_all": mean_metric(rows, "formula_top1"),
+                "formula_top1_returned": mean_metric(returned, "formula_top1"),
+                "formula_top10_all": mean_metric(rows, "formula_top10"),
+                "formula_top10_returned": mean_metric(returned, "formula_top10"),
+            }
+        )
+    return metrics
+
+
 def load_fingerprints(
     path: Path,
     key: str,

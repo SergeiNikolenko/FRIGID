@@ -30,6 +30,7 @@ from marlin.benchmark_selection import (
     select_metadata,
 )
 from marlin.evaluation import (
+    MOLECULAR_SCALAR_SERIES,
     load_fingerprints,
     mass_bin_metrics,
     mean_metric,
@@ -430,26 +431,7 @@ def publish_clearml_evaluation(
             "screening": "Molecular screening",
             "paper-parity": "Paper parity",
         }.get(evaluation_profile, "Molecular metrics")
-        scalar_metrics = {
-            "Exact@1": "exact_top1",
-            "Exact@10": "exact_top10",
-            "Formula@1": "formula_top1_all",
-            "Formula@10": "formula_top10_all",
-            "Formula@1 (returned)": "formula_top1_returned",
-            "Formula@10 (returned)": "formula_top10_returned",
-            "Candidate return": "candidate_return_rate",
-            "Validity": "validity",
-            "Completed validity": "completed_validity",
-            "Mass validity": "mass_validity",
-            "Uniqueness": "uniqueness",
-            "Internal diversity": "internal_diversity",
-            "Constraint dead ends": "constraint_dead_ends_mean",
-            "EOS terminated": "eos_terminated_mean",
-            "Max-length terminated": "max_length_terminated_mean",
-            "Tanimoto@1 (returned)": "tanimoto_top1",
-            "Tanimoto@10 (returned)": "tanimoto_top10",
-        }
-        for series, key in scalar_metrics.items():
+        for series, key in MOLECULAR_SCALAR_SERIES.items():
             if key not in metrics:
                 continue
             value = float(metrics[key])

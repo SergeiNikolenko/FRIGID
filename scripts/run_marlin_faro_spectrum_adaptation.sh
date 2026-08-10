@@ -55,6 +55,14 @@ fi
 
 test ! -e "$RUN_ROOT"
 
+# Held-out checkpoint selection, on by default: without it the recipe has no
+# early stopping, which is how a 100,000-step run reported a flat Exact@1 while a
+# matched re-evaluation showed candidate return halving after step 20,000.
+SELECTION_ARGS=()
+if [[ "${MARLIN_SELECT_BEST_CHECKPOINT:-1}" == "1" ]]; then
+  SELECTION_ARGS+=(--select-best-checkpoint)
+fi
+
 python -X faulthandler scripts/train_marlin_spectrum_adaptation.py \
   --checkpoint "$CHECKPOINT" \
   --checkpoint-sha256 "$MARLIN_SOURCE_CHECKPOINT_SHA256" \
@@ -70,12 +78,18 @@ python -X faulthandler scripts/train_marlin_spectrum_adaptation.py \
   --validation-fingerprints "$RUNTIME_ROOT/val/dreams_predictions.npz" \
   --validation-fingerprint-key probs \
   --validation-fingerprint-threshold "${MARLIN_VALIDATION_FINGERPRINT_THRESHOLD:-0.95}" \
-  --evaluation-manifest "$PWD/configs/benchmarks/nplib1_v1/nplib1_val_micro32_v1.tsv" \
+  --evaluation-manifest "${MARLIN_EVALUATION_MANIFEST:-$PWD/configs/benchmarks/nplib1_v1/nplib1_val_full396_v1.tsv}" \
   --output-dir "$RUN_ROOT" \
   --max-steps "${MARLIN_MAX_STEPS:-100}" \
   --evaluation-interval "${MARLIN_EVALUATION_INTERVAL:-100}" \
   --checkpoint-interval "${MARLIN_CHECKPOINT_INTERVAL:-100}" \
-  --evaluation-spectra "${MARLIN_EVALUATION_SPECTRA:-32}" \
-  --evaluation-candidates "${MARLIN_EVALUATION_CANDIDATES:-16}" \
+  --evaluation-spectra "${MARLIN_EVALUATION_SPECTRA:-396}" \
+  --evaluation-candidates "${MARLIN_EVALUATION_CANDIDATES:-8}" \
+  --evaluation-shards "${MARLIN_EVALUATION_SHARDS:-16}" \
+  --validation-loss-fraction "${MARLIN_VALIDATION_LOSS_FRACTION:-0.05}" \
+  --validation-loss-split-seed "${MARLIN_VALIDATION_LOSS_SPLIT_SEED:-0}" \
+  "${SELECTION_ARGS[@]}" \
+  --selection-metric "${MARLIN_SELECTION_METRIC:-candidate_return_rate}" \
+  --selection-patience "${MARLIN_SELECTION_PATIENCE:-3}" \
   --cross-attention-only-steps "${MARLIN_CROSS_ATTENTION_ONLY_STEPS:-100}" \
   --learning-rate "${MARLIN_LEARNING_RATE:-1e-5}"
