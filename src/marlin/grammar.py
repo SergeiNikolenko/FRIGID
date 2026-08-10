@@ -311,6 +311,7 @@ class _GrammarState:
     atom_symbols: dict[int, str] | None = None
     explicit_hydrogens: dict[int, int] | None = None
     bracket_atoms: set[int] | None = None
+    bonds: set[tuple[int, int]] | None = None
     pending_bond_order: float | None = None
     incomplete_token: bool = False
 
@@ -339,6 +340,8 @@ class _GrammarState:
             self.explicit_hydrogens = {}
         if self.bracket_atoms is None:
             self.bracket_atoms = set()
+        if self.bonds is None:
+            self.bonds = set()
 
     def copy(self) -> "_GrammarState":
         """Clone the state so a candidate token can be scanned on top of it.
@@ -368,6 +371,7 @@ class _GrammarState:
         clone.atom_symbols = dict(self.atom_symbols)
         clone.explicit_hydrogens = dict(self.explicit_hydrogens)
         clone.bracket_atoms = set(self.bracket_atoms)
+        clone.bonds = set(self.bonds)
         clone.pending_bond_order = self.pending_bond_order
         clone.incomplete_token = self.incomplete_token
         return clone
@@ -549,6 +553,9 @@ def _advance(
             previous_symbol = state.atom_symbols[previous_atom]
             aromatic_bond = previous_symbol in "bcnops" and symbol in "bcnops"
             bond_order = state.pending_bond_order or (1.5 if aromatic_bond else 1.0)
+            # A chain or branch bond always reaches a brand new atom index, so it
+            # cannot duplicate one; only a ring closure can, which is checked there.
+            state.bonds.add((previous_atom, state.atom_index))
             state.bond_counts[previous_atom] += 1
             state.bond_counts[state.atom_index] += 1
             state.bond_order_sums[previous_atom] += bond_order
@@ -705,8 +712,23 @@ def _advance(
             valence_usage = bond_order
         elif opening_atom == state.current_atom:
             return None
+        elif (
+            min(opening_atom, state.current_atom),
+            max(opening_atom, state.current_atom),
+        ) in state.bonds:
+            # RDKit refuses a ring closure that duplicates an existing bond
+            # ("C12CC12", "C%99C%99", "c1ccccc1.C12.C12"), and the grammar used to
+            # accept all three as finished molecules: 33 of the 91 unparsable
+            # terminal strings of the 803-spectrum run are exactly this.
+            return None
         else:
             del state.open_rings[label]
+            state.bonds.add(
+                (
+                    min(opening_atom, state.current_atom),
+                    max(opening_atom, state.current_atom),
+                )
+            )
             explicit_order = state.open_ring_orders.pop(label)
             atom = state.current_atom
             aromatic_bond = (

@@ -44,8 +44,9 @@ def test_phantom_atoms_counts_what_the_grammar_weighs_at_zero():
 def test_classify_parse_failure_names_the_rdkit_cause():
     assert classify_parse_failure("CCO")["bucket"] == "parses"
     assert classify_parse_failure("c1cccc1")["bucket"] == "kekulization"
-    # The grammar accepts a second ring bond between an already bonded pair; RDKit
-    # does not, and the diagnosis counts those strings separately.
-    assert _scan("C12CC12").terminal
+    # The diagnosis recorded 33 of 91 unparsable terminal strings as a ring closure
+    # duplicating an existing bond, which the grammar accepted and RDKit refused. The
+    # grammar now refuses it too, so the classifier is exercised on the string alone.
+    assert _scan("C12CC12") is None
     assert Chem.MolFromSmiles("C12CC12") is None
     assert classify_parse_failure("C12CC12")["bucket"] == "duplicate_ring_bond"

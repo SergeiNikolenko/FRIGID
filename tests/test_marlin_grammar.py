@@ -92,6 +92,21 @@ def test_safe_grammar_accepts_balanced_ring_and_rejects_same_atom_closure():
     assert _scan("C(C)(C)(C)(C)(") is None
 
 
+def test_safe_grammar_rejects_a_ring_closure_that_duplicates_a_bond():
+    # RDKit refuses all three, and the mask used to report them as finished
+    # molecules: 33 of the 91 unparsable terminal strings of the 803-spectrum run
+    # are a ring closure duplicating an existing bond.
+    assert _scan("C12CC12") is None
+    assert _scan("c1ccccc1.C12.C12") is None
+    assert _scan("C%99C%99") is None
+    assert _scan("C=1C=1") is None
+    # Two labels between two atoms that are not already bonded stay legal, and so
+    # does a ring bond that is the first bond between its two atoms.
+    assert _scan("C12CC1C2").terminal
+    assert _scan("C1.C1").terminal
+    assert _scan("C1CCCCC12CCCCC2").terminal
+
+
 def test_safe_grammar_rejects_bond_order_valence_overflow():
     assert _scan("C#C#C") is None
     assert _scan("C=C=C") is not None
