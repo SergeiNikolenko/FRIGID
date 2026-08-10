@@ -10,29 +10,49 @@ The first comparable measurement now exists. On the locked 803-spectrum NPLIB1 t
 split, formula-unknown, DreaMS encoder, step=100000 checkpoint, 8 candidates per
 spectrum:
 
-| | this reproduction | paper | FRIGID |
-| --- | ---: | ---: | ---: |
-| Exact@1 | **2.74%** (95% CI 1.73–4.12%) | 16.94% | 13.95% |
-| Exact@10 | 3.24% | 23.54% | 23.29% |
-| **MCES@1** | **7.80** | **6.79** | 12.56 |
-| **MCES@10** | **7.36** | 5.83 | 9.94 |
-| Tanimoto@1 | **0.4479** | 0.55 | 0.46 |
-| Formula@1 | 32.38% | — | — |
-| candidate return | 37.86% | — | — |
-| truncated spectra | 0 | — | — |
+| | this reproduction | paper | FRIGID | comparable? |
+| --- | ---: | ---: | ---: | --- |
+| Exact@1 | **2.74%** (95% CI 1.73–4.12%) | 16.94% | 13.95% | yes, all 803 spectra |
+| Exact@10 | 3.24% | 23.54% | 23.29% | yes |
+| MCES@1 | 7.80 | 6.79 | 12.56 | **no**, ours over 304 of 803 |
+| MCES@10 | 7.36 | 5.83 | 9.94 | **no**, same |
+| Tanimoto@1 | 0.4483 | 0.55 | 0.46 | **no**, same; 0.1697 over all 803 |
+| Formula@1 | 32.38% | — | — | yes |
+| candidate return | 37.86% | — | — | — |
+| truncated spectra | 0 | — | — | — |
 
-Structural quality is nearly at the paper's level while exact accuracy is at about one
-sixth of it. `MCES@1 = 7.80` beats FRIGID's published `12.56`, beats MARLIN's own MIST
-variant at `8.59`, and sits within 1.0 of the DreaMS number this run is reproducing;
-`Tanimoto@1 = 0.4479` is four fifths of the paper's and above FRIGID's `0.46`. So when
-this decoder returns a molecule, that molecule is about as close to the answer as the
-paper's. It simply returns one for only 37.86% of spectra and lands the exact structure
-rarely.
+The audit behind the "comparable?" column, run because the structural metrics looked
+implausibly strong beside the accuracy: ranking uses the *predicted* fingerprint, not the
+target, so it carries no leak; `neutral_mass` is `precursor_mz` minus a proton, measured
+rather than computed from the answer, deviating from the true monoisotopic mass by a
+median 1.25 ppm; and train and test share no molecule, 0 overlap on both connectivity
+block and raw SMILES across 6,032 train and 701 test structures. The pipeline is clean.
+The overstatement was in the reporting.
 
-One caveat governs both structural metrics. Following the paper, MCES and Tanimoto are
-averaged over spectra that produced a candidate, which here is 304 of 803. A model that
-answers more often is averaging over a harder set, so these two numbers are not a
-like-for-like win over FRIGID; the accuracy column is.
+**The MCES and Tanimoto columns must not be read as competitive with the table, and an
+earlier revision of this report read them that way.** Following the paper, both are
+averaged over spectra that produced a candidate. This run produces one for 304 of 803
+spectra, so both are conditional on the 37.86% of the benchmark this decoder answers at
+all, while the accuracy column is over all 803.
+
+The size of that conditioning is the whole story:
+
+| Tanimoto@1 | value |
+| --- | ---: |
+| over the 304 spectra that returned a candidate | 0.4483 |
+| over all 803 spectra, a miss counting as 0.0 | **0.1697** |
+
+FRIGID pads its candidate list with non-formula-matched molecules until it reaches the
+requested count, so its published `MCES 12.56` and `Tanimoto 0.46` are effectively over
+the whole benchmark. Comparing our 7.80 against its 12.56 therefore compares our best
+38% against its everything, and it flatters us. The claim that this reproduction beats
+FRIGID on MCES is withdrawn.
+
+What survives is narrower and still worth having: when this decoder does return a
+molecule, that molecule is about as close to the answer as the published ones. The
+failure is coverage, not structural quality. The returned subset is not simply the light
+end of the benchmark either, its median neutral mass being 373 against 338 for the
+spectra that returned nothing, so coverage is not a size effect.
 
 The model also gets the molecular formula right twelve times more often than the
 structure, `32.38%` against `2.74%`: it finds the composition and misses the
@@ -460,6 +480,7 @@ listed because the pattern matters more than any of them.
 
 | claim | why it fell |
 | --- | --- |
+| this reproduction beats FRIGID on MCES, 7.80 against 12.56 | both follow the paper in averaging MCES over spectra that produced a candidate, but FRIGID pads its candidate list until it is full and so answers essentially everywhere, while this run answers for 304 of 803. The comparison pits our best 38% against its whole benchmark. Over all 803 spectra our Tanimoto@1 falls from 0.4483 to 0.1697 |
 | re-ranking has no headroom, since `Exact@10` equals `Exact@1` in all 31 evaluations | true only at the micro panel's resolution. On the 803-spectrum split `Exact@10 = 0.0328` against `Exact@1 = 0.0277`, so several spectra do hold the right molecule without ranking it first |
 | no FRIGID benchmark run had ever been made | based on searching only this reproduction's ClearML project; FRIGID was run extensively and its report holds eleven numbered experiments |
 | the FRIGID parity harness drives FRIGID incorrectly | a configuration error on our side: without formula conditioning it yields Tanimoto 0.006, with it the harness reproduces FRIGID's own reported numbers |
