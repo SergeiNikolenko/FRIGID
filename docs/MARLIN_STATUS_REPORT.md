@@ -1,4 +1,4 @@
-# MARLIN reproduction status, 15 July to 6 August 2026
+# MARLIN reproduction status, 15 July to 10 August 2026
 
 ## Summary
 
@@ -6,28 +6,44 @@ The goal is to reproduce MARLIN (arXiv:2607.04774), de novo molecular structure
 generation from an MS/MS spectrum. The paper reports `Exact@1 = 16.94%` on NPLIB1
 in the formula-unknown setting with the DreaMS encoder.
 
-Through 5 August this reproduction reported `Exact@1 = 0%` everywhere, including a
-completed 100,000-step run. On 6 August the first non-zero value appeared: `0.0312`
-at step 30,000 of a run started from the released FRIGID checkpoint, reproduced
-exactly by an independent offline evaluation. That is one molecule of 32 and far from
-the paper, but it is the first departure from zero in three weeks.
+The first comparable measurement now exists. On the locked 803-spectrum NPLIB1 test
+split, formula-unknown, DreaMS encoder, step=100000 checkpoint, 8 candidates per
+spectrum:
 
-The cause of the zero was identified on 4 and 5 August and it is structural: **every
-adaptation run before that started from the wrong decoder.** The paper's only stated
-initialization is a warm start from the released FRIGID model. This lineage instead
-adapted a from-scratch decoder trained for 30,000 steps, and that decoder's
-architecture made a FRIGID warm start impossible to apply.
+| | this reproduction | paper |
+| --- | ---: | ---: |
+| Exact@1 | **2.77%** (22/793, 95% CI 1.75–4.17%) | 16.94% |
+| Exact@10 | 3.28% | 23.54% |
+| Tanimoto@1 | **0.4479** | 0.55 |
+| Formula@1 | 32.66% | — |
+| candidate return | 38.21% | — |
+
+Two readings matter more than the headline. Structural quality is already at about
+four fifths of the paper's Tanimoto while exact accuracy is at about one sixth of it,
+so the deficit is concentrated in landing the exact structure rather than in being far
+from it. And the model gets the molecular formula right twelve times more often than
+the structure, `32.66%` against `2.77%`: it finds the composition and misses the
+connectivity. This run used 8 candidates against the paper's 384; the budget ladder
+to 384 is in progress.
+
+Through 5 August the reproduction reported `Exact@1 = 0%` everywhere, including a
+completed 100,000-step run. The cause was structural: **every adaptation run before
+that started from the wrong decoder.** The paper's only stated initialization is a
+warm start from the released FRIGID model. This lineage instead adapted a from-scratch
+decoder trained for 30,000 steps, and that decoder's architecture made a FRIGID warm
+start impossible to apply. The first non-zero value was originally recorded at step
+30,000; a matched re-evaluation later placed it at step 20,000, where the run's own
+periodic evaluation had reported zero because it ran without the mass prune.
 
 ## Work completed
 
 | | |
 | --- | --- |
-| period | 15 July to 5 August, three weeks |
-| commits | ~360 |
-| training and evaluation runs | 30 |
-| cluster jobs | 100 |
+| period | 15 July to 10 August, four weeks |
+| commits | ~380 |
+| training and evaluation runs | 45 |
 | artifacts on shared storage | 90 GB |
-| automated tests | 274, all passing |
+| automated tests | 289, all passing |
 
 The infrastructure works: decoder pretraining and spectrum adaptation, mass-shell
 constrained decoding with its safety argument, the SAFE grammar mask, an evaluation
@@ -207,13 +223,14 @@ because one molecule of 32 is this panel's resolution floor, so no configuration
 be separated from another on it. The Tanimoto@1 of 1.0000 in the no-prune column is an
 artifact of a single returned candidate that happened to be the exact answer.
 
-## State on 5 August
+## Runs
 
 | run | step | initial weights | Exact@1 | state |
 | --- | --- | --- | --- | --- |
-| control | 100,000 | from scratch, no fixes | 0.0000 at all ten points | completed; train token and sequence accuracy both 1.000, loss 0.002 |
-| with twelve fixes | 40,000 | from scratch | 0.0000 | stopped after four consecutive declining points, validity `0.0898 -> 0.0586` |
-| **FRIGID warm start** | 32,000 | **released FRIGID DLM** | **0.0312 at step 30,000** | running |
+| from scratch, no fixes | 100,000 | from scratch | 0.0000 at all ten points | completed; train token and sequence accuracy both 1.000, loss 0.002 |
+| from scratch, twelve fixes | 40,000 | from scratch | 0.0000 | stopped after four consecutive declining points, validity `0.0898 -> 0.0586` |
+| **FRIGID warm start, `1e-5`** | **100,000** | **released FRIGID DLM** | **0.0312 on the micro panel, 0.0277 on the full test split** | **completed**; the reference run |
+| FRIGID warm start, paper `5e-5` | 22,965 | released FRIGID DLM | 0.0000 | stopped on evidence; see the learning-rate section |
 
 The FRIGID run's trajectory is the first that improves:
 
@@ -381,6 +398,48 @@ validation split costs about 30 min per checkpoint sharded, so early stopping an
 checkpoint selection become affordable. `scripts/evaluate_marlin_sharded.sh` is the
 driver and `AGENTS.md` records the rule.
 
+## What the conditioning signal costs, measured on FRIGID
+
+The FRIGID parity harness was run for the first time, on our panel with our metrics.
+Driven without formula conditioning it produced Tanimoto `0.006`, which is no bit
+overlap at all; that was a configuration error on our side, not a harness defect, and
+it matters because the corrected run validates the harness: with formula and oracle
+fingerprints it returns `Exact@1 0.5312` and `Tanimoto@1 0.8095` against `0.4879` and
+`0.8130` in FRIGID's own report.
+
+| FRIGID decoder, our panel, 8 candidates | Exact@1 | Tanimoto@1 | validity |
+| --- | ---: | ---: | ---: |
+| no formula, oracle fingerprint | 0.0000 | 0.0060 | 0.0625 |
+| oracle formula, oracle fingerprint | **0.5312** | **0.8095** | 0.9805 |
+| oracle formula, DreaMS fingerprint | 0.0000 | 0.1690 | 0.9844 |
+
+Two things follow. The formula is worth going from nothing to `0.5312` on the same
+decoder with the same fingerprint, so MARLIN's premise, replacing it with a mass shell,
+is a hard one. And with a DreaMS fingerprint the same decoder scores zero even when
+handed the true formula, while FRIGID's report reaches `0.1386` with a MIST
+fingerprint. The distance between the two encoders is not the quarter that their
+fingerprint Tanimoto suggests; on this axis it is the distance between zero and
+fourteen percent.
+
+That sharpens the earlier reading. Our own decoder reproduces its predicted fingerprint
+to Tanimoto `0.364` while that fingerprint resembles the truth to `0.338`: it performs
+about as well as its input permits. The binding constraint is the conditioning signal.
+
+## What FRIGID already tried
+
+`FRIGID/docs/FRIGID_EXPERIMENT_REPORT_RU.md` records eleven numbered experiments with
+confidence intervals. Four of them bear directly on this project's plan.
+
+| FRIGID experiment | outcome | consequence here |
+| --- | --- | --- |
+| fine-tune the DLM on real MIST fingerprints | ground-truth Tanimoto `0.3897 -> 0.3109`, MIST `0.3209 -> 0.2796` | rejected there; only worth repeating because MARLIN's symmetric corruption is the objective they concluded was missing |
+| tighten the fingerprint threshold | `+0.012` on 64 spectra, CI covering zero on 200 | direction closed, matching our own threshold result |
+| improve the DreaMS head | ceiling `0.258` against MIST's `0.542` | do not spend effort there |
+| candidate budget 20 to 100 attempts | `Exact@10 0.2031 -> 0.4219` | the best-supported lever, and the reason the ladder runs to 384 |
+
+An earlier revision of this report claimed no FRIGID run had ever been made. That was
+wrong: it was based on searching only the ClearML project of this reproduction.
+
 ## Withdrawn claims
 
 Four readings were published and then withdrawn against later measurement. They are
@@ -388,6 +447,10 @@ listed because the pattern matters more than any of them.
 
 | claim | why it fell |
 | --- | --- |
+| re-ranking has no headroom, since `Exact@10` equals `Exact@1` in all 31 evaluations | true only at the micro panel's resolution. On the 803-spectrum split `Exact@10 = 0.0328` against `Exact@1 = 0.0277`, so several spectra do hold the right molecule without ranking it first |
+| no FRIGID benchmark run had ever been made | based on searching only this reproduction's ClearML project; FRIGID was run extensively and its report holds eleven numbered experiments |
+| the FRIGID parity harness drives FRIGID incorrectly | a configuration error on our side: without formula conditioning it yields Tanimoto 0.006, with it the harness reproduces FRIGID's own reported numbers |
+| the paper's 384-candidate protocol costs about 95 GPU-days | that assumed a GPU-bound serial decoder. It is CPU bound and shards across cores; the full test split at 8 candidates takes 1.1 h and 384 candidates about 53 h |
 | held-out validity peaked at step 60,000 and then declined | step 90,000 returned 0.3164, the second highest value; the 32-spectrum panel swings by up to 0.12 between neighbouring points |
 | formula-blind MIST reaches only 0.376 | the threshold grid started at 0.30; MIST's optimum is 0.15, where it reaches 0.421 |
 | the FRIGID run is not learning | it left a plateau after about 10,000 steps; loss fell from 16.0 to 0.78 and token accuracy rose from 0.318 to 0.972 |
@@ -413,18 +476,48 @@ the next task before the busy workers do. It killed two runs on 5 August, each c
 about an hour to notice. Both were relaunched on the `sience` queue, which only
 `aiagent03` serves, and both then ran normally.
 
+## Where the reproduction stands against the published table
+
+Placed against the paper's own comparison, on the same benchmark and the same
+formula-unknown setting:
+
+| model | Top-1 | setting |
+| --- | ---: | --- |
+| Spec2Mol | 0.00% | formula given |
+| MADGEN | 2.10% | formula given |
+| Neuraldecipher | 2.32% | formula given |
+| **this reproduction, 8 candidates** | **2.77%** | **formula unknown** |
+| MSNovelist | 5.40% | formula given |
+| DiffMS | 8.34% | formula given |
+| MBGen | 12.20% | formula given |
+| FRIGID | 13.95% | formula unknown |
+| MARLIN (DreaMS) | 16.94% | formula unknown |
+| MARLIN (MIST) | 19.18% | formula unknown |
+
+At one forty-eighth of the paper's candidate budget the reproduction already passes
+three published methods that are handed the ground-truth formula. That is a floor, not
+a result: it says the pipeline works end to end, and it leaves a factor of six to the
+paper.
+
 ## Next steps
 
-1. Read the FRIGID run's step 40,000 and 50,000 evaluations. One molecule of 32 is a
-   single hit, not a measured rate; the question is whether Exact@1 rises. Offline
-   evaluations of the step 30,000 checkpoint at 8 and 64 candidates, with and without
-   the mass-reachability prune, are queued to test whether the failure has become
-   probabilistic, since raising the budget previously changed nothing at all.
-2. Give the recipe a held-out signal it can act on. The molecular evaluation on 32
-   spectra swings by up to 0.12 between neighbouring points, which is larger than any
-   effect it would need to detect, so a validation loss or a wider panel is required
-   before the 3,850-epoch budget can be tuned on evidence rather than guessed.
-3. Keep mass-reachability pruning on in evaluation.
+1. Finish the budget ladder on the locked test split: 64 candidates, then the paper's
+   384. Both this project and FRIGID's own report make the budget the best-supported
+   lever, FRIGID measuring `Exact@10 0.2031 -> 0.4219` from 20 to 100 attempts.
+2. Re-rank. On the full split `Exact@10` exceeds `Exact@1` for the first time, `0.0328`
+   against `0.0277`, so a handful of spectra hold the right molecule without ranking it
+   first. Ranking by similarity to a predicted fingerprint cannot exploit that; FRIGID
+   reached the same conclusion from the other direction.
+3. Move the periodic evaluation onto a full validation split. Sharded it costs about
+   30 min per checkpoint, and without it the recipe still has no early stopping and no
+   checkpoint selection.
+4. Settle the MIST lane. It needs MIST fingerprints for the 6,649 adaptation molecules,
+   which do not exist yet. FRIGID already rejected naive fine-tuning on MIST
+   fingerprints, but MARLIN's symmetric fingerprint corruption is precisely the
+   objective FRIGID said was missing, so the experiment tests MARLIN's own contribution
+   rather than merely swapping the encoder.
+5. Report the two cluster faults: containers cannot reach pypi, and `aiagent01` accepts
+   tasks without a usable GPU.
 
 One caveat must not be lost. A FRIGID warm start is a necessary condition, not a
 sufficient one. FRIGID's decoder is full-sequence while MARLIN makes attention
