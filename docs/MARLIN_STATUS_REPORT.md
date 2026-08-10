@@ -315,9 +315,38 @@ A second, larger finding falls out of the same measurement. The control's first 
 hit was **not** at step 30,000. Under the matched evaluation it is already there at step
 20,000, where the run's own periodic evaluation reported `Exact@1 = 0` and candidate
 return `0.0000` against an actual `0.3438`. The periodic evaluation was too weak to see
-what the model could already do, so the whole reported trajectory understates it. All
-control checkpoints from 30,000 to 70,000 are being re-evaluated under the matched
-configuration to establish the real curve.
+what the model could already do.
+
+## The real trajectory, and where the run peaks
+
+The control reached its full 100,000 steps, reporting `Exact@1 = 0.0312` at every point
+from 30,000 onward. Every checkpoint from 10,000 to 70,000 was then re-evaluated offline
+under one matched configuration: prune, both vocabulary restrictions, 8 candidates,
+seed 42, same panel.
+
+| matched | 10k | 20k | 30k | 40k | 50k | 60k | 70k |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Exact@1 | 0.0000 | 0.0312 | 0.0312 | 0.0312 | 0.0312 | 0.0312 | 0.0312 |
+| candidate return | 0.0000 | **0.3438** | 0.2812 | 0.2188 | 0.1562 | 0.3125 | 0.1875 |
+| uniqueness | 0.0000 | **0.3333** | 0.2634 | 0.1979 | 0.1354 | 0.2917 | 0.1523 |
+| mass validity | 0.0000 | **0.2419** | 0.1594 | 0.1161 | 0.0987 | 0.1990 | 0.1542 |
+| completed validity | 0.1354 | 0.5221 | **0.6679** | 0.5682 | 0.4729 | 0.6346 | 0.4635 |
+| dead ends of 8 | 7.0938 | 5.8438 | 5.4375 | **5.2500** | 5.6562 | 5.4062 | 5.5625 |
+| Tanimoto@1 | — | 0.2758 | 0.2731 | 0.3839 | 0.3983 | 0.2967 | **0.4687** |
+
+This is the overfitting signal the recipe could not see. Candidate return, uniqueness and
+mass validity all peak at step 20,000 and then fall by roughly half by step 50,000, three
+correlated metrics moving together; step 60,000 bounces back, so the curve is noisy, but
+the direction from 20,000 to 70,000 is down. Against 6,649 adaptation molecules at global
+batch 256, step 20,000 is already about 770 epochs and step 100,000 about 3,850, so a peak
+this early is what the data size predicts.
+
+Two things move the other way and matter. `Exact@1` is flat at one molecule from step
+20,000 on, which is the panel floor and therefore uninformative. `Tanimoto@1` on returned
+candidates rises from 0.2758 to 0.4687, so the later checkpoints return fewer candidates
+but closer ones. The practical reading is that the useful checkpoint of this run is around
+step 20,000 to 30,000, and that the paper's 100,000-step budget is roughly five times too
+long for an adaptation set this size.
 
 This run also exercised the new per-spectrum time budget at 900 s: `truncated_spectra`
 is 0, so the cap never bound on this checkpoint, and `attempts_total` is exactly
