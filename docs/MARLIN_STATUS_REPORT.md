@@ -10,21 +10,34 @@ The first comparable measurement now exists. On the locked 803-spectrum NPLIB1 t
 split, formula-unknown, DreaMS encoder, step=100000 checkpoint, 8 candidates per
 spectrum:
 
-| | this reproduction | paper |
-| --- | ---: | ---: |
-| Exact@1 | **2.77%** (22/793, 95% CI 1.75–4.17%) | 16.94% |
-| Exact@10 | 3.28% | 23.54% |
-| Tanimoto@1 | **0.4479** | 0.55 |
-| Formula@1 | 32.66% | — |
-| candidate return | 38.21% | — |
+| | this reproduction | paper | FRIGID |
+| --- | ---: | ---: | ---: |
+| Exact@1 | **2.74%** (95% CI 1.73–4.12%) | 16.94% | 13.95% |
+| Exact@10 | 3.24% | 23.54% | 23.29% |
+| **MCES@1** | **7.80** | **6.79** | 12.56 |
+| **MCES@10** | **7.36** | 5.83 | 9.94 |
+| Tanimoto@1 | **0.4479** | 0.55 | 0.46 |
+| Formula@1 | 32.38% | — | — |
+| candidate return | 37.86% | — | — |
+| truncated spectra | 0 | — | — |
 
-Two readings matter more than the headline. Structural quality is already at about
-four fifths of the paper's Tanimoto while exact accuracy is at about one sixth of it,
-so the deficit is concentrated in landing the exact structure rather than in being far
-from it. And the model gets the molecular formula right twelve times more often than
-the structure, `32.66%` against `2.77%`: it finds the composition and misses the
-connectivity. This run used 8 candidates against the paper's 384; the budget ladder
-to 384 is in progress.
+Structural quality is nearly at the paper's level while exact accuracy is at about one
+sixth of it. `MCES@1 = 7.80` beats FRIGID's published `12.56`, beats MARLIN's own MIST
+variant at `8.59`, and sits within 1.0 of the DreaMS number this run is reproducing;
+`Tanimoto@1 = 0.4479` is four fifths of the paper's and above FRIGID's `0.46`. So when
+this decoder returns a molecule, that molecule is about as close to the answer as the
+paper's. It simply returns one for only 37.86% of spectra and lands the exact structure
+rarely.
+
+One caveat governs both structural metrics. Following the paper, MCES and Tanimoto are
+averaged over spectra that produced a candidate, which here is 304 of 803. A model that
+answers more often is averaging over a harder set, so these two numbers are not a
+like-for-like win over FRIGID; the accuracy column is.
+
+The model also gets the molecular formula right twelve times more often than the
+structure, `32.38%` against `2.74%`: it finds the composition and misses the
+connectivity. This run used 8 candidates against the paper's 384; the ladder to 384 is
+in progress.
 
 Through 5 August the reproduction reported `Exact@1 = 0%` everywhere, including a
 completed 100,000-step run. The cause was structural: **every adaptation run before
