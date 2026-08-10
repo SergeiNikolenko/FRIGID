@@ -27,8 +27,10 @@
   vocabulary spells around them while `grammar._ATOM_MASSES` weighs the results at zero
   (1,130 of 3,093 dead-end prefixes carry a foreign element, 0 of 534 accepted candidates do);
   the target mass of a permanently charged molecule is short by a proton, putting 15 of 803
-  gold answers outside the run's own window; and the mask admits a ring closure that
+  gold answers outside the run's own acceptance window; and the mask admits a ring closure that
   duplicates an existing bond.
+* The mask itself is not the problem: it admits every one of the 803 gold answers whose target
+  mass is right, both at the run's revision and at current HEAD.
 
 ## What was measured
 
@@ -45,6 +47,13 @@ Run settings that matter here, from `shard00/run_signature.json`: `ppm_tolerance
 `restrict_organic_elements true`, `chemistry_forbidden_token_count 1287`,
 `generation_mode block`, `token_selection multinomial`, `seed 42`, `weights raw`,
 `git_commit 7b157ab78de835afbd08ef137e0821e09426a505`.
+
+Every mask probe below was run against commit `1f562ab`, whose `grammar.py`, `mass_shell.py`
+and `token_properties.py` are byte-identical to the run's `7b157ab` (`git diff 7b157ab 1f562ab
+-- src/marlin/grammar.py src/marlin/mass_shell.py src/marlin/token_properties.py` is empty).
+This matters because `1224bb0`, committed while this diagnosis was being measured, narrows the
+terminal EOS gate from a hydrogen interval to an exact count; the one place where the two
+revisions disagree is called out with both numbers.
 
 Outcome per spectrum, with the 8 attempts of each spectrum broken out. The three attempt
 columns account for all 6,424 attempts exactly.
@@ -98,7 +107,7 @@ variable against the returned group (predicted bits AUC 0.219, recall 0.226, Tan
 0.235, all p < 1e-20), and the per-attempt dead-end rate over all 803 spectra falls
 monotonically across its quintiles:
 
-| fingerprint recall quintile (161 spectra each) | mean recall | mean dead-end rate per attempt |
+| fingerprint recall quintile (160 or 161 spectra each) | mean recall | mean dead-end rate per attempt |
 | --- | ---: | ---: |
 | 1 | 0.282 | 0.777 |
 | 2 | 0.380 | 0.723 |
@@ -117,7 +126,7 @@ mass-miss and returned (AUC 0.500, p = 0.99; heavy atoms 0.487, p = 0.58; gold t
 from returned (0.287). Light targets dead-end; heavy targets produce molecules that miss
 the mass window:
 
-| neutral-mass quintile (161 spectra each) | mean mass | mean dead-end rate per attempt |
+| neutral-mass quintile (160 or 161 spectra each) | mean mass | mean dead-end rate per attempt |
 | --- | ---: | ---: |
 | 1 | 205.6 | 0.800 |
 | 2 | 293.0 | 0.558 |
@@ -209,23 +218,30 @@ Before blaming the mask, it was asked whether it can accept the right answer at 
 gold SAFE string was scanned and tested for a terminal state on the mass shell
 (`_has_hydrogen_only_exact_mass`):
 
-| group | gold answers | admitted as terminal | gold mass outside the 10 ppm window |
-| --- | ---: | ---: | ---: |
-| all-dead-end | 161 | 154 | 7 |
-| mass-miss | 277 | 271 | 6 |
-| no-parse | 61 | 61 | 0 |
-| returned | 304 | 302 | 2 |
-| total | 803 | 788 | 15 |
+| group | gold answers | admitted as terminal, run's mask | admitted, HEAD after `1224bb0` | gold mass outside the 10 ppm window |
+| --- | ---: | ---: | ---: | ---: |
+| all-dead-end | 161 | 158 | 154 | 7 |
+| mass-miss | 277 | 277 | 271 | 6 |
+| no-parse | 61 | 61 | 61 | 0 |
+| returned | 304 | 304 | 302 | 2 |
+| total | 803 | 800 | 788 | 15 |
 
-The 15 refusals are exactly the 15 whose own gold mass falls outside the window the run
-enforces, which is section 5.2. **Every one of the 788 gold answers whose target mass is
-right is admitted.** Replaying the gold token sequence through
-`_mass_reachable_token_ids` position by position reproduces this at prefix level. 15 targets
-were walked, the 10 lightest all-dead-end ones plus all 5 charged ones: 6 were refused
-mid-string and **all 6 are targets whose own gold mass is outside the window** (5 charged,
-plus `mona_1770` at -12.69 ppm), while **0 of the 9 inside-window walks was refused at any
-position**. The prune is faithful to the mass it is given; it is the mass and the prefix that
-are wrong.
+**Every gold answer whose target mass is right is admitted, under both revisions.** The run's
+mask admitted 800 of 803; the 3 it refused are all outside the window, at -12.69, 15.02 and
+16.38 ppm, and it let the other 12 through because its terminal gate accepted any hydrogen
+count in a roughly 6 Da interval, which absorbs the whole-proton errors of section 5.2. The
+narrowed gate on current HEAD admits 788 and refuses exactly the 15 whose own gold mass is
+outside the window. Either way the mask is not what stops the right answer.
+
+Replaying the gold token sequence through `_mass_reachable_token_ids` position by position says
+the same at prefix level. 15 targets were walked, the 10 lightest all-dead-end ones plus all 5
+charged ones: under the run's mask **0 of the 9 inside-window targets was refused at any
+position**, and the 2 refusals are both outside the window, `mona_1770` at -12.69 ppm and
+`CCMSLIB00004679999` at 15.02 ppm. Note which ones survive: a target mass wrong by a whole
+proton walks cleanly, because "one hydrogen fewer" is a reachable molecule, while a target
+wrong by a fraction of a hydrogen (12.69 ppm is 0.0019 Da) has no integer-hydrogen solution and
+is refused mid-string. The prune is faithful to the mass it is given; it is the mass and the
+prefix that are wrong.
 
 ## 3. Where along the mass budget the dead ends happen
 
@@ -405,11 +421,15 @@ gold SMILES minus the run's `neutral_mass` is 1.0073 Da, 1,269 to 5,354 ppm, bec
 | returned | 2 | 0.7% of 304 |
 | total | 15 | 1.9% of 803 |
 
-13 of the 15 are the charged targets, 2 are precursor error on neutral molecules. For those
-15 spectra the mask cannot accept the right answer at all, and the 2 in the returned group
-returned something that cannot be the right answer. This is small (4.3% of the 161) but it
-is unanswerable-by-construction, and it belongs with the hydrogen-accounting work already in
-flight.
+13 of the 15 are the charged targets, 2 are precursor error on neutral molecules. Those 15
+spectra cannot produce the gold answer as a returned candidate: acceptance is
+`MassShellConstraint.accepts_smiles`, an equality between RDKit's exact mass and the run's
+target within 10 ppm, and the gold molecule misses it by 1,269 to 5,354 ppm. Under the run's
+mask the gate at EOS was wide enough to *emit* 12 of the 15 gold strings anyway, so the failure
+was silent; the narrowed gate on current HEAD refuses them at EOS instead, which makes it
+visible. The 2 in the returned group returned something that cannot be the right answer.
+This is small, 4.3% of the 161, but it is unanswerable by construction, and it belongs with the
+hydrogen-accounting work already in flight.
 
 ### 5.3 The mask admits a ring closure that duplicates an existing bond
 
@@ -453,7 +473,23 @@ env -u LD_PRELOAD PYTHONPATH=src taskset -c 20,21,22,23 ./.venv/bin/python \
   --dead-end-scope all --reuse-dead-ends /tmp/marlin_deadend/report_all.dead_ends.csv \
   --gold-walk-sample 10 --funnel-sample 25 \
   --output /tmp/marlin_deadend/report_final.json
+
+# 3. step 2 again against the mask the run actually used, since 1224bb0 landed
+#    mid-measurement; only the gold-answer probes differ between the two
+git worktree add --detach /tmp/marlin_runmask 1f562ab
+cp scripts/diagnose_marlin_dead_ends.py /tmp/marlin_runmask/scripts/
+(cd /tmp/marlin_runmask && env -u LD_PRELOAD PYTHONPATH=/tmp/marlin_runmask/src \
+  <repo>/.venv/bin/python scripts/diagnose_marlin_dead_ends.py \
+  --predictions $EVAL/predictions.jsonl --cache-dir $CACHE \
+  --dead-end-scope all --reuse-dead-ends /tmp/marlin_deadend/report_all.dead_ends.csv \
+  --gold-walk-sample 10 --funnel-sample 25 \
+  --output /tmp/marlin_deadend/report_runmask.json)
+git worktree remove /tmp/marlin_runmask
 ```
+
+Step 1 started at 01:16 and `1224bb0` landed at 01:24, so step 1 held the run's mask in memory
+throughout; steps 2 and 3 differ only in the gold-answer probes, and the classification, mass
+budget, funnel and parse tables are identical in both.
 
 The report and its two CSVs (`report_final.features.csv`, one row per spectrum, and
 `report_final.dead_ends.csv`, one row per recorded dead-end prefix) are the artifacts behind
