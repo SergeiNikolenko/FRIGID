@@ -7,6 +7,7 @@ from rdkit import Chem
 from rdkit.Chem.Descriptors import ExactMolWt
 
 from marlin.grammar import (
+    ChemistryPolicy,
     SafeGrammarMask,
     _GrammarState,
     _HYDROGEN_MASS,
@@ -23,7 +24,13 @@ from marlin.grammar import (
     _scan_continuation,
     _terminal_hydrogens,
 )
-from marlin.token_properties import foreign_element_token_ids, isotope_token_ids
+from marlin.token_properties import (
+    ORGANIC_ELEMENTS,
+    atom_mass,
+    foreign_element_token_ids,
+    isotope_token_ids,
+    token_properties,
+)
 from marlin.tokenizer import load_safe_tokenizer
 
 
@@ -105,6 +112,76 @@ def test_safe_grammar_rejects_a_ring_closure_that_duplicates_a_bond():
     assert _scan("C12CC1C2").terminal
     assert _scan("C1.C1").terminal
     assert _scan("C1CCCCC12CCCCC2").terminal
+
+
+RESTRICTED_CHEMISTRY = ChemistryPolicy(
+    allowed_elements=ORGANIC_ELEMENTS, forbid_isotopes=True
+)
+
+
+def test_chemistry_restriction_is_decided_on_the_parsed_element():
+    # Every one of these is reachable through allowed tokens: "[Og]" tokenises as
+    # ['[O', 'g]'] and "[Po-90]" as ['[P', 'o', '-', '9', '0', ']'], so a block
+    # list over token ids cannot stop them. The parsed element can.
+    for spelled in ("[Og]", "[Po-90]", "[Se]", "[Fe+2]", "[Cn--11]", "[Nd+3]", "B"):
+        assert _scan(spelled) is not None, spelled
+        assert _scan(spelled, RESTRICTED_CHEMISTRY) is None, spelled
+    for labelled in ("[13CH3]", "[2H]", "C[13C@@H](O)C"):
+        assert _scan(labelled) is not None, labelled
+        assert _scan(labelled, RESTRICTED_CHEMISTRY) is None, labelled
+    # The wildcard can stand for a forbidden element, so a restriction refuses it.
+    assert _scan("*") is not None
+    assert _scan("*", RESTRICTED_CHEMISTRY) is None
+    # All nine bracket atoms the 7,947 gold answers of train, val and test use.
+    for gold in ("[nH]", "[N+]", "[O-]", "[n+]", "[C-]", "[o+]", "[S+]", "[SH]", "[N-]"):
+        assert _scan(gold, RESTRICTED_CHEMISTRY) is not None, gold
+    target = "COc1cc(C2C3(O)C(O)C4CC2(O)C(O)(C(=O)O4)C3C(=O)c2ccccc2)oc(=O)c1"
+    assert _scan(target, RESTRICTED_CHEMISTRY).terminal
+
+
+def test_isotope_restriction_closes_the_bracket_digit_trap_on_the_state():
+    # 376 of 3,093 recorded dead ends were the bare "[" followed by digits, over
+    # 50 distinct mass numbers: no organic element has an isotope there and every
+    # element that does was on the token block list, so the state was legal,
+    # scannable and had no successor. Refusing the isotope on the state refuses
+    # the digits that lead to it instead.
+    tokens = ("[UNK]", "[CLS]", "[SEP]", "[PAD]", "[MASK]", "6", "Fe]", "C]")
+    permissive = SafeGrammarMask(
+        tokens,
+        lambda _ids: "CC[5",
+        eos_token_id=2,
+        special_token_ids=(0, 1, 2, 3, 4),
+    )
+    restricted = SafeGrammarMask(
+        tokens,
+        lambda _ids: "CC[5",
+        eos_token_id=2,
+        special_token_ids=(0, 1, 2, 3, 4),
+        restrict_organic_elements=True,
+        forbid_isotopes=True,
+    )
+
+    # "56Fe" is a real isotope, so the digit stays legal without the restriction.
+    assert permissive.admits([], 5)
+    assert not restricted.admits([], 5)
+    assert not restricted.admits([], 6)
+
+
+def test_the_grammar_and_the_token_table_weigh_an_atom_the_same_way():
+    # The two mass models disagreed by more than 0.01 Da on 2,222 of 3,093
+    # dead-end prefixes, because the grammar had an 18-element table with no
+    # hydrogen and weighed everything else at 0.0.
+    for atom in ("C", "Cl", "c", "[H]", "[Og]", "[Fe]", "[Se]", "[N+]", "[O-]", "[13C]"):
+        state = _scan(atom)
+        assert sum(state.atom_masses.values()) == pytest.approx(
+            token_properties(atom).heavy_mass, abs=1e-9
+        ), atom
+    # RDKit's table stops at nine decimals, where the constant carries eleven.
+    assert atom_mass("H") == pytest.approx(_HYDROGEN_MASS, abs=1e-8)
+    assert atom_mass("Og") > 294.0
+    assert atom_mass("C", 13) > atom_mass("C")
+    assert atom_mass("C", 999) is None
+    assert atom_mass("Xx") is None
 
 
 def test_safe_grammar_rejects_bond_order_valence_overflow():

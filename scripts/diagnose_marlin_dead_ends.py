@@ -305,10 +305,12 @@ ORGANIC = frozenset({"C", "H", "N", "O", "P", "S", "F", "Cl", "Br", "I"})
 def phantom_atoms(state) -> dict:
     """Count the atoms the grammar's own mass model treats as weightless.
 
-    ``marlin.grammar._ATOM_MASSES`` has no hydrogen entry and no entry for any
-    element outside its 18-element table, so ``_advance`` files those atoms at
-    mass 0.0. They still consume valence and still count in the mass-shell token
-    table, so a prefix holding them means the two mass accountings disagree.
+    When this diagnosis ran, ``marlin.grammar`` kept a private 18-element mass
+    table with no hydrogen entry and filed everything outside it at mass 0.0,
+    while the mass-shell token table charged the same characters their real mass;
+    a prefix holding such an atom means the two mass accountings disagree. Both
+    now ask ``marlin.token_properties.atom_mass``, so this counter is a
+    regression detector rather than a measurement.
     """
     symbols = [state.atom_symbols[index] for index in sorted(state.atom_symbols)]
     zero_mass = [

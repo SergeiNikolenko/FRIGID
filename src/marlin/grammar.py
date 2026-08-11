@@ -12,6 +12,8 @@ import numpy as np
 import torch
 from rdkit import Chem
 
+from marlin.token_properties import ORGANIC_ELEMENTS, atom_mass, element_symbol
+
 
 _TWO_CHARACTER_ATOMS = ("Br", "Cl")
 _TWO_CHARACTER_ATOM_STARTS = frozenset(atom[0] for atom in _TWO_CHARACTER_ATOMS)
@@ -28,26 +30,11 @@ _ELEMENT_PATTERN = "|".join(
 _BONDS = frozenset("-=#:/\\~")
 _BOND_ORDERS = {"-": 1.0, "=": 2.0, "#": 3.0, ":": 1.5, "/": 1.0, "\\": 1.0, "~": 1.0}
 _HYDROGEN_MASS = 1.00782503223
-_ATOM_MASSES = {
-    "B": 11.00930536,
-    "C": 12.0,
-    "N": 14.003074004,
-    "O": 15.99491462,
-    "F": 18.998403163,
-    "P": 30.973761998,
-    "S": 31.972071174,
-    "Cl": 34.96885268,
-    "K": 38.963706486,
-    "Br": 78.9183376,
-    "I": 126.904468,
-    "Si": 27.976926535,
-    "Se": 79.9165218,
-    "Na": 22.989769282,
-    "Li": 7.016003437,
-    "Mg": 23.985041697,
-    "Ca": 39.962590863,
-    "Al": 26.98153853,
-}
+# The elements a *future* atom is allowed to be while the mass reachability search
+# decides whether the residual mass can still be hit exactly, with the valence each
+# one can offer to the hydrogens still outstanding. This is a search space, not a
+# mass table: what an atom already placed weighs comes from
+# marlin.token_properties.atom_mass, the one source of truth for that question.
 _ATOM_VALENCES = {
     "B": 3,
     "C": 4,
@@ -69,7 +56,7 @@ _ATOM_VALENCES = {
     "Al": 3,
 }
 _REACHABILITY_SCALE = 1_000
-_BRACKET_COMPLETION_ELEMENTS = tuple(_ATOM_MASSES)
+_BRACKET_COMPLETION_ELEMENTS = tuple(_ATOM_VALENCES)
 _ATOM_COMPLETIONS = (
     "B",
     "C",
@@ -90,8 +77,49 @@ _ATOM_COMPLETIONS = (
 _BRACKET_ATOM = re.compile(
     r"^(?P<isotope>\d{0,3})"
     rf"(?P<element>{_ELEMENT_PATTERN}|[bcnops*])"
-    r"@{0,2}(?:H\d{0,2})?(?:[+-]{1,3}\d{0,2})?(?::\d*)?$"
+    r"(?P<annotations>@{0,2}(?:H(?P<hydrogens>\d{0,2}))?(?:[+-]{1,3}\d{0,2})?(?::\d*)?)$"
 )
+
+
+@dataclass(frozen=True)
+class ChemistryPolicy:
+    """Which atoms the grammar admits, decided on the element it parsed.
+
+    The isotope and non-organic-element restrictions used to be applied to token
+    ids, and the vocabulary spells around them: "[Og]" tokenises as ``['[O',
+    'g]']`` and "[Po-90]" as ``['[P', 'o', '-', '9', '0', ']']``, none of whose
+    pieces is on any block list, while the single-token spellings "[Se]" and
+    "[Fe+2]" are refused. Measured over the 803-spectrum run, 1,130 of 3,093
+    dead-end prefixes (36.5%) carried a non-organic element across 41 distinct
+    elements and 110 carried an isotope, against 0 of 534 accepted candidates.
+    Deciding it on the parsed state instead makes the spelling irrelevant.
+
+    ``allowed_elements`` of ``None`` admits every element RDKit knows, which is
+    the paper's chemistry-free mask. A restriction also refuses the wildcard
+    "*", which can stand for any element including a forbidden one.
+    """
+
+    allowed_elements: frozenset[str] | None = None
+    forbid_isotopes: bool = False
+
+    def admits(self, element: str | None, mass_number: int | None) -> bool:
+        if self.forbid_isotopes and mass_number is not None:
+            return False
+        if self.allowed_elements is None:
+            return True
+        return element is not None and element in self.allowed_elements
+
+
+_PERMISSIVE_CHEMISTRY = ChemistryPolicy()
+
+
+class _BracketAtom(NamedTuple):
+    """What a bracket atom's content says about the atom it introduces."""
+
+    symbol: str
+    element: str | None
+    mass_number: int | None
+    explicit_hydrogens: int
 
 
 @lru_cache(maxsize=None)
@@ -184,21 +212,49 @@ def _terminal_hydrogens(state: "_GrammarState") -> int:
     return total
 
 
-def _partial_bracket_symbol(content: str) -> str | None:
+@lru_cache(maxsize=None)
+def _plain_atom(symbol: str) -> _BracketAtom:
+    """Describe an atom written outside brackets, which carries no charge."""
+    return _BracketAtom(symbol, element_symbol(symbol), None, 0)
+
+
+# The content of a bracket that holds no element yet: the empty string or the
+# isotope digits, which any element may still follow.
+_PENDING_BRACKET_ATOM = _BracketAtom("", None, None, 0)
+
+
+@lru_cache(maxsize=None)
+def _partial_bracket_atom(
+    content: str, policy: ChemistryPolicy
+) -> _BracketAtom | None:
+    """Describe the atom a bracket's content introduces.
+
+    Returns ``None`` when no atom can follow this content and
+    ``_PENDING_BRACKET_ATOM`` when the content is still only isotope digits.
+    """
     if not content or (content.isdigit() and len(content) <= 3):
-        return ""
+        return _PENDING_BRACKET_ATOM
     match = _BRACKET_ATOM.fullmatch(content)
     if not match:
         return None
-    element = match.group("element")
-    isotope = match.group("isotope")
-    if isotope and element != "*":
-        atomic_number = _PERIODIC_TABLE.GetAtomicNumber(element.capitalize())
-        if _PERIODIC_TABLE.GetMassForIsotope(atomic_number, int(isotope)) <= 0:
-            return None
-    if element == "N" and "+" in content[match.end("element") :]:
-        return "N+"
-    return element
+    written = match.group("element")
+    element = element_symbol(written)
+    mass_number = int(match.group("isotope")) if match.group("isotope") else None
+    if mass_number is not None and (
+        element is None or atom_mass(element, mass_number) is None
+    ):
+        return None
+    if not policy.admits(element, mass_number):
+        return None
+    hydrogens = match.group("hydrogens")
+    annotations = match.group("annotations")
+    symbol = "N+" if written == "N" and "+" in annotations else written
+    return _BracketAtom(
+        symbol,
+        element,
+        mass_number,
+        0 if hydrogens is None else int(hydrogens or 1),
+    )
 
 
 def _has_mass_viable_bracket_completion(
@@ -269,14 +325,22 @@ def _has_mass_viable_percent_completion(
     )
 
 
+@lru_cache(maxsize=1)
+def _reachability_atoms() -> tuple[tuple[float, int], ...]:
+    """Return the (mass, valence) an atom still to come may contribute."""
+    return tuple(
+        (atom_mass(symbol), valence) for symbol, valence in _ATOM_VALENCES.items()
+    )
+
+
 @lru_cache(maxsize=4)
 def _reachable_valences(max_mass_bucket: int) -> np.ndarray:
     max_index = max_mass_bucket * _REACHABILITY_SCALE
     unreachable = np.iinfo(np.int16).min
     valences = np.full(max_index + 1, unreachable, dtype=np.int16)
     valences[0] = 0
-    for symbol, valence in _ATOM_VALENCES.items():
-        weight = round(_ATOM_MASSES[symbol] * _REACHABILITY_SCALE)
+    for mass, valence in _reachability_atoms():
+        weight = round(mass * _REACHABILITY_SCALE)
         remaining = max_index // weight
         power = 1
         while remaining:
@@ -314,6 +378,7 @@ class _GrammarState:
     bonds: set[tuple[int, int]] | None = None
     pending_bond_order: float | None = None
     incomplete_token: bool = False
+    policy: ChemistryPolicy = _PERMISSIVE_CHEMISTRY
 
     def __post_init__(self) -> None:
         if self.open_rings is None:
@@ -374,6 +439,7 @@ class _GrammarState:
         clone.bonds = set(self.bonds)
         clone.pending_bond_order = self.pending_bond_order
         clone.incomplete_token = self.incomplete_token
+        clone.policy = self.policy
         return clone
 
     @property
@@ -488,12 +554,10 @@ def _advance(
             <= state.valence_limits[atom] + 1e-6
         )
 
-    def add_atom(
-        symbol: str,
-        explicit_hydrogens: int = 0,
-        *,
-        bracketed: bool = False,
-    ) -> bool:
+    def add_atom(atom: _BracketAtom, *, bracketed: bool = False) -> bool:
+        if not state.policy.admits(atom.element, atom.mass_number):
+            return False
+        symbol = atom.symbol
         previous_atom = state.current_atom
         state.atom_index += 1
         state.current_atom = state.atom_index
@@ -542,13 +606,16 @@ def _advance(
         state.bond_counts[state.atom_index] = 0
         state.bond_order_sums[state.atom_index] = 0.0
         state.valence_usage_sums[state.atom_index] = 0.0
-        mass_symbol = symbol.rstrip("+")
-        state.atom_masses[state.atom_index] = _ATOM_MASSES.get(
-            mass_symbol.capitalize() if len(mass_symbol) == 1 else mass_symbol,
-            0.0,
+        # One source of truth for what an atom weighs, shared with the token
+        # property table the mass shell runs on. The wildcard "*" is the only
+        # symbol with no mass to give.
+        state.atom_masses[state.atom_index] = (
+            0.0
+            if atom.element is None
+            else atom_mass(atom.element, atom.mass_number)
         )
         state.atom_symbols[state.atom_index] = symbol
-        state.explicit_hydrogens[state.atom_index] = explicit_hydrogens
+        state.explicit_hydrogens[state.atom_index] = atom.explicit_hydrogens
         if previous_atom is not None:
             previous_symbol = state.atom_symbols[previous_atom]
             aromatic_bond = previous_symbol in "bcnops" and symbol in "bcnops"
@@ -591,36 +658,31 @@ def _advance(
             if close < 0:
                 if stop_before_lookahead:
                     return index
-                symbol = _partial_bracket_symbol(text[index + 1 :])
-                if symbol is None:
+                partial = _partial_bracket_atom(text[index + 1 :], state.policy)
+                if partial is None:
                     return None
-                if symbol and not add_atom(symbol, bracketed=True):
+                if partial.symbol and not add_atom(partial, bracketed=True):
                     return None
                 state.incomplete_token = True
                 return len(text)
-            symbol = _partial_bracket_symbol(text[index + 1 : close])
-            if not symbol:
+            atom = _partial_bracket_atom(text[index + 1 : close], state.policy)
+            if atom is None or not atom.symbol:
                 return None
-            content = text[index + 1 : close]
-            hydrogen_match = re.search(r"H(\d*)", content)
-            explicit_hydrogens = (
-                int(hydrogen_match.group(1) or "1") if hydrogen_match else 0
-            )
-            if not add_atom(symbol, explicit_hydrogens, bracketed=True):
+            if not add_atom(atom, bracketed=True):
                 return None
             index = close + 1
             continue
         if text.startswith(_TWO_CHARACTER_ATOMS, index):
             if not state.expect_atom:
                 state.expect_atom = True
-            if not add_atom(text[index : index + 2]):
+            if not add_atom(_plain_atom(text[index : index + 2])):
                 return None
             index += 2
             continue
         if char in _ONE_CHARACTER_ATOMS:
             if not state.expect_atom:
                 state.expect_atom = True
-            if not add_atom(char):
+            if not add_atom(_plain_atom(char)):
                 return None
             index += 1
             continue
@@ -758,7 +820,9 @@ def _advance(
     return len(text)
 
 
-def _scan(text: str) -> _GrammarState | None:
+def _scan(
+    text: str, policy: ChemistryPolicy = _PERMISSIVE_CHEMISTRY
+) -> _GrammarState | None:
     """Parse a SAFE prefix into its grammar state.
 
     Deliberately uncached. Memoising this was measured at 0.98x on a realistic
@@ -766,7 +830,7 @@ def _scan(text: str) -> _GrammarState | None:
     turning ~45 garbage collections into ~2,500; the incremental path is what
     removes the repeated work. All mutation happens in :func:`_advance`.
     """
-    state = _GrammarState()
+    state = _GrammarState(policy=policy)
     if _advance(state, text) is None:
         return None
     return state
@@ -784,13 +848,15 @@ class _ScanBase(NamedTuple):
     pending: str
 
 
-def _scan_base(text: str) -> _ScanBase | None:
+def _scan_base(
+    text: str, policy: ChemistryPolicy = _PERMISSIVE_CHEMISTRY
+) -> _ScanBase | None:
     """Scan the part of ``text`` that no continuation can reinterpret.
 
     Returns ``None`` only when ``text`` is already invalid, in which case
     ``_scan(text + suffix)`` is ``None`` for every ``suffix``.
     """
-    state = _GrammarState()
+    state = _GrammarState(policy=policy)
     consumed = _advance(state, text, stop_before_lookahead=True)
     if consumed is None:
         return None
@@ -864,7 +930,7 @@ def _has_structurally_viable_continuation(
     ):
         return True
     if base is None:
-        base = _scan_base(text)
+        base = _scan_base(text, state.policy)
         if base is None:
             return False
     if state.expect_atom and state.allow_ring:
@@ -945,10 +1011,11 @@ def _has_vocabulary_completion(
     target_mass: float,
     valence_slack: float,
     tolerance: float,
+    policy: ChemistryPolicy = _PERMISSIVE_CHEMISTRY,
 ) -> bool:
     has_open_bracket = text.rfind("[") > text.rfind("]")
     trailing_percent = text.rfind("%") > max(text.rfind("["), text.rfind("]"))
-    base = _scan_base(text)
+    base = _scan_base(text, policy)
     if base is None:
         return False
     for token in token_strings:
@@ -996,6 +1063,8 @@ class SafeGrammarMask:
         ppm_tolerance: float = 10.0,
         valence_slack: float = 4.0,
         mass_reachability_prune: bool = False,
+        restrict_organic_elements: bool = False,
+        forbid_isotopes: bool = False,
     ) -> None:
         self.token_strings = tuple(token_strings)
         self.decode_prefix = decode_prefix
@@ -1012,6 +1081,12 @@ class SafeGrammarMask:
         # Off by default: the paper's syntax mask carries no chemical mass
         # reachability, so enabling this is a documented deviation.
         self.mass_reachability_prune = mass_reachability_prune
+        # The same restrictions the caller expresses as forbidden token ids, but
+        # decided on the element the grammar parses, so no spelling escapes them.
+        self.policy = ChemistryPolicy(
+            allowed_elements=ORGANIC_ELEMENTS if restrict_organic_elements else None,
+            forbid_isotopes=forbid_isotopes,
+        )
 
     @lru_cache(maxsize=32_768)
     def _has_syntactic_completion(self, text: str) -> bool:
@@ -1023,7 +1098,7 @@ class SafeGrammarMask:
         """
         has_open_bracket = text.rfind("[") > text.rfind("]")
         trailing_percent = text.rfind("%") > max(text.rfind("["), text.rfind("]"))
-        base = _scan_base(text)
+        base = _scan_base(text, self.policy)
         if base is None:
             return False
         for token in self.token_strings:
@@ -1063,11 +1138,11 @@ class SafeGrammarMask:
 
     @lru_cache(maxsize=32_768)
     def _valid_token_ids(self, prefix: str) -> tuple[int, ...]:
-        state = _scan(prefix)
+        state = _scan(prefix, self.policy)
         if state is None:
             return ()
         # A prefix that scans always has a base; only its deferred tail can fail.
-        base = _scan_base(prefix)
+        base = _scan_base(prefix, self.policy)
         assert base is not None
         return tuple(
             token_id
@@ -1104,6 +1179,7 @@ class SafeGrammarMask:
                 target_mass,
                 self.valence_slack,
                 tolerance,
+                self.policy,
             )
         return _has_reachable_exact_mass(
             completed, target_mass, self.valence_slack, tolerance
@@ -1120,11 +1196,11 @@ class SafeGrammarMask:
     def _mass_reachable_token_ids(
         self, prefix: str, target_mass: float
     ) -> tuple[int, ...]:
-        state = _scan(prefix)
+        state = _scan(prefix, self.policy)
         if state is None:
             return ()
         # A prefix that scans always has a base; only its deferred tail can fail.
-        base = _scan_base(prefix)
+        base = _scan_base(prefix, self.policy)
         assert base is not None
         tolerance = self.ppm_tolerance * 1e-6 * target_mass
         return tuple(
@@ -1151,10 +1227,10 @@ class SafeGrammarMask:
         if self.mask_token_id is not None and self.mask_token_id in prefix_ids:
             return False
         prefix = self.decode_prefix(prefix_ids)
-        state = _scan(prefix)
+        state = _scan(prefix, self.policy)
         if state is None:
             return False
-        base = _scan_base(prefix)
+        base = _scan_base(prefix, self.policy)
         assert base is not None
         if self.mass_reachability_prune and target_mass is not None:
             return self._token_is_mass_reachable(

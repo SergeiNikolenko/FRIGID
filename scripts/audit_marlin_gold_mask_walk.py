@@ -114,6 +114,11 @@ def build_mask(
         ppm_tolerance=ppm_tolerance,
         valence_slack=valence_slack,
         mass_reachability_prune=True,
+        # Both halves of the restriction, so the walk holds the gold answers to
+        # the element and isotope rules the state enforces as well as to the
+        # token block list the caller passes.
+        restrict_organic_elements=chemistry_restrictions,
+        forbid_isotopes=chemistry_restrictions,
     )
 
 

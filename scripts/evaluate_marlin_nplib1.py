@@ -121,17 +121,18 @@ def parse_args() -> argparse.Namespace:
         "--forbid-isotope-tokens",
         action="store_true",
         help=(
-            "documented deviation: withhold support from bracket atoms carrying "
-            "a mass number, which the monoisotopic mass shell can never accept"
+            "documented deviation: withhold support from any bracket atom "
+            "carrying a mass number, which the monoisotopic mass shell can never "
+            "accept; enforced on the grammar state as well as on token ids"
         ),
     )
     parser.add_argument(
         "--restrict-organic-elements",
         action="store_true",
         help=(
-            "documented deviation: withhold support from tokens introducing an "
-            "element outside CHNOPS and the halogens, the set small-molecule MS "
-            "structure elucidation works in"
+            "documented deviation: withhold support from any atom outside CHNOPS "
+            "and the halogens, the set small-molecule MS structure elucidation "
+            "works in; enforced on the grammar state as well as on token ids"
         ),
     )
     parser.add_argument(
@@ -677,6 +678,11 @@ def main() -> None:
                 ppm_tolerance=args.ppm_tolerance,
                 valence_slack=args.valence_slack,
                 mass_reachability_prune=args.mass_reachability_prune,
+                # The same two restrictions, decided on the element the grammar
+                # parses instead of on the token id, which the vocabulary spells
+                # around: "[Og]" is ['[O', 'g]'] and neither piece is blockable.
+                restrict_organic_elements=args.restrict_organic_elements,
+                forbid_isotopes=args.forbid_isotope_tokens,
             ),
             forbidden_token_ids=tuple(
                 token_id

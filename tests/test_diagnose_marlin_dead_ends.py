@@ -28,16 +28,18 @@ def test_group_of_separates_the_four_outcomes():
     assert group_of(_row(constraint_dead_ends=4, valid=0)) == "no_parse"
 
 
-def test_phantom_atoms_counts_what_the_grammar_weighs_at_zero():
-    # marlin.grammar._ATOM_MASSES has no hydrogen entry and only 18 elements, so
-    # a bracket hydrogen and any element outside that table enter the state at
-    # mass 0.0 while the mass-shell token table charges their real mass.
+def test_phantom_atoms_finds_nothing_left_for_the_grammar_to_weigh_at_zero():
+    # The diagnosis measured a bracket hydrogen and every element outside an
+    # 18-entry table entering the state at mass 0.0 while the token table charged
+    # their real mass, in 2,240 of 3,093 dead-end prefixes. Both models now ask
+    # marlin.token_properties.atom_mass, so this prefix holds no weightless atom
+    # where it used to hold two.
     counts = phantom_atoms(_scan("C.[H].[Og]"))
 
     assert counts["atoms"] == 3
-    assert counts["zero_mass_atoms"] == 2
-    assert counts["bracket_hydrogen_atoms"] == 1
-    assert counts["foreign_element_atoms"] == 1
+    assert counts["zero_mass_atoms"] == 0
+    assert counts["bracket_hydrogen_atoms"] == 0
+    assert counts["foreign_element_atoms"] == 0
     assert phantom_atoms(_scan("CCO"))["zero_mass_atoms"] == 0
 
 
