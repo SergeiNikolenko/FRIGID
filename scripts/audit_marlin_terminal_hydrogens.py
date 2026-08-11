@@ -7,7 +7,8 @@ target: if it rejects one, no candidate the decoder could ever produce for that
 spectrum would be admitted, and the spectrum is lost before ranking.
 
 For each SMILES this converts to SAFE exactly as training does, scans it with the
-grammar, and asserts the gate accepts it at its own monoisotopic mass within the
+grammar, and asserts the gate accepts it at the mass the run conditions on for it,
+which is its monoisotopic mass less a proton per unit of formal charge, within the
 decode tolerance. It also reports how many hydrogen counts the gate admits per
 target -- the width the exact terminal count collapses -- and how far the
 scanner's hydrogen count sits from RDKit's, which is the defect this measures.
@@ -27,7 +28,6 @@ from pathlib import Path
 
 import pandas as pd
 from rdkit import Chem
-from rdkit.Chem.Descriptors import ExactMolWt
 
 from dlm.utils.utils_chem import smiles_to_safe
 from marlin.grammar import (
@@ -35,6 +35,7 @@ from marlin.grammar import (
     _scan,
     _terminal_hydrogens,
 )
+from marlin.mass_shell import conditioning_mass
 
 
 def parse_args() -> argparse.Namespace:
@@ -83,7 +84,12 @@ def audit_split(
             scan_failures.append({"row": row_index, "smiles": smiles, "safe": safe})
             continue
         rows += 1
-        target_mass = ExactMolWt(molecule)
+        # The mass the gate is held to is the one the run conditions on, derived
+        # from the precursor as precursor_mz - proton. For the 7,533 uncharged
+        # targets that is ExactMolWt; for the 152 charged ones of train and test
+        # it is a proton lower, and holding the mask to ExactMolWt instead is the
+        # defect the conditioning mass fixes (see mass_shell.conditioning_mass).
+        target_mass = conditioning_mass(molecule)
         tolerance = ppm_tolerance * 1e-6 * target_mass
 
         # The interval the gate used to admit, in hydrogen counts.

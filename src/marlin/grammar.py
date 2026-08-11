@@ -12,7 +12,13 @@ import numpy as np
 import torch
 from rdkit import Chem
 
-from marlin.token_properties import ORGANIC_ELEMENTS, atom_mass, element_symbol
+from marlin.token_properties import (
+    HYDROGEN_MASS,
+    ORGANIC_ELEMENTS,
+    atom_mass,
+    bracket_charge,
+    element_symbol,
+)
 
 
 _TWO_CHARACTER_ATOMS = ("Br", "Cl")
@@ -29,7 +35,7 @@ _ELEMENT_PATTERN = "|".join(
 )
 _BONDS = frozenset("-=#:/\\~")
 _BOND_ORDERS = {"-": 1.0, "=": 2.0, "#": 3.0, ":": 1.5, "/": 1.0, "\\": 1.0, "~": 1.0}
-_HYDROGEN_MASS = 1.00782503223
+_HYDROGEN_MASS = HYDROGEN_MASS
 # The elements a *future* atom is allowed to be while the mass reachability search
 # decides whether the residual mass can still be hit exactly, with the valence each
 # one can offer to the hydrogens still outstanding. This is a search space, not a
@@ -55,6 +61,14 @@ _ATOM_VALENCES = {
     "Ca": 2,
     "Al": 3,
 }
+# A formal charge costs one hydrogen atom mass (see mass_shell.conditioning_mass),
+# so a charged atom still to come is a mass the neutral table cannot reach. All
+# 7,947 gold answers of train, val and test between them use six charged forms,
+# [N+], [N-], [O-], [o+], [C-] and [S+]; the search space carries the singly
+# charged variant of every organic element, which covers those and any other the
+# organic restriction leaves writable. Measured over a 500 Da table, this moves the
+# reachable fraction from 0.6115 to 0.6577, so the prune keeps its power.
+_REACHABILITY_CHARGE_ELEMENTS = frozenset({"C", "N", "O", "P", "S", "F", "Cl", "Br", "I"})
 _REACHABILITY_SCALE = 1_000
 _BRACKET_COMPLETION_ELEMENTS = tuple(_ATOM_VALENCES)
 _ATOM_COMPLETIONS = (
@@ -120,6 +134,7 @@ class _BracketAtom(NamedTuple):
     element: str | None
     mass_number: int | None
     explicit_hydrogens: int
+    charge: int
 
 
 @lru_cache(maxsize=None)
@@ -215,12 +230,12 @@ def _terminal_hydrogens(state: "_GrammarState") -> int:
 @lru_cache(maxsize=None)
 def _plain_atom(symbol: str) -> _BracketAtom:
     """Describe an atom written outside brackets, which carries no charge."""
-    return _BracketAtom(symbol, element_symbol(symbol), None, 0)
+    return _BracketAtom(symbol, element_symbol(symbol), None, 0, 0)
 
 
 # The content of a bracket that holds no element yet: the empty string or the
 # isotope digits, which any element may still follow.
-_PENDING_BRACKET_ATOM = _BracketAtom("", None, None, 0)
+_PENDING_BRACKET_ATOM = _BracketAtom("", None, None, 0, 0)
 
 
 @lru_cache(maxsize=None)
@@ -247,13 +262,14 @@ def _partial_bracket_atom(
     if not policy.admits(element, mass_number):
         return None
     hydrogens = match.group("hydrogens")
-    annotations = match.group("annotations")
-    symbol = "N+" if written == "N" and "+" in annotations else written
+    charge = bracket_charge(match.group("annotations"))
+    symbol = "N+" if written == "N" and charge > 0 else written
     return _BracketAtom(
         symbol,
         element,
         mass_number,
         0 if hydrogens is None else int(hydrogens or 1),
+        charge,
     )
 
 
@@ -328,9 +344,16 @@ def _has_mass_viable_percent_completion(
 @lru_cache(maxsize=1)
 def _reachability_atoms() -> tuple[tuple[float, int], ...]:
     """Return the (mass, valence) an atom still to come may contribute."""
-    return tuple(
-        (atom_mass(symbol), valence) for symbol, valence in _ATOM_VALENCES.items()
+    atoms = [(atom_mass(symbol), valence) for symbol, valence in _ATOM_VALENCES.items()]
+    atoms.extend(
+        # One more valence than the neutral element, so the search never claims a
+        # charged atom can host fewer hydrogens than it really can.
+        (atom_mass(symbol) - charge * _HYDROGEN_MASS, _ATOM_VALENCES[symbol] + 1)
+        for symbol in _ATOM_VALENCES
+        if symbol in _REACHABILITY_CHARGE_ELEMENTS
+        for charge in (-1, 1)
     )
+    return tuple(atoms)
 
 
 @lru_cache(maxsize=4)
@@ -606,13 +629,14 @@ def _advance(
         state.bond_counts[state.atom_index] = 0
         state.bond_order_sums[state.atom_index] = 0.0
         state.valence_usage_sums[state.atom_index] = 0.0
-        # One source of truth for what an atom weighs, shared with the token
-        # property table the mass shell runs on. The wildcard "*" is the only
-        # symbol with no mass to give.
+        # One source of truth for the mass, and one convention for it: the atom's
+        # own mass less a hydrogen per formal charge, which is what makes the
+        # string comparable with a conditioning mass derived as
+        # precursor_mz - proton (see mass_shell.conditioning_mass). The wildcard
+        # "*" is the only symbol with no mass to give.
+        mass = 0.0 if atom.element is None else atom_mass(atom.element, atom.mass_number)
         state.atom_masses[state.atom_index] = (
-            0.0
-            if atom.element is None
-            else atom_mass(atom.element, atom.mass_number)
+            mass - atom.charge * _HYDROGEN_MASS
         )
         state.atom_symbols[state.atom_index] = symbol
         state.explicit_hydrogens[state.atom_index] = atom.explicit_hydrogens

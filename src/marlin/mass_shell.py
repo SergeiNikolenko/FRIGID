@@ -9,9 +9,7 @@ import torch
 from rdkit import Chem
 from rdkit.Chem import Descriptors
 
-
-HYDROGEN_MASS = 1.00782503223
-PROTON_MASS = 1.007276466621
+from marlin.token_properties import HYDROGEN_MASS, PROTON_MASS
 
 
 def conditioning_mass(molecule: Chem.Mol) -> float:
@@ -25,6 +23,9 @@ def conditioning_mass(molecule: Chem.Mol) -> float:
     written in the candidate's own SMILES, needs no adduct annotation and no
     knowledge of the answer: ``ExactMolWt`` already accounts for the missing
     electron, so one proton per unit of formal charge is the whole correction.
+    Summing neutral atom masses instead, as the grammar and the token table do,
+    the same statement costs one hydrogen *atom* mass per charge, the proton plus
+    that electron.
 
     For the 7,533 uncharged NPLIB1 targets this is ``ExactMolWt`` unchanged; for
     the 14 charged ones it removes an error of 1.0073 Da, 1,269 to 5,354 ppm
@@ -118,5 +119,7 @@ class MassShellConstraint:
         molecule = Chem.MolFromSmiles(smiles)
         if molecule is None:
             return False
-        exact_mass = Descriptors.ExactMolWt(molecule)
-        return abs(exact_mass - target_mass) <= self.tolerance(target_mass)
+        return (
+            abs(conditioning_mass(molecule) - target_mass)
+            <= self.tolerance(target_mass)
+        )

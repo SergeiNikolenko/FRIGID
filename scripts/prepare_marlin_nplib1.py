@@ -84,6 +84,11 @@ def main() -> None:
                 "split": args.split,
                 "spec_name": name,
                 "precursor_mz": precursor_mz,
+                # The neutral mass of the species that was protonated. A target
+                # carrying its own formal charge is already the ion, so this
+                # subtraction is one proton short of its own mass; the charge is
+                # not knowable from the spectrum, so it is applied to the
+                # candidate instead, by marlin.mass_shell.conditioning_mass.
                 "neutral_mass": precursor_mz - 1.007276466621,
                 "smiles": smiles,
                 "inchikey": inchikey,
@@ -108,7 +113,11 @@ def main() -> None:
         "mgf": str(mgf_path),
         "morgan_radius": 2,
         "morgan_bits": 4096,
-        "neutral_mass_assumption": "[M+H]+: precursor_mz - proton_mass",
+        "neutral_mass_assumption": (
+            "[M+H]+: precursor_mz - proton_mass; candidates are compared to it "
+            "through marlin.mass_shell.conditioning_mass, which removes the same "
+            "proton per unit of the candidate's own formal charge"
+        ),
     }
     (args.output_dir / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
     print(json.dumps(summary, indent=2))

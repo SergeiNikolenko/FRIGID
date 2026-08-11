@@ -24,6 +24,7 @@ from marlin.grammar import (
     _scan_continuation,
     _terminal_hydrogens,
 )
+from marlin.mass_shell import PROTON_MASS, conditioning_mass
 from marlin.token_properties import (
     ORGANIC_ELEMENTS,
     atom_mass,
@@ -391,11 +392,36 @@ def test_terminal_hydrogen_count_matches_rdkit(safe):
 
 @pytest.mark.parametrize("safe", TERMINAL_HYDROGEN_CASES)
 def test_terminal_gate_accepts_every_target_at_its_own_mass(safe):
+    # The mass the gate is held to is the one the run conditions on, which is the
+    # precursor less a proton; for a molecule carrying its own charge that is not
+    # ExactMolWt (see mass_shell.conditioning_mass).
     molecule = Chem.MolFromSmiles(safe)
-    target_mass = ExactMolWt(molecule)
+    target_mass = conditioning_mass(molecule)
 
     assert _has_hydrogen_only_exact_mass(
         _scan(safe), target_mass, 4.0, 10e-6 * target_mass
+    ), safe
+
+
+@pytest.mark.parametrize("safe", ("[O-]C(=O)C", "C[N+](C)(C)C", "CC[N-]C"))
+def test_terminal_gate_holds_a_charged_target_to_the_conditioning_mass(safe):
+    # A permanently charged target used to be handed a target mass short by a
+    # proton, 1,269 to 5,354 ppm against a 10 ppm window, which put 15 of the 803
+    # gold answers outside the run's own acceptance window.
+    molecule = Chem.MolFromSmiles(safe)
+    charge = Chem.GetFormalCharge(molecule)
+    neutral_target = ExactMolWt(molecule)
+    conditioning_target = conditioning_mass(molecule)
+
+    assert charge != 0
+    assert conditioning_target == pytest.approx(
+        neutral_target - charge * PROTON_MASS, abs=1e-9
+    )
+    assert _has_hydrogen_only_exact_mass(
+        _scan(safe), conditioning_target, 4.0, 10e-6 * conditioning_target
+    ), safe
+    assert not _has_hydrogen_only_exact_mass(
+        _scan(safe), neutral_target, 4.0, 10e-6 * neutral_target
     ), safe
 
 

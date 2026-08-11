@@ -10,7 +10,7 @@ import torch
 from rdkit import Chem, DataStructs
 from rdkit.Chem import AllChem, Descriptors
 
-from marlin.mass_shell import MassShellConstraint, MassShellState
+from marlin.mass_shell import MassShellConstraint, MassShellState, conditioning_mass
 from marlin.model import MarlinDecoder
 from marlin.noise import perturb_fingerprint
 
@@ -326,7 +326,9 @@ class MarlinSampler:
         for safe, smiles, is_mass_valid in unique.values():
             unique_mass_valid += int(is_mass_valid)
             molecule = Chem.MolFromSmiles(smiles)
-            exact_mass = Descriptors.ExactMolWt(molecule)
+            # The reported error has to be the error the acceptance test measures,
+            # or a charged candidate reads 1,300 ppm off while being accepted.
+            candidate_mass = conditioning_mass(molecule)
             ranked.append(
                 MarlinCandidate(
                     smiles=smiles,
@@ -334,7 +336,7 @@ class MarlinSampler:
                     tanimoto=DataStructs.TanimotoSimilarity(
                         reference, _morgan(molecule)
                     ),
-                    mass_error_ppm=1e6 * (exact_mass - target_mass) / target_mass,
+                    mass_error_ppm=1e6 * (candidate_mass - target_mass) / target_mass,
                 )
             )
         ranked = sorted(
