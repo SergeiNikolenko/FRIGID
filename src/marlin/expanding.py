@@ -20,7 +20,7 @@ from rdkit.Chem import AllChem, Descriptors
 from torch import nn
 from torch.nn import functional as F
 
-from marlin.mass_shell import MassShellConstraint
+from marlin.mass_shell import MassShellConstraint, conditioning_mass
 from marlin.model import MarlinDecoder, MarlinDecoderConfig
 from marlin.noise import perturb_fingerprint
 from marlin.sampler import MarlinCandidate, MarlinGenerationStats
@@ -1419,7 +1419,9 @@ class ExpandingMarlinSampler:
         for safe, smiles, is_mass_valid in unique.values():
             unique_mass_valid += int(is_mass_valid)
             molecule = Chem.MolFromSmiles(smiles)
-            exact_mass = Descriptors.ExactMolWt(molecule)
+            # The same convention the acceptance test uses, so a charged candidate
+            # cannot read 1,300 ppm off while being accepted.
+            candidate_mass = conditioning_mass(molecule)
             ranked.append(
                 MarlinCandidate(
                     smiles=smiles,
@@ -1431,7 +1433,7 @@ class ExpandingMarlinSampler:
                         ).GetFingerprint(molecule),
                     ),
                     mass_error_ppm=1e6
-                    * (exact_mass - target_mass)
+                    * (candidate_mass - target_mass)
                     / target_mass,
                 )
             )
