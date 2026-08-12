@@ -316,18 +316,28 @@ tbody tr:hover td, tbody tr.picked td { background: var(--muted); }
 }
 
 /* ---------- the fan ---------- */
-.tree-scroll { overflow-x: auto; padding-bottom: 8px; }
+.tree-scroll { overflow: auto; padding: 4px 0 8px; }
 .tree-scroll svg { display: block; height: auto; }
-.branch { fill: none; stroke: var(--muted-foreground); stroke-linejoin: round; stroke-linecap: round; cursor: pointer; }
-.branch:hover { stroke: var(--foreground); }
-.branch.on-path { stroke: var(--foreground); }
-.leaf { cursor: pointer; }
+.grid-line { stroke: var(--border); stroke-width: 1; }
+.branch {
+  fill: none; stroke: var(--border); stroke-linejoin: round; stroke-linecap: round;
+  cursor: pointer; transition: stroke 120ms ease;
+}
+.branch.is-active { stroke: var(--muted-foreground); }
+.branch.is-hover { stroke: var(--foreground); }
+.branch.on-gold { stroke: var(--allowed); }
+.leaf { cursor: pointer; stroke: var(--card); stroke-width: 2; }
 .leaf.accepted { fill: var(--allowed); }
 .leaf.grammar { fill: var(--unwritable); }
 .leaf.mass { fill: var(--unreachable); }
 .leaf.other { fill: var(--muted-foreground); }
-.split { fill: var(--background); stroke: var(--muted-foreground); stroke-width: 1.5; }
-.axis { fill: var(--muted-foreground); font-family: var(--mono); font-size: 9px; }
+.leaf-label {
+  fill: var(--muted-foreground); font-family: var(--mono); font-size: 10px; cursor: pointer;
+}
+.leaf-label.is-active, .leaf-label.is-hover { fill: var(--foreground); font-weight: 700; }
+.split { fill: var(--card); stroke: var(--muted-foreground); stroke-width: 1.5; cursor: pointer; }
+.split.is-active, .split.is-hover { stroke: var(--foreground); }
+.axis { fill: var(--muted-foreground); font-family: var(--mono); font-size: 9.5px; }
 .attempt-list { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; }
 .attempt-row {
   display: flex; align-items: center; gap: 10px; padding: 8px 10px; cursor: pointer;
@@ -545,93 +555,120 @@ function drawTree(spectrum) {
     return node.y;
   })(root);
 
-  // Wide enough that a token label fits between two positions; the row of
-  // labels is what makes the tree readable as writing rather than as a graph.
-  const dx = Math.max(9, Math.min(34, 1200 / Math.max(maxDepth, 1)));
-  const dy = 26;
-  const left = 14;
-  const top = 22;
-  const width = left * 2 + maxDepth * dx;
-  const height = top + leafIndex * dy + 16;
+  const dx = Math.max(8, Math.min(26, 900 / Math.max(maxDepth, 1)));
+  const dy = 34;
+  const left = 18;
+  const top = 26;
+  const right = 96;                       // room for the outcome label at the leaf
+  const width = left + maxDepth * dx + right;
+  const height = top + leafIndex * dy + 14;
   svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
   svg.setAttribute('width', width);
   svg.setAttribute('height', height);
 
   const x = depth => left + depth * dx;
   const y = row => top + row * dy;
-  const parts = [];
+  const grid = [];
+  const branches = [];
+  const nodes = [];
+  const labels = [];
 
-  for (let depth = 0; depth <= maxDepth; depth += 10) {
-    parts.push(`<text class="axis" x="${x(depth)}" y="12" text-anchor="middle">${depth}</text>`);
+  const stride = maxDepth > 60 ? 20 : maxDepth > 24 ? 10 : 5;
+  for (let depth = 0; depth <= maxDepth; depth += stride) {
+    grid.push(
+      `<line class="grid-line" x1="${x(depth)}" x2="${x(depth)}" y1="${top - 12}" y2="${height - 8}"/>`
+      + `<text class="axis" x="${x(depth)}" y="${top - 16}" text-anchor="middle">${depth}</text>`
+    );
   }
 
   (function walk(node) {
     node.children.forEach(child => {
+      const gold = spectrum.gold_tokens || [];
+      child.onGold = Boolean(node.onGold && gold[child.depth - 1] === child.token);
       const midpoint = x(node.depth) + dx / 2;
       const path = node.y === child.y
         ? `M ${x(node.depth)},${y(node.y)} L ${x(child.depth)},${y(child.y)}`
         : `M ${x(node.depth)},${y(node.y)} L ${midpoint},${y(node.y)} `
           + `L ${midpoint},${y(child.y)} L ${x(child.depth)},${y(child.y)}`;
-      const gold = spectrum.gold_tokens || [];
-      const onGold = child.depth <= gold.length && gold[child.depth - 1] === child.token
-        && node.depth === 0 ? true : node.onGold && gold[child.depth - 1] === child.token;
-      child.onGold = Boolean(onGold);
-      parts.push(
+      const rows = child.rows.join(',');
+      branches.push(
         `<path class="branch${child.onGold ? ' on-gold' : ''}" d="${path}" `
-        + `stroke-width="${1 + child.rows.length * 0.5}" `
-        + `data-row="${child.rows[0]}" data-depth="${child.depth}" `
+        + `stroke-width="${1.4 + child.rows.length * 0.7}" `
+        + `data-rows="${rows}" data-row="${child.rows[0]}" data-depth="${child.depth}" `
         + `data-token="${child.token.replace(/"/g, '&quot;')}" `
-        + `data-support="${child.step ? child.step.support : ''}" `
-        + `data-rows="${child.rows.length}"></path>`
+        + `data-support="${child.step ? child.step.support : ''}"></path>`
       );
-      if (dx >= 15) {
-        const label = child.token.length > 4 ? child.token.slice(0, 4) : child.token;
-        parts.push(
-          `<text class="branch-label" x="${x(child.depth) - dx / 2}" y="${y(child.y) - 5}" `
-          + `text-anchor="middle">${escapeHtml(label)}</text>`
+      // a label only where it carries information: at a split, or right at the start
+      const informative = node.children.size > 1 || child.children.size > 1 || child.depth <= 2;
+      if (dx >= 13 && informative) {
+        labels.push(
+          `<text class="branch-label" x="${x(child.depth) - dx / 2}" y="${y(child.y) - 7}" `
+          + `text-anchor="middle">${escapeHtml(child.token.slice(0, 4))}</text>`
         );
       }
-      // the first token that is no longer what the gold answer writes
       if (node.onGold && !child.onGold) {
-        parts.push(
-          `<path class="left-gold" d="M ${x(child.depth) - 3.5},${y(child.y) - 3.5} `
-          + `l 7,7 M ${x(child.depth) + 3.5},${y(child.y) - 3.5} l -7,7"></path>`
+        labels.push(
+          `<path class="left-gold" d="M ${x(child.depth) - 4},${y(child.y) - 4} l 8,8 `
+          + `M ${x(child.depth) + 4},${y(child.y) - 4} l -8,8"></path>`
         );
       }
       if (child.children.size > 1) {
-        parts.push(`<circle class="split" cx="${x(child.depth)}" cy="${y(child.y)}" r="3"></circle>`);
+        nodes.push(
+          `<circle class="split" cx="${x(child.depth)}" cy="${y(child.y)}" r="3.5" `
+          + `data-rows="${rows}" data-row="${child.rows[0]}" data-depth="${child.depth}"></circle>`
+        );
       }
       if (child.leaf) {
-        parts.push(
-          `<circle class="leaf ${outcomeClass(child.leaf)}" cx="${x(child.depth) + 4}" `
-          + `cy="${y(child.y)}" r="5" data-row="${child.leaf.row}"></circle>`
+        const attempt = child.leaf;
+        nodes.push(
+          `<circle class="leaf ${outcomeClass(attempt)}" cx="${x(child.depth) + 7}" `
+          + `cy="${y(child.y)}" r="6" data-rows="${attempt.row}" data-row="${attempt.row}"></circle>`
+          + `<text class="leaf-label" x="${x(child.depth) + 18}" y="${y(child.y) + 4}" `
+          + `data-rows="${attempt.row}" data-row="${attempt.row}">#${attempt.row} · `
+          + `${attempt.steps.length}p</text>`
         );
       }
       walk(child);
     });
   })(root);
 
-  svg.innerHTML = parts.join('');
+  svg.innerHTML = grid.join('') + branches.join('') + labels.join('') + nodes.join('');
+  paintTree();
+}
+
+/* One attempt is always lit: the one being walked. Hovering lights another
+   without losing it, so a branch can be compared before it is picked. */
+function paintTree(hovered) {
+  const svg = el('tree');
+  const active = String(state.attempt);
+  svg.querySelectorAll('[data-rows]').forEach(part => {
+    const rows = part.dataset.rows.split(',');
+    part.classList.toggle('is-active', rows.includes(active));
+    part.classList.toggle('is-hover', hovered !== undefined && rows.includes(String(hovered)));
+  });
 }
 
 el('tree').addEventListener('mousemove', event => {
-  const target = event.target.closest('path, circle');
-  if (!target) return hideTip();
-  if (target.classList.contains('leaf')) {
-    const attempt = currentSpectrum().attempts[+target.dataset.row];
+  const target = event.target.closest('[data-rows]');
+  if (!target) { paintTree(); return hideTip(); }
+  const rows = target.dataset.rows.split(',');
+  paintTree(rows[0]);
+  const attempts = currentSpectrum().attempts;
+  if (target.classList.contains('leaf') || target.classList.contains('leaf-label')) {
+    const attempt = attempts[+target.dataset.row];
     return showTip(`attempt ${attempt.row} · ${outcomeWords(attempt)}`, event);
   }
-  if (!target.dataset.token) return hideTip();
   showTip(
-    `position ${target.dataset.depth} · ${JSON.stringify(target.dataset.token)} · `
-    + `${target.dataset.rows} of ${currentSpectrum().attempts.length} attempts · `
-    + `${target.dataset.support} admitted`,
+    `position ${target.dataset.depth}`
+    + (target.dataset.token ? ` · wrote ${JSON.stringify(target.dataset.token)}` : '')
+    + ` · ${rows.length} of ${attempts.length} attempts here`
+    + (target.dataset.support ? ` · ${target.dataset.support} tokens admitted` : ''),
     event
   );
 });
-el('tree').addEventListener('mouseleave', hideTip);
+el('tree').addEventListener('mouseleave', () => { paintTree(); hideTip(); });
 el('tree').addEventListener('click', event => {
-  const target = event.target.closest('path, circle');
+  const target = event.target.closest('[data-rows]');
   if (!target || target.dataset.row === undefined) return;
   state.attempt = +target.dataset.row;
   if (target.dataset.depth) state.step = Math.max(0, +target.dataset.depth - 1);
@@ -742,21 +779,31 @@ function renderAttempt() {
 
   const here = attempt.steps[state.step];
   const partial = here ? here.partial : null;
+  const label = partial ? (spectrum.partial_labels[partial] || partial) : '';
+  const kind = partial ? spectrum.partial_kinds[partial] : null;
   const lit = (partial && spectrum.gold_matches ? spectrum.gold_matches[partial] : null) || [];
   el('attemptFig').innerHTML = partial
     ? (spectrum.partial_svgs[partial] || '')
-    : '<p class="empty">nothing readable yet</p>';
-  el('attemptStruct').dataset.smiles = partial || '';
+    : '<p class="empty">nothing written yet</p>';
+  el('attemptStruct').dataset.smiles = label;
   el('attemptCap').textContent =
-    `Attempt ${attempt.row} at position ${here ? here.position : '—'}`;
+    `Attempt ${attempt.row} at position ${here ? here.position : '—'}`
+    + (kind === 'partial' ? ' · patched to draw' : kind === 'atoms' ? ' · atoms only' : '');
   highlightGold(lit);
+  const caveat = kind === 'partial'
+    ? ' <span style="color:var(--muted-foreground)">— rings and branches still open were closed to draw '
+      + 'this, so valences here are not the model\'s</span>'
+    : kind === 'atoms'
+      ? ' <span style="color:var(--muted-foreground)">— nothing bonds yet, so only the atoms written so far '
+        + 'are shown</span>'
+      : '';
   el('matchNote').innerHTML = !partial
-    ? 'Nothing readable at this position yet.'
+    ? 'Nothing written at this position yet.'
     : (lit.length
         ? `<span style="color:var(--allowed)">${lit.length} of ${spectrum.heavy_atoms} gold atoms are in `
-          + `place here</span> · ${escapeHtml(partial)}`
-        : `<span style="color:var(--unwritable)">nothing written here appears in the gold answer</span> · `
-          + `${escapeHtml(partial)}`);
+          + `place here</span> · ${escapeHtml(label)}${caveat}`
+        : `<span style="color:var(--unwritable)">nothing here matches the gold answer yet</span> · `
+          + `${escapeHtml(label)}${caveat}`);
 
   const tape = el('tape');
   tape.innerHTML = '';
@@ -802,10 +849,8 @@ function renderAttempt() {
           + `${attempt.mass_reachable_support}.`
         : '.');
 
-  document.querySelectorAll('.attempt-row').forEach(row => {
-    row.classList.toggle('picked', +row.dataset.row === state.attempt);
-  });
   renderAttemptList();
+  paintTree();
 }
 
 function renderAttemptList() {

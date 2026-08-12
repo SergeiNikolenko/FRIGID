@@ -25,6 +25,7 @@ from rdkit.Chem.Draw import rdMolDraw2D
 
 sys.path.insert(0, "src")
 from dlm.utils.utils_chem import safe_to_smiles  # noqa: E402
+from partial_structure import best_effort, draw as draw_partial  # noqa: E402
 
 RDLogger.DisableLog("rdApp.*")
 
@@ -105,20 +106,28 @@ def main() -> int:
         target = Chem.MolFromSmiles(molecule["smiles"])
         partial_svgs: dict[str, str] = {}
         matches: dict[str, list[int]] = {}
+        kinds: dict[str, str] = {}
+        labels: dict[str, str] = {}
         for step in molecule["steps"]:
-            smiles = readable_prefix(step["written"])
-            step["partial"] = smiles
-            if smiles is None:
+            written = step["written"]
+            step["partial"] = written
+            if written in partial_svgs:
                 continue
-            if smiles not in partial_svgs:
-                drawing = draw(smiles)
-                if drawing is None:
-                    continue
-                partial_svgs[smiles] = drawing
-                drawings += 1
-            if target is not None and smiles not in matches:
-                matches[smiles] = matched_atoms(target, smiles)
+            piece, kind, label = best_effort(written, safe_to_smiles)
+            drawing = draw_partial(piece, 260, 190)
+            if drawing is None:
+                step["partial"] = None
+                continue
+            partial_svgs[written] = drawing
+            kinds[written] = kind
+            labels[written] = label
+            matches[written] = (
+                matched_atoms(target, label) if target is not None and kind == "valid" else []
+            )
+            drawings += 1
         molecule["partial_svgs"] = partial_svgs
+        molecule["partial_kinds"] = kinds
+        molecule["partial_labels"] = labels
         molecule["gold_matches"] = matches
 
     lines[index] = "const DEMO = " + json.dumps(data, separators=(",", ":")) + ";"

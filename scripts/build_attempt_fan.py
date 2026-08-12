@@ -35,6 +35,7 @@ from rdkit.Chem import AllChem, rdDepictor
 from rdkit.Chem.Draw import rdMolDraw2D
 
 from dlm.utils.utils_chem import safe_to_smiles, smiles_to_safe
+from partial_structure import best_effort, draw as draw_partial
 from marlin.grammar import SafeGrammarMask
 from marlin.mass_shell import conditioning_mass
 from marlin.token_properties import foreign_element_token_ids, isotope_token_ids
@@ -211,6 +212,8 @@ def main() -> int:
         ][1:] if gold_safe else []
 
         partial_svgs: dict[str, str] = {}
+        partial_kinds: dict[str, str] = {}
+        partial_labels: dict[str, str] = {}
         gold_matches: dict[str, list[int]] = {}
         readable_cache: dict[str, str | None] = {}
 
@@ -227,13 +230,15 @@ def main() -> int:
                 token = token_strings[int(entry["token"])]
                 written += token
                 if written not in readable_cache:
-                    readable_cache[written] = readable_prefix(written)
+                    molecule, kind, label = best_effort(written, safe_to_smiles)
+                    drawing = draw_partial(molecule)
+                    readable_cache[written] = written if drawing else None
+                    if drawing:
+                        partial_svgs[written] = drawing
+                        partial_kinds[written] = kind
+                        partial_labels[written] = label
+                        gold_matches[written] = matched_atoms(target, label) if kind == "valid" else []
                 partial = readable_cache[written]
-                if partial and partial not in partial_svgs:
-                    drawing = draw(partial, 240, 175)
-                    if drawing is not None:
-                        partial_svgs[partial] = drawing
-                        gold_matches[partial] = matched_atoms(target, partial)
                 steps.append(
                     {
                         "position": int(entry["position"]),
@@ -311,6 +316,8 @@ def main() -> int:
                 "returned": len(prediction.get("candidates", [])),
                 "gold_tokens": gold_tokens,
                 "partial_svgs": partial_svgs,
+                "partial_kinds": partial_kinds,
+                "partial_labels": partial_labels,
                 "gold_matches": gold_matches,
                 "attempts": attempts,
             }
