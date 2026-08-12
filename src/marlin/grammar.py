@@ -551,6 +551,32 @@ def _has_reachable_exact_mass(
     return False
 
 
+def _every_fragment_can_still_attach(state: "_GrammarState") -> bool:
+    """Report whether every fragment written so far can still gain a bond.
+
+    SAFE bonds the fragment after a separator to an earlier one through a ring
+    label left open before it, so a fragment that closed every label it opened is
+    finished, and the next separator strands it for good. The gold answers never
+    strand one: 0 of 7,947 answers over 30,772 separators, while 115 of the 247
+    candidates of the clean 321-spectrum run came back as two to five pieces
+    padded up to the target mass.
+    """
+    parent = {atom: atom for atom in range(state.atom_index + 1)}
+
+    def root(atom: int) -> int:
+        while parent[atom] != atom:
+            parent[atom] = parent[parent[atom]]
+            atom = parent[atom]
+        return atom
+
+    for left, right in state.bonds:
+        left_root, right_root = root(left), root(right)
+        if left_root != right_root:
+            parent[left_root] = right_root
+    attachable = {root(atom) for atom in state.open_rings.values()}
+    return all(root(atom) in attachable for atom in parent)
+
+
 def _advance(
     state: _GrammarState,
     text: str,
@@ -755,6 +781,11 @@ def _advance(
             continue
         if char == ".":
             if state.expect_atom:
+                return None
+            if not _every_fragment_can_still_attach(state):
+                # A fragment holding no open label is finished, so writing past
+                # it leaves a piece that can never share a bond with the rest.
+                # No target of this benchmark is more than one molecule.
                 return None
             state.current_atom = None
             state.expect_atom = True

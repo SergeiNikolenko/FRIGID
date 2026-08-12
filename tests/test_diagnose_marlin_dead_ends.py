@@ -34,7 +34,9 @@ def test_phantom_atoms_finds_nothing_left_for_the_grammar_to_weigh_at_zero():
     # their real mass, in 2,240 of 3,093 dead-end prefixes. Both models now ask
     # marlin.token_properties.atom_mass, so this prefix holds no weightless atom
     # where it used to hold two.
-    counts = phantom_atoms(_scan("C.[H].[Og]"))
+    # The ring labels carry the same three atoms as the original "C.[H].[Og]",
+    # which the mask now refuses for leaving its fragments unattachable.
+    counts = phantom_atoms(_scan("C12.[H]1.[Og]2"))
 
     assert counts["atoms"] == 3
     assert counts["zero_mass_atoms"] == 0

@@ -64,7 +64,7 @@ EQUIVALENCE_PREFIXES = (
     "C%12",
     "C1CCCCC-",
     "CN(C)C(=O)",
-    "C1CCCCC1.C",
+    "C12CCCCC1.C",
     "[NH",
 )
 
@@ -113,6 +113,33 @@ def test_safe_grammar_rejects_a_ring_closure_that_duplicates_a_bond():
     assert _scan("C12CC1C2").terminal
     assert _scan("C1.C1").terminal
     assert _scan("C1CCCCC12CCCCC2").terminal
+
+
+def test_safe_grammar_refuses_a_fragment_nothing_can_ever_attach_to():
+    # SAFE joins one fragment to the next through a ring label left open before
+    # the separator, so a "." written with every label closed starts a fragment
+    # that can never share a bond with the rest. The decoder used it to pad a
+    # finished molecule up to the target mass: 115 of the 247 candidates of the
+    # clean 321-spectrum panel came back in pieces ("...c1.N.N"), against 0 of
+    # the 7,947 gold answers and 0 of their 30,772 separators.
+    assert _scan("CC.C") is None
+    assert _scan("c1ccccc1.N") is None
+    assert _scan("Cc1ccc2oc(=O)c4c(C)c2c1.c14ccccc1.N") is None
+    # A label still open carries the bond the next fragment closes onto.
+    assert _scan("C12.C1C2").terminal
+    assert _scan("CC1.CC1").terminal
+    assert _scan("Cc1ccc2oc(=O)c4c(C)c2c1.c14ccccc1").terminal
+
+
+def test_safe_grammar_refuses_a_fragment_the_next_separator_leaves_behind():
+    # A fragment that closed every label it opened is finished; once a separator
+    # moves past it, it can never bond to anything again, however many labels the
+    # fragments around it still hold open. 46 of the 247 candidates of the clean
+    # 321-spectrum panel ended terminal but in two to five pieces this way, e.g.
+    # "c15cn(C)c2c1C(=O)NC2=O.c16ccc5cc1.c14ccccc1.C.[N+]46".
+    assert _scan("C12.C3CC3.C1C2") is None
+    # The same three fragments joined into one molecule stay legal.
+    assert _scan("C12.C3CC3C1C2").terminal
 
 
 RESTRICTED_CHEMISTRY = ChemistryPolicy(
