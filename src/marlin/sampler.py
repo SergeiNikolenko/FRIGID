@@ -59,6 +59,7 @@ class MarlinSampler:
         mass_shell_enabled: bool = True,
         generation_mode: str = "block",
         sample_tokens: bool = False,
+        trace: list[dict[str, object]] | None = None,
     ) -> None:
         if generation_mode not in {"block", "canvas"}:
             raise ValueError("generation_mode must be 'block' or 'canvas'")
@@ -74,6 +75,11 @@ class MarlinSampler:
         self.mass_shell_enabled = mass_shell_enabled
         self.generation_mode = generation_mode
         self.sample_tokens = sample_tokens
+        # Passing a list makes the block path record every committed token and
+        # every ending, so a run can be replayed attempt by attempt. Left None,
+        # the decoding path is untouched.
+        self.trace = trace
+        self._trace_batch = 0
 
     def _sampling_logits(
         self,
@@ -391,6 +397,9 @@ class MarlinSampler:
         active = torch.ones(candidates, dtype=torch.bool, device=device)
         results: list[tuple[str, str, bool] | None] = [None] * candidates
         valid = 0
+        batch = self._trace_batch
+        self._trace_batch += 1
+        block_index = -1
         diagnostics: dict[str, object] = {
             "constraint_dead_ends": 0,
             "eos_terminated": 0,
@@ -417,6 +426,7 @@ class MarlinSampler:
                 break
             block_start = prefix.shape[1]
             block_width = self._next_block_width(block_start)
+            block_index += 1
             masks = torch.full(
                 (candidates, block_width),
                 self.mask_token_id,
@@ -449,6 +459,8 @@ class MarlinSampler:
                     best_position = None
                     best_token = None
                     best_confidence = -torch.inf
+                    best_support = 0
+                    best_alternatives: list[tuple[int, float]] = []
                     candidate_positions = positions.tolist()
                     if self.grammar_mask is not None and self.mask_token_id is not None:
                         # Every position except the leftmost unresolved one still
@@ -482,6 +494,19 @@ class MarlinSampler:
                         if confidence > best_confidence:
                             best_confidence = confidence
                             best_position = relative_position
+                            if self.trace is not None:
+                                best_support = int(
+                                    torch.isfinite(position_logits).sum().item()
+                                )
+                                ranked = probabilities.topk(
+                                    min(4, probabilities.numel())
+                                )
+                                best_alternatives = [
+                                    (int(token), float(probability))
+                                    for token, probability in zip(
+                                        ranked.indices.tolist(), ranked.values.tolist()
+                                    )
+                                ]
                             best_token = int(
                                 torch.multinomial(
                                     probabilities,
@@ -493,6 +518,26 @@ class MarlinSampler:
                             )
                     if best_position is None or not torch.isfinite(best_confidence):
                         diagnostics["constraint_dead_ends"] += 1
+                        if self.trace is not None:
+                            self.trace.append(
+                                {
+                                    "batch": batch,
+                                    "row": row,
+                                    "block": block_index,
+                                    "position": block_start
+                                    + (
+                                        int(positions[0].item())
+                                        if positions.numel()
+                                        else 0
+                                    ),
+                                    "ending": "dead_end",
+                                    "safe": self._decode_prefix(prefix[row].tolist())[
+                                        :512
+                                    ],
+                                    "heavy_mass": states[row].heavy_mass,
+                                    "heavy_atoms": states[row].heavy_atoms,
+                                }
+                            )
                         dead_ends = diagnostics["sample_dead_ends"]
                         assert isinstance(dead_ends, list)
                         if len(dead_ends) < 5:
@@ -510,6 +555,21 @@ class MarlinSampler:
                         unresolved[row] = False
                         continue
                     assert best_token is not None
+                    if self.trace is not None:
+                        self.trace.append(
+                            {
+                                "batch": batch,
+                                "row": row,
+                                "block": block_index,
+                                "position": block_start + best_position,
+                                "token": int(best_token),
+                                "confidence": float(best_confidence),
+                                "support": best_support,
+                                "alternatives": best_alternatives,
+                                "heavy_mass": states[row].heavy_mass,
+                                "heavy_atoms": states[row].heavy_atoms,
+                            }
+                        )
                     prefix[row, block_start + best_position] = best_token
                     unresolved[row, best_position] = False
                     if best_token == self.eos_token_id:
@@ -529,8 +589,31 @@ class MarlinSampler:
                     valid += 1
                     results[row] = (safe, smiles, is_mass_valid)
                     active[row] = False
+                    if self.trace is not None:
+                        self.trace.append(
+                            {
+                                "batch": batch,
+                                "row": row,
+                                "block": block_index,
+                                "ending": "accepted",
+                                "safe": safe,
+                                "smiles": smiles,
+                            }
+                        )
                 elif self.eos_token_id in prefix[row, block_start:].tolist():
                     diagnostics["eos_terminated"] += 1
+                    if self.trace is not None:
+                        self.trace.append(
+                            {
+                                "batch": batch,
+                                "row": row,
+                                "block": block_index,
+                                "ending": "eos_rejected",
+                                "safe": safe,
+                                "smiles": smiles,
+                                "parsed": bool(is_valid),
+                            }
+                        )
                     record_terminal_safe(safe)
                     valid += int(is_valid)
                     active[row] = False
@@ -544,6 +627,18 @@ class MarlinSampler:
             if is_mass_valid or (is_valid and not self.mass_shell_enabled):
                 results[row] = (safe, smiles, is_mass_valid)
             diagnostics["max_length_terminated"] += 1
+            if self.trace is not None:
+                self.trace.append(
+                    {
+                        "batch": batch,
+                        "row": row,
+                        "block": block_index,
+                        "ending": "max_length",
+                        "safe": safe,
+                        "smiles": smiles,
+                        "parsed": bool(is_valid),
+                    }
+                )
             record_terminal_safe(safe)
             valid += int(is_valid)
         return results, valid, diagnostics

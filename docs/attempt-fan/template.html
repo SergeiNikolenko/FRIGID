@@ -1,0 +1,861 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MARLIN · eight attempts, one spectrum</title>
+<style>
+/* shadcn/ui design language: neutral scale, one radius, hairline borders, and
+   a focus ring. Fonts are system stacks, so nothing depends on a font CDN. */
+:root {
+  color-scheme: light dark;
+  --radius: 0.625rem;
+
+  --background:        oklch(1 0 0);
+  --foreground:        oklch(0.145 0 0);
+  --card:              oklch(1 0 0);
+  --muted:             oklch(0.97 0 0);
+  --muted-foreground:  oklch(0.556 0 0);
+  --border:            oklch(0.922 0 0);
+  --ring:              oklch(0.708 0 0);
+  --primary:           oklch(0.205 0 0);
+  --primary-foreground:oklch(0.985 0 0);
+  --shadow: 0 1px 2px 0 oklch(0 0 0 / 0.05);
+
+  /* The three verdict hues, kept as a set: colour carries the family, the chip
+     carries the exact restriction. Darkened here to hold contrast on white. */
+  --allowed:       oklch(0.52 0.13 162);
+  --unwritable:    oklch(0.55 0.17 40);
+  --unreachable:   oklch(0.52 0.19 258);
+  --on-accent:     oklch(0.985 0 0);
+
+  --tip-bg: oklch(0.145 0 0);
+  --tip-text: oklch(0.985 0 0);
+  /* The RDKit drawings were made for a dark background, so invert on light. */
+  --struct-invert: invert(1) hue-rotate(180deg);
+
+  --mono: ui-monospace, "SF Mono", SFMono-Regular, "JetBrains Mono", Menlo, Consolas, monospace;
+  --ui: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  --display: var(--ui);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --background:        oklch(0.145 0 0);
+    --foreground:        oklch(0.985 0 0);
+    --card:              oklch(0.205 0 0);
+    --muted:             oklch(0.269 0 0);
+    --muted-foreground:  oklch(0.708 0 0);
+    --border:            oklch(1 0 0 / 12%);
+    --ring:              oklch(0.556 0 0);
+    --primary:           oklch(0.922 0 0);
+    --primary-foreground:oklch(0.205 0 0);
+    --shadow: 0 1px 2px 0 oklch(0 0 0 / 0.4);
+    --allowed:           oklch(0.72 0.15 162);
+    --unwritable:        oklch(0.72 0.17 45);
+    --unreachable:       oklch(0.70 0.15 255);
+    --on-accent:         oklch(0.16 0 0);
+    --tip-bg:            oklch(0.205 0 0);
+    --tip-text:          oklch(0.985 0 0);
+    --struct-invert:     none;
+  }
+}
+:root[data-theme="dark"] {
+  --background:        oklch(0.145 0 0);
+  --foreground:        oklch(0.985 0 0);
+  --card:              oklch(0.205 0 0);
+  --muted:             oklch(0.269 0 0);
+  --muted-foreground:  oklch(0.708 0 0);
+  --border:            oklch(1 0 0 / 12%);
+  --ring:              oklch(0.556 0 0);
+  --primary:           oklch(0.922 0 0);
+  --primary-foreground:oklch(0.205 0 0);
+  --shadow: 0 1px 2px 0 oklch(0 0 0 / 0.4);
+  --allowed:           oklch(0.72 0.15 162);
+  --unwritable:        oklch(0.72 0.17 45);
+  --unreachable:       oklch(0.70 0.15 255);
+  --on-accent:         oklch(0.16 0 0);
+  --tip-bg:            oklch(0.205 0 0);
+  --tip-text:          oklch(0.985 0 0);
+  --struct-invert:     none;
+}
+
+/* Names the markup still uses, mapped onto the shadcn scale. */
+:root {
+  --bg: var(--background);
+  --surface-1: var(--card);
+  --surface-2: var(--muted);
+  --line: var(--border);
+  --text-primary: var(--foreground);
+  --text-secondary: var(--foreground);
+  --text-muted: var(--muted-foreground);
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--background); }
+body {
+  font-family: var(--ui);
+  color: var(--foreground);
+  font-size: 14px;
+  line-height: 1.5;
+  letter-spacing: -0.006em;
+  padding: 0 0 48px;
+  -webkit-font-smoothing: antialiased;
+}
+.wrap { max-width: 1500px; margin: 0 auto; padding: 0 24px; }
+
+/* ---------- masthead ---------- */
+header { border-bottom: 1px solid var(--border); padding: 24px 0 18px; margin-bottom: 18px; }
+.eyebrow {
+  font-family: var(--mono); font-size: 11px; letter-spacing: .04em;
+  text-transform: uppercase; color: var(--muted-foreground); margin: 0 0 8px;
+}
+h1 {
+  font-family: var(--display); font-weight: 700; font-size: clamp(22px, 2.2vw, 30px);
+  line-height: 1.15; letter-spacing: -0.025em; margin: 0 0 8px; max-width: 40ch;
+}
+h1 em { font-style: normal; color: var(--allowed); }
+.standfirst { color: var(--muted-foreground); max-width: 92ch; margin: 0; font-size: 14px; }
+
+/* ---------- controls (card + input + button) ---------- */
+.controls {
+  display: flex; gap: 16px; align-items: center; flex-wrap: wrap;
+  padding: 14px 16px; background: var(--card);
+  border: 1px solid var(--border); border-radius: var(--radius);
+  box-shadow: var(--shadow); margin-bottom: 16px;
+}
+.controls label {
+  font-size: 12px; font-weight: 500; color: var(--muted-foreground);
+  display: block; margin-bottom: 6px; letter-spacing: 0;
+  text-transform: none; font-family: var(--ui);
+}
+select, button {
+  font-family: var(--ui); font-size: 13px; font-weight: 500; color: var(--foreground);
+  background: var(--background); border: 1px solid var(--border);
+  border-radius: calc(var(--radius) - 2px); padding: 7px 11px;
+  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+select { min-width: 280px; }
+button { cursor: pointer; min-width: 36px; }
+button:hover, select:hover { background: var(--muted); }
+button[aria-pressed="true"] {
+  background: var(--primary); border-color: var(--primary); color: var(--primary-foreground);
+}
+:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.step-field { flex: 1 1 300px; min-width: 220px; }
+input[type=range] { width: 100%; accent-color: var(--primary); }
+.step-count { font-family: var(--mono); font-size: 12px; color: var(--muted-foreground); }
+
+/* ---------- layout ---------- */
+.grid {
+  display: grid; gap: 16px; align-items: start;
+  grid-template-columns: minmax(320px, 420px) minmax(400px, 1fr) minmax(250px, 330px);
+}
+@media (max-width: 1100px) { .grid { grid-template-columns: 1fr; } }
+.panel {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow);
+}
+.panel h2 {
+  font-size: 12px; font-weight: 600; letter-spacing: 0; text-transform: none;
+  font-family: var(--ui); color: var(--foreground); margin: 0 0 12px;
+}
+.panel h2 span { color: var(--muted-foreground); font-weight: 400; }
+figure { margin: 0; }
+figure svg { display: block; width: 100%; height: auto; max-height: 190px; filter: var(--struct-invert); }
+
+/* ---------- gold and the growing molecule, side by side ---------- */
+.structures { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.struct {
+  background: var(--background); border: 1px solid var(--border);
+  border-radius: calc(var(--radius) - 2px); padding: 10px; min-height: 168px;
+  cursor: zoom-in; transition: border-color 120ms ease;
+}
+.struct:hover { border-color: var(--ring); }
+.struct figcaption {
+  font-size: 11px; font-weight: 500; color: var(--muted-foreground); margin-bottom: 8px;
+}
+.struct div { transition: opacity 140ms linear; }
+.struct.stale div { opacity: .45; }
+.struct .empty { padding: 26px 0; text-align: center; }
+
+/* ---------- folded detail ---------- */
+.fold { margin-top: 16px; border-top: 1px solid var(--border); padding-top: 12px; }
+.fold summary {
+  font-size: 12px; font-weight: 500; color: var(--muted-foreground); cursor: pointer;
+}
+.fold summary:hover { color: var(--foreground); }
+.fold .fingerprint { margin-top: 12px; }
+
+.facts { list-style: none; margin: 12px 0 0; padding: 0; font-size: 12.5px; }
+.facts li {
+  display: flex; justify-content: space-between; gap: 12px; padding: 6px 0;
+  border-top: 1px solid var(--border);
+}
+.facts span:first-child { color: var(--muted-foreground); }
+.facts span:last-child { font-family: var(--mono); }
+.smiles { font-family: var(--mono); font-size: 11px; color: var(--muted-foreground); word-break: break-all; margin: 10px 0 0; }
+
+/* ---------- the SAFE tape ---------- */
+.tape { display: flex; flex-wrap: wrap; gap: 3px; margin-bottom: 6px; }
+.cell {
+  font-family: var(--mono); font-size: 12.5px; font-weight: 500;
+  padding: 4px 6px; border-radius: 6px; background: var(--muted);
+  color: var(--muted-foreground); border: 1px solid transparent; white-space: pre;
+  cursor: pointer; transition: background-color 120ms ease, color 120ms ease;
+}
+.cell:hover { border-color: var(--ring); }
+.cell.done { color: var(--foreground); }
+.cell.now { background: var(--primary); color: var(--primary-foreground); border-color: var(--primary); }
+.cell.ahead { opacity: .4; }
+.cell.in-block { border-color: var(--border); opacity: 1; }
+.cell.block-start { margin-left: 12px; }
+
+/* ---------- mass shell (progress) ---------- */
+.mass-track {
+  position: relative; height: 8px; background: var(--muted);
+  border-radius: 999px; overflow: hidden; margin: 8px 0 6px;
+}
+.mass-fill { position: absolute; inset: 0 auto 0 0; background: var(--unreachable); border-radius: 999px; transition: width 200ms ease; }
+.mass-legend { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--muted-foreground); }
+
+/* ---------- token table ---------- */
+table { width: 100%; border-collapse: collapse; margin-top: 4px; }
+th {
+  font-size: 11.5px; font-weight: 500; color: var(--muted-foreground);
+  text-align: left; padding: 0 8px 8px 0; text-transform: none; letter-spacing: 0;
+  font-family: var(--ui);
+}
+td { padding: 7px 8px 7px 0; border-top: 1px solid var(--border); vertical-align: middle; }
+tbody tr { cursor: pointer; }
+tbody tr:hover td, tbody tr.picked td { background: var(--muted); }
+.tok { font-family: var(--mono); font-size: 13px; font-weight: 600; }
+.tok.is-gold::after {
+  content: "gold"; font-family: var(--ui); font-size: 10px; font-weight: 500;
+  margin-left: 8px; padding: 2px 7px; border-radius: 999px;
+  background: var(--primary); color: var(--primary-foreground); text-transform: none;
+  letter-spacing: 0;
+}
+.bar-cell { width: 42%; }
+.bar-track { height: 6px; background: var(--muted); border-radius: 999px; overflow: hidden; }
+.bar { height: 100%; border-radius: 999px; background: var(--muted-foreground); transition: width 150ms ease; }
+.prob { font-family: var(--mono); font-size: 12px; color: var(--muted-foreground); text-align: right; white-space: nowrap; }
+.chip {
+  font-family: var(--ui); font-size: 11px; font-weight: 500; letter-spacing: 0;
+  text-transform: none; padding: 2px 8px; border-radius: 999px; white-space: nowrap;
+  border: 1px solid currentColor;
+}
+.g-allowed { color: var(--allowed); } .bar.g-allowed { background: var(--allowed); }
+.g-unwritable { color: var(--unwritable); } .bar.g-unwritable { background: var(--unwritable); }
+.g-unreachable { color: var(--unreachable); } .bar.g-unreachable { background: var(--unreachable); }
+
+/* ---------- model input ---------- */
+.fingerprint { display: grid; grid-template-columns: repeat(64, 1fr); gap: 1px; }
+.fingerprint i { display: block; aspect-ratio: 1; background: var(--muted); border-radius: 1px; }
+.fingerprint i.on { background: var(--allowed); }
+
+/* ---------- the vocabulary wall ---------- */
+.wall { display: grid; grid-template-columns: repeat(47, 1fr); gap: 1px; margin-bottom: 12px; }
+.wall i {
+  display: block; aspect-ratio: 1; border-radius: 1px;
+  background: var(--muted); transition: background 90ms linear;
+}
+.wall i.on { background: var(--allowed); }
+.wall i.gold { background: var(--foreground); }
+.wall i.pick { outline: 2px solid var(--foreground); outline-offset: 1px; }
+@media (prefers-reduced-motion: reduce) {
+  .wall i, .bar, .mass-fill, .struct div, .cell, select, button { transition: none; }
+}
+.legend { display: flex; flex-wrap: wrap; gap: 8px 14px; margin: 10px 0 0; padding: 0; list-style: none; }
+.legend li { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted-foreground); }
+.legend b { width: 10px; height: 10px; border-radius: 3px; display: block; }
+.support-line { margin-top: 14px; }
+.support-line svg { width: 100%; height: 60px; display: block; cursor: crosshair; }
+
+/* ---------- returned candidates ---------- */
+.cards { display: flex; gap: 12px; flex-wrap: wrap; }
+.card {
+  background: var(--background); border: 1px solid var(--border);
+  border-radius: calc(var(--radius) - 2px); padding: 12px; width: 208px; cursor: zoom-in;
+  transition: border-color 120ms ease;
+}
+.card:hover { border-color: var(--ring); }
+.card.is-gold { border-color: var(--foreground); }
+.card figure svg { max-height: 148px; }
+.card p { font-family: var(--mono); font-size: 11px; color: var(--muted-foreground); margin: 8px 0 0; word-break: break-all; }
+.flag {
+  display: inline-block; font-size: 11px; font-weight: 500; letter-spacing: 0;
+  text-transform: none; padding: 2px 8px; border-radius: 999px; margin-bottom: 8px;
+}
+.flag.split { background: var(--unreachable); color: var(--on-accent); }
+.flag.whole { background: var(--allowed); color: var(--on-accent); }
+.flag.gold { background: var(--primary); color: var(--primary-foreground); }
+.empty { color: var(--muted-foreground); font-size: 12.5px; }
+.note { color: var(--muted-foreground); font-size: 12.5px; margin-top: 12px; max-width: 95ch; }
+
+/* ---------- dialog ---------- */
+#zoom {
+  position: fixed; inset: 0; z-index: 30; display: none; place-items: center;
+  background: oklch(0 0 0 / 0.55); padding: 24px; cursor: zoom-out;
+  backdrop-filter: blur(2px);
+}
+#zoom.open { display: grid; }
+#zoom .frame {
+  background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 20px; max-width: min(760px, 92vw); cursor: auto;
+  box-shadow: 0 10px 30px oklch(0 0 0 / 0.25);
+}
+#zoom h2 { font-size: 13px; font-weight: 600; color: var(--foreground); margin: 0 0 12px; }
+#zoom figure svg { max-height: 60vh; filter: var(--struct-invert); }
+#zoom p { font-family: var(--mono); font-size: 12px; color: var(--muted-foreground); margin: 14px 0 0; word-break: break-all; }
+
+#tip {
+  position: fixed; pointer-events: none; z-index: 40; opacity: 0;
+  background: var(--tip-bg); border: 1px solid var(--border); border-radius: 6px;
+  padding: 5px 9px; font-family: var(--mono); font-size: 11px; color: var(--tip-text);
+  transition: opacity 90ms linear; box-shadow: var(--shadow);
+}
+
+/* ---------- the fan ---------- */
+.tree-scroll { overflow-x: auto; padding-bottom: 8px; }
+.tree-scroll svg { display: block; height: auto; }
+.branch { fill: none; stroke: var(--muted-foreground); stroke-linejoin: round; stroke-linecap: round; cursor: pointer; }
+.branch:hover { stroke: var(--foreground); }
+.branch.on-path { stroke: var(--foreground); }
+.leaf { cursor: pointer; }
+.leaf.accepted { fill: var(--allowed); }
+.leaf.grammar { fill: var(--unwritable); }
+.leaf.mass { fill: var(--unreachable); }
+.leaf.other { fill: var(--muted-foreground); }
+.split { fill: var(--background); stroke: var(--muted-foreground); stroke-width: 1.5; }
+.axis { fill: var(--muted-foreground); font-family: var(--mono); font-size: 9px; }
+.attempt-list { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.attempt-row {
+  display: flex; align-items: center; gap: 10px; padding: 8px 10px; cursor: pointer;
+  border: 1px solid var(--border); border-radius: calc(var(--radius) - 2px);
+  background: var(--background); font-size: 12.5px; transition: border-color 120ms ease;
+}
+.attempt-row:hover { border-color: var(--ring); }
+.attempt-row.picked { border-color: var(--foreground); }
+.attempt-row .who { font-family: var(--mono); font-weight: 600; min-width: 26px; }
+.attempt-row .bar-track { flex: 1; }
+.dot { width: 9px; height: 9px; border-radius: 999px; display: inline-block; flex: none; }
+.dot.accepted { background: var(--allowed); }
+.dot.grammar { background: var(--unwritable); }
+.dot.mass { background: var(--unreachable); }
+.dot.other { background: var(--muted-foreground); }
+.stat-row { display: flex; gap: 18px; flex-wrap: wrap; margin: 0 0 12px; }
+.stat { display: flex; flex-direction: column; gap: 2px; }
+.stat b { font-size: 18px; font-weight: 600; letter-spacing: -0.02em; }
+.stat span { font-size: 11.5px; color: var(--muted-foreground); }
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <p class="eyebrow">MARLIN · recorded decode · every attempt of one spectrum ·
+  <a href="../decoding-demo/index.html" style="color:var(--allowed)">&larr; back to the gold walk</a></p>
+  <h1>Eight attempts, one spectrum: where they split, and where they <em>died</em>.</h1>
+  <p class="standfirst">Not the gold answer walked forwards — the run itself. Each attempt starts from the
+  same mass and its own dropout of the fingerprint, writes eight positions per forward pass, and ends
+  either as a returned candidate or in a dead end the mask could not get out of. Rows sharing a prefix
+  share a branch; the branch splits at the first position where they disagree.</p>
+</header>
+
+<div class="controls">
+  <div>
+    <label for="spectrum">Spectrum</label>
+    <select id="spectrum"></select>
+  </div>
+  <div>
+    <label for="attempt">Attempt</label>
+    <select id="attempt"></select>
+  </div>
+  <div class="step-field">
+    <label for="step">Position <span class="step-count" id="stepCount"></span></label>
+    <input type="range" id="step" min="0" value="0">
+  </div>
+</div>
+
+<div class="grid">
+  <section class="panel">
+    <h2>Target · <span id="specName"></span></h2>
+    <div class="structures">
+      <figure class="struct" id="targetStruct">
+        <figcaption>Gold answer</figcaption>
+        <div id="targetFig"></div>
+      </figure>
+      <figure class="struct" id="attemptStruct">
+        <figcaption id="attemptCap">This attempt</figcaption>
+        <div id="attemptFig"></div>
+      </figure>
+    </div>
+    <p class="note" id="matchNote"></p>
+    <ul class="facts">
+      <li><span>Formula</span><span id="fFormula"></span></li>
+      <li><span>Conditioning mass</span><span id="fMass"></span></li>
+      <li><span>Heavy atoms</span><span id="fHeavy"></span></li>
+      <li><span>Run time</span><span id="fRuntime"></span></li>
+    </ul>
+    <p class="smiles" id="fSmiles"></p>
+  </section>
+
+  <section class="panel">
+    <h2>The fan · <span id="fanMeta"></span></h2>
+    <div class="stat-row" id="stats"></div>
+    <div class="tree-scroll">
+      <svg id="tree" role="img" aria-label="Attempts as a tree of shared prefixes"></svg>
+    </div>
+    <ul class="legend">
+      <li><b style="background:var(--allowed)"></b>returned a candidate</li>
+      <li><b style="background:var(--unwritable)"></b>grammar deadlock <span style="color:var(--muted-foreground)">(nothing may follow)</span></li>
+      <li><b style="background:var(--unreachable)"></b>mass deadlock <span style="color:var(--muted-foreground)">(target no longer reachable)</span></li>
+      <li><b style="background:var(--muted-foreground)"></b>ran out of length or was refused at EOS</li>
+    </ul>
+    <p class="note">Branch thickness is how many attempts still agree at that point. A split is a position
+    where the sampler, given a different dropout of the same fingerprint, chose a different token.
+    <br><br>There is no way back up a branch: the decoder never backtracks. A block of eight positions is
+    committed in one forward pass, and when the mask leaves nothing to write, that attempt is abandoned and
+    a fresh one starts from the beginning. Every leaf below is therefore a whole life of the decoder, not a
+    branch it could have retried.</p>
+  </section>
+
+  <section class="panel">
+    <h2>This attempt, position by position</h2>
+    <div class="tape" id="tape"></div>
+    <h2 style="margin-top:16px">Admitted tokens along this attempt</h2>
+    <div class="support-line">
+      <svg id="supportLine" viewBox="0 0 300 60" preserveAspectRatio="none" role="img" aria-label="Admitted token count at each position"></svg>
+    </div>
+    <h2 style="margin-top:16px">This position</h2>
+    <table>
+      <thead><tr><th>Token</th><th class="bar-cell">Model probability</th><th></th><th>Taken</th></tr></thead>
+      <tbody id="tokens"></tbody>
+    </table>
+    <p class="note" id="endingNote"></p>
+  </section>
+</div>
+
+<section class="panel" style="margin-top:16px">
+  <h2>All attempts · <span id="attemptsMeta"></span></h2>
+  <ul class="attempt-list" id="attempts"></ul>
+</section>
+
+<section class="panel" style="margin-top:16px">
+  <h2>What each attempt ended up drawing</h2>
+  <div class="cards" id="endings"></div>
+  <p class="note">A dead end still has a molecule behind it: the largest readable piece of the prefix at the
+  moment the mask ran out of tokens. Comparing it with the gold answer is how a defect in the decoder is
+  told apart from a defect in the constraints.</p>
+</section>
+
+<p class="note">Recorded by <code>scripts/evaluate_marlin_nplib1.py --trace-output</code> on the clean-panel
+settings: 8 candidates, dropout 0.3, temperature 1.0, sampled tokens, ±10 ppm, 1,800 s per spectrum.
+Dead ends are named by putting the recorded prefix back to the same masks the run used.</p>
+</div>
+<div id="zoom" role="dialog" aria-modal="true" aria-label="Enlarged structure">
+  <div class="frame">
+    <h2 id="zoomTitle"></h2>
+    <figure id="zoomFig"></figure>
+    <p id="zoomText"></p>
+  </div>
+</div>
+<div id="tip" role="status"></div>
+
+<script>
+const FAN = /*FAN_DATA*/;
+
+const el = id => document.getElementById(id);
+const state = { spectrum: 0, attempt: 0, step: 0 };
+
+const CAUSE_CLASS = {
+  accepted: 'accepted',
+  grammar_deadlock: 'grammar',
+  mass_reachability_deadlock: 'mass',
+  token_prune_deadlock: 'mass',
+};
+
+function outcomeClass(attempt) {
+  if (attempt.ending === 'accepted') return 'accepted';
+  if (attempt.ending === 'dead_end') return CAUSE_CLASS[attempt.cause] || 'grammar';
+  return 'other';
+}
+
+function outcomeWords(attempt) {
+  if (attempt.ending === 'accepted') return 'returned a candidate';
+  if (attempt.ending === 'dead_end') {
+    return {
+      grammar_deadlock: 'grammar deadlock — nothing may follow this prefix',
+      mass_reachability_deadlock: 'mass deadlock — the target mass is no longer reachable',
+      token_prune_deadlock: 'token-prune deadlock — syntax and the mass shell allow no common token',
+    }[attempt.cause] || 'dead end';
+  }
+  if (attempt.ending === 'eos_rejected') return 'finished at EOS but was refused';
+  if (attempt.ending === 'max_length') return 'ran out of canvas length';
+  return 'unfinished when the time budget ran out';
+}
+
+/* ---- tooltip ---- */
+const tip = el('tip');
+function showTip(text, event) {
+  tip.textContent = text;
+  tip.style.opacity = 1;
+  tip.style.left = Math.min(event.clientX + 12, innerWidth - 220) + 'px';
+  tip.style.top = (event.clientY + 14) + 'px';
+}
+function hideTip() { tip.style.opacity = 0; }
+
+/* ---- pickers ---- */
+const spectrumPicker = el('spectrum');
+FAN.spectra.forEach((s, i) => {
+  const option = document.createElement('option');
+  option.value = i;
+  option.textContent = `${s.formula} · ${s.target_mass.toFixed(1)} Da · ${s.spec_name}`;
+  spectrumPicker.appendChild(option);
+});
+
+/* ---- the fan itself: attempts sharing a prefix share a branch ---- */
+function buildTree(attempts) {
+  const root = { token: null, depth: 0, children: new Map(), rows: [] };
+  attempts.forEach(attempt => {
+    let node = root;
+    node.rows.push(attempt.row);
+    attempt.steps.forEach((step, index) => {
+      if (!node.children.has(step.token)) {
+        node.children.set(step.token, {
+          token: step.token, depth: index + 1, children: new Map(), rows: [], step,
+        });
+      }
+      node = node.children.get(step.token);
+      node.rows.push(attempt.row);
+    });
+    node.leaf = attempt;
+  });
+  return root;
+}
+
+function drawTree(spectrum) {
+  const root = buildTree(spectrum.attempts);
+  const svg = el('tree');
+  let leafIndex = 0;
+  let maxDepth = 0;
+  (function place(node) {
+    maxDepth = Math.max(maxDepth, node.depth);
+    if (node.children.size === 0) { node.y = leafIndex++; return node.y; }
+    const ys = [...node.children.values()].map(place);
+    node.y = (Math.min(...ys) + Math.max(...ys)) / 2;
+    return node.y;
+  })(root);
+
+  const dx = Math.max(7, Math.min(16, 1100 / Math.max(maxDepth, 1)));
+  const dy = 26;
+  const left = 14;
+  const top = 22;
+  const width = left * 2 + maxDepth * dx;
+  const height = top + leafIndex * dy + 16;
+  svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+  svg.setAttribute('width', width);
+  svg.setAttribute('height', height);
+
+  const x = depth => left + depth * dx;
+  const y = row => top + row * dy;
+  const parts = [];
+
+  for (let depth = 0; depth <= maxDepth; depth += 10) {
+    parts.push(`<text class="axis" x="${x(depth)}" y="12" text-anchor="middle">${depth}</text>`);
+  }
+
+  (function walk(node) {
+    node.children.forEach(child => {
+      const midpoint = x(node.depth) + dx / 2;
+      const path = node.y === child.y
+        ? `M ${x(node.depth)},${y(node.y)} L ${x(child.depth)},${y(child.y)}`
+        : `M ${x(node.depth)},${y(node.y)} L ${midpoint},${y(node.y)} `
+          + `L ${midpoint},${y(child.y)} L ${x(child.depth)},${y(child.y)}`;
+      parts.push(
+        `<path class="branch" d="${path}" stroke-width="${1 + child.rows.length * 0.5}" `
+        + `data-row="${child.rows[0]}" data-depth="${child.depth}" `
+        + `data-token="${child.token.replace(/"/g, '&quot;')}" `
+        + `data-support="${child.step ? child.step.support : ''}" `
+        + `data-rows="${child.rows.length}"></path>`
+      );
+      if (child.children.size > 1) {
+        parts.push(`<circle class="split" cx="${x(child.depth)}" cy="${y(child.y)}" r="3"></circle>`);
+      }
+      if (child.leaf) {
+        parts.push(
+          `<circle class="leaf ${outcomeClass(child.leaf)}" cx="${x(child.depth) + 4}" `
+          + `cy="${y(child.y)}" r="5" data-row="${child.leaf.row}"></circle>`
+        );
+      }
+      walk(child);
+    });
+  })(root);
+
+  svg.innerHTML = parts.join('');
+}
+
+el('tree').addEventListener('mousemove', event => {
+  const target = event.target.closest('path, circle');
+  if (!target) return hideTip();
+  if (target.classList.contains('leaf')) {
+    const attempt = currentSpectrum().attempts[+target.dataset.row];
+    return showTip(`attempt ${attempt.row} · ${outcomeWords(attempt)}`, event);
+  }
+  if (!target.dataset.token) return hideTip();
+  showTip(
+    `position ${target.dataset.depth} · ${JSON.stringify(target.dataset.token)} · `
+    + `${target.dataset.rows} of ${currentSpectrum().attempts.length} attempts · `
+    + `${target.dataset.support} admitted`,
+    event
+  );
+});
+el('tree').addEventListener('mouseleave', hideTip);
+el('tree').addEventListener('click', event => {
+  const target = event.target.closest('path, circle');
+  if (!target || target.dataset.row === undefined) return;
+  state.attempt = +target.dataset.row;
+  if (target.dataset.depth) state.step = Math.max(0, +target.dataset.depth - 1);
+  el('attempt').value = state.attempt;
+  renderAttempt();
+});
+
+function currentSpectrum() { return FAN.spectra[state.spectrum]; }
+function currentAttempt() { return currentSpectrum().attempts[state.attempt]; }
+
+function highlightGold(atoms) {
+  const drawing = el('targetFig').querySelector('svg');
+  if (!drawing) return;
+  const lit = new Set(atoms);
+  drawing.querySelectorAll('path').forEach(path => {
+    const ids = [...path.classList]
+      .filter(name => name.startsWith('atom-'))
+      .map(name => Number(name.slice(5)));
+    const covered = ids.length > 0 && ids.every(id => lit.has(id));
+    path.style.opacity = lit.size === 0 ? '' : (covered ? '1' : '0.22');
+    path.style.strokeWidth = covered ? '3px' : '';
+  });
+}
+
+function renderSpectrum() {
+  const spectrum = currentSpectrum();
+  el('specName').textContent = spectrum.spec_name;
+  el('targetFig').innerHTML = spectrum.target_svg || '';
+  el('targetStruct').dataset.smiles = spectrum.smiles;
+  el('fFormula').textContent = spectrum.formula;
+  el('fMass').textContent = spectrum.target_mass.toFixed(4) + ' Da';
+  el('fHeavy').textContent = spectrum.heavy_atoms;
+  el('fRuntime').textContent = spectrum.runtime_seconds.toFixed(0) + ' s';
+  el('fSmiles').textContent = spectrum.smiles;
+
+  const picker = el('attempt');
+  picker.innerHTML = '';
+  spectrum.attempts.forEach(attempt => {
+    const option = document.createElement('option');
+    option.value = attempt.row;
+    option.textContent = `${attempt.row} · ${outcomeWords(attempt)}`;
+    picker.appendChild(option);
+  });
+
+  const dead = spectrum.attempts.filter(a => a.ending === 'dead_end');
+  const accepted = spectrum.attempts.filter(a => a.ending === 'accepted');
+  const lengths = spectrum.attempts.map(a => a.steps.length);
+  el('fanMeta').textContent = `${spectrum.attempts.length} attempts`;
+  el('attemptsMeta').textContent =
+    `${accepted.length} returned · ${dead.length} dead ends · `
+    + `${Math.min(...lengths)}–${Math.max(...lengths)} positions written`;
+  el('stats').innerHTML =
+    `<div class="stat"><b>${accepted.length}/${spectrum.attempts.length}</b><span>returned a candidate</span></div>`
+    + `<div class="stat"><b>${dead.length}</b><span>died in a dead end</span></div>`
+    + `<div class="stat"><b>${splitCount(spectrum)}</b><span>positions where attempts split</span></div>`
+    + `<div class="stat"><b>${Math.round(100 * Math.max(...spectrum.attempts.map(a => a.gold_share || 0)))}%</b>`
+    + `<span>most of the gold answer any attempt built</span></div>`;
+
+  drawTree(spectrum);
+
+  el('endings').innerHTML = spectrum.attempts.map(attempt => {
+    const facts = [];
+    if (attempt.mass_error_ppm !== undefined) facts.push(`${attempt.mass_error_ppm} ppm`);
+    if (attempt.tanimoto !== undefined) facts.push(`tanimoto ${attempt.tanimoto}`);
+    if (attempt.fragments !== undefined) {
+      facts.push(attempt.fragments > 1 ? `${attempt.fragments} pieces` : 'one molecule');
+    }
+    return `<div class="card" data-smiles="${(attempt.smiles || '').replace(/"/g, '&quot;')}">`
+      + `<span class="flag" style="background:var(--muted);color:var(--foreground)">`
+      + `attempt ${attempt.row}</span> `
+      + `<span class="dot ${outcomeClass(attempt)}"></span>`
+      + `<figure>${attempt.svg || ''}</figure>`
+      + `<p>${facts.join(' · ') || 'nothing readable'}<br>${escapeHtml(attempt.smiles || '')}</p></div>`;
+  }).join('');
+
+  state.attempt = 0;
+  state.step = 0;
+  renderAttempt();
+}
+
+function splitCount(spectrum) {
+  const seen = new Map();
+  spectrum.attempts.forEach(attempt => {
+    attempt.steps.forEach((step, index) => {
+      const key = index;
+      if (!seen.has(key)) seen.set(key, new Set());
+      seen.get(key).add(attempt.steps.slice(0, index + 1).map(s => s.token).join(' '));
+    });
+  });
+  let splits = 0;
+  let previous = 1;
+  [...seen.keys()].sort((a, b) => a - b).forEach(key => {
+    const width = seen.get(key).size;
+    if (width > previous) splits += 1;
+    previous = width;
+  });
+  return splits;
+}
+
+function renderAttempt() {
+  const spectrum = currentSpectrum();
+  const attempt = currentAttempt();
+  state.step = Math.min(state.step, Math.max(attempt.steps.length - 1, 0));
+  el('attempt').value = attempt.row;
+  el('step').max = Math.max(attempt.steps.length - 1, 0);
+  el('step').value = state.step;
+  el('stepCount').textContent = `${state.step + 1} of ${attempt.steps.length}`;
+
+  el('attemptFig').innerHTML = attempt.svg || '<p class="empty">nothing readable</p>';
+  el('attemptStruct').dataset.smiles = attempt.smiles || '';
+  el('attemptCap').textContent = `Attempt ${attempt.row} · ${outcomeWords(attempt)}`;
+  highlightGold(attempt.gold_atoms || []);
+  const share = Math.round(100 * (attempt.gold_share || 0));
+  el('matchNote').innerHTML = attempt.gold_atoms && attempt.gold_atoms.length
+    ? `<span style="color:var(--allowed)">${attempt.gold_atoms.length} of ${spectrum.heavy_atoms} gold atoms `
+      + `are in this attempt (${share}%)</span>`
+    : `<span style="color:var(--unwritable)">nothing this attempt wrote appears in the gold answer</span>`;
+
+  const tape = el('tape');
+  tape.innerHTML = '';
+  attempt.steps.forEach((step, index) => {
+    const cell = document.createElement('span');
+    cell.className = 'cell ' + (index < state.step ? 'done' : index === state.step ? 'now' : 'ahead')
+      + (index > 0 && step.block !== attempt.steps[index - 1].block ? ' block-start' : '');
+    cell.textContent = step.token;
+    cell.title = `position ${step.position} · block ${step.block + 1} · ${step.support} admitted`;
+    cell.addEventListener('click', () => { state.step = index; renderAttempt(); });
+    tape.appendChild(cell);
+  });
+
+  const step = attempt.steps[state.step];
+  const body = el('tokens');
+  body.innerHTML = '';
+  if (step) {
+    const top = Math.max(...step.alternatives.map(pair => pair[1]), 1e-9);
+    step.alternatives.forEach(([token, probability]) => {
+      const taken = token === step.token;
+      const row = document.createElement('tr');
+      row.innerHTML =
+        `<td class="tok">${escapeHtml(token)}</td>`
+        + `<td class="bar-cell"><div class="bar-track"><div class="bar ${taken ? 'g-allowed' : ''}" `
+        + `style="width:${Math.max((probability / top) * 100, 1.5).toFixed(1)}%"></div></div></td>`
+        + `<td class="prob">${probability < 0.001 ? probability.toExponential(1) : probability.toFixed(3)}</td>`
+        + `<td>${taken ? '<span class="chip g-allowed">taken</span>' : ''}</td>`;
+      body.appendChild(row);
+    });
+  }
+
+  drawSupport(attempt);
+  el('endingNote').innerHTML =
+    `Position ${step ? step.position : '—'} · ${step ? step.support : '—'} of the vocabulary admitted · `
+    + `${step ? step.heavy_mass.toFixed(3) : '—'} Da committed of ${spectrum.target_mass.toFixed(3)} Da. `
+    + `<br>This attempt ${outcomeWords(attempt)}`
+    + (attempt.syntax_support !== undefined
+        ? ` · at the end the grammar left ${attempt.syntax_support} tokens and the mass shell `
+          + `${attempt.mass_reachable_support}.`
+        : '.');
+
+  document.querySelectorAll('.attempt-row').forEach(row => {
+    row.classList.toggle('picked', +row.dataset.row === state.attempt);
+  });
+  renderAttemptList();
+}
+
+function renderAttemptList() {
+  const spectrum = currentSpectrum();
+  const longest = Math.max(...spectrum.attempts.map(a => a.steps.length), 1);
+  el('attempts').innerHTML = spectrum.attempts.map(attempt =>
+    `<li class="attempt-row ${attempt.row === state.attempt ? 'picked' : ''}" data-row="${attempt.row}">`
+    + `<span class="who">${attempt.row}</span>`
+    + `<span class="dot ${outcomeClass(attempt)}"></span>`
+    + `<div class="bar-track"><div class="bar ${outcomeClass(attempt) === 'accepted' ? 'g-allowed' : ''}" `
+    + `style="width:${(attempt.steps.length / longest * 100).toFixed(1)}%"></div></div>`
+    + `<span class="prob">${attempt.steps.length} pos</span>`
+    + `<span style="color:var(--muted-foreground);min-width:15ch">${outcomeWords(attempt)}</span></li>`
+  ).join('');
+  el('attempts').querySelectorAll('.attempt-row').forEach(row => {
+    row.addEventListener('click', () => {
+      state.attempt = +row.dataset.row;
+      state.step = 0;
+      renderAttempt();
+    });
+  });
+}
+
+function drawSupport(attempt) {
+  const svg = el('supportLine');
+  const values = attempt.steps.map(step => step.support);
+  const top = Math.max(...values, 1);
+  const points = values.map((value, index) => {
+    const x = values.length > 1 ? (index / (values.length - 1)) * 300 : 0;
+    return `${x.toFixed(1)},${(56 - (value / top) * 50).toFixed(1)}`;
+  }).join(' ');
+  const cursor = values.length > 1 ? (state.step / (values.length - 1)) * 300 : 0;
+  svg.innerHTML =
+    `<polyline points="${points}" fill="none" stroke="var(--allowed)" stroke-width="2" `
+    + `vector-effect="non-scaling-stroke" stroke-linejoin="round"/>`
+    + `<line x1="${cursor}" x2="${cursor}" y1="0" y2="60" stroke="var(--muted-foreground)" `
+    + `stroke-width="1" vector-effect="non-scaling-stroke"/>`;
+}
+
+function escapeHtml(text) {
+  return text.replace(/[&<>"]/g, character =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[character]));
+}
+
+/* ---- any structure opens large ---- */
+const zoom = el('zoom');
+document.addEventListener('click', event => {
+  if (zoom.classList.contains('open')) {
+    if (!event.target.closest('.frame')) zoom.classList.remove('open');
+    return;
+  }
+  const holder = event.target.closest('.struct, .card');
+  if (!holder) return;
+  const drawing = holder.querySelector('svg');
+  if (!drawing) return;
+  const caption = holder.querySelector('figcaption, .flag');
+  const line = holder.querySelector('p');
+  el('zoomTitle').textContent = caption ? caption.textContent : '';
+  el('zoomFig').innerHTML = drawing.outerHTML;
+  el('zoomText').textContent = holder.dataset.smiles || (line ? line.textContent : '');
+  zoom.classList.add('open');
+});
+
+spectrumPicker.addEventListener('change', () => {
+  state.spectrum = +spectrumPicker.value;
+  renderSpectrum();
+});
+el('attempt').addEventListener('change', () => {
+  state.attempt = +el('attempt').value;
+  state.step = 0;
+  renderAttempt();
+});
+el('step').addEventListener('input', () => { state.step = +el('step').value; renderAttempt(); });
+addEventListener('keydown', event => {
+  if (event.key === 'Escape' && zoom.classList.contains('open')) { zoom.classList.remove('open'); return; }
+  if (event.target.tagName === 'SELECT') return;
+  const last = currentAttempt().steps.length - 1;
+  if (event.key === 'ArrowRight') { state.step = Math.min(last, state.step + 1); renderAttempt(); event.preventDefault(); }
+  if (event.key === 'ArrowLeft') { state.step = Math.max(0, state.step - 1); renderAttempt(); event.preventDefault(); }
+});
+
+renderSpectrum();
+</script>
+</body>
+</html>

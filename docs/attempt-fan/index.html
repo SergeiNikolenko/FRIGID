@@ -1,0 +1,861 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MARLIN · eight attempts, one spectrum</title>
+<style>
+/* shadcn/ui design language: neutral scale, one radius, hairline borders, and
+   a focus ring. Fonts are system stacks, so nothing depends on a font CDN. */
+:root {
+  color-scheme: light dark;
+  --radius: 0.625rem;
+
+  --background:        oklch(1 0 0);
+  --foreground:        oklch(0.145 0 0);
+  --card:              oklch(1 0 0);
+  --muted:             oklch(0.97 0 0);
+  --muted-foreground:  oklch(0.556 0 0);
+  --border:            oklch(0.922 0 0);
+  --ring:              oklch(0.708 0 0);
+  --primary:           oklch(0.205 0 0);
+  --primary-foreground:oklch(0.985 0 0);
+  --shadow: 0 1px 2px 0 oklch(0 0 0 / 0.05);
+
+  /* The three verdict hues, kept as a set: colour carries the family, the chip
+     carries the exact restriction. Darkened here to hold contrast on white. */
+  --allowed:       oklch(0.52 0.13 162);
+  --unwritable:    oklch(0.55 0.17 40);
+  --unreachable:   oklch(0.52 0.19 258);
+  --on-accent:     oklch(0.985 0 0);
+
+  --tip-bg: oklch(0.145 0 0);
+  --tip-text: oklch(0.985 0 0);
+  /* The RDKit drawings were made for a dark background, so invert on light. */
+  --struct-invert: invert(1) hue-rotate(180deg);
+
+  --mono: ui-monospace, "SF Mono", SFMono-Regular, "JetBrains Mono", Menlo, Consolas, monospace;
+  --ui: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  --display: var(--ui);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --background:        oklch(0.145 0 0);
+    --foreground:        oklch(0.985 0 0);
+    --card:              oklch(0.205 0 0);
+    --muted:             oklch(0.269 0 0);
+    --muted-foreground:  oklch(0.708 0 0);
+    --border:            oklch(1 0 0 / 12%);
+    --ring:              oklch(0.556 0 0);
+    --primary:           oklch(0.922 0 0);
+    --primary-foreground:oklch(0.205 0 0);
+    --shadow: 0 1px 2px 0 oklch(0 0 0 / 0.4);
+    --allowed:           oklch(0.72 0.15 162);
+    --unwritable:        oklch(0.72 0.17 45);
+    --unreachable:       oklch(0.70 0.15 255);
+    --on-accent:         oklch(0.16 0 0);
+    --tip-bg:            oklch(0.205 0 0);
+    --tip-text:          oklch(0.985 0 0);
+    --struct-invert:     none;
+  }
+}
+:root[data-theme="dark"] {
+  --background:        oklch(0.145 0 0);
+  --foreground:        oklch(0.985 0 0);
+  --card:              oklch(0.205 0 0);
+  --muted:             oklch(0.269 0 0);
+  --muted-foreground:  oklch(0.708 0 0);
+  --border:            oklch(1 0 0 / 12%);
+  --ring:              oklch(0.556 0 0);
+  --primary:           oklch(0.922 0 0);
+  --primary-foreground:oklch(0.205 0 0);
+  --shadow: 0 1px 2px 0 oklch(0 0 0 / 0.4);
+  --allowed:           oklch(0.72 0.15 162);
+  --unwritable:        oklch(0.72 0.17 45);
+  --unreachable:       oklch(0.70 0.15 255);
+  --on-accent:         oklch(0.16 0 0);
+  --tip-bg:            oklch(0.205 0 0);
+  --tip-text:          oklch(0.985 0 0);
+  --struct-invert:     none;
+}
+
+/* Names the markup still uses, mapped onto the shadcn scale. */
+:root {
+  --bg: var(--background);
+  --surface-1: var(--card);
+  --surface-2: var(--muted);
+  --line: var(--border);
+  --text-primary: var(--foreground);
+  --text-secondary: var(--foreground);
+  --text-muted: var(--muted-foreground);
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--background); }
+body {
+  font-family: var(--ui);
+  color: var(--foreground);
+  font-size: 14px;
+  line-height: 1.5;
+  letter-spacing: -0.006em;
+  padding: 0 0 48px;
+  -webkit-font-smoothing: antialiased;
+}
+.wrap { max-width: 1500px; margin: 0 auto; padding: 0 24px; }
+
+/* ---------- masthead ---------- */
+header { border-bottom: 1px solid var(--border); padding: 24px 0 18px; margin-bottom: 18px; }
+.eyebrow {
+  font-family: var(--mono); font-size: 11px; letter-spacing: .04em;
+  text-transform: uppercase; color: var(--muted-foreground); margin: 0 0 8px;
+}
+h1 {
+  font-family: var(--display); font-weight: 700; font-size: clamp(22px, 2.2vw, 30px);
+  line-height: 1.15; letter-spacing: -0.025em; margin: 0 0 8px; max-width: 40ch;
+}
+h1 em { font-style: normal; color: var(--allowed); }
+.standfirst { color: var(--muted-foreground); max-width: 92ch; margin: 0; font-size: 14px; }
+
+/* ---------- controls (card + input + button) ---------- */
+.controls {
+  display: flex; gap: 16px; align-items: center; flex-wrap: wrap;
+  padding: 14px 16px; background: var(--card);
+  border: 1px solid var(--border); border-radius: var(--radius);
+  box-shadow: var(--shadow); margin-bottom: 16px;
+}
+.controls label {
+  font-size: 12px; font-weight: 500; color: var(--muted-foreground);
+  display: block; margin-bottom: 6px; letter-spacing: 0;
+  text-transform: none; font-family: var(--ui);
+}
+select, button {
+  font-family: var(--ui); font-size: 13px; font-weight: 500; color: var(--foreground);
+  background: var(--background); border: 1px solid var(--border);
+  border-radius: calc(var(--radius) - 2px); padding: 7px 11px;
+  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+select { min-width: 280px; }
+button { cursor: pointer; min-width: 36px; }
+button:hover, select:hover { background: var(--muted); }
+button[aria-pressed="true"] {
+  background: var(--primary); border-color: var(--primary); color: var(--primary-foreground);
+}
+:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.step-field { flex: 1 1 300px; min-width: 220px; }
+input[type=range] { width: 100%; accent-color: var(--primary); }
+.step-count { font-family: var(--mono); font-size: 12px; color: var(--muted-foreground); }
+
+/* ---------- layout ---------- */
+.grid {
+  display: grid; gap: 16px; align-items: start;
+  grid-template-columns: minmax(320px, 420px) minmax(400px, 1fr) minmax(250px, 330px);
+}
+@media (max-width: 1100px) { .grid { grid-template-columns: 1fr; } }
+.panel {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow);
+}
+.panel h2 {
+  font-size: 12px; font-weight: 600; letter-spacing: 0; text-transform: none;
+  font-family: var(--ui); color: var(--foreground); margin: 0 0 12px;
+}
+.panel h2 span { color: var(--muted-foreground); font-weight: 400; }
+figure { margin: 0; }
+figure svg { display: block; width: 100%; height: auto; max-height: 190px; filter: var(--struct-invert); }
+
+/* ---------- gold and the growing molecule, side by side ---------- */
+.structures { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.struct {
+  background: var(--background); border: 1px solid var(--border);
+  border-radius: calc(var(--radius) - 2px); padding: 10px; min-height: 168px;
+  cursor: zoom-in; transition: border-color 120ms ease;
+}
+.struct:hover { border-color: var(--ring); }
+.struct figcaption {
+  font-size: 11px; font-weight: 500; color: var(--muted-foreground); margin-bottom: 8px;
+}
+.struct div { transition: opacity 140ms linear; }
+.struct.stale div { opacity: .45; }
+.struct .empty { padding: 26px 0; text-align: center; }
+
+/* ---------- folded detail ---------- */
+.fold { margin-top: 16px; border-top: 1px solid var(--border); padding-top: 12px; }
+.fold summary {
+  font-size: 12px; font-weight: 500; color: var(--muted-foreground); cursor: pointer;
+}
+.fold summary:hover { color: var(--foreground); }
+.fold .fingerprint { margin-top: 12px; }
+
+.facts { list-style: none; margin: 12px 0 0; padding: 0; font-size: 12.5px; }
+.facts li {
+  display: flex; justify-content: space-between; gap: 12px; padding: 6px 0;
+  border-top: 1px solid var(--border);
+}
+.facts span:first-child { color: var(--muted-foreground); }
+.facts span:last-child { font-family: var(--mono); }
+.smiles { font-family: var(--mono); font-size: 11px; color: var(--muted-foreground); word-break: break-all; margin: 10px 0 0; }
+
+/* ---------- the SAFE tape ---------- */
+.tape { display: flex; flex-wrap: wrap; gap: 3px; margin-bottom: 6px; }
+.cell {
+  font-family: var(--mono); font-size: 12.5px; font-weight: 500;
+  padding: 4px 6px; border-radius: 6px; background: var(--muted);
+  color: var(--muted-foreground); border: 1px solid transparent; white-space: pre;
+  cursor: pointer; transition: background-color 120ms ease, color 120ms ease;
+}
+.cell:hover { border-color: var(--ring); }
+.cell.done { color: var(--foreground); }
+.cell.now { background: var(--primary); color: var(--primary-foreground); border-color: var(--primary); }
+.cell.ahead { opacity: .4; }
+.cell.in-block { border-color: var(--border); opacity: 1; }
+.cell.block-start { margin-left: 12px; }
+
+/* ---------- mass shell (progress) ---------- */
+.mass-track {
+  position: relative; height: 8px; background: var(--muted);
+  border-radius: 999px; overflow: hidden; margin: 8px 0 6px;
+}
+.mass-fill { position: absolute; inset: 0 auto 0 0; background: var(--unreachable); border-radius: 999px; transition: width 200ms ease; }
+.mass-legend { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--muted-foreground); }
+
+/* ---------- token table ---------- */
+table { width: 100%; border-collapse: collapse; margin-top: 4px; }
+th {
+  font-size: 11.5px; font-weight: 500; color: var(--muted-foreground);
+  text-align: left; padding: 0 8px 8px 0; text-transform: none; letter-spacing: 0;
+  font-family: var(--ui);
+}
+td { padding: 7px 8px 7px 0; border-top: 1px solid var(--border); vertical-align: middle; }
+tbody tr { cursor: pointer; }
+tbody tr:hover td, tbody tr.picked td { background: var(--muted); }
+.tok { font-family: var(--mono); font-size: 13px; font-weight: 600; }
+.tok.is-gold::after {
+  content: "gold"; font-family: var(--ui); font-size: 10px; font-weight: 500;
+  margin-left: 8px; padding: 2px 7px; border-radius: 999px;
+  background: var(--primary); color: var(--primary-foreground); text-transform: none;
+  letter-spacing: 0;
+}
+.bar-cell { width: 42%; }
+.bar-track { height: 6px; background: var(--muted); border-radius: 999px; overflow: hidden; }
+.bar { height: 100%; border-radius: 999px; background: var(--muted-foreground); transition: width 150ms ease; }
+.prob { font-family: var(--mono); font-size: 12px; color: var(--muted-foreground); text-align: right; white-space: nowrap; }
+.chip {
+  font-family: var(--ui); font-size: 11px; font-weight: 500; letter-spacing: 0;
+  text-transform: none; padding: 2px 8px; border-radius: 999px; white-space: nowrap;
+  border: 1px solid currentColor;
+}
+.g-allowed { color: var(--allowed); } .bar.g-allowed { background: var(--allowed); }
+.g-unwritable { color: var(--unwritable); } .bar.g-unwritable { background: var(--unwritable); }
+.g-unreachable { color: var(--unreachable); } .bar.g-unreachable { background: var(--unreachable); }
+
+/* ---------- model input ---------- */
+.fingerprint { display: grid; grid-template-columns: repeat(64, 1fr); gap: 1px; }
+.fingerprint i { display: block; aspect-ratio: 1; background: var(--muted); border-radius: 1px; }
+.fingerprint i.on { background: var(--allowed); }
+
+/* ---------- the vocabulary wall ---------- */
+.wall { display: grid; grid-template-columns: repeat(47, 1fr); gap: 1px; margin-bottom: 12px; }
+.wall i {
+  display: block; aspect-ratio: 1; border-radius: 1px;
+  background: var(--muted); transition: background 90ms linear;
+}
+.wall i.on { background: var(--allowed); }
+.wall i.gold { background: var(--foreground); }
+.wall i.pick { outline: 2px solid var(--foreground); outline-offset: 1px; }
+@media (prefers-reduced-motion: reduce) {
+  .wall i, .bar, .mass-fill, .struct div, .cell, select, button { transition: none; }
+}
+.legend { display: flex; flex-wrap: wrap; gap: 8px 14px; margin: 10px 0 0; padding: 0; list-style: none; }
+.legend li { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted-foreground); }
+.legend b { width: 10px; height: 10px; border-radius: 3px; display: block; }
+.support-line { margin-top: 14px; }
+.support-line svg { width: 100%; height: 60px; display: block; cursor: crosshair; }
+
+/* ---------- returned candidates ---------- */
+.cards { display: flex; gap: 12px; flex-wrap: wrap; }
+.card {
+  background: var(--background); border: 1px solid var(--border);
+  border-radius: calc(var(--radius) - 2px); padding: 12px; width: 208px; cursor: zoom-in;
+  transition: border-color 120ms ease;
+}
+.card:hover { border-color: var(--ring); }
+.card.is-gold { border-color: var(--foreground); }
+.card figure svg { max-height: 148px; }
+.card p { font-family: var(--mono); font-size: 11px; color: var(--muted-foreground); margin: 8px 0 0; word-break: break-all; }
+.flag {
+  display: inline-block; font-size: 11px; font-weight: 500; letter-spacing: 0;
+  text-transform: none; padding: 2px 8px; border-radius: 999px; margin-bottom: 8px;
+}
+.flag.split { background: var(--unreachable); color: var(--on-accent); }
+.flag.whole { background: var(--allowed); color: var(--on-accent); }
+.flag.gold { background: var(--primary); color: var(--primary-foreground); }
+.empty { color: var(--muted-foreground); font-size: 12.5px; }
+.note { color: var(--muted-foreground); font-size: 12.5px; margin-top: 12px; max-width: 95ch; }
+
+/* ---------- dialog ---------- */
+#zoom {
+  position: fixed; inset: 0; z-index: 30; display: none; place-items: center;
+  background: oklch(0 0 0 / 0.55); padding: 24px; cursor: zoom-out;
+  backdrop-filter: blur(2px);
+}
+#zoom.open { display: grid; }
+#zoom .frame {
+  background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 20px; max-width: min(760px, 92vw); cursor: auto;
+  box-shadow: 0 10px 30px oklch(0 0 0 / 0.25);
+}
+#zoom h2 { font-size: 13px; font-weight: 600; color: var(--foreground); margin: 0 0 12px; }
+#zoom figure svg { max-height: 60vh; filter: var(--struct-invert); }
+#zoom p { font-family: var(--mono); font-size: 12px; color: var(--muted-foreground); margin: 14px 0 0; word-break: break-all; }
+
+#tip {
+  position: fixed; pointer-events: none; z-index: 40; opacity: 0;
+  background: var(--tip-bg); border: 1px solid var(--border); border-radius: 6px;
+  padding: 5px 9px; font-family: var(--mono); font-size: 11px; color: var(--tip-text);
+  transition: opacity 90ms linear; box-shadow: var(--shadow);
+}
+
+/* ---------- the fan ---------- */
+.tree-scroll { overflow-x: auto; padding-bottom: 8px; }
+.tree-scroll svg { display: block; height: auto; }
+.branch { fill: none; stroke: var(--muted-foreground); stroke-linejoin: round; stroke-linecap: round; cursor: pointer; }
+.branch:hover { stroke: var(--foreground); }
+.branch.on-path { stroke: var(--foreground); }
+.leaf { cursor: pointer; }
+.leaf.accepted { fill: var(--allowed); }
+.leaf.grammar { fill: var(--unwritable); }
+.leaf.mass { fill: var(--unreachable); }
+.leaf.other { fill: var(--muted-foreground); }
+.split { fill: var(--background); stroke: var(--muted-foreground); stroke-width: 1.5; }
+.axis { fill: var(--muted-foreground); font-family: var(--mono); font-size: 9px; }
+.attempt-list { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.attempt-row {
+  display: flex; align-items: center; gap: 10px; padding: 8px 10px; cursor: pointer;
+  border: 1px solid var(--border); border-radius: calc(var(--radius) - 2px);
+  background: var(--background); font-size: 12.5px; transition: border-color 120ms ease;
+}
+.attempt-row:hover { border-color: var(--ring); }
+.attempt-row.picked { border-color: var(--foreground); }
+.attempt-row .who { font-family: var(--mono); font-weight: 600; min-width: 26px; }
+.attempt-row .bar-track { flex: 1; }
+.dot { width: 9px; height: 9px; border-radius: 999px; display: inline-block; flex: none; }
+.dot.accepted { background: var(--allowed); }
+.dot.grammar { background: var(--unwritable); }
+.dot.mass { background: var(--unreachable); }
+.dot.other { background: var(--muted-foreground); }
+.stat-row { display: flex; gap: 18px; flex-wrap: wrap; margin: 0 0 12px; }
+.stat { display: flex; flex-direction: column; gap: 2px; }
+.stat b { font-size: 18px; font-weight: 600; letter-spacing: -0.02em; }
+.stat span { font-size: 11.5px; color: var(--muted-foreground); }
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <p class="eyebrow">MARLIN · recorded decode · every attempt of one spectrum ·
+  <a href="../decoding-demo/index.html" style="color:var(--allowed)">&larr; back to the gold walk</a></p>
+  <h1>Eight attempts, one spectrum: where they split, and where they <em>died</em>.</h1>
+  <p class="standfirst">Not the gold answer walked forwards — the run itself. Each attempt starts from the
+  same mass and its own dropout of the fingerprint, writes eight positions per forward pass, and ends
+  either as a returned candidate or in a dead end the mask could not get out of. Rows sharing a prefix
+  share a branch; the branch splits at the first position where they disagree.</p>
+</header>
+
+<div class="controls">
+  <div>
+    <label for="spectrum">Spectrum</label>
+    <select id="spectrum"></select>
+  </div>
+  <div>
+    <label for="attempt">Attempt</label>
+    <select id="attempt"></select>
+  </div>
+  <div class="step-field">
+    <label for="step">Position <span class="step-count" id="stepCount"></span></label>
+    <input type="range" id="step" min="0" value="0">
+  </div>
+</div>
+
+<div class="grid">
+  <section class="panel">
+    <h2>Target · <span id="specName"></span></h2>
+    <div class="structures">
+      <figure class="struct" id="targetStruct">
+        <figcaption>Gold answer</figcaption>
+        <div id="targetFig"></div>
+      </figure>
+      <figure class="struct" id="attemptStruct">
+        <figcaption id="attemptCap">This attempt</figcaption>
+        <div id="attemptFig"></div>
+      </figure>
+    </div>
+    <p class="note" id="matchNote"></p>
+    <ul class="facts">
+      <li><span>Formula</span><span id="fFormula"></span></li>
+      <li><span>Conditioning mass</span><span id="fMass"></span></li>
+      <li><span>Heavy atoms</span><span id="fHeavy"></span></li>
+      <li><span>Run time</span><span id="fRuntime"></span></li>
+    </ul>
+    <p class="smiles" id="fSmiles"></p>
+  </section>
+
+  <section class="panel">
+    <h2>The fan · <span id="fanMeta"></span></h2>
+    <div class="stat-row" id="stats"></div>
+    <div class="tree-scroll">
+      <svg id="tree" role="img" aria-label="Attempts as a tree of shared prefixes"></svg>
+    </div>
+    <ul class="legend">
+      <li><b style="background:var(--allowed)"></b>returned a candidate</li>
+      <li><b style="background:var(--unwritable)"></b>grammar deadlock <span style="color:var(--muted-foreground)">(nothing may follow)</span></li>
+      <li><b style="background:var(--unreachable)"></b>mass deadlock <span style="color:var(--muted-foreground)">(target no longer reachable)</span></li>
+      <li><b style="background:var(--muted-foreground)"></b>ran out of length or was refused at EOS</li>
+    </ul>
+    <p class="note">Branch thickness is how many attempts still agree at that point. A split is a position
+    where the sampler, given a different dropout of the same fingerprint, chose a different token.
+    <br><br>There is no way back up a branch: the decoder never backtracks. A block of eight positions is
+    committed in one forward pass, and when the mask leaves nothing to write, that attempt is abandoned and
+    a fresh one starts from the beginning. Every leaf below is therefore a whole life of the decoder, not a
+    branch it could have retried.</p>
+  </section>
+
+  <section class="panel">
+    <h2>This attempt, position by position</h2>
+    <div class="tape" id="tape"></div>
+    <h2 style="margin-top:16px">Admitted tokens along this attempt</h2>
+    <div class="support-line">
+      <svg id="supportLine" viewBox="0 0 300 60" preserveAspectRatio="none" role="img" aria-label="Admitted token count at each position"></svg>
+    </div>
+    <h2 style="margin-top:16px">This position</h2>
+    <table>
+      <thead><tr><th>Token</th><th class="bar-cell">Model probability</th><th></th><th>Taken</th></tr></thead>
+      <tbody id="tokens"></tbody>
+    </table>
+    <p class="note" id="endingNote"></p>
+  </section>
+</div>
+
+<section class="panel" style="margin-top:16px">
+  <h2>All attempts · <span id="attemptsMeta"></span></h2>
+  <ul class="attempt-list" id="attempts"></ul>
+</section>
+
+<section class="panel" style="margin-top:16px">
+  <h2>What each attempt ended up drawing</h2>
+  <div class="cards" id="endings"></div>
+  <p class="note">A dead end still has a molecule behind it: the largest readable piece of the prefix at the
+  moment the mask ran out of tokens. Comparing it with the gold answer is how a defect in the decoder is
+  told apart from a defect in the constraints.</p>
+</section>
+
+<p class="note">Recorded by <code>scripts/evaluate_marlin_nplib1.py --trace-output</code> on the clean-panel
+settings: 8 candidates, dropout 0.3, temperature 1.0, sampled tokens, ±10 ppm, 1,800 s per spectrum.
+Dead ends are named by putting the recorded prefix back to the same masks the run used.</p>
+</div>
+<div id="zoom" role="dialog" aria-modal="true" aria-label="Enlarged structure">
+  <div class="frame">
+    <h2 id="zoomTitle"></h2>
+    <figure id="zoomFig"></figure>
+    <p id="zoomText"></p>
+  </div>
+</div>
+<div id="tip" role="status"></div>
+
+<script>
+const FAN = {"ppm_tolerance":10.0,"spectra":[{"spec_name":"CCMSLIB00000578071","smiles":"O=Cc1ccccc1","target_mass":106.04186479746954,"formula":"C7H6O","heavy_atoms":8,"target_svg":"\n<svg version='1.1' baseProfile='full'\n              xmlns='http://www.w3.org/2000/svg'\n                      xmlns:rdkit='http://www.rdkit.org/xml'\n                      xmlns:xlink='http://www.w3.org/1999/xlink'\n                  xml:space='preserve'\nwidth='340px' height='250px' viewBox='0 0 340 250'>\n<!-- END OF HEADER -->\n<path class='bond-0 atom-0 atom-1' d='M 36.8,115.2 L 58.2,138.4' style='fill:none;fill-rule:evenodd;stroke:#FF776B;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-0 atom-0 atom-1' d='M 58.2,138.4 L 79.6,161.6' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-0 atom-0 atom-1' d='M 45.9,106.7 L 67.4,129.9' style='fill:none;fill-rule:evenodd;stroke:#FF776B;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-0 atom-0 atom-1' d='M 67.4,129.9 L 83.9,147.8' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-1 atom-1 atom-2' d='M 79.6,161.6 L 160.8,143.3' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-2 atom-2 atom-3' d='M 160.8,143.3 L 185.5,63.9' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-2 atom-2 atom-3' d='M 174.8,140.1 L 195.2,74.5' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-3 atom-3 atom-4' d='M 185.5,63.9 L 266.6,45.6' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-4 atom-4 atom-5' d='M 266.6,45.6 L 323.0,106.7' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-4 atom-4 atom-5' d='M 262.3,59.4 L 308.9,109.9' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-5 atom-5 atom-6' d='M 323.0,106.7 L 298.3,186.1' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-6 atom-6 atom-7' d='M 298.3,186.1 L 217.2,204.4' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-6 atom-6 atom-7' d='M 288.5,175.5 L 221.4,190.6' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-7 atom-7 atom-2' d='M 217.2,204.4 L 160.8,143.3' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path d='M 78.6,160.4 L 79.6,161.6 L 83.7,160.7' style='fill:none;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:10;stroke-opacity:1;' />\n<path d='M 184.2,67.9 L 185.5,63.9 L 189.5,63.0' style='fill:none;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:10;stroke-opacity:1;' />\n<path d='M 262.5,46.5 L 266.6,45.6 L 269.4,48.7' style='fill:none;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:10;stroke-opacity:1;' />\n<path d='M 320.2,103.7 L 323.0,106.7 L 321.8,110.7' style='fill:none;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:10;stroke-opacity:1;' />\n<path d='M 299.5,182.1 L 298.3,186.1 L 294.2,187.0' style='fill:none;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:10;stroke-opacity:1;' />\n<path d='M 221.2,203.5 L 217.2,204.4 L 214.3,201.3' style='fill:none;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:10;stroke-opacity:1;' />\n<path class='atom-0' d='M 17.0 96.3\nQ 17.0 90.7, 19.8 87.5\nQ 22.6 84.3, 27.8 84.3\nQ 33.0 84.3, 35.8 87.5\nQ 38.6 90.7, 38.6 96.3\nQ 38.6 102.0, 35.8 105.3\nQ 33.0 108.5, 27.8 108.5\nQ 22.6 108.5, 19.8 105.3\nQ 17.0 102.1, 17.0 96.3\nM 27.8 105.9\nQ 31.4 105.9, 33.3 103.5\nQ 35.3 101.0, 35.3 96.3\nQ 35.3 91.7, 33.3 89.4\nQ 31.4 87.0, 27.8 87.0\nQ 24.2 87.0, 22.3 89.3\nQ 20.3 91.7, 20.3 96.3\nQ 20.3 101.1, 22.3 103.5\nQ 24.2 105.9, 27.8 105.9\n' fill='#FF776B'/>\n</svg>\n","runtime_seconds":465.4991776239913,"candidates_requested":8,"returned":0,"attempts":[{"row":0,"steps":[{"position":1,"block":0,"token":"c","support":159,"confidence":0.99498,"heavy_mass":0.0,"alternatives":[["c",0.99498],["C",0.00501],["O",1e-05],["N",0.0]]},{"position":2,"block":0,"token":"1","support":254,"confidence":0.99999,"heavy_mass":12.0,"alternatives":[["1",0.99999],["c",1e-05],["=",0.0],["C",0.0]]},{"position":3,"block":0,"token":"2","support":283,"confidence":0.99305,"heavy_mass":12.0,"alternatives":[["2",0.99305],["3",0.00573],["c",0.001],["C",8e-05]]},{"position":4,"block":0,"token":"c","support":274,"confidence":1.0,"heavy_mass":12.0,"alternatives":[["c",1.0],["C",0.0],["(",0.0],[".",0.0]]},{"position":5,"block":0,"token":"c","support":280,"confidence":1.0,"heavy_mass":24.0,"alternatives":[["c",1.0],["C",0.0],["(",0.0],[".",0.0]]},{"position":6,"block":0,"token":"c","support":287,"confidence":1.0,"heavy_mass":36.0,"alternatives":[["c",1.0],["1",0.0],["(",0.0],[".",0.0]]},{"position":7,"block":0,"token":"c","support":281,"confidence":0.99991,"heavy_mass":48.0,"alternatives":[["c",0.99991],["(",9e-05],["=",0.0],["C",0.0]]},{"position":8,"block":0,"token":"c","support":206,"confidence":1.0,"heavy_mass":60.0,"alternatives":[["c",1.0],["(",0.0],["1",0.0],["=",0.0]]},{"position":9,"block":1,"token":"1","support":173,"confidence":1.0,"heavy_mass":72.0,"alternatives":[["1",1.0],["c",0.0],["2",0.0],["C",0.0]]},{"position":10,"block":1,"token":".","support":168,"confidence":1.0,"heavy_mass":72.0,"alternatives":[[".",1.0],["c",0.0],["C",0.0],["3",0.0]]},{"position":11,"block":1,"token":"c","support":52,"confidence":0.99983,"heavy_mass":72.0,"alternatives":[["c",0.99983],["C",0.00016],["O",0.0],["[C-]",0.0]]},{"position":12,"block":1,"token":"1","support":121,"confidence":1.0,"heavy_mass":84.0,"alternatives":[["1",1.0],["=",0.0],["3",0.0],["#",0.0]]},{"position":13,"block":1,"token":"3","support":121,"confidence":0.99956,"heavy_mass":84.0,"alternatives":[["3",0.99956],["%17",0.0002],["%14",5e-05],["%18",4e-05]]},{"position":14,"block":1,"token":".","support":120,"confidence":0.32056,"heavy_mass":84.0,"alternatives":[["=",0.32056],[".",0.30616],["(",0.24819],["6",0.02034]]},{"position":15,"block":1,"token":"[H]","support":5,"confidence":0.42269,"heavy_mass":84.0,"alternatives":[["[H+]",0.42269],["[H]",0.41382],["[H",0.084],["[",0.0654]]},{"position":16,"block":1,"token":"1","support":113,"confidence":0.38056,"heavy_mass":85.0078,"alternatives":[["1",0.38056],["(",0.27658],["3",0.15559],["7",0.07859]]},{"position":17,"block":2,"token":".","support":1,"confidence":1.0,"heavy_mass":85.0078,"alternatives":[[".",1.0],["[SEP]",0.0],["[UNK]",0.0],["[CLS]",0.0]]},{"position":18,"block":2,"token":"[o+]","support":9,"confidence":0.55314,"heavy_mass":85.0078,"alternatives":[["[o+]",0.55314],["[H]",0.38083],["[H+]",0.03399],["[H-]",0.00892]]},{"position":19,"block":2,"token":"2","support":7,"confidence":0.83012,"heavy_mass":99.9949,"alternatives":[["2",0.83012],["=",0.13061],["3",0.02866],["#",0.00587]]},{"position":20,"block":2,"token":"3","support":5,"confidence":0.54199,"heavy_mass":99.9949,"alternatives":[["=",0.54199],["3",0.38238],["-",0.07559],["\\",3e-05]]},{"position":21,"block":2,"token":"[SEP]","support":1,"confidence":1.0,"heavy_mass":99.9949,"alternatives":[["[SEP]",1.0],["[PAD]",0.0],["[UNK]",0.0],["[CLS]",0.0]]}],"written":"c12ccccc1.c13.[H]1.[o+]23[SEP]","ending":"eos_rejected","safe":"c12ccccc1.c13.[H]1.[o+]23","smiles":"[H][H].c1ccccc1","svg":"\n<svg version='1.1' baseProfile='full'\n              xmlns='http://www.w3.org/2000/svg'\n                      xmlns:rdkit='http://www.rdkit.org/xml'\n                      xmlns:xlink='http://www.w3.org/1999/xlink'\n                  xml:space='preserve'\nwidth='300px' height='220px' viewBox='0 0 300 220'>\n<!-- END OF HEADER -->\n<path class='bond-0 atom-0 atom-1' d='M 177.8,22.0 L 122.2,22.0' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-1 atom-2 atom-3' d='M 227.9,141.5 L 189.0,209.0' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-2 atom-3 atom-4' d='M 189.0,209.0 L 111.0,209.0' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-2 atom-3 atom-4' d='M 182.2,197.3 L 117.8,197.3' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-3 atom-4 atom-5' d='M 111.0,209.0 L 72.1,141.5' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-4 atom-5 atom-6' d='M 72.1,141.5 L 111.0,74.0' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-4 atom-5 atom-6' d='M 85.6,141.5 L 117.8,85.7' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-5 atom-6 atom-7' d='M 111.0,74.0 L 189.0,74.0' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-6 atom-7 atom-2' d='M 189.0,74.0 L 227.9,141.5' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-6 atom-7 atom-2' d='M 182.2,85.7 L 214.4,141.5' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path d='M 226.0,144.9 L 227.9,141.5 L 226.0,138.1' style='fill:none;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:10;stroke-opacity:1;' />\n<path d='M 190.9,205.6 L 189.0,209.0 L 185.1,209.0' style='fill:none;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:10;stroke-opacity:1;' />\n<path d='M 114.9,209.0 L 111.0,209.0 L 109.1,205.6' style='fill:none;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:10;stroke-opacity:1;' />\n<path d='M 74.0,144.9 L 72.1,141.5 L 74.0,138.1' style='fill:none;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:10;stroke-opacity:1;' />\n<path d='M 109.1,77.4 L 111.0,74.0 L 114.9,74.0' style='fill:none;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:10;stroke-opacity:1;' />\n<path d='M 185.1,74.0 L 189.0,74.0 L 190.9,77.4' style='fill:none;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:10;stroke-opacity:1;' />\n<path class='atom-0' d='M 180.3 11.0\nL 183.3 11.0\nL 183.3 20.4\nL 194.6 20.4\nL 194.6 11.0\nL 197.6 11.0\nL 197.6 33.1\nL 194.6 33.1\nL 194.6 22.9\nL 183.3 22.9\nL 183.3 33.1\nL 180.3 33.1\nL 180.3 11.0\n' fill='#D3D8E5'/>\n<path class='atom-1' d='M 102.4 11.0\nL 105.4 11.0\nL 105.4 20.4\nL 116.7 20.4\nL 116.7 11.0\nL 119.7 11.0\nL 119.7 33.1\nL 116.7 33.1\nL 116.7 22.9\nL 105.4 22.9\nL 105.4 33.1\nL 102.4 33.1\nL 102.4 11.0\n' fill='#D3D8E5'/>\n</svg>\n","gold_atoms":[2,3,4,5,6,7],"gold_share":0.75,"fragments":2,"mass":80.0626,"mass_error_ppm":-244990.6,"tanimoto":0.188},{"row":1,"steps":[{"position":1,"block":0,"token":"c","support":159,"confidence":0.63188,"heavy_mass":0.0,"alternatives":[["c",0.63188],["C",0.36812],["S",0.0],["O",0.0]]},{"position":2,"block":0,"token":"1","support":254,"confidence":0.99996,"heavy_mass":12.0,"alternatives":[["1",0.99996],["c",4e-05],["=",0.0],["[n+]",0.0]]},{"position":3,"block":0,"token":"c","support":283,"confidence":0.6877,"heavy_mass":12.0,"alternatives":[["2",0.6877],["c",0.30676],["C",0.00211],["%14",0.00098]]},{"position":4,"block":0,"token":"c","support":283,"confidence":1.0,"heavy_mass":24.0,"alternatives":[["c",1.0],["C",0.0],[".",0.0],["=",0.0]]},{"position":5,"block":0,"token":"c","support":287,"confidence":1.0,"heavy_mass":36.0,"alternatives":[["c",1.0],["1",0.0],["C",0.0],["2",0.0]]},{"position":6,"block":0,"token":"c","support":282,"confidence":1.0,"heavy_mass":48.0,"alternatives":[["c",1.0],["2",0.0],["1",0.0],[".",0.0]]},{"position":7,"block":0,"token":"c","support":206,"confidence":1.0,"heavy_mass":60.0,"alternatives":[["c",1.0],["C",0.0],["[n+]",0.0],["2",0.0]]},{"position":8,"block":0,"token":"c","support":173,"confidence":0.99999,"heavy_mass":72.0,"alternatives":[["c",0.99999],["(",0.0],["1",0.0],["=",0.0]]},{"position":9,"block":1,"token":"1","support":127,"confidence":0.98371,"heavy_mass":84.0,"alternatives":[["1",0.98371],["2",0.01626],["-",1e-05],["(",1e-05]]},{"position":10,"block":1,"token":"-","support":123,"confidence":0.69252,"heavy_mass":84.0,"alternatives":[["-",0.69252],["2",0.16756],["=",0.06892],["1",0.06671]]},{"position":11,"block":1,"token":"1","support":116,"confidence":0.84198,"heavy_mass":84.0,"alternatives":[["1",0.84198],["2",0.15683],["%16",0.00036],["3",0.00018]]},{"position":12,"block":1,"token":".","support":1,"confidence":1.0,"heavy_mass":84.0,"alternatives":[[".",1.0],["[SEP]",0.0],["[UNK]",0.0],["[CLS]",0.0]]},{"position":13,"block":1,"token":"[H+]","support":10,"confidence":0.41018,"heavy_mass":84.0,"alternatives":[["[H+]",0.41018],["[H]",0.31274],["[O]",0.16047],["[oH+]",0.03103]]},{"position":14,"block":1,"token":"2","support":119,"confidence":0.97867,"heavy_mass":84.0,"alternatives":[["2",0.97867],["3",0.0194],["-",0.0005],["%18",0.00029]]},{"position":15,"block":1,"token":".","support":1,"confidence":1.0,"heavy_mass":84.0,"alternatives":[[".",1.0],["[SEP]",0.0],["[UNK]",0.0],["[CLS]",0.0]]},{"position":16,"block":1,"token":"O","support":10,"confidence":0.99222,"heavy_mass":84.0,"alternatives":[["O",0.99222],["[H+]",0.00264],["o",0.00246],["[H]",0.00195]]},{"position":17,"block":2,"token":"2","support":6,"confidence":0.74419,"heavy_mass":99.9949,"alternatives":[["2",0.74419],["1",0.25542],["=",0.00035],["-",3e-05]]},{"position":18,"block":2,"token":"-","support":4,"confidence":0.62706,"heavy_mass":99.9949,"alternatives":[["-",0.62706],["1",0.35308],["\\",0.01455],["/",0.00531]]},{"position":19,"block":2,"token":"1","support":1,"confidence":1.0,"heavy_mass":99.9949,"alternatives":[["1",1.0],["[SEP]",0.0],["[UNK]",0.0],["[CLS]",0.0]]},{"position":20,"block":2,"token":"[SEP]","support":1,"confidence":1.0,"heavy_mass":99.9949,"alternatives":[["[SEP]",1.0],["[PAD]",0.0],["[UNK]",0.0],["[CLS]",0.0]]}],"written":"c1cccccc1-1.[H+]2.O2-1[SEP]","ending":"eos_rejected","safe":"c1cccccc1-1.[H+]2.O2-1","smiles":"O","svg":"\n<svg version='1.1' baseProfile='full'\n              xmlns='http://www.w3.org/2000/svg'\n                      xmlns:rdkit='http://www.rdkit.org/xml'\n                      xmlns:xlink='http://www.w3.org/1999/xlink'\n                  xml:space='preserve'\nwidth='300px' height='220px' viewBox='0 0 300 220'>\n<!-- END OF HEADER -->\n<path class='atom-0' d='M 114.9 88.9\nL 118.7 88.9\nL 118.7 101.0\nL 133.2 101.0\nL 133.2 88.9\nL 137.1 88.9\nL 137.1 117.2\nL 133.2 117.2\nL 133.2 104.2\nL 118.7 104.2\nL 118.7 117.2\nL 114.9 117.2\nL 114.9 88.9\n' fill='#FF776B'/>\n<path class='atom-0' d='M 142.7 116.2\nQ 143.4 114.5, 145.1 113.5\nQ 146.7 112.5, 149.0 112.5\nQ 151.8 112.5, 153.4 114.0\nQ 155.0 115.6, 155.0 118.3\nQ 155.0 121.1, 152.9 123.6\nQ 150.9 126.2, 146.7 129.3\nL 155.3 129.3\nL 155.3 131.4\nL 142.7 131.4\nL 142.7 129.6\nQ 146.2 127.1, 148.2 125.3\nQ 150.3 123.5, 151.3 121.8\nQ 152.3 120.1, 152.3 118.4\nQ 152.3 116.6, 151.4 115.6\nQ 150.5 114.6, 149.0 114.6\nQ 147.5 114.6, 146.5 115.2\nQ 145.5 115.8, 144.8 117.2\nL 142.7 116.2\n' fill='#FF776B'/>\n<path class='atom-0' d='M 159.1 103.0\nQ 159.1 96.2, 162.5 92.4\nQ 165.8 88.6, 172.1 88.6\nQ 178.4 88.6, 181.7 92.4\nQ 185.1 96.2, 185.1 103.0\nQ 185.1 109.9, 181.7 113.8\nQ 178.3 117.7, 172.1 117.7\nQ 165.9 117.7, 162.5 113.8\nQ 159.1 109.9, 159.1 103.0\nM 172.1 114.5\nQ 176.4 114.5, 178.7 111.6\nQ 181.1 108.7, 181.1 103.0\nQ 181.1 97.4, 178.7 94.6\nQ 176.4 91.8, 172.1 91.8\nQ 167.8 91.8, 165.4 94.6\nQ 163.1 97.4, 163.1 103.0\nQ 163.1 108.7, 165.4 111.6\nQ 167.8 114.5, 172.1 114.5\n' fill='#FF776B'/>\n</svg>\n","gold_atoms":[0],"gold_share":0.125,"fragments":1,"mass":18.0106,"mass_error_ppm":-830155.8,"tanimoto":0.0},{"row":2,"steps":[{"position":1,"block":0,"token":"C","support":159,"confidence":0.61283,"heavy_mass":0.0,"alternatives":[["C",0.61283],["c",0.38699],["O",0.00017],["S",1e-05]]},{"position":2,"block":0,"token":"c","support":255,"confidence":0.99998,"heavy_mass":12.0,"alternatives":[["c",0.99998],["1",2e-05],["=",0.0],["[n+]",0.0]]},{"position":3,"block":0,"token":"1","support":253,"confidence":1.0,"heavy_mass":24.0,"alternatives":[["1",1.0],["c",0.0],["2",0.0],["=",0.0]]},{"position":4,"block":0,"token":"c","support":275,"confidence":1.0,"heavy_mass":24.0,"alternatives":[["c",1.0],[".",0.0],["C",0.0],["=",0.0]]},{"position":5,"block":0,"token":"c","support":283,"confidence":1.0,"heavy_mass":36.0,"alternatives":[["c",1.0],["C",0.0],[".",0.0],["2",0.0]]},{"position":6,"block":0,"token":"c","support":283,"confidence":1.0,"heavy_mass":48.0,"alternatives":[["c",1.0],["1",0.0],[".",0.0],["2",0.0]]},{"position":7,"block":0,"token":"c","support":205,"confidence":1.0,"heavy_mass":60.0,"alternatives":[["c",1.0],["(",0.0],["[n+]",0.0],["2",0.0]]},{"position":8,"block":0,"token":"c","support":170,"confidence":0.99805,"heavy_mass":72.0,"alternatives":[["c",0.99805],["(",0.00195],["=",0.0],[".",0.0]]},{"position":9,"block":1,"token":"1","support":125,"confidence":0.99959,"heavy_mass":84.0,"alternatives":[["1",0.99959],["2",0.0004],["(",1e-05],["3",0.0]]},{"position":10,"block":1,"token":"2","support":121,"confidence":0.82976,"heavy_mass":84.0,"alternatives":[["2",0.82976],["1",0.17006],["3",0.00018],["%18",0.0]]},{"position":11,"block":1,"token":".","support":1,"confidence":1.0,"heavy_mass":84.0,"alternatives":[[".",1.0],["[SEP]",0.0],["[UNK]",0.0],["[CLS]",0.0]]},{"position":12,"block":1,"token":"[H+]","support":9,"confidence":0.46666,"heavy_mass":84.0,"alternatives":[["[H+]",0.46666],["[H]",0.39077],["[H",0.03411],["[O",0.02493]]},{"position":13,"block":1,"token":"1","support":118,"confidence":1.0,"heavy_mass":84.0,"alternatives":[["1",1.0],["3",0.0],["%22",0.0],["%18",0.0]]},{"position":14,"block":1,"token":".","support":1,"confidence":1.0,"heavy_mass":84.0,"alternatives":[[".",1.0],["[SEP]",0.0],["[UNK]",0.0],["[CLS]",0.0]]},{"position":15,"block":1,"token":"[o+]","support":9,"confidence":0.37991,"heavy_mass":84.0,"alternatives":[["[H]",0.37991],["[o+]",0.26893],["[H+]",0.18912],["[H",0.05137]]},{"position":16,"block":1,"token":"1","support":7,"confidence":0.9905,"heavy_mass":98.9871,"alternatives":[["1",0.9905],["2",0.00933],["#",0.00011],["=",3e-05]]},{"position":17,"block":2,"token":"2","support":6,"confidence":1.0,"heavy_mass":98.9871,"alternatives":[["2",1.0],["-",0.0],["=",0.0],["#",0.0]]},{"position":18,"block":2,"token":"[SEP]","support":1,"confidence":1.0,"heavy_mass":98.9871,"alternatives":[["[SEP]",1.0],["[PAD]",0.0],["[UNK]",0.0],["[CLS]",0.0]]}],"written":"Cc1ccccc12.[H+]1.[o+]12[SEP]","ending":"eos_rejected","safe":"Cc1ccccc12.[H+]1.[o+]12","smiles":"Cc1ccccc1.[H][H+]","svg":"\n<svg version='1.1' baseProfile='full'\n              xmlns='http://www.w3.org/2000/svg'\n                      xmlns:rdkit='http://www.rdkit.org/xml'\n                      xmlns:xlink='http://www.w3.org/1999/xlink'\n                  xml:space='preserve'\nwidth='300px' height='220px' viewBox='0 0 300 220'>\n<!-- END OF HEADER -->\n<path class='bond-0 atom-0 atom-1' d='M 266.8,141.5 L 188.9,141.5' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-1 atom-1 atom-2' d='M 188.9,141.5 L 150.0,209.0' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-1 atom-1 atom-2' d='M 175.5,141.5 L 143.3,197.3' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-2 atom-2 atom-3' d='M 150.0,209.0 L 72.1,209.0' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-3 atom-3 atom-4' d='M 72.1,209.0 L 33.2,141.5' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-3 atom-3 atom-4' d='M 78.8,197.3 L 46.6,141.5' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-4 atom-4 atom-5' d='M 33.2,141.5 L 72.1,74.1' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-5 atom-5 atom-6' d='M 72.1,74.1 L 150.0,74.1' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-5 atom-5 atom-6' d='M 78.8,85.8 L 143.3,85.8' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-6 atom-7 atom-8' d='M 161.1,22.1 L 119.4,22.1' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-7 atom-6 atom-1' d='M 150.0,74.1 L 188.9,141.5' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path d='M 151.9,205.6 L 150.0,209.0 L 146.1,209.0' style='fill:none;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:10;stroke-opacity:1;' />\n<path d='M 76.0,209.0 L 72.1,209.0 L 70.2,205.6' style='fill:none;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:10;stroke-opacity:1;' />\n<path d='M 35.1,144.9 L 33.2,141.5 L 35.1,138.2' style='fill:none;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:10;stroke-opacity:1;' />\n<path d='M 70.2,77.5 L 72.1,74.1 L 76.0,74.1' style='fill:none;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:10;stroke-opacity:1;' />\n<path d='M 146.1,74.1 L 150.0,74.1 L 151.9,77.5' style='fill:none;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:10;stroke-opacity:1;' />\n<path class='atom-7' d='M 163.6 11.1\nL 166.6 11.1\nL 166.6 20.5\nL 177.9 20.5\nL 177.9 11.1\nL 180.9 11.1\nL 180.9 33.2\nL 177.9 33.2\nL 177.9 23.0\nL 166.6 23.0\nL 166.6 33.2\nL 163.6 33.2\nL 163.6 11.1\n' fill='#D3D8E5'/>\n<path class='atom-8' d='M 85.7 11.1\nL 88.7 11.1\nL 88.7 20.5\nL 100.0 20.5\nL 100.0 11.1\nL 103.0 11.1\nL 103.0 33.2\nL 100.0 33.2\nL 100.0 23.0\nL 88.7 23.0\nL 88.7 33.2\nL 85.7 33.2\nL 85.7 11.1\n' fill='#D3D8E5'/>\n<path class='atom-8' d='M 107.2 15.1\nL 111.1 15.1\nL 111.1 11.0\nL 112.8 11.0\nL 112.8 15.1\nL 116.8 15.1\nL 116.8 16.6\nL 112.8 16.6\nL 112.8 20.7\nL 111.1 20.7\nL 111.1 16.6\nL 107.2 16.6\nL 107.2 15.1\n' fill='#D3D8E5'/>\n<path class='atom-8' d='M 82.6,22.1 L 82.6,22.3 L 82.6,22.4 L 82.6,22.5 L 82.5,22.7 L 82.5,22.8 L 82.4,22.9 L 82.3,23.0 L 82.3,23.1 L 82.2,23.2 L 82.1,23.3 L 82.0,23.4 L 81.9,23.5 L 81.7,23.5 L 81.6,23.6 L 81.5,23.6 L 81.4,23.7 L 81.2,23.7 L 81.1,23.7 L 81.0,23.7 L 80.8,23.7 L 80.7,23.7 L 80.6,23.6 L 80.4,23.6 L 80.3,23.5 L 80.2,23.4 L 80.1,23.4 L 80.0,23.3 L 79.9,23.2 L 79.8,23.1 L 79.7,23.0 L 79.7,22.9 L 79.6,22.7 L 79.6,22.6 L 79.5,22.5 L 79.5,22.3 L 79.5,22.2 L 79.5,22.1 L 79.5,21.9 L 79.5,21.8 L 79.6,21.7 L 79.6,21.6 L 79.7,21.4 L 79.7,21.3 L 79.8,21.2 L 79.9,21.1 L 80.0,21.0 L 80.1,20.9 L 80.2,20.8 L 80.3,20.8 L 80.4,20.7 L 80.6,20.7 L 80.7,20.6 L 80.8,20.6 L 81.0,20.6 L 81.1,20.6 L 81.2,20.6 L 81.4,20.6 L 81.5,20.6 L 81.6,20.7 L 81.7,20.7 L 81.9,20.8 L 82.0,20.9 L 82.1,21.0 L 82.2,21.1 L 82.3,21.2 L 82.3,21.3 L 82.4,21.4 L 82.5,21.5 L 82.5,21.6 L 82.6,21.7 L 82.6,21.9 L 82.6,22.0 L 82.6,22.1 L 81.1,22.1 Z' style='fill:#000000;fill-rule:evenodd;fill-opacity:1;stroke:#000000;stroke-width:0.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:10;stroke-opacity:1;' />\n</svg>\n","gold_atoms":[1,2,3,4,5,6,7],"gold_share":0.875,"fragments":2,"mass":93.0704,"mass_error_ppm":-122324.0,"tanimoto":0.273},{"row":3,"steps":[{"position":1,"block":0,"token":"C","support":159,"confidence":0.99725,"heavy_mass":0.0,"alternatives":[["C",0.99725],["c",0.00274],["O",1e-05],["Cl",0.0]]},{"position":2,"block":0,"token":"c","support":255,"confidence":0.99997,"heavy_mass":12.0,"alternatives":[["c",0.99997],["1",3e-05],["=",0.0],["C",0.0]]},{"position":3,"block":0,"token":"1","support":253,"confidence":1.0,"heavy_mass":24.0,"alternatives":[["1",1.0],["2",0.0],["C",0.0],["c",0.0]]},{"position":4,"block":0,"token":"c","support":275,"confidence":1.0,"heavy_mass":24.0,"alternatives":[["c",1.0],["C",0.0],[".",0.0],["=",0.0]]},{"position":5,"block":0,"token":"c","support":283,"confidence":1.0,"heavy_mass":36.0,"alternatives":[["c",1.0],["C",0.0],[".",0.0],["2",0.0]]},{"position":6,"block":0,"token":"c","support":283,"confidence":1.0,"heavy_mass":48.0,"alternatives":[["c",1.0],["1",0.0],[".",0.0],["C",0.0]]},{"position":7,"block":0,"token":"c","support":205,"confidence":1.0,"heavy_mass":60.0,"alternatives":[["c",1.0],["(",0.0],["2",0.0],["C",0.0]]},{"position":8,"block":0,"token":"c","support":170,"confidence":0.99998,"heavy_mass":72.0,"alternatives":[["c",0.99998],["(",1e-05],["C",0.0],["1",0.0]]},{"position":9,"block":1,"token":"1","support":125,"confidence":0.99902,"heavy_mass":84.0,"alternatives":[["1",0.99902],["2",0.00096],[".",1e-05],["(",1e-05]]},{"position":10,"block":1,"token":"1","support":121,"confidence":0.69349,"heavy_mass":84.0,"alternatives":[["1",0.69349],["2",0.30505],["3",0.00073],["-",0.00022]]},{"position":11,"block":1,"token":".","support":1,"confidence":1.0,"heavy_mass":84.0,"alternatives":[[".",1.0],["[SEP]",0.0],["[UNK]",0.0],["[CLS]",0.0]]},{"position":12,"block":1,"token":"[H]","support":9,"confidence":0.1933,"heavy_mass":84.0,"alternatives":[["[H",0.1933],["[H+]",0.17994],["[H]",0.16549],["[o",0.13997]]},{"position":13,"block":1,"token":"2","support":117,"confidence":0.99969,"heavy_mass":85.0078,"alternatives":[["2",0.99969],["3",0.00028],["%18",1e-05],["%16",1e-05]]},{"position":14,"block":1,"token":".","support":1,"confidence":1.0,"heavy_mass":85.0078,"alternatives":[[".",1.0],["[SEP]",0.0],["[UNK]",0.0],["[CLS]",0.0]]},{"position":15,"block":1,"token":"[H]","support":8,"confidence":0.26658,"heavy_mass":85.0078,"alternatives":[["[H]",0.26658],["[H",0.20104],["[",0.14705],["[O+2]",0.14426]]},{"position":16,"block":1,"token":"3","support":112,"confidence":0.98531,"heavy_mass":86.0157,"alternatives":[["3",0.98531],["%18",0.00671],["-",0.00179],["%13",0.00125]]},{"position":17,"block":2,"token":".","support":1,"confidence":1.0,"heavy_mass":86.0157,"alternatives":[[".",1.0],["[SEP]",0.0],["[UNK]",0.0],["[CLS]",0.0]]},{"position":18,"block":2,"token":"[H]","support":4,"confidence":0.85255,"heavy_mass":86.0157,"alternatives":[["[H]",0.85255],["[H+]",0.05926],["[H",0.04958],["[",0.0386]]},{"position":19,"block":2,"token":"(","support":111,"confidence":0.40059,"heavy_mass":87.0235,"alternatives":[["(",0.40059],["5",0.16884],["%18",0.16328],["4",0.15515]]},{"position":20,"block":2,"token":"-","support":3,"confidence":1.0,"heavy_mass":87.0235,"alternatives":[["-",1.0],["\\",0.0],["/",0.0],["[UNK]",0.0]]}],"written":"Cc1ccccc11.[H]2.[H]3.[H](-","ending":"dead_end","safe":"Cc1ccccc11.[H]2.[H]3.[H](-","smiles":"Cc1ccccc1.[H][H].[H][H]","svg":"\n<svg version='1.1' baseProfile='full'\n              xmlns='http://www.w3.org/2000/svg'\n                      xmlns:rdkit='http://www.rdkit.org/xml'\n                      xmlns:xlink='http://www.w3.org/1999/xlink'\n                  xml:space='preserve'\nwidth='300px' height='220px' viewBox='0 0 300 220'>\n<!-- END OF HEADER -->\n<path class='bond-0 atom-0 atom-1' d='M 242.6,155.5 L 180.9,155.5' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-1 atom-1 atom-2' d='M 180.9,155.5 L 150.0,209.0' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-1 atom-1 atom-2' d='M 170.2,155.5 L 144.7,199.7' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-2 atom-2 atom-3' d='M 150.0,209.0 L 88.3,209.0' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-3 atom-3 atom-4' d='M 88.3,209.0 L 57.4,155.5' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-3 atom-3 atom-4' d='M 93.6,199.7 L 68.1,155.5' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-4 atom-4 atom-5' d='M 57.4,155.5 L 88.3,102.1' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-5 atom-5 atom-6' d='M 88.3,102.1 L 150.0,102.1' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-5 atom-5 atom-6' d='M 93.6,111.3 L 144.7,111.3' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-6 atom-7 atom-8' d='M 158.8,60.9 L 114.8,60.9' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-7 atom-9 atom-10' d='M 158.8,19.7 L 114.8,19.7' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-8 atom-6 atom-1' d='M 150.0,102.1 L 180.9,155.5' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path d='M 151.5,206.3 L 150.0,209.0 L 146.9,209.0' style='fill:none;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:10;stroke-opacity:1;' />\n<path d='M 91.3,209.0 L 88.3,209.0 L 86.7,206.3' style='fill:none;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:10;stroke-opacity:1;' />\n<path d='M 58.9,158.2 L 57.4,155.5 L 58.9,152.9' style='fill:none;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:10;stroke-opacity:1;' />\n<path d='M 86.7,104.7 L 88.3,102.1 L 91.3,102.1' style='fill:none;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:10;stroke-opacity:1;' />\n<path d='M 146.9,102.1 L 150.0,102.1 L 151.5,104.7' style='fill:none;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:10;stroke-opacity:1;' />\n<path class='atom-7' d='M 160.8 52.2\nL 163.2 52.2\nL 163.2 59.6\nL 172.1 59.6\nL 172.1 52.2\nL 174.5 52.2\nL 174.5 69.6\nL 172.1 69.6\nL 172.1 61.6\nL 163.2 61.6\nL 163.2 69.6\nL 160.8 69.6\nL 160.8 52.2\n' fill='#D3D8E5'/>\n<path class='atom-8' d='M 99.1 52.2\nL 101.4 52.2\nL 101.4 59.6\nL 110.4 59.6\nL 110.4 52.2\nL 112.7 52.2\nL 112.7 69.6\nL 110.4 69.6\nL 110.4 61.6\nL 101.4 61.6\nL 101.4 69.6\nL 99.1 69.6\nL 99.1 52.2\n' fill='#D3D8E5'/>\n<path class='atom-9' d='M 160.8 11.0\nL 163.2 11.0\nL 163.2 18.4\nL 172.1 18.4\nL 172.1 11.0\nL 174.5 11.0\nL 174.5 28.5\nL 172.1 28.5\nL 172.1 20.4\nL 163.2 20.4\nL 163.2 28.5\nL 160.8 28.5\nL 160.8 11.0\n' fill='#D3D8E5'/>\n<path class='atom-10' d='M 99.1 11.0\nL 101.4 11.0\nL 101.4 18.4\nL 110.4 18.4\nL 110.4 11.0\nL 112.7 11.0\nL 112.7 28.5\nL 110.4 28.5\nL 110.4 20.4\nL 101.4 20.4\nL 101.4 28.5\nL 99.1 28.5\nL 99.1 11.0\n' fill='#D3D8E5'/>\n</svg>\n","gold_atoms":[1,2,3,4,5,6,7],"gold_share":0.875,"fragments":3,"mass":96.0939,"mass_error_ppm":-93811.7,"tanimoto":0.286,"cause":"mass_reachability_deadlock","syntax_support":1263,"mass_reachable_support":0,"died_at":20},{"row":4,"steps":[{"position":1,"block":0,"token":"C","support":159,"confidence":0.7354,"heavy_mass":0.0,"alternatives":[["C",0.7354],["c",0.2646],["O",0.0],["N",0.0]]},{"position":2,"block":0,"token":"1","support":255,"confidence":0.69814,"heavy_mass":12.0,"alternatives":[["c",0.69814],["1",0.30133],["=",0.0005],["C",3e-05]]},{"position":3,"block":0,"token":"2","support":284,"confidence":0.99317,"heavy_mass":12.0,"alternatives":[["2",0.99317],["c",0.00462],["=",0.00117],["C",0.00078]]},{"position":4,"block":0,"token":"c","support":279,"confidence":1.0,"heavy_mass":12.0,"alternatives":[["c",1.0],["C",0.0],[".",0.0],["=",0.0]]},{"position":5,"block":0,"token":"c","support":280,"confidence":1.0,"heavy_mass":24.0,"alternatives":[["c",1.0],["C",0.0],["=",0.0],[".",0.0]]},{"position":6,"block":0,"token":"c","support":287,"confidence":1.0,"heavy_mass":36.0,"alternatives":[["c",1.0],["1",0.0],[".",0.0],["C",0.0]]},{"position":7,"block":0,"token":"c","support":282,"confidence":1.0,"heavy_mass":48.0,"alternatives":[["c",1.0],["(",0.0],["=",0.0],["C",0.0]]},{"position":8,"block":0,"token":"c","support":206,"confidence":1.0,"heavy_mass":60.0,"alternatives":[["c",1.0],["1",0.0],["(",0.0],["=",0.0]]},{"position":9,"block":1,"token":"1","support":173,"confidence":0.99987,"heavy_mass":72.0,"alternatives":[["1",0.99987],["c",0.00013],["2",0.0],[".",0.0]]},{"position":10,"block":1,"token":".","support":168,"confidence":0.99877,"heavy_mass":72.0,"alternatives":[[".",0.99877],["1",0.00109],["c",0.00014],["C",0.0]]},{"position":11,"block":1,"token":"c","support":52,"confidence":0.99837,"heavy_mass":72.0,"alternatives":[["c",0.99837],["C",0.00163],["O",0.0],["[c]",0.0]]},{"position":12,"block":1,"token":"1","support":120,"confidence":1.0,"heavy_mass":84.0,"alternatives":[["1",1.0],["=",0.0],["3",0.0],["2",0.0]]},{"position":13,"block":1,"token":"3","support":121,"confidence":0.46008,"heavy_mass":84.0,"alternatives":[["3",0.46008],["%18",0.31222],["%16",0.11724],["2",0.04551]]},{"position":14,"block":1,"token":"=","support":120,"confidence":0.31721,"heavy_mass":84.0,"alternatives":[["(",0.31721],["=",0.22575],[".",0.22255],["%18",0.10491]]},{"position":15,"block":1,"token":"2","support":108,"confidence":0.59937,"heavy_mass":84.0,"alternatives":[["2",0.59937],["%18",0.22267],["%16",0.07613],["%12",0.03608]]},{"position":16,"block":1,"token":".","support":1,"confidence":1.0,"heavy_mass":84.0,"alternatives":[[".",1.0],["[SEP]",0.0],["[UNK]",0.0],["[CLS]",0.0]]},{"position":17,"block":2,"token":"[H]","support":5,"confidence":0.8187,"heavy_mass":84.0,"alternatives":[["[H]",0.8187],["[H-]",0.10362],["[H+]",0.04718],["[H",0.02113]]},{"position":18,"block":2,"token":"1","support":114,"confidence":0.99835,"heavy_mass":85.0078,"alternatives":[["1",0.99835],["4",0.00155],["(",3e-05],["5",1e-05]]},{"position":19,"block":2,"token":".","support":1,"confidence":1.0,"heavy_mass":85.0078,"alternatives":[[".",1.0],["[SEP]",0.0],["[UNK]",0.0],["[CLS]",0.0]]},{"position":20,"block":2,"token":"[H]","support":11,"confidence":0.63399,"heavy_mass":85.0078,"alternatives":[["[H]",0.63399],["o",0.22898],["[H",0.03057],["[",0.0238]]},{"position":21,"block":2,"token":"1","support":118,"confidence":0.98945,"heavy_mass":86.0157,"alternatives":[["1",0.98945],["4",0.00822],["5",0.00121],["%21",0.00029]]},{"position":22,"block":2,"token":".","support":1,"confidence":1.0,"heavy_mass":86.0157,"alternatives":[[".",1.0],["[SEP]",0.0],["[UNK]",0.0],["[CLS]",0.0]]},{"position":23,"block":2,"token":"[H]","support":9,"confidence":0.95805,"heavy_mass":86.0157,"alternatives":[["[H]",0.95805],["[H",0.01031],["[H+]",0.00901],["[o",0.00513]]},{"position":24,"block":2,"token":"(","support":112,"confidence":0.2765,"heavy_mass":87.0235,"alternatives":[["4",0.2765],["-",0.2611],["%18",0.099],["%16",0.08644]]},{"position":25,"block":3,"token":"-","support":3,"confidence":0.99712,"heavy_mass":87.0235,"alternatives":[["-",0.99712],["\\",0.00276],["/",0.00011],["[UNK]",0.0]]}],"written":"C12ccccc1.c13=2.[H]1.[H]1.[H](-","ending":"dead_end","safe":"C12ccccc1.c13=2.[H]1.[H]1.[H](-","smiles":"[H][H]","svg":"\n<svg version='1.1' baseProfile='full'\n              xmlns='http://www.w3.org/2000/svg'\n                      xmlns:rdkit='http://www.rdkit.org/xml'\n                      xmlns:xlink='http://www.w3.org/1999/xlink'\n                  xml:space='preserve'\nwidth='300px' height='220px' viewBox='0 0 300 220'>\n<!-- END OF HEADER -->\n<path class='bond-0 atom-0 atom-1' d='M 242.1,110.0 L 57.9,110.0' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='atom-0' d='M 249.4 95.8\nL 253.3 95.8\nL 253.3 107.9\nL 267.8 107.9\nL 267.8 95.8\nL 271.6 95.8\nL 271.6 124.2\nL 267.8 124.2\nL 267.8 111.1\nL 253.3 111.1\nL 253.3 124.2\nL 249.4 124.2\nL 249.4 95.8\n' fill='#D3D8E5'/>\n<path class='atom-1' d='M 28.4 95.8\nL 32.2 95.8\nL 32.2 107.9\nL 46.7 107.9\nL 46.7 95.8\nL 50.6 95.8\nL 50.6 124.2\nL 46.7 124.2\nL 46.7 111.1\nL 32.2 111.1\nL 32.2 124.2\nL 28.4 124.2\nL 28.4 95.8\n' fill='#D3D8E5'/>\n</svg>\n","gold_atoms":[],"gold_share":0.0,"fragments":1,"mass":2.0157,"mass_error_ppm":-980991.5,"tanimoto":0.0,"cause":"mass_reachability_deadlock","syntax_support":1263,"mass_reachable_support":0,"died_at":25},{"row":5,"steps":[{"position":1,"block":0,"token":"c","support":159,"confidence":0.9927,"heavy_mass":0.0,"alternatives":[["c",0.9927],["C",0.00728],["O",2e-05],["S",0.0]]},{"position":2,"block":0,"token":"1","support":254,"confidence":0.99999,"heavy_mass":12.0,"alternatives":[["1",0.99999],["c",1e-05],["=",0.0],["C",0.0]]},{"position":3,"block":0,"token":"2","support":283,"confidence":0.9957,"heavy_mass":12.0,"alternatives":[["2",0.9957],["c",0.00396],["%16",0.00011],["%18",7e-05]]},{"position":4,"block":0,"token":"c","support":274,"confidence":1.0,"heavy_mass":12.0,"alternatives":[["c",1.0],["C",0.0],[".",0.0],["(",0.0]]},{"position":5,"block":0,"token":"c","support":280,"confidence":1.0,"heavy_mass":24.0,"alternatives":[["c",1.0],["C",0.0],["=",0.0],["(",0.0]]},{"position":6,"block":0,"token":"c","support":287,"confidence":1.0,"heavy_mass":36.0,"alternatives":[["c",1.0],["1",0.0],[".",0.0],["(",0.0]]},{"position":7,"block":0,"token":"c","support":281,"confidence":1.0,"heavy_mass":48.0,"alternatives":[["c",1.0],["(",0.0],["=",0.0],["C",0.0]]},{"position":8,"block":0,"token":"c","support":206,"confidence":1.0,"heavy_mass":60.0,"alternatives":[["c",1.0],["1",0.0],["(",0.0],["=",0.0]]},{"position":9,"block":1,"token":"1","support":173,"confidence":1.0,"heavy_mass":72.0,"alternatives":[["1",1.0],["c",0.0],["2",0.0],["(",0.0]]},{"position":10,"block":1,"token":".","support":168,"confidence":1.0,"heavy_mass":72.0,"alternatives":[[".",1.0],["c",0.0],["C",0.0],["3",0.0]]},{"position":11,"block":1,"token":"c","support":52,"confidence":0.99999,"heavy_mass":72.0,"alternatives":[["c",0.99999],["C",1e-05],["O",0.0],["[O-]",0.0]]},{"position":12,"block":1,"token":"1","support":121,"confidence":1.0,"heavy_mass":84.0,"alternatives":[["1",1.0],["=",0.0],["3",0.0],["#",0.0]]},{"position":13,"block":1,"token":"3","support":121,"confidence":0.99884,"heavy_mass":84.0,"alternatives":[["3",0.99884],["%17",0.00044],["%18",0.00036],["%20",9e-05]]},{"position":14,"block":1,"token":".","support":120,"confidence":0.44095,"heavy_mass":84.0,"alternatives":[[".",0.44095],["(",0.28383],["=",0.15077],["%18",0.04277]]},{"position":15,"block":1,"token":"[H+]","support":5,"confidence":0.46613,"heavy_mass":84.0,"alternatives":[["[H]",0.46613],["[H+]",0.34835],["[H",0.08888],["[",0.08348]]},{"position":16,"block":1,"token":"1","support":113,"confidence":0.98117,"heavy_mass":84.0,"alternatives":[["1",0.98117],["(",0.01525],["3",0.00184],["7",0.00024]]},{"position":17,"block":2,"token":".","support":1,"confidence":1.0,"heavy_mass":84.0,"alternatives":[[".",1.0],["[SEP]",0.0],["[UNK]",0.0],["[CLS]",0.0]]},{"position":18,"block":2,"token":"[O+]","support":9,"confidence":0.41173,"heavy_mass":84.0,"alternatives":[["[O+]",0.41173],["[H]",0.34791],["[H+]",0.10838],["o",0.0716]]},{"position":19,"block":2,"token":"2","support":6,"confidence":0.99256,"heavy_mass":98.9871,"alternatives":[["2",0.99256],["=",0.00739],["-",3e-05],["3",2e-05]]},{"position":20,"block":2,"token":"3","support":4,"confidence":0.93361,"heavy_mass":98.9871,"alternatives":[["3",0.93361],["-",0.06581],["\\",0.00029],["/",0.00029]]},{"position":21,"block":2,"token":"[SEP]","support":1,"confidence":1.0,"heavy_mass":98.9871,"alternatives":[["[SEP]",1.0],["[PAD]",0.0],["[UNK]",0.0],["[CLS]",0.0]]}],"written":"c12ccccc1.c13.[H+]1.[O+]23[SEP]","ending":"eos_rejected","safe":"c12ccccc1.c13.[H+]1.[O+]23","smiles":"[H][H+].[OH+]c1ccccc1","svg":"\n<svg version='1.1' baseProfile='full'\n              xmlns='http://www.w3.org/2000/svg'\n                      xmlns:rdkit='http://www.rdkit.org/xml'\n                      xmlns:xlink='http://www.w3.org/1999/xlink'\n                  xml:space='preserve'\nwidth='300px' height='220px' viewBox='0 0 300 220'>\n<!-- END OF HEADER -->\n<path class='bond-0 atom-0 atom-1' d='M 136.5,26.5 L 96.9,26.5' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-1 atom-2 atom-3' d='M 224.9,140.0 L 194.0,140.0' style='fill:none;fill-rule:evenodd;stroke:#FF776B;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-1 atom-2 atom-3' d='M 194.0,140.0 L 163.0,140.0' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-2 atom-3 atom-4' d='M 163.0,140.0 L 126.0,204.1' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-2 atom-3 atom-4' d='M 150.2,140.0 L 119.6,193.0' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-3 atom-4 atom-5' d='M 126.0,204.1 L 52.0,204.1' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-4 atom-5 atom-6' d='M 52.0,204.1 L 15.0,140.0' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-4 atom-5 atom-6' d='M 58.4,193.0 L 27.8,140.0' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-5 atom-6 atom-7' d='M 15.0,140.0 L 52.0,75.9' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-6 atom-7 atom-8' d='M 52.0,75.9 L 126.0,75.9' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-6 atom-7 atom-8' d='M 58.4,87.0 L 119.6,87.0' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-7 atom-8 atom-3' d='M 126.0,75.9 L 163.0,140.0' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path d='M 127.9,200.8 L 126.0,204.1 L 122.3,204.1' style='fill:none;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:10;stroke-opacity:1;' />\n<path d='M 55.7,204.1 L 52.0,204.1 L 50.2,200.8' style='fill:none;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:10;stroke-opacity:1;' />\n<path d='M 16.9,143.2 L 15.0,140.0 L 16.9,136.8' style='fill:none;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:10;stroke-opacity:1;' />\n<path d='M 50.2,79.1 L 52.0,75.9 L 55.7,75.9' style='fill:none;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:10;stroke-opacity:1;' />\n<path d='M 122.3,75.9 L 126.0,75.9 L 127.9,79.1' style='fill:none;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:10;stroke-opacity:1;' />\n<path class='atom-0' d='M 139.0 16.1\nL 141.8 16.1\nL 141.8 25.0\nL 152.5 25.0\nL 152.5 16.1\nL 155.3 16.1\nL 155.3 37.0\nL 152.5 37.0\nL 152.5 27.3\nL 141.8 27.3\nL 141.8 37.0\nL 139.0 37.0\nL 139.0 16.1\n' fill='#D3D8E5'/>\n<path class='atom-1' d='M 64.9 16.1\nL 67.8 16.1\nL 67.8 25.0\nL 78.5 25.0\nL 78.5 16.1\nL 81.3 16.1\nL 81.3 37.0\nL 78.5 37.0\nL 78.5 27.3\nL 67.8 27.3\nL 67.8 37.0\nL 64.9 37.0\nL 64.9 16.1\n' fill='#D3D8E5'/>\n<path class='atom-1' d='M 85.4 19.8\nL 89.1 19.8\nL 89.1 15.9\nL 90.7 15.9\nL 90.7 19.8\nL 94.5 19.8\nL 94.5 21.2\nL 90.7 21.2\nL 90.7 25.1\nL 89.1 25.1\nL 89.1 21.2\nL 85.4 21.2\nL 85.4 19.8\n' fill='#D3D8E5'/>\n<path class='atom-2' d='M 227.4 140.0\nQ 227.4 135.0, 229.9 132.2\nQ 232.4 129.4, 237.0 129.4\nQ 241.7 129.4, 244.1 132.2\nQ 246.6 135.0, 246.6 140.0\nQ 246.6 145.1, 244.1 148.0\nQ 241.6 150.9, 237.0 150.9\nQ 232.4 150.9, 229.9 148.0\nQ 227.4 145.1, 227.4 140.0\nM 237.0 148.5\nQ 240.2 148.5, 241.9 146.4\nQ 243.7 144.2, 243.7 140.0\nQ 243.7 135.9, 241.9 133.8\nQ 240.2 131.7, 237.0 131.7\nQ 233.8 131.7, 232.1 133.8\nQ 230.4 135.9, 230.4 140.0\nQ 230.4 144.3, 232.1 146.4\nQ 233.8 148.5, 237.0 148.5\n' fill='#FF776B'/>\n<path class='atom-2' d='M 249.8 129.6\nL 252.6 129.6\nL 252.6 138.5\nL 263.3 138.5\nL 263.3 129.6\nL 266.2 129.6\nL 266.2 150.6\nL 263.3 150.6\nL 263.3 140.9\nL 252.6 140.9\nL 252.6 150.6\nL 249.8 150.6\nL 249.8 129.6\n' fill='#FF776B'/>\n<path class='atom-2' d='M 270.3 133.4\nL 274.0 133.4\nL 274.0 129.5\nL 275.7 129.5\nL 275.7 133.4\nL 279.4 133.4\nL 279.4 134.8\nL 275.7 134.8\nL 275.7 138.7\nL 274.0 138.7\nL 274.0 134.8\nL 270.3 134.8\nL 270.3 133.4\n' fill='#FF776B'/>\n<path class='atom-1' d='M 62.0,26.5 L 62.0,26.7 L 62.0,26.8 L 61.9,26.9 L 61.9,27.0 L 61.9,27.2 L 61.8,27.3 L 61.7,27.4 L 61.6,27.5 L 61.6,27.6 L 61.5,27.7 L 61.4,27.7 L 61.3,27.8 L 61.2,27.9 L 61.0,27.9 L 60.9,28.0 L 60.8,28.0 L 60.7,28.0 L 60.5,28.0 L 60.4,28.0 L 60.3,28.0 L 60.2,28.0 L 60.0,27.9 L 59.9,27.9 L 59.8,27.8 L 59.7,27.8 L 59.6,27.7 L 59.5,27.6 L 59.4,27.5 L 59.3,27.4 L 59.3,27.3 L 59.2,27.2 L 59.1,27.1 L 59.1,27.0 L 59.1,26.9 L 59.0,26.7 L 59.0,26.6 L 59.0,26.5 L 59.0,26.3 L 59.1,26.2 L 59.1,26.1 L 59.1,26.0 L 59.2,25.9 L 59.3,25.8 L 59.3,25.6 L 59.4,25.5 L 59.5,25.5 L 59.6,25.4 L 59.7,25.3 L 59.8,25.2 L 59.9,25.2 L 60.0,25.1 L 60.2,25.1 L 60.3,25.1 L 60.4,25.1 L 60.5,25.1 L 60.7,25.1 L 60.8,25.1 L 60.9,25.1 L 61.0,25.2 L 61.2,25.2 L 61.3,25.3 L 61.4,25.3 L 61.5,25.4 L 61.6,25.5 L 61.6,25.6 L 61.7,25.7 L 61.8,25.8 L 61.9,25.9 L 61.9,26.0 L 61.9,26.2 L 62.0,26.3 L 62.0,26.4 L 62.0,26.5 L 60.5,26.5 Z' style='fill:#000000;fill-rule:evenodd;fill-opacity:1;stroke:#000000;stroke-width:0.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:10;stroke-opacity:1;' />\n<path class='atom-2' d='M 285.4,140.0 L 285.4,140.1 L 285.3,140.2 L 285.3,140.3 L 285.3,140.5 L 285.2,140.6 L 285.2,140.7 L 285.1,140.8 L 285.0,140.9 L 284.9,141.0 L 284.9,141.1 L 284.8,141.2 L 284.6,141.2 L 284.5,141.3 L 284.4,141.3 L 284.3,141.4 L 284.2,141.4 L 284.0,141.4 L 283.9,141.4 L 283.8,141.4 L 283.7,141.4 L 283.5,141.4 L 283.4,141.4 L 283.3,141.3 L 283.2,141.3 L 283.1,141.2 L 283.0,141.1 L 282.9,141.0 L 282.8,141.0 L 282.7,140.9 L 282.6,140.7 L 282.6,140.6 L 282.5,140.5 L 282.5,140.4 L 282.4,140.3 L 282.4,140.2 L 282.4,140.0 L 282.4,139.9 L 282.4,139.8 L 282.4,139.6 L 282.5,139.5 L 282.5,139.4 L 282.6,139.3 L 282.6,139.2 L 282.7,139.1 L 282.8,139.0 L 282.9,138.9 L 283.0,138.8 L 283.1,138.7 L 283.2,138.7 L 283.3,138.6 L 283.4,138.6 L 283.5,138.5 L 283.7,138.5 L 283.8,138.5 L 283.9,138.5 L 284.0,138.5 L 284.2,138.5 L 284.3,138.5 L 284.4,138.6 L 284.5,138.6 L 284.6,138.7 L 284.8,138.8 L 284.9,138.8 L 284.9,138.9 L 285.0,139.0 L 285.1,139.1 L 285.2,139.2 L 285.2,139.3 L 285.3,139.5 L 285.3,139.6 L 285.3,139.7 L 285.4,139.8 L 285.4,140.0 L 283.9,140.0 Z' style='fill:#000000;fill-rule:evenodd;fill-opacity:1;stroke:#000000;stroke-width:0.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:10;stroke-opacity:1;' />\n</svg>\n","gold_atoms":[],"gold_share":0.0,"fragments":2,"mass":94.0419,"mass_error_ppm":-113162.5,"tanimoto":0.273},{"row":6,"steps":[{"position":1,"block":0,"token":"C","support":159,"confidence":0.85473,"heavy_mass":0.0,"alternatives":[["C",0.85473],["c",0.14527],["Cl",0.0],["N",0.0]]},{"position":2,"block":0,"token":"c","support":255,"confidence":0.98848,"heavy_mass":12.0,"alternatives":[["c",0.98848],["1",0.01137],["=",0.00015],["C",0.0]]},{"position":3,"block":0,"token":"1","support":253,"confidence":1.0,"heavy_mass":24.0,"alternatives":[["1",1.0],["2",0.0],["c",0.0],["C",0.0]]},{"position":4,"block":0,"token":"c","support":275,"confidence":1.0,"heavy_mass":24.0,"alternatives":[["c",1.0],["C",0.0],[".",0.0],["=",0.0]]},{"position":5,"block":0,"token":"c","support":283,"confidence":1.0,"heavy_mass":36.0,"alternatives":[["c",1.0],["C",0.0],["2",0.0],[".",0.0]]},{"position":6,"block":0,"token":"c","support":283,"confidence":1.0,"heavy_mass":48.0,"alternatives":[["c",1.0],["1",0.0],[".",0.0],["2",0.0]]},{"position":7,"block":0,"token":"c","support":205,"confidence":1.0,"heavy_mass":60.0,"alternatives":[["c",1.0],["2",0.0],["(",0.0],["C",0.0]]},{"position":8,"block":0,"token":"c","support":170,"confidence":0.99999,"heavy_mass":72.0,"alternatives":[["c",0.99999],["(",0.0],["2",0.0],["1",0.0]]},{"position":9,"block":1,"token":"1","support":125,"confidence":0.99002,"heavy_mass":84.0,"alternatives":[["1",0.99002],["2",0.00993],["(",5e-05],[".",0.0]]},{"position":10,"block":1,"token":"2","support":121,"confidence":0.83851,"heavy_mass":84.0,"alternatives":[["2",0.83851],["1",0.16144],["=",4e-05],["-",0.0]]},{"position":11,"block":1,"token":".","support":1,"confidence":1.0,"heavy_mass":84.0,"alternatives":[[".",1.0],["[SEP]",0.0],["[UNK]",0.0],["[CLS]",0.0]]},{"position":12,"block":1,"token":"[H]","support":9,"confidence":0.6483,"heavy_mass":84.0,"alternatives":[["[H]",0.6483],["[H+]",0.22181],["[o+]",0.06611],["[O+]",0.01643]]},{"position":13,"block":1,"token":"1","support":117,"confidence":0.99998,"heavy_mass":85.0078,"alternatives":[["1",0.99998],["3",2e-05],["%16",0.0],["%18",0.0]]},{"position":14,"block":1,"token":".","support":1,"confidence":1.0,"heavy_mass":85.0078,"alternatives":[[".",1.0],["[SEP]",0.0],["[UNK]",0.0],["[CLS]",0.0]]},{"position":15,"block":1,"token":"[H+]","support":8,"confidence":0.46907,"heavy_mass":85.0078,"alternatives":[["[H]",0.46907],["[H+]",0.31917],["[H",0.06544],["[",0.04496]]},{"position":16,"block":1,"token":"3","support":112,"confidence":0.98172,"heavy_mass":85.0078,"alternatives":[["3",0.98172],["%22",0.00652],["%16",0.00411],["%18",0.0027]]},{"position":17,"block":2,"token":".","support":1,"confidence":1.0,"heavy_mass":85.0078,"alternatives":[[".",1.0],["[SEP]",0.0],["[UNK]",0.0],["[CLS]",0.0]]},{"position":18,"block":2,"token":"[H]","support":5,"confidence":0.92394,"heavy_mass":85.0078,"alternatives":[["[H]",0.92394],["[H+]",0.06626],["[H",0.00484],["[H-]",0.00267]]},{"position":19,"block":2,"token":"5","support":111,"confidence":0.36636,"heavy_mass":86.0157,"alternatives":[["(",0.36636],["%18",0.1602],["6",0.13183],["4",0.09828]]},{"position":20,"block":2,"token":".","support":1,"confidence":1.0,"heavy_mass":86.0157,"alternatives":[[".",1.0],["[SEP]",0.0],["[UNK]",0.0],["[CLS]",0.0]]},{"position":21,"block":2,"token":"[H]","support":4,"confidence":0.8099,"heavy_mass":86.0157,"alternatives":[["[H]",0.8099],["[H+]",0.14832],["[H",0.02601],["[",0.01577]]},{"position":22,"block":2,"token":"4","support":110,"confidence":0.98656,"heavy_mass":87.0235,"alternatives":[["4",0.98656],["7",0.00327],["-",0.0029],["6",0.00134]]},{"position":23,"block":2,"token":".","support":1,"confidence":1.0,"heavy_mass":87.0235,"alternatives":[[".",1.0],["[SEP]",0.0],["[UNK]",0.0],["[CLS]",0.0]]},{"position":24,"block":2,"token":"[H+]","support":3,"confidence":0.9098,"heavy_mass":87.0235,"alternatives":[["[H+]",0.9098],["[H",0.06248],["[",0.02772],["[UNK]",0.0]]},{"position":25,"block":3,"token":"%13","support":109,"confidence":0.87223,"heavy_mass":87.0235,"alternatives":[["6",0.87223],["7",0.08283],["%18",0.01536],["%16",0.01519]]},{"position":26,"block":3,"token":".","support":1,"confidence":1.0,"heavy_mass":87.0235,"alternatives":[[".",1.0],["[SEP]",0.0],["[UNK]",0.0],["[CLS]",0.0]]},{"position":27,"block":3,"token":"[H+]","support":3,"confidence":0.99715,"heavy_mass":87.0235,"alternatives":[["[H+]",0.99715],["[H",0.00151],["[",0.00133],["[UNK]",0.0]]},{"position":28,"block":3,"token":"%18","support":108,"confidence":0.24714,"heavy_mass":87.0235,"alternatives":[["%22",0.24714],["%17",0.15536],["%14",0.11942],["%11",0.11832]]},{"position":29,"block":3,"token":".","support":1,"confidence":1.0,"heavy_mass":87.0235,"alternatives":[[".",1.0],["[SEP]",0.0],["[UNK]",0.0],["[CLS]",0.0]]},{"position":30,"block":3,"token":"[H+]","support":3,"confidence":0.97222,"heavy_mass":87.0235,"alternatives":[["[H+]",0.97222],["[H",0.01688],["[",0.0109],["[UNK]",0.0]]},{"position":31,"block":3,"token":"6","support":107,"confidence":0.92042,"heavy_mass":87.0235,"alternatives":[["6",0.92042],["%16",0.03448],["%17",0.02419],["%15",0.01488]]},{"position":32,"block":3,"token":".","support":1,"confidence":1.0,"heavy_mass":87.0235,"alternatives":[[".",1.0],["[SEP]",0.0],["[UNK]",0.0],["[CLS]",0.0]]},{"position":33,"block":4,"token":"[H+]","support":3,"confidence":0.95312,"heavy_mass":87.0235,"alternatives":[["[H+]",0.95312],["[H",0.02563],["[",0.02124],["[UNK]",0.0]]},{"position":34,"block":4,"token":"%16","support":106,"confidence":0.42313,"heavy_mass":87.0235,"alternatives":[["%17",0.42313],["%16",0.22181],["%20",0.13642],["%22",0.06876]]},{"position":35,"block":4,"token":".","support":1,"confidence":1.0,"heavy_mass":87.0235,"alternatives":[[".",1.0],["[SEP]",0.0],["[UNK]",0.0],["[CLS]",0.0]]},{"position":36,"block":4,"token":"[H+]","support":3,"confidence":0.94545,"heavy_mass":87.0235,"alternatives":[["[H+]",0.94545],["[H",0.03475],["[",0.0198],["[UNK]",0.0]]},{"position":37,"block":4,"token":"%22","support":105,"confidence":0.79529,"heavy_mass":87.0235,"alternatives":[["%17",0.79529],["%22",0.07598],["%11",0.04527],["%15",0.03515]]},{"position":38,"block":4,"token":".","support":1,"confidence":1.0,"heavy_mass":87.0235,"alternatives":[[".",1.0],["[SEP]",0.0],["[UNK]",0.0],["[CLS]",0.0]]},{"position":39,"block":4,"token":"[H+]","support":3,"confidence":0.95155,"heavy_mass":87.0235,"alternatives":[["[H+]",0.95155],["[H",0.03087],["[",0.01758],["[UNK]",0.0]]},{"position":40,"block":4,"token":"%17","support":104,"confidence":0.40827,"heavy_mass":87.0235,"alternatives":[["%17",0.40827],["%11",0.33619],["%15",0.1571],["7",0.05047]]},{"position":41,"block":5,"token":".","support":1,"confidence":1.0,"heavy_mass":87.0235,"alternatives":[[".",1.0],["[SEP]",0.0],["[UNK]",0.0],["[CLS]",0.0]]},{"position":42,"block":5,"token":"[H+]","support":3,"confidence":0.89262,"heavy_mass":87.0235,"alternatives":[["[H+]",0.89262],["[H",0.06525],["[",0.04212],["[UNK]",0.0]]},{"position":43,"block":5,"token":"%10","support":103,"confidence":0.24265,"heavy_mass":87.0235,"alternatives":[["%15",0.24265],["%11",0.22421],["7",0.22294],["%20",0.14701]]},{"position":44,"block":5,"token":".","support":1,"confidence":1.0,"heavy_mass":87.0235,"alternatives":[[".",1.0],["[SEP]",0.0],["[UNK]",0.0],["[CLS]",0.0]]},{"position":45,"block":5,"token":"[H+]","support":3,"confidence":0.8501,"heavy_mass":87.0235,"alternatives":[["[H+]",0.8501],["[H",0.07496],["[",0.07494],["[UNK]",0.0]]},{"position":46,"block":5,"token":"%11","support":102,"confidence":0.71344,"heavy_mass":87.0235,"alternatives":[["%11",0.71344],["7",0.11401],["9",0.05575],["%15",0.04272]]},{"position":47,"block":5,"token":".","support":1,"confidence":1.0,"heavy_mass":87.0235,"alternatives":[[".",1.0],["[SEP]",0.0],["[UNK]",0.0],["[CLS]",0.0]]},{"position":48,"block":5,"token":"[H+]","support":3,"confidence":0.58723,"heavy_mass":87.0235,"alternatives":[["[H+]",0.58723],["[H",0.23207],["[",0.18069],["[UNK]",0.0]]},{"position":49,"block":6,"token":"%20","support":100,"confidence":0.60093,"heavy_mass":87.0235,"alternatives":[["%20",0.60093],["%15",0.19304],["7",0.06058],["%21",0.05273]]},{"position":50,"block":6,"token":".","support":1,"confidence":1.0,"heavy_mass":87.0235,"alternatives":[[".",1.0],["[SEP]",0.0],["[UNK]",0.0],["[CLS]",0.0]]},{"position":51,"block":6,"token":"[H+]","support":3,"confidence":0.84112,"heavy_mass":87.0235,"alternatives":[["[H+]",0.84112],["[H",0.10792],["[",0.05096],["[UNK]",0.0]]},{"position":52,"block":6,"token":"%21","support":99,"confidence":0.32505,"heavy_mass":87.0235,"alternatives":[["%15",0.32505],["9",0.24479],["8",0.14861],["7",0.13929]]},{"position":53,"block":6,"token":".","support":1,"confidence":1.0,"heavy_mass":87.0235,"alternatives":[[".",1.0],["[SEP]",0.0],["[UNK]",0.0],["[CLS]",0.0]]},{"position":54,"block":6,"token":"[H+]","support":3,"confidence":0.92624,"heavy_mass":87.0235,"alternatives":[["[H+]",0.92624],["[H",0.04372],["[",0.03004],["[UNK]",0.0]]},{"position":55,"block":6,"token":"9","support":98,"confidence":0.71247,"heavy_mass":87.0235,"alternatives":[["%15",0.71247],["9",0.16801],["%12",0.06811],["7",0.01857]]},{"position":56,"block":6,"token":".","support":1,"confidence":1.0,"heavy_mass":87.0235,"alternatives":[[".",1.0],["[SEP]",0.0],["[UNK]",0.0],["[CLS]",0.0]]}],"written":"Cc1ccccc12.[H]1.[H+]3.[H]5.[H]4.[H+]%13.[H+]%18.[H+]6.[H+]%16.[H+]%22.[H+]%17.[H+]%10.[H+]%11.[H+]%20.[H+]%21.[H+]9.","ending":"max_length","safe":"Cc1ccccc12.[H]1.[H+]3.[H]5.[H]4.[H+]%13.[H+]%18.[H+]6.[H+]%16.[H+]%22.[H+]%17.[H+]%10.[H+]%11.[H+]%20.[H+]%21.[H+]9.","smiles":"Cc1ccccc1.[H][H+].[H][H+].[H][H+].[H][H+].[H][H+].[H][H+].[H][H+].[H][H+].[H][H+].[H][H+].[H][H+].[H][H+].[H][H].[H][H].[H][H]","svg":"\n<svg version='1.1' baseProfile='full'\n              xmlns='http://www.w3.org/2000/svg'\n                      xmlns:rdkit='http://www.rdkit.org/xml'\n                      xmlns:xlink='http://www.w3.org/1999/xlink'\n                  xml:space='preserve'\nwidth='300px' height='220px' viewBox='0 0 300 220'>\n<!-- END OF HEADER -->\n<path class='bond-0 atom-0 atom-1' d='M 109.4,190.4 L 87.9,190.4' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-1 atom-1 atom-2' d='M 87.9,190.4 L 77.1,209.0' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-1 atom-1 atom-2' d='M 84.2,190.4 L 75.3,205.8' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-2 atom-2 atom-3' d='M 77.1,209.0 L 55.6,209.0' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-3 atom-3 atom-4' d='M 55.6,209.0 L 44.9,190.4' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-3 atom-3 atom-4' d='M 57.5,205.8 L 48.6,190.4' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-4 atom-4 atom-5' d='M 44.9,190.4 L 55.6,171.8' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-5 atom-5 atom-6' d='M 55.6,171.8 L 77.1,171.8' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-5 atom-5 atom-6' d='M 57.5,175.0 L 75.3,175.0' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-6 atom-7 atom-8' d='M 80.2,157.4 L 68.7,157.4' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-7 atom-9 atom-10' d='M 80.2,143.1 L 68.7,143.1' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-8 atom-11 atom-12' d='M 142.1,190.4 L 130.6,190.4' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-9 atom-13 atom-14' d='M 80.2,128.7 L 68.7,128.7' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-10 atom-15 atom-16' d='M 80.2,114.4 L 68.7,114.4' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-11 atom-17 atom-18' d='M 80.2,100.1 L 68.7,100.1' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-12 atom-19 atom-20' d='M 178.0,190.4 L 166.5,190.4' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-13 atom-21 atom-22' d='M 80.2,85.7 L 68.7,85.7' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-14 atom-23 atom-24' d='M 80.2,71.4 L 68.7,71.4' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-15 atom-25 atom-26' d='M 213.8,190.4 L 202.3,190.4' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-16 atom-27 atom-28' d='M 80.2,57.1 L 68.7,57.1' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-17 atom-29 atom-30' d='M 80.2,42.7 L 68.7,42.7' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-18 atom-31 atom-32' d='M 80.2,28.4 L 64.9,28.4' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-19 atom-33 atom-34' d='M 249.7,190.4 L 234.3,190.4' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-20 atom-35 atom-36' d='M 80.2,14.0 L 64.9,14.0' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-21 atom-6 atom-1' d='M 77.1,171.8 L 87.9,190.4' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path d='M 77.7,208.1 L 77.1,209.0 L 76.0,209.0' style='fill:none;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:10;stroke-opacity:1;' />\n<path d='M 56.7,209.0 L 55.6,209.0 L 55.1,208.1' style='fill:none;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:10;stroke-opacity:1;' />\n<path d='M 45.4,191.3 L 44.9,190.4 L 45.4,189.4' style='fill:none;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:10;stroke-opacity:1;' />\n<path d='M 55.1,172.7 L 55.6,171.8 L 56.7,171.8' style='fill:none;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:10;stroke-opacity:1;' />\n<path d='M 76.0,171.8 L 77.1,171.8 L 77.7,172.7' style='fill:none;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:10;stroke-opacity:1;' />\n<path class='atom-7' d='M 80.9 154.4\nL 81.7 154.4\nL 81.7 157.0\nL 84.8 157.0\nL 84.8 154.4\nL 85.7 154.4\nL 85.7 160.5\nL 84.8 160.5\nL 84.8 157.6\nL 81.7 157.6\nL 81.7 160.5\nL 80.9 160.5\nL 80.9 154.4\n' fill='#D3D8E5'/>\n<path class='atom-8' d='M 59.4 154.4\nL 60.2 154.4\nL 60.2 157.0\nL 63.3 157.0\nL 63.3 154.4\nL 64.1 154.4\nL 64.1 160.5\nL 63.3 160.5\nL 63.3 157.6\nL 60.2 157.6\nL 60.2 160.5\nL 59.4 160.5\nL 59.4 154.4\n' fill='#D3D8E5'/>\n<path class='atom-8' d='M 65.3 155.5\nL 66.4 155.5\nL 66.4 154.3\nL 66.9 154.3\nL 66.9 155.5\nL 68.0 155.5\nL 68.0 155.9\nL 66.9 155.9\nL 66.9 157.0\nL 66.4 157.0\nL 66.4 155.9\nL 65.3 155.9\nL 65.3 155.5\n' fill='#D3D8E5'/>\n<path class='atom-9' d='M 80.9 140.0\nL 81.7 140.0\nL 81.7 142.6\nL 84.8 142.6\nL 84.8 140.0\nL 85.7 140.0\nL 85.7 146.1\nL 84.8 146.1\nL 84.8 143.3\nL 81.7 143.3\nL 81.7 146.1\nL 80.9 146.1\nL 80.9 140.0\n' fill='#D3D8E5'/>\n<path class='atom-10' d='M 59.4 140.0\nL 60.2 140.0\nL 60.2 142.6\nL 63.3 142.6\nL 63.3 140.0\nL 64.1 140.0\nL 64.1 146.1\nL 63.3 146.1\nL 63.3 143.3\nL 60.2 143.3\nL 60.2 146.1\nL 59.4 146.1\nL 59.4 140.0\n' fill='#D3D8E5'/>\n<path class='atom-10' d='M 65.3 141.1\nL 66.4 141.1\nL 66.4 140.0\nL 66.9 140.0\nL 66.9 141.1\nL 68.0 141.1\nL 68.0 141.5\nL 66.9 141.5\nL 66.9 142.7\nL 66.4 142.7\nL 66.4 141.5\nL 65.3 141.5\nL 65.3 141.1\n' fill='#D3D8E5'/>\n<path class='atom-11' d='M 142.8 187.3\nL 143.7 187.3\nL 143.7 189.9\nL 146.8 189.9\nL 146.8 187.3\nL 147.6 187.3\nL 147.6 193.4\nL 146.8 193.4\nL 146.8 190.6\nL 143.7 190.6\nL 143.7 193.4\nL 142.8 193.4\nL 142.8 187.3\n' fill='#D3D8E5'/>\n<path class='atom-12' d='M 121.3 187.3\nL 122.2 187.3\nL 122.2 189.9\nL 125.3 189.9\nL 125.3 187.3\nL 126.1 187.3\nL 126.1 193.4\nL 125.3 193.4\nL 125.3 190.6\nL 122.2 190.6\nL 122.2 193.4\nL 121.3 193.4\nL 121.3 187.3\n' fill='#D3D8E5'/>\n<path class='atom-12' d='M 127.3 188.4\nL 128.3 188.4\nL 128.3 187.3\nL 128.8 187.3\nL 128.8 188.4\nL 129.9 188.4\nL 129.9 188.8\nL 128.8 188.8\nL 128.8 190.0\nL 128.3 190.0\nL 128.3 188.8\nL 127.3 188.8\nL 127.3 188.4\n' fill='#D3D8E5'/>\n<path class='atom-13' d='M 80.9 125.7\nL 81.7 125.7\nL 81.7 128.3\nL 84.8 128.3\nL 84.8 125.7\nL 85.7 125.7\nL 85.7 131.8\nL 84.8 131.8\nL 84.8 129.0\nL 81.7 129.0\nL 81.7 131.8\nL 80.9 131.8\nL 80.9 125.7\n' fill='#D3D8E5'/>\n<path class='atom-14' d='M 59.4 125.7\nL 60.2 125.7\nL 60.2 128.3\nL 63.3 128.3\nL 63.3 125.7\nL 64.1 125.7\nL 64.1 131.8\nL 63.3 131.8\nL 63.3 129.0\nL 60.2 129.0\nL 60.2 131.8\nL 59.4 131.8\nL 59.4 125.7\n' fill='#D3D8E5'/>\n<path class='atom-14' d='M 65.3 126.8\nL 66.4 126.8\nL 66.4 125.7\nL 66.9 125.7\nL 66.9 126.8\nL 68.0 126.8\nL 68.0 127.2\nL 66.9 127.2\nL 66.9 128.3\nL 66.4 128.3\nL 66.4 127.2\nL 65.3 127.2\nL 65.3 126.8\n' fill='#D3D8E5'/>\n<path class='atom-15' d='M 80.9 111.4\nL 81.7 111.4\nL 81.7 113.9\nL 84.8 113.9\nL 84.8 111.4\nL 85.7 111.4\nL 85.7 117.4\nL 84.8 117.4\nL 84.8 114.6\nL 81.7 114.6\nL 81.7 117.4\nL 80.9 117.4\nL 80.9 111.4\n' fill='#D3D8E5'/>\n<path class='atom-16' d='M 59.4 111.4\nL 60.2 111.4\nL 60.2 113.9\nL 63.3 113.9\nL 63.3 111.4\nL 64.1 111.4\nL 64.1 117.4\nL 63.3 117.4\nL 63.3 114.6\nL 60.2 114.6\nL 60.2 117.4\nL 59.4 117.4\nL 59.4 111.4\n' fill='#D3D8E5'/>\n<path class='atom-16' d='M 65.3 112.5\nL 66.4 112.5\nL 66.4 111.3\nL 66.9 111.3\nL 66.9 112.5\nL 68.0 112.5\nL 68.0 112.9\nL 66.9 112.9\nL 66.9 114.0\nL 66.4 114.0\nL 66.4 112.9\nL 65.3 112.9\nL 65.3 112.5\n' fill='#D3D8E5'/>\n<path class='atom-17' d='M 80.9 97.0\nL 81.7 97.0\nL 81.7 99.6\nL 84.8 99.6\nL 84.8 97.0\nL 85.7 97.0\nL 85.7 103.1\nL 84.8 103.1\nL 84.8 100.3\nL 81.7 100.3\nL 81.7 103.1\nL 80.9 103.1\nL 80.9 97.0\n' fill='#D3D8E5'/>\n<path class='atom-18' d='M 59.4 97.0\nL 60.2 97.0\nL 60.2 99.6\nL 63.3 99.6\nL 63.3 97.0\nL 64.1 97.0\nL 64.1 103.1\nL 63.3 103.1\nL 63.3 100.3\nL 60.2 100.3\nL 60.2 103.1\nL 59.4 103.1\nL 59.4 97.0\n' fill='#D3D8E5'/>\n<path class='atom-18' d='M 65.3 98.1\nL 66.4 98.1\nL 66.4 97.0\nL 66.9 97.0\nL 66.9 98.1\nL 68.0 98.1\nL 68.0 98.5\nL 66.9 98.5\nL 66.9 99.7\nL 66.4 99.7\nL 66.4 98.5\nL 65.3 98.5\nL 65.3 98.1\n' fill='#D3D8E5'/>\n<path class='atom-19' d='M 178.7 187.3\nL 179.5 187.3\nL 179.5 189.9\nL 182.6 189.9\nL 182.6 187.3\nL 183.4 187.3\nL 183.4 193.4\nL 182.6 193.4\nL 182.6 190.6\nL 179.5 190.6\nL 179.5 193.4\nL 178.7 193.4\nL 178.7 187.3\n' fill='#D3D8E5'/>\n<path class='atom-20' d='M 157.2 187.3\nL 158.0 187.3\nL 158.0 189.9\nL 161.1 189.9\nL 161.1 187.3\nL 161.9 187.3\nL 161.9 193.4\nL 161.1 193.4\nL 161.1 190.6\nL 158.0 190.6\nL 158.0 193.4\nL 157.2 193.4\nL 157.2 187.3\n' fill='#D3D8E5'/>\n<path class='atom-20' d='M 163.1 188.4\nL 164.2 188.4\nL 164.2 187.3\nL 164.7 187.3\nL 164.7 188.4\nL 165.8 188.4\nL 165.8 188.8\nL 164.7 188.8\nL 164.7 190.0\nL 164.2 190.0\nL 164.2 188.8\nL 163.1 188.8\nL 163.1 188.4\n' fill='#D3D8E5'/>\n<path class='atom-21' d='M 80.9 82.7\nL 81.7 82.7\nL 81.7 85.3\nL 84.8 85.3\nL 84.8 82.7\nL 85.7 82.7\nL 85.7 88.8\nL 84.8 88.8\nL 84.8 86.0\nL 81.7 86.0\nL 81.7 88.8\nL 80.9 88.8\nL 80.9 82.7\n' fill='#D3D8E5'/>\n<path class='atom-22' d='M 59.4 82.7\nL 60.2 82.7\nL 60.2 85.3\nL 63.3 85.3\nL 63.3 82.7\nL 64.1 82.7\nL 64.1 88.8\nL 63.3 88.8\nL 63.3 86.0\nL 60.2 86.0\nL 60.2 88.8\nL 59.4 88.8\nL 59.4 82.7\n' fill='#D3D8E5'/>\n<path class='atom-22' d='M 65.3 83.8\nL 66.4 83.8\nL 66.4 82.7\nL 66.9 82.7\nL 66.9 83.8\nL 68.0 83.8\nL 68.0 84.2\nL 66.9 84.2\nL 66.9 85.3\nL 66.4 85.3\nL 66.4 84.2\nL 65.3 84.2\nL 65.3 83.8\n' fill='#D3D8E5'/>\n<path class='atom-23' d='M 80.9 68.3\nL 81.7 68.3\nL 81.7 70.9\nL 84.8 70.9\nL 84.8 68.3\nL 85.7 68.3\nL 85.7 74.4\nL 84.8 74.4\nL 84.8 71.6\nL 81.7 71.6\nL 81.7 74.4\nL 80.9 74.4\nL 80.9 68.3\n' fill='#D3D8E5'/>\n<path class='atom-24' d='M 59.4 68.3\nL 60.2 68.3\nL 60.2 70.9\nL 63.3 70.9\nL 63.3 68.3\nL 64.1 68.3\nL 64.1 74.4\nL 63.3 74.4\nL 63.3 71.6\nL 60.2 71.6\nL 60.2 74.4\nL 59.4 74.4\nL 59.4 68.3\n' fill='#D3D8E5'/>\n<path class='atom-24' d='M 65.3 69.4\nL 66.4 69.4\nL 66.4 68.3\nL 66.9 68.3\nL 66.9 69.4\nL 68.0 69.4\nL 68.0 69.9\nL 66.9 69.9\nL 66.9 71.0\nL 66.4 71.0\nL 66.4 69.9\nL 65.3 69.9\nL 65.3 69.4\n' fill='#D3D8E5'/>\n<path class='atom-25' d='M 214.5 187.3\nL 215.4 187.3\nL 215.4 189.9\nL 218.5 189.9\nL 218.5 187.3\nL 219.3 187.3\nL 219.3 193.4\nL 218.5 193.4\nL 218.5 190.6\nL 215.4 190.6\nL 215.4 193.4\nL 214.5 193.4\nL 214.5 187.3\n' fill='#D3D8E5'/>\n<path class='atom-26' d='M 193.0 187.3\nL 193.8 187.3\nL 193.8 189.9\nL 197.0 189.9\nL 197.0 187.3\nL 197.8 187.3\nL 197.8 193.4\nL 197.0 193.4\nL 197.0 190.6\nL 193.8 190.6\nL 193.8 193.4\nL 193.0 193.4\nL 193.0 187.3\n' fill='#D3D8E5'/>\n<path class='atom-26' d='M 199.0 188.4\nL 200.0 188.4\nL 200.0 187.3\nL 200.5 187.3\nL 200.5 188.4\nL 201.6 188.4\nL 201.6 188.8\nL 200.5 188.8\nL 200.5 190.0\nL 200.0 190.0\nL 200.0 188.8\nL 199.0 188.8\nL 199.0 188.4\n' fill='#D3D8E5'/>\n<path class='atom-27' d='M 80.9 54.0\nL 81.7 54.0\nL 81.7 56.6\nL 84.8 56.6\nL 84.8 54.0\nL 85.7 54.0\nL 85.7 60.1\nL 84.8 60.1\nL 84.8 57.3\nL 81.7 57.3\nL 81.7 60.1\nL 80.9 60.1\nL 80.9 54.0\n' fill='#D3D8E5'/>\n<path class='atom-28' d='M 59.4 54.0\nL 60.2 54.0\nL 60.2 56.6\nL 63.3 56.6\nL 63.3 54.0\nL 64.1 54.0\nL 64.1 60.1\nL 63.3 60.1\nL 63.3 57.3\nL 60.2 57.3\nL 60.2 60.1\nL 59.4 60.1\nL 59.4 54.0\n' fill='#D3D8E5'/>\n<path class='atom-28' d='M 65.3 55.1\nL 66.4 55.1\nL 66.4 54.0\nL 66.9 54.0\nL 66.9 55.1\nL 68.0 55.1\nL 68.0 55.5\nL 66.9 55.5\nL 66.9 56.7\nL 66.4 56.7\nL 66.4 55.5\nL 65.3 55.5\nL 65.3 55.1\n' fill='#D3D8E5'/>\n<path class='atom-29' d='M 80.9 39.7\nL 81.7 39.7\nL 81.7 42.3\nL 84.8 42.3\nL 84.8 39.7\nL 85.7 39.7\nL 85.7 45.8\nL 84.8 45.8\nL 84.8 43.0\nL 81.7 43.0\nL 81.7 45.8\nL 80.9 45.8\nL 80.9 39.7\n' fill='#D3D8E5'/>\n<path class='atom-30' d='M 59.4 39.7\nL 60.2 39.7\nL 60.2 42.3\nL 63.3 42.3\nL 63.3 39.7\nL 64.1 39.7\nL 64.1 45.8\nL 63.3 45.8\nL 63.3 43.0\nL 60.2 43.0\nL 60.2 45.8\nL 59.4 45.8\nL 59.4 39.7\n' fill='#D3D8E5'/>\n<path class='atom-30' d='M 65.3 40.8\nL 66.4 40.8\nL 66.4 39.6\nL 66.9 39.6\nL 66.9 40.8\nL 68.0 40.8\nL 68.0 41.2\nL 66.9 41.2\nL 66.9 42.3\nL 66.4 42.3\nL 66.4 41.2\nL 65.3 41.2\nL 65.3 40.8\n' fill='#D3D8E5'/>\n<path class='atom-31' d='M 80.9 25.3\nL 81.7 25.3\nL 81.7 27.9\nL 84.8 27.9\nL 84.8 25.3\nL 85.7 25.3\nL 85.7 31.4\nL 84.8 31.4\nL 84.8 28.6\nL 81.7 28.6\nL 81.7 31.4\nL 80.9 31.4\nL 80.9 25.3\n' fill='#D3D8E5'/>\n<path class='atom-32' d='M 59.4 25.3\nL 60.2 25.3\nL 60.2 27.9\nL 63.3 27.9\nL 63.3 25.3\nL 64.1 25.3\nL 64.1 31.4\nL 63.3 31.4\nL 63.3 28.6\nL 60.2 28.6\nL 60.2 31.4\nL 59.4 31.4\nL 59.4 25.3\n' fill='#D3D8E5'/>\n<path class='atom-33' d='M 250.4 187.3\nL 251.2 187.3\nL 251.2 189.9\nL 254.3 189.9\nL 254.3 187.3\nL 255.1 187.3\nL 255.1 193.4\nL 254.3 193.4\nL 254.3 190.6\nL 251.2 190.6\nL 251.2 193.4\nL 250.4 193.4\nL 250.4 187.3\n' fill='#D3D8E5'/>\n<path class='atom-34' d='M 228.9 187.3\nL 229.7 187.3\nL 229.7 189.9\nL 232.8 189.9\nL 232.8 187.3\nL 233.6 187.3\nL 233.6 193.4\nL 232.8 193.4\nL 232.8 190.6\nL 229.7 190.6\nL 229.7 193.4\nL 228.9 193.4\nL 228.9 187.3\n' fill='#D3D8E5'/>\n<path class='atom-35' d='M 80.9 11.0\nL 81.7 11.0\nL 81.7 13.6\nL 84.8 13.6\nL 84.8 11.0\nL 85.7 11.0\nL 85.7 17.1\nL 84.8 17.1\nL 84.8 14.3\nL 81.7 14.3\nL 81.7 17.1\nL 80.9 17.1\nL 80.9 11.0\n' fill='#D3D8E5'/>\n<path class='atom-36' d='M 59.4 11.0\nL 60.2 11.0\nL 60.2 13.6\nL 63.3 13.6\nL 63.3 11.0\nL 64.1 11.0\nL 64.1 17.1\nL 63.3 17.1\nL 63.3 14.3\nL 60.2 14.3\nL 60.2 17.1\nL 59.4 17.1\nL 59.4 11.0\n' fill='#D3D8E5'/>\n<path class='atom-8' d='M 58.5,157.4 L 58.5,157.5 L 58.5,157.5 L 58.5,157.5 L 58.5,157.6 L 58.5,157.6 L 58.5,157.6 L 58.4,157.7 L 58.4,157.7 L 58.4,157.7 L 58.4,157.7 L 58.3,157.8 L 58.3,157.8 L 58.3,157.8 L 58.2,157.8 L 58.2,157.8 L 58.2,157.8 L 58.1,157.8 L 58.1,157.8 L 58.1,157.8 L 58.0,157.8 L 58.0,157.8 L 58.0,157.8 L 57.9,157.8 L 57.9,157.8 L 57.9,157.8 L 57.8,157.8 L 57.8,157.7 L 57.8,157.7 L 57.7,157.7 L 57.7,157.6 L 57.7,157.6 L 57.7,157.6 L 57.7,157.5 L 57.7,157.5 L 57.7,157.5 L 57.7,157.4 L 57.7,157.4 L 57.7,157.4 L 57.7,157.3 L 57.7,157.3 L 57.7,157.3 L 57.7,157.2 L 57.7,157.2 L 57.7,157.2 L 57.8,157.1 L 57.8,157.1 L 57.8,157.1 L 57.9,157.1 L 57.9,157.0 L 57.9,157.0 L 58.0,157.0 L 58.0,157.0 L 58.0,157.0 L 58.1,157.0 L 58.1,157.0 L 58.1,157.0 L 58.2,157.0 L 58.2,157.0 L 58.2,157.0 L 58.3,157.0 L 58.3,157.0 L 58.3,157.1 L 58.4,157.1 L 58.4,157.1 L 58.4,157.1 L 58.4,157.2 L 58.5,157.2 L 58.5,157.2 L 58.5,157.3 L 58.5,157.3 L 58.5,157.3 L 58.5,157.4 L 58.5,157.4 L 58.1,157.4 Z' style='fill:#000000;fill-rule:evenodd;fill-opacity:1;stroke:#000000;stroke-width:0.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:10;stroke-opacity:1;' />\n<path class='atom-10' d='M 58.5,143.1 L 58.5,143.1 L 58.5,143.2 L 58.5,143.2 L 58.5,143.2 L 58.5,143.3 L 58.5,143.3 L 58.4,143.3 L 58.4,143.4 L 58.4,143.4 L 58.4,143.4 L 58.3,143.4 L 58.3,143.4 L 58.3,143.5 L 58.2,143.5 L 58.2,143.5 L 58.2,143.5 L 58.1,143.5 L 58.1,143.5 L 58.1,143.5 L 58.0,143.5 L 58.0,143.5 L 58.0,143.5 L 57.9,143.5 L 57.9,143.5 L 57.9,143.4 L 57.8,143.4 L 57.8,143.4 L 57.8,143.4 L 57.7,143.3 L 57.7,143.3 L 57.7,143.3 L 57.7,143.2 L 57.7,143.2 L 57.7,143.2 L 57.7,143.1 L 57.7,143.1 L 57.7,143.1 L 57.7,143.0 L 57.7,143.0 L 57.7,143.0 L 57.7,142.9 L 57.7,142.9 L 57.7,142.8 L 57.7,142.8 L 57.8,142.8 L 57.8,142.8 L 57.8,142.7 L 57.9,142.7 L 57.9,142.7 L 57.9,142.7 L 58.0,142.7 L 58.0,142.7 L 58.0,142.7 L 58.1,142.6 L 58.1,142.6 L 58.1,142.7 L 58.2,142.7 L 58.2,142.7 L 58.2,142.7 L 58.3,142.7 L 58.3,142.7 L 58.3,142.7 L 58.4,142.8 L 58.4,142.8 L 58.4,142.8 L 58.4,142.8 L 58.5,142.9 L 58.5,142.9 L 58.5,142.9 L 58.5,143.0 L 58.5,143.0 L 58.5,143.0 L 58.5,143.1 L 58.1,143.1 Z' style='fill:#000000;fill-rule:evenodd;fill-opacity:1;stroke:#000000;stroke-width:0.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:10;stroke-opacity:1;' />\n<path class='atom-12' d='M 120.5,190.4 L 120.5,190.4 L 120.5,190.4 L 120.5,190.5 L 120.5,190.5 L 120.4,190.6 L 120.4,190.6 L 120.4,190.6 L 120.4,190.6 L 120.4,190.7 L 120.3,190.7 L 120.3,190.7 L 120.3,190.7 L 120.2,190.8 L 120.2,190.8 L 120.2,190.8 L 120.1,190.8 L 120.1,190.8 L 120.1,190.8 L 120.0,190.8 L 120.0,190.8 L 119.9,190.8 L 119.9,190.8 L 119.9,190.8 L 119.8,190.8 L 119.8,190.7 L 119.8,190.7 L 119.8,190.7 L 119.7,190.7 L 119.7,190.6 L 119.7,190.6 L 119.7,190.6 L 119.6,190.5 L 119.6,190.5 L 119.6,190.5 L 119.6,190.4 L 119.6,190.4 L 119.6,190.4 L 119.6,190.3 L 119.6,190.3 L 119.6,190.2 L 119.6,190.2 L 119.7,190.2 L 119.7,190.1 L 119.7,190.1 L 119.7,190.1 L 119.8,190.1 L 119.8,190.0 L 119.8,190.0 L 119.8,190.0 L 119.9,190.0 L 119.9,190.0 L 119.9,190.0 L 120.0,190.0 L 120.0,189.9 L 120.1,189.9 L 120.1,189.9 L 120.1,190.0 L 120.2,190.0 L 120.2,190.0 L 120.2,190.0 L 120.3,190.0 L 120.3,190.0 L 120.3,190.0 L 120.4,190.1 L 120.4,190.1 L 120.4,190.1 L 120.4,190.2 L 120.4,190.2 L 120.5,190.2 L 120.5,190.3 L 120.5,190.3 L 120.5,190.3 L 120.5,190.4 L 120.0,190.4 Z' style='fill:#000000;fill-rule:evenodd;fill-opacity:1;stroke:#000000;stroke-width:0.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:10;stroke-opacity:1;' />\n<path class='atom-14' d='M 58.5,128.7 L 58.5,128.8 L 58.5,128.8 L 58.5,128.9 L 58.5,128.9 L 58.5,128.9 L 58.5,129.0 L 58.4,129.0 L 58.4,129.0 L 58.4,129.0 L 58.4,129.1 L 58.3,129.1 L 58.3,129.1 L 58.3,129.1 L 58.2,129.1 L 58.2,129.2 L 58.2,129.2 L 58.1,129.2 L 58.1,129.2 L 58.1,129.2 L 58.0,129.2 L 58.0,129.2 L 58.0,129.1 L 57.9,129.1 L 57.9,129.1 L 57.9,129.1 L 57.8,129.1 L 57.8,129.1 L 57.8,129.0 L 57.7,129.0 L 57.7,129.0 L 57.7,128.9 L 57.7,128.9 L 57.7,128.9 L 57.7,128.8 L 57.7,128.8 L 57.7,128.8 L 57.7,128.7 L 57.7,128.7 L 57.7,128.6 L 57.7,128.6 L 57.7,128.6 L 57.7,128.5 L 57.7,128.5 L 57.7,128.5 L 57.8,128.5 L 57.8,128.4 L 57.8,128.4 L 57.9,128.4 L 57.9,128.4 L 57.9,128.3 L 58.0,128.3 L 58.0,128.3 L 58.0,128.3 L 58.1,128.3 L 58.1,128.3 L 58.1,128.3 L 58.2,128.3 L 58.2,128.3 L 58.2,128.3 L 58.3,128.4 L 58.3,128.4 L 58.3,128.4 L 58.4,128.4 L 58.4,128.4 L 58.4,128.5 L 58.4,128.5 L 58.5,128.5 L 58.5,128.6 L 58.5,128.6 L 58.5,128.6 L 58.5,128.7 L 58.5,128.7 L 58.5,128.7 L 58.1,128.7 Z' style='fill:#000000;fill-rule:evenodd;fill-opacity:1;stroke:#000000;stroke-width:0.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:10;stroke-opacity:1;' />\n<path class='atom-16' d='M 58.5,114.4 L 58.5,114.4 L 58.5,114.5 L 58.5,114.5 L 58.5,114.5 L 58.5,114.6 L 58.5,114.6 L 58.4,114.6 L 58.4,114.7 L 58.4,114.7 L 58.4,114.7 L 58.3,114.8 L 58.3,114.8 L 58.3,114.8 L 58.2,114.8 L 58.2,114.8 L 58.2,114.8 L 58.1,114.8 L 58.1,114.8 L 58.1,114.8 L 58.0,114.8 L 58.0,114.8 L 58.0,114.8 L 57.9,114.8 L 57.9,114.8 L 57.9,114.8 L 57.8,114.7 L 57.8,114.7 L 57.8,114.7 L 57.7,114.7 L 57.7,114.6 L 57.7,114.6 L 57.7,114.6 L 57.7,114.5 L 57.7,114.5 L 57.7,114.5 L 57.7,114.4 L 57.7,114.4 L 57.7,114.3 L 57.7,114.3 L 57.7,114.3 L 57.7,114.2 L 57.7,114.2 L 57.7,114.2 L 57.7,114.1 L 57.8,114.1 L 57.8,114.1 L 57.8,114.1 L 57.9,114.0 L 57.9,114.0 L 57.9,114.0 L 58.0,114.0 L 58.0,114.0 L 58.0,114.0 L 58.1,114.0 L 58.1,114.0 L 58.1,114.0 L 58.2,114.0 L 58.2,114.0 L 58.2,114.0 L 58.3,114.0 L 58.3,114.0 L 58.3,114.1 L 58.4,114.1 L 58.4,114.1 L 58.4,114.1 L 58.4,114.2 L 58.5,114.2 L 58.5,114.2 L 58.5,114.3 L 58.5,114.3 L 58.5,114.3 L 58.5,114.4 L 58.5,114.4 L 58.1,114.4 Z' style='fill:#000000;fill-rule:evenodd;fill-opacity:1;stroke:#000000;stroke-width:0.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:10;stroke-opacity:1;' />\n<path class='atom-18' d='M 58.5,100.1 L 58.5,100.1 L 58.5,100.1 L 58.5,100.2 L 58.5,100.2 L 58.5,100.2 L 58.5,100.3 L 58.4,100.3 L 58.4,100.3 L 58.4,100.4 L 58.4,100.4 L 58.3,100.4 L 58.3,100.4 L 58.3,100.5 L 58.2,100.5 L 58.2,100.5 L 58.2,100.5 L 58.1,100.5 L 58.1,100.5 L 58.1,100.5 L 58.0,100.5 L 58.0,100.5 L 58.0,100.5 L 57.9,100.5 L 57.9,100.4 L 57.9,100.4 L 57.8,100.4 L 57.8,100.4 L 57.8,100.4 L 57.7,100.3 L 57.7,100.3 L 57.7,100.3 L 57.7,100.2 L 57.7,100.2 L 57.7,100.2 L 57.7,100.1 L 57.7,100.1 L 57.7,100.0 L 57.7,100.0 L 57.7,100.0 L 57.7,99.9 L 57.7,99.9 L 57.7,99.9 L 57.7,99.8 L 57.7,99.8 L 57.8,99.8 L 57.8,99.8 L 57.8,99.7 L 57.9,99.7 L 57.9,99.7 L 57.9,99.7 L 58.0,99.7 L 58.0,99.6 L 58.0,99.6 L 58.1,99.6 L 58.1,99.6 L 58.1,99.6 L 58.2,99.6 L 58.2,99.7 L 58.2,99.7 L 58.3,99.7 L 58.3,99.7 L 58.3,99.7 L 58.4,99.7 L 58.4,99.8 L 58.4,99.8 L 58.4,99.8 L 58.5,99.9 L 58.5,99.9 L 58.5,99.9 L 58.5,100.0 L 58.5,100.0 L 58.5,100.0 L 58.5,100.1 L 58.1,100.1 Z' style='fill:#000000;fill-rule:evenodd;fill-opacity:1;stroke:#000000;stroke-width:0.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:10;stroke-opacity:1;' />\n<path class='atom-20' d='M 156.3,190.4 L 156.3,190.4 L 156.3,190.4 L 156.3,190.5 L 156.3,190.5 L 156.3,190.6 L 156.3,190.6 L 156.2,190.6 L 156.2,190.6 L 156.2,190.7 L 156.2,190.7 L 156.1,190.7 L 156.1,190.7 L 156.1,190.8 L 156.0,190.8 L 156.0,190.8 L 156.0,190.8 L 155.9,190.8 L 155.9,190.8 L 155.9,190.8 L 155.8,190.8 L 155.8,190.8 L 155.8,190.8 L 155.7,190.8 L 155.7,190.8 L 155.7,190.7 L 155.6,190.7 L 155.6,190.7 L 155.6,190.7 L 155.5,190.6 L 155.5,190.6 L 155.5,190.6 L 155.5,190.5 L 155.5,190.5 L 155.5,190.5 L 155.5,190.4 L 155.5,190.4 L 155.5,190.4 L 155.5,190.3 L 155.5,190.3 L 155.5,190.2 L 155.5,190.2 L 155.5,190.2 L 155.5,190.1 L 155.5,190.1 L 155.6,190.1 L 155.6,190.1 L 155.6,190.0 L 155.7,190.0 L 155.7,190.0 L 155.7,190.0 L 155.8,190.0 L 155.8,190.0 L 155.8,190.0 L 155.9,189.9 L 155.9,189.9 L 155.9,189.9 L 156.0,190.0 L 156.0,190.0 L 156.0,190.0 L 156.1,190.0 L 156.1,190.0 L 156.1,190.0 L 156.2,190.0 L 156.2,190.1 L 156.2,190.1 L 156.2,190.1 L 156.3,190.2 L 156.3,190.2 L 156.3,190.2 L 156.3,190.3 L 156.3,190.3 L 156.3,190.3 L 156.3,190.4 L 155.9,190.4 Z' style='fill:#000000;fill-rule:evenodd;fill-opacity:1;stroke:#000000;stroke-width:0.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:10;stroke-opacity:1;' />\n<path class='atom-22' d='M 58.5,85.7 L 58.5,85.8 L 58.5,85.8 L 58.5,85.8 L 58.5,85.9 L 58.5,85.9 L 58.5,85.9 L 58.4,86.0 L 58.4,86.0 L 58.4,86.0 L 58.4,86.1 L 58.3,86.1 L 58.3,86.1 L 58.3,86.1 L 58.2,86.1 L 58.2,86.1 L 58.2,86.2 L 58.1,86.2 L 58.1,86.2 L 58.1,86.2 L 58.0,86.2 L 58.0,86.1 L 58.0,86.1 L 57.9,86.1 L 57.9,86.1 L 57.9,86.1 L 57.8,86.1 L 57.8,86.0 L 57.8,86.0 L 57.7,86.0 L 57.7,86.0 L 57.7,85.9 L 57.7,85.9 L 57.7,85.9 L 57.7,85.8 L 57.7,85.8 L 57.7,85.7 L 57.7,85.7 L 57.7,85.7 L 57.7,85.6 L 57.7,85.6 L 57.7,85.6 L 57.7,85.5 L 57.7,85.5 L 57.7,85.5 L 57.8,85.4 L 57.8,85.4 L 57.8,85.4 L 57.9,85.4 L 57.9,85.4 L 57.9,85.3 L 58.0,85.3 L 58.0,85.3 L 58.0,85.3 L 58.1,85.3 L 58.1,85.3 L 58.1,85.3 L 58.2,85.3 L 58.2,85.3 L 58.2,85.3 L 58.3,85.3 L 58.3,85.4 L 58.3,85.4 L 58.4,85.4 L 58.4,85.4 L 58.4,85.5 L 58.4,85.5 L 58.5,85.5 L 58.5,85.6 L 58.5,85.6 L 58.5,85.6 L 58.5,85.7 L 58.5,85.7 L 58.5,85.7 L 58.1,85.7 Z' style='fill:#000000;fill-rule:evenodd;fill-opacity:1;stroke:#000000;stroke-width:0.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:10;stroke-opacity:1;' />\n<path class='atom-24' d='M 58.5,71.4 L 58.5,71.4 L 58.5,71.5 L 58.5,71.5 L 58.5,71.5 L 58.5,71.6 L 58.5,71.6 L 58.4,71.6 L 58.4,71.7 L 58.4,71.7 L 58.4,71.7 L 58.3,71.7 L 58.3,71.8 L 58.3,71.8 L 58.2,71.8 L 58.2,71.8 L 58.2,71.8 L 58.1,71.8 L 58.1,71.8 L 58.1,71.8 L 58.0,71.8 L 58.0,71.8 L 58.0,71.8 L 57.9,71.8 L 57.9,71.8 L 57.9,71.8 L 57.8,71.7 L 57.8,71.7 L 57.8,71.7 L 57.7,71.7 L 57.7,71.6 L 57.7,71.6 L 57.7,71.6 L 57.7,71.5 L 57.7,71.5 L 57.7,71.4 L 57.7,71.4 L 57.7,71.4 L 57.7,71.3 L 57.7,71.3 L 57.7,71.3 L 57.7,71.2 L 57.7,71.2 L 57.7,71.2 L 57.7,71.1 L 57.8,71.1 L 57.8,71.1 L 57.8,71.1 L 57.9,71.0 L 57.9,71.0 L 57.9,71.0 L 58.0,71.0 L 58.0,71.0 L 58.0,71.0 L 58.1,71.0 L 58.1,71.0 L 58.1,71.0 L 58.2,71.0 L 58.2,71.0 L 58.2,71.0 L 58.3,71.0 L 58.3,71.0 L 58.3,71.0 L 58.4,71.1 L 58.4,71.1 L 58.4,71.1 L 58.4,71.1 L 58.5,71.2 L 58.5,71.2 L 58.5,71.2 L 58.5,71.3 L 58.5,71.3 L 58.5,71.4 L 58.5,71.4 L 58.1,71.4 Z' style='fill:#000000;fill-rule:evenodd;fill-opacity:1;stroke:#000000;stroke-width:0.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:10;stroke-opacity:1;' />\n<path class='atom-26' d='M 192.2,190.4 L 192.2,190.4 L 192.2,190.4 L 192.1,190.5 L 192.1,190.5 L 192.1,190.6 L 192.1,190.6 L 192.1,190.6 L 192.1,190.6 L 192.0,190.7 L 192.0,190.7 L 192.0,190.7 L 192.0,190.7 L 191.9,190.8 L 191.9,190.8 L 191.8,190.8 L 191.8,190.8 L 191.8,190.8 L 191.7,190.8 L 191.7,190.8 L 191.7,190.8 L 191.6,190.8 L 191.6,190.8 L 191.6,190.8 L 191.5,190.8 L 191.5,190.7 L 191.5,190.7 L 191.4,190.7 L 191.4,190.7 L 191.4,190.6 L 191.4,190.6 L 191.3,190.6 L 191.3,190.5 L 191.3,190.5 L 191.3,190.5 L 191.3,190.4 L 191.3,190.4 L 191.3,190.4 L 191.3,190.3 L 191.3,190.3 L 191.3,190.2 L 191.3,190.2 L 191.3,190.2 L 191.4,190.1 L 191.4,190.1 L 191.4,190.1 L 191.4,190.1 L 191.5,190.0 L 191.5,190.0 L 191.5,190.0 L 191.6,190.0 L 191.6,190.0 L 191.6,190.0 L 191.7,190.0 L 191.7,189.9 L 191.7,189.9 L 191.8,189.9 L 191.8,190.0 L 191.8,190.0 L 191.9,190.0 L 191.9,190.0 L 192.0,190.0 L 192.0,190.0 L 192.0,190.0 L 192.0,190.1 L 192.1,190.1 L 192.1,190.1 L 192.1,190.2 L 192.1,190.2 L 192.1,190.2 L 192.1,190.3 L 192.2,190.3 L 192.2,190.3 L 192.2,190.4 L 191.7,190.4 Z' style='fill:#000000;fill-rule:evenodd;fill-opacity:1;stroke:#000000;stroke-width:0.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:10;stroke-opacity:1;' />\n<path class='atom-28' d='M 58.5,57.1 L 58.5,57.1 L 58.5,57.1 L 58.5,57.2 L 58.5,57.2 L 58.5,57.2 L 58.5,57.3 L 58.4,57.3 L 58.4,57.3 L 58.4,57.4 L 58.4,57.4 L 58.3,57.4 L 58.3,57.4 L 58.3,57.4 L 58.2,57.5 L 58.2,57.5 L 58.2,57.5 L 58.1,57.5 L 58.1,57.5 L 58.1,57.5 L 58.0,57.5 L 58.0,57.5 L 58.0,57.5 L 57.9,57.5 L 57.9,57.4 L 57.9,57.4 L 57.8,57.4 L 57.8,57.4 L 57.8,57.3 L 57.7,57.3 L 57.7,57.3 L 57.7,57.3 L 57.7,57.2 L 57.7,57.2 L 57.7,57.1 L 57.7,57.1 L 57.7,57.1 L 57.7,57.0 L 57.7,57.0 L 57.7,57.0 L 57.7,56.9 L 57.7,56.9 L 57.7,56.9 L 57.7,56.8 L 57.7,56.8 L 57.8,56.8 L 57.8,56.7 L 57.8,56.7 L 57.9,56.7 L 57.9,56.7 L 57.9,56.7 L 58.0,56.6 L 58.0,56.6 L 58.0,56.6 L 58.1,56.6 L 58.1,56.6 L 58.1,56.6 L 58.2,56.6 L 58.2,56.6 L 58.2,56.7 L 58.3,56.7 L 58.3,56.7 L 58.3,56.7 L 58.4,56.7 L 58.4,56.8 L 58.4,56.8 L 58.4,56.8 L 58.5,56.8 L 58.5,56.9 L 58.5,56.9 L 58.5,56.9 L 58.5,57.0 L 58.5,57.0 L 58.5,57.1 L 58.1,57.1 Z' style='fill:#000000;fill-rule:evenodd;fill-opacity:1;stroke:#000000;stroke-width:0.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:10;stroke-opacity:1;' />\n<path class='atom-30' d='M 58.5,42.7 L 58.5,42.8 L 58.5,42.8 L 58.5,42.8 L 58.5,42.9 L 58.5,42.9 L 58.5,42.9 L 58.4,43.0 L 58.4,43.0 L 58.4,43.0 L 58.4,43.0 L 58.3,43.1 L 58.3,43.1 L 58.3,43.1 L 58.2,43.1 L 58.2,43.1 L 58.2,43.1 L 58.1,43.1 L 58.1,43.1 L 58.1,43.1 L 58.0,43.1 L 58.0,43.1 L 58.0,43.1 L 57.9,43.1 L 57.9,43.1 L 57.9,43.1 L 57.8,43.1 L 57.8,43.0 L 57.8,43.0 L 57.7,43.0 L 57.7,42.9 L 57.7,42.9 L 57.7,42.9 L 57.7,42.8 L 57.7,42.8 L 57.7,42.8 L 57.7,42.7 L 57.7,42.7 L 57.7,42.7 L 57.7,42.6 L 57.7,42.6 L 57.7,42.6 L 57.7,42.5 L 57.7,42.5 L 57.7,42.5 L 57.8,42.4 L 57.8,42.4 L 57.8,42.4 L 57.9,42.4 L 57.9,42.3 L 57.9,42.3 L 58.0,42.3 L 58.0,42.3 L 58.0,42.3 L 58.1,42.3 L 58.1,42.3 L 58.1,42.3 L 58.2,42.3 L 58.2,42.3 L 58.2,42.3 L 58.3,42.3 L 58.3,42.3 L 58.3,42.4 L 58.4,42.4 L 58.4,42.4 L 58.4,42.4 L 58.4,42.5 L 58.5,42.5 L 58.5,42.5 L 58.5,42.6 L 58.5,42.6 L 58.5,42.6 L 58.5,42.7 L 58.5,42.7 L 58.1,42.7 Z' style='fill:#000000;fill-rule:evenodd;fill-opacity:1;stroke:#000000;stroke-width:0.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:10;stroke-opacity:1;' />\n</svg>\n","gold_atoms":[1,2,3,4,5,6,7],"gold_share":0.875,"fragments":16,"mass":110.2035,"mass_error_ppm":39245.2,"tanimoto":0.261},{"row":7,"steps":[{"position":1,"block":0,"token":"c","support":159,"confidence":0.97478,"heavy_mass":0.0,"alternatives":[["c",0.97478],["C",0.02495],["O",0.00024],["N",3e-05]]},{"position":2,"block":0,"token":"1","support":254,"confidence":0.99999,"heavy_mass":12.0,"alternatives":[["1",0.99999],["c",1e-05],["=",0.0],["C",0.0]]},{"position":3,"block":0,"token":"2","support":283,"confidence":0.95093,"heavy_mass":12.0,"alternatives":[["2",0.95093],["3",0.04054],["c",0.00586],["%18",0.00103]]},{"position":4,"block":0,"token":"c","support":274,"confidence":1.0,"heavy_mass":12.0,"alternatives":[["c",1.0],[".",0.0],["C",0.0],["(",0.0]]},{"position":5,"block":0,"token":"c","support":280,"confidence":1.0,"heavy_mass":24.0,"alternatives":[["c",1.0],[".",0.0],["C",0.0],["(",0.0]]},{"position":6,"block":0,"token":"c","support":287,"confidence":1.0,"heavy_mass":36.0,"alternatives":[["c",1.0],["1",0.0],[".",0.0],["(",0.0]]},{"position":7,"block":0,"token":"c","support":281,"confidence":0.99972,"heavy_mass":48.0,"alternatives":[["c",0.99972],["(",0.00028],["=",0.0],["C",0.0]]},{"position":8,"block":0,"token":"c","support":206,"confidence":1.0,"heavy_mass":60.0,"alternatives":[["c",1.0],["(",0.0],["1",0.0],["=",0.0]]},{"position":9,"block":1,"token":"1","support":173,"confidence":0.99999,"heavy_mass":72.0,"alternatives":[["1",0.99999],["c",1e-05],["2",0.0],[".",0.0]]},{"position":10,"block":1,"token":".","support":168,"confidence":0.99985,"heavy_mass":72.0,"alternatives":[[".",0.99985],["O",8e-05],["3",5e-05],["1",1e-05]]},{"position":11,"block":1,"token":"c","support":52,"confidence":1.0,"heavy_mass":72.0,"alternatives":[["c",1.0],["O",0.0],["C",0.0],["[O-]",0.0]]},{"position":12,"block":1,"token":"1","support":121,"confidence":1.0,"heavy_mass":84.0,"alternatives":[["1",1.0],["=",0.0],["3",0.0],["2",0.0]]},{"position":13,"block":1,"token":"3","support":121,"confidence":0.99871,"heavy_mass":84.0,"alternatives":[["3",0.99871],["%18",0.00055],["%17",0.00023],["%16",0.00017]]},{"position":14,"block":1,"token":".","support":120,"confidence":0.28425,"heavy_mass":84.0,"alternatives":[[".",0.28425],["%18",0.21287],["(",0.18297],["=",0.11804]]},{"position":15,"block":1,"token":"[","support":5,"confidence":0.58734,"heavy_mass":84.0,"alternatives":[["[H]",0.58734],["[H+]",0.20733],["[H",0.10521],["[",0.0872]]},{"position":16,"block":1,"token":"H+]","support":4,"confidence":0.27744,"heavy_mass":84.0,"alternatives":[["H",0.27744],["H-]",0.27717],["H+]",0.24979],["H]",0.1956]]},{"position":17,"block":2,"token":"(","support":113,"confidence":0.99985,"heavy_mass":84.0,"alternatives":[["(",0.99985],["%18",3e-05],["6",3e-05],["1",2e-05]]},{"position":18,"block":2,"token":"-","support":3,"confidence":0.99995,"heavy_mass":84.0,"alternatives":[["-",0.99995],["\\",5e-05],["/",0.0],["[UNK]",0.0]]}],"written":"c12ccccc1.c13.[H+](-","ending":"dead_end","safe":"c12ccccc1.c13.[H+](-","smiles":"c1ccccc1","svg":"\n<svg version='1.1' baseProfile='full'\n              xmlns='http://www.w3.org/2000/svg'\n                      xmlns:rdkit='http://www.rdkit.org/xml'\n                      xmlns:xlink='http://www.w3.org/1999/xlink'\n                  xml:space='preserve'\nwidth='300px' height='220px' viewBox='0 0 300 220'>\n<!-- END OF HEADER -->\n<path class='bond-0 atom-0 atom-1' d='M 264.3,110.0 L 207.2,209.0' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-1 atom-1 atom-2' d='M 207.2,209.0 L 92.8,209.0' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-1 atom-1 atom-2' d='M 197.3,191.9 L 102.7,191.9' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-2 atom-2 atom-3' d='M 92.8,209.0 L 35.7,110.0' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-3 atom-3 atom-4' d='M 35.7,110.0 L 92.8,11.0' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-3 atom-3 atom-4' d='M 55.5,110.0 L 102.7,28.1' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-4 atom-4 atom-5' d='M 92.8,11.0 L 207.2,11.0' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-5 atom-5 atom-0' d='M 207.2,11.0 L 264.3,110.0' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path class='bond-5 atom-5 atom-0' d='M 197.3,28.1 L 244.5,110.0' style='fill:none;fill-rule:evenodd;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1' />\n<path d='M 261.5,114.9 L 264.3,110.0 L 261.5,105.0' style='fill:none;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:10;stroke-opacity:1;' />\n<path d='M 210.0,204.0 L 207.2,209.0 L 201.4,209.0' style='fill:none;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:10;stroke-opacity:1;' />\n<path d='M 98.6,209.0 L 92.8,209.0 L 90.0,204.0' style='fill:none;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:10;stroke-opacity:1;' />\n<path d='M 38.5,114.9 L 35.7,110.0 L 38.5,105.0' style='fill:none;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:10;stroke-opacity:1;' />\n<path d='M 90.0,16.0 L 92.8,11.0 L 98.6,11.0' style='fill:none;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:10;stroke-opacity:1;' />\n<path d='M 201.4,11.0 L 207.2,11.0 L 210.0,16.0' style='fill:none;stroke:#D3D8E5;stroke-width:2.0px;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:10;stroke-opacity:1;' />\n</svg>\n","gold_atoms":[2,3,4,5,6,7],"gold_share":0.75,"fragments":1,"mass":78.047,"mass_error_ppm":-263998.2,"tanimoto":0.214,"cause":"mass_reachability_deadlock","syntax_support":1263,"mass_reachable_support":0,"died_at":18}]}]};
+
+const el = id => document.getElementById(id);
+const state = { spectrum: 0, attempt: 0, step: 0 };
+
+const CAUSE_CLASS = {
+  accepted: 'accepted',
+  grammar_deadlock: 'grammar',
+  mass_reachability_deadlock: 'mass',
+  token_prune_deadlock: 'mass',
+};
+
+function outcomeClass(attempt) {
+  if (attempt.ending === 'accepted') return 'accepted';
+  if (attempt.ending === 'dead_end') return CAUSE_CLASS[attempt.cause] || 'grammar';
+  return 'other';
+}
+
+function outcomeWords(attempt) {
+  if (attempt.ending === 'accepted') return 'returned a candidate';
+  if (attempt.ending === 'dead_end') {
+    return {
+      grammar_deadlock: 'grammar deadlock — nothing may follow this prefix',
+      mass_reachability_deadlock: 'mass deadlock — the target mass is no longer reachable',
+      token_prune_deadlock: 'token-prune deadlock — syntax and the mass shell allow no common token',
+    }[attempt.cause] || 'dead end';
+  }
+  if (attempt.ending === 'eos_rejected') return 'finished at EOS but was refused';
+  if (attempt.ending === 'max_length') return 'ran out of canvas length';
+  return 'unfinished when the time budget ran out';
+}
+
+/* ---- tooltip ---- */
+const tip = el('tip');
+function showTip(text, event) {
+  tip.textContent = text;
+  tip.style.opacity = 1;
+  tip.style.left = Math.min(event.clientX + 12, innerWidth - 220) + 'px';
+  tip.style.top = (event.clientY + 14) + 'px';
+}
+function hideTip() { tip.style.opacity = 0; }
+
+/* ---- pickers ---- */
+const spectrumPicker = el('spectrum');
+FAN.spectra.forEach((s, i) => {
+  const option = document.createElement('option');
+  option.value = i;
+  option.textContent = `${s.formula} · ${s.target_mass.toFixed(1)} Da · ${s.spec_name}`;
+  spectrumPicker.appendChild(option);
+});
+
+/* ---- the fan itself: attempts sharing a prefix share a branch ---- */
+function buildTree(attempts) {
+  const root = { token: null, depth: 0, children: new Map(), rows: [] };
+  attempts.forEach(attempt => {
+    let node = root;
+    node.rows.push(attempt.row);
+    attempt.steps.forEach((step, index) => {
+      if (!node.children.has(step.token)) {
+        node.children.set(step.token, {
+          token: step.token, depth: index + 1, children: new Map(), rows: [], step,
+        });
+      }
+      node = node.children.get(step.token);
+      node.rows.push(attempt.row);
+    });
+    node.leaf = attempt;
+  });
+  return root;
+}
+
+function drawTree(spectrum) {
+  const root = buildTree(spectrum.attempts);
+  const svg = el('tree');
+  let leafIndex = 0;
+  let maxDepth = 0;
+  (function place(node) {
+    maxDepth = Math.max(maxDepth, node.depth);
+    if (node.children.size === 0) { node.y = leafIndex++; return node.y; }
+    const ys = [...node.children.values()].map(place);
+    node.y = (Math.min(...ys) + Math.max(...ys)) / 2;
+    return node.y;
+  })(root);
+
+  const dx = Math.max(7, Math.min(16, 1100 / Math.max(maxDepth, 1)));
+  const dy = 26;
+  const left = 14;
+  const top = 22;
+  const width = left * 2 + maxDepth * dx;
+  const height = top + leafIndex * dy + 16;
+  svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+  svg.setAttribute('width', width);
+  svg.setAttribute('height', height);
+
+  const x = depth => left + depth * dx;
+  const y = row => top + row * dy;
+  const parts = [];
+
+  for (let depth = 0; depth <= maxDepth; depth += 10) {
+    parts.push(`<text class="axis" x="${x(depth)}" y="12" text-anchor="middle">${depth}</text>`);
+  }
+
+  (function walk(node) {
+    node.children.forEach(child => {
+      const midpoint = x(node.depth) + dx / 2;
+      const path = node.y === child.y
+        ? `M ${x(node.depth)},${y(node.y)} L ${x(child.depth)},${y(child.y)}`
+        : `M ${x(node.depth)},${y(node.y)} L ${midpoint},${y(node.y)} `
+          + `L ${midpoint},${y(child.y)} L ${x(child.depth)},${y(child.y)}`;
+      parts.push(
+        `<path class="branch" d="${path}" stroke-width="${1 + child.rows.length * 0.5}" `
+        + `data-row="${child.rows[0]}" data-depth="${child.depth}" `
+        + `data-token="${child.token.replace(/"/g, '&quot;')}" `
+        + `data-support="${child.step ? child.step.support : ''}" `
+        + `data-rows="${child.rows.length}"></path>`
+      );
+      if (child.children.size > 1) {
+        parts.push(`<circle class="split" cx="${x(child.depth)}" cy="${y(child.y)}" r="3"></circle>`);
+      }
+      if (child.leaf) {
+        parts.push(
+          `<circle class="leaf ${outcomeClass(child.leaf)}" cx="${x(child.depth) + 4}" `
+          + `cy="${y(child.y)}" r="5" data-row="${child.leaf.row}"></circle>`
+        );
+      }
+      walk(child);
+    });
+  })(root);
+
+  svg.innerHTML = parts.join('');
+}
+
+el('tree').addEventListener('mousemove', event => {
+  const target = event.target.closest('path, circle');
+  if (!target) return hideTip();
+  if (target.classList.contains('leaf')) {
+    const attempt = currentSpectrum().attempts[+target.dataset.row];
+    return showTip(`attempt ${attempt.row} · ${outcomeWords(attempt)}`, event);
+  }
+  if (!target.dataset.token) return hideTip();
+  showTip(
+    `position ${target.dataset.depth} · ${JSON.stringify(target.dataset.token)} · `
+    + `${target.dataset.rows} of ${currentSpectrum().attempts.length} attempts · `
+    + `${target.dataset.support} admitted`,
+    event
+  );
+});
+el('tree').addEventListener('mouseleave', hideTip);
+el('tree').addEventListener('click', event => {
+  const target = event.target.closest('path, circle');
+  if (!target || target.dataset.row === undefined) return;
+  state.attempt = +target.dataset.row;
+  if (target.dataset.depth) state.step = Math.max(0, +target.dataset.depth - 1);
+  el('attempt').value = state.attempt;
+  renderAttempt();
+});
+
+function currentSpectrum() { return FAN.spectra[state.spectrum]; }
+function currentAttempt() { return currentSpectrum().attempts[state.attempt]; }
+
+function highlightGold(atoms) {
+  const drawing = el('targetFig').querySelector('svg');
+  if (!drawing) return;
+  const lit = new Set(atoms);
+  drawing.querySelectorAll('path').forEach(path => {
+    const ids = [...path.classList]
+      .filter(name => name.startsWith('atom-'))
+      .map(name => Number(name.slice(5)));
+    const covered = ids.length > 0 && ids.every(id => lit.has(id));
+    path.style.opacity = lit.size === 0 ? '' : (covered ? '1' : '0.22');
+    path.style.strokeWidth = covered ? '3px' : '';
+  });
+}
+
+function renderSpectrum() {
+  const spectrum = currentSpectrum();
+  el('specName').textContent = spectrum.spec_name;
+  el('targetFig').innerHTML = spectrum.target_svg || '';
+  el('targetStruct').dataset.smiles = spectrum.smiles;
+  el('fFormula').textContent = spectrum.formula;
+  el('fMass').textContent = spectrum.target_mass.toFixed(4) + ' Da';
+  el('fHeavy').textContent = spectrum.heavy_atoms;
+  el('fRuntime').textContent = spectrum.runtime_seconds.toFixed(0) + ' s';
+  el('fSmiles').textContent = spectrum.smiles;
+
+  const picker = el('attempt');
+  picker.innerHTML = '';
+  spectrum.attempts.forEach(attempt => {
+    const option = document.createElement('option');
+    option.value = attempt.row;
+    option.textContent = `${attempt.row} · ${outcomeWords(attempt)}`;
+    picker.appendChild(option);
+  });
+
+  const dead = spectrum.attempts.filter(a => a.ending === 'dead_end');
+  const accepted = spectrum.attempts.filter(a => a.ending === 'accepted');
+  const lengths = spectrum.attempts.map(a => a.steps.length);
+  el('fanMeta').textContent = `${spectrum.attempts.length} attempts`;
+  el('attemptsMeta').textContent =
+    `${accepted.length} returned · ${dead.length} dead ends · `
+    + `${Math.min(...lengths)}–${Math.max(...lengths)} positions written`;
+  el('stats').innerHTML =
+    `<div class="stat"><b>${accepted.length}/${spectrum.attempts.length}</b><span>returned a candidate</span></div>`
+    + `<div class="stat"><b>${dead.length}</b><span>died in a dead end</span></div>`
+    + `<div class="stat"><b>${splitCount(spectrum)}</b><span>positions where attempts split</span></div>`
+    + `<div class="stat"><b>${Math.round(100 * Math.max(...spectrum.attempts.map(a => a.gold_share || 0)))}%</b>`
+    + `<span>most of the gold answer any attempt built</span></div>`;
+
+  drawTree(spectrum);
+
+  el('endings').innerHTML = spectrum.attempts.map(attempt => {
+    const facts = [];
+    if (attempt.mass_error_ppm !== undefined) facts.push(`${attempt.mass_error_ppm} ppm`);
+    if (attempt.tanimoto !== undefined) facts.push(`tanimoto ${attempt.tanimoto}`);
+    if (attempt.fragments !== undefined) {
+      facts.push(attempt.fragments > 1 ? `${attempt.fragments} pieces` : 'one molecule');
+    }
+    return `<div class="card" data-smiles="${(attempt.smiles || '').replace(/"/g, '&quot;')}">`
+      + `<span class="flag" style="background:var(--muted);color:var(--foreground)">`
+      + `attempt ${attempt.row}</span> `
+      + `<span class="dot ${outcomeClass(attempt)}"></span>`
+      + `<figure>${attempt.svg || ''}</figure>`
+      + `<p>${facts.join(' · ') || 'nothing readable'}<br>${escapeHtml(attempt.smiles || '')}</p></div>`;
+  }).join('');
+
+  state.attempt = 0;
+  state.step = 0;
+  renderAttempt();
+}
+
+function splitCount(spectrum) {
+  const seen = new Map();
+  spectrum.attempts.forEach(attempt => {
+    attempt.steps.forEach((step, index) => {
+      const key = index;
+      if (!seen.has(key)) seen.set(key, new Set());
+      seen.get(key).add(attempt.steps.slice(0, index + 1).map(s => s.token).join(' '));
+    });
+  });
+  let splits = 0;
+  let previous = 1;
+  [...seen.keys()].sort((a, b) => a - b).forEach(key => {
+    const width = seen.get(key).size;
+    if (width > previous) splits += 1;
+    previous = width;
+  });
+  return splits;
+}
+
+function renderAttempt() {
+  const spectrum = currentSpectrum();
+  const attempt = currentAttempt();
+  state.step = Math.min(state.step, Math.max(attempt.steps.length - 1, 0));
+  el('attempt').value = attempt.row;
+  el('step').max = Math.max(attempt.steps.length - 1, 0);
+  el('step').value = state.step;
+  el('stepCount').textContent = `${state.step + 1} of ${attempt.steps.length}`;
+
+  el('attemptFig').innerHTML = attempt.svg || '<p class="empty">nothing readable</p>';
+  el('attemptStruct').dataset.smiles = attempt.smiles || '';
+  el('attemptCap').textContent = `Attempt ${attempt.row} · ${outcomeWords(attempt)}`;
+  highlightGold(attempt.gold_atoms || []);
+  const share = Math.round(100 * (attempt.gold_share || 0));
+  el('matchNote').innerHTML = attempt.gold_atoms && attempt.gold_atoms.length
+    ? `<span style="color:var(--allowed)">${attempt.gold_atoms.length} of ${spectrum.heavy_atoms} gold atoms `
+      + `are in this attempt (${share}%)</span>`
+    : `<span style="color:var(--unwritable)">nothing this attempt wrote appears in the gold answer</span>`;
+
+  const tape = el('tape');
+  tape.innerHTML = '';
+  attempt.steps.forEach((step, index) => {
+    const cell = document.createElement('span');
+    cell.className = 'cell ' + (index < state.step ? 'done' : index === state.step ? 'now' : 'ahead')
+      + (index > 0 && step.block !== attempt.steps[index - 1].block ? ' block-start' : '');
+    cell.textContent = step.token;
+    cell.title = `position ${step.position} · block ${step.block + 1} · ${step.support} admitted`;
+    cell.addEventListener('click', () => { state.step = index; renderAttempt(); });
+    tape.appendChild(cell);
+  });
+
+  const step = attempt.steps[state.step];
+  const body = el('tokens');
+  body.innerHTML = '';
+  if (step) {
+    const top = Math.max(...step.alternatives.map(pair => pair[1]), 1e-9);
+    step.alternatives.forEach(([token, probability]) => {
+      const taken = token === step.token;
+      const row = document.createElement('tr');
+      row.innerHTML =
+        `<td class="tok">${escapeHtml(token)}</td>`
+        + `<td class="bar-cell"><div class="bar-track"><div class="bar ${taken ? 'g-allowed' : ''}" `
+        + `style="width:${Math.max((probability / top) * 100, 1.5).toFixed(1)}%"></div></div></td>`
+        + `<td class="prob">${probability < 0.001 ? probability.toExponential(1) : probability.toFixed(3)}</td>`
+        + `<td>${taken ? '<span class="chip g-allowed">taken</span>' : ''}</td>`;
+      body.appendChild(row);
+    });
+  }
+
+  drawSupport(attempt);
+  el('endingNote').innerHTML =
+    `Position ${step ? step.position : '—'} · ${step ? step.support : '—'} of the vocabulary admitted · `
+    + `${step ? step.heavy_mass.toFixed(3) : '—'} Da committed of ${spectrum.target_mass.toFixed(3)} Da. `
+    + `<br>This attempt ${outcomeWords(attempt)}`
+    + (attempt.syntax_support !== undefined
+        ? ` · at the end the grammar left ${attempt.syntax_support} tokens and the mass shell `
+          + `${attempt.mass_reachable_support}.`
+        : '.');
+
+  document.querySelectorAll('.attempt-row').forEach(row => {
+    row.classList.toggle('picked', +row.dataset.row === state.attempt);
+  });
+  renderAttemptList();
+}
+
+function renderAttemptList() {
+  const spectrum = currentSpectrum();
+  const longest = Math.max(...spectrum.attempts.map(a => a.steps.length), 1);
+  el('attempts').innerHTML = spectrum.attempts.map(attempt =>
+    `<li class="attempt-row ${attempt.row === state.attempt ? 'picked' : ''}" data-row="${attempt.row}">`
+    + `<span class="who">${attempt.row}</span>`
+    + `<span class="dot ${outcomeClass(attempt)}"></span>`
+    + `<div class="bar-track"><div class="bar ${outcomeClass(attempt) === 'accepted' ? 'g-allowed' : ''}" `
+    + `style="width:${(attempt.steps.length / longest * 100).toFixed(1)}%"></div></div>`
+    + `<span class="prob">${attempt.steps.length} pos</span>`
+    + `<span style="color:var(--muted-foreground);min-width:15ch">${outcomeWords(attempt)}</span></li>`
+  ).join('');
+  el('attempts').querySelectorAll('.attempt-row').forEach(row => {
+    row.addEventListener('click', () => {
+      state.attempt = +row.dataset.row;
+      state.step = 0;
+      renderAttempt();
+    });
+  });
+}
+
+function drawSupport(attempt) {
+  const svg = el('supportLine');
+  const values = attempt.steps.map(step => step.support);
+  const top = Math.max(...values, 1);
+  const points = values.map((value, index) => {
+    const x = values.length > 1 ? (index / (values.length - 1)) * 300 : 0;
+    return `${x.toFixed(1)},${(56 - (value / top) * 50).toFixed(1)}`;
+  }).join(' ');
+  const cursor = values.length > 1 ? (state.step / (values.length - 1)) * 300 : 0;
+  svg.innerHTML =
+    `<polyline points="${points}" fill="none" stroke="var(--allowed)" stroke-width="2" `
+    + `vector-effect="non-scaling-stroke" stroke-linejoin="round"/>`
+    + `<line x1="${cursor}" x2="${cursor}" y1="0" y2="60" stroke="var(--muted-foreground)" `
+    + `stroke-width="1" vector-effect="non-scaling-stroke"/>`;
+}
+
+function escapeHtml(text) {
+  return text.replace(/[&<>"]/g, character =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[character]));
+}
+
+/* ---- any structure opens large ---- */
+const zoom = el('zoom');
+document.addEventListener('click', event => {
+  if (zoom.classList.contains('open')) {
+    if (!event.target.closest('.frame')) zoom.classList.remove('open');
+    return;
+  }
+  const holder = event.target.closest('.struct, .card');
+  if (!holder) return;
+  const drawing = holder.querySelector('svg');
+  if (!drawing) return;
+  const caption = holder.querySelector('figcaption, .flag');
+  const line = holder.querySelector('p');
+  el('zoomTitle').textContent = caption ? caption.textContent : '';
+  el('zoomFig').innerHTML = drawing.outerHTML;
+  el('zoomText').textContent = holder.dataset.smiles || (line ? line.textContent : '');
+  zoom.classList.add('open');
+});
+
+spectrumPicker.addEventListener('change', () => {
+  state.spectrum = +spectrumPicker.value;
+  renderSpectrum();
+});
+el('attempt').addEventListener('change', () => {
+  state.attempt = +el('attempt').value;
+  state.step = 0;
+  renderAttempt();
+});
+el('step').addEventListener('input', () => { state.step = +el('step').value; renderAttempt(); });
+addEventListener('keydown', event => {
+  if (event.key === 'Escape' && zoom.classList.contains('open')) { zoom.classList.remove('open'); return; }
+  if (event.target.tagName === 'SELECT') return;
+  const last = currentAttempt().steps.length - 1;
+  if (event.key === 'ArrowRight') { state.step = Math.min(last, state.step + 1); renderAttempt(); event.preventDefault(); }
+  if (event.key === 'ArrowLeft') { state.step = Math.max(0, state.step - 1); renderAttempt(); event.preventDefault(); }
+});
+
+renderSpectrum();
+</script>
+</body>
+</html>

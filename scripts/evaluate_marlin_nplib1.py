@@ -157,6 +157,14 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument("--no-ema", action="store_true")
+    parser.add_argument(
+        "--trace-output",
+        type=Path,
+        help=(
+            "Write one JSON line per spectrum holding every token the block "
+            "decoder committed and how each attempt ended. Block mode only."
+        ),
+    )
     parser.add_argument("--layer0-long-residual-scale", type=float)
     parser.add_argument("--clearml-project")
     parser.add_argument("--clearml-task-name")
@@ -525,6 +533,9 @@ def publish_clearml_evaluation(
 
 def main() -> None:
     args = parse_args()
+    decode_trace: list[dict[str, object]] | None = (
+        [] if args.trace_output is not None else None
+    )
     if args.candidates <= 0:
         raise ValueError("--candidates must be positive")
     if args.candidate_batch_size is not None and args.candidate_batch_size <= 0:
@@ -657,6 +668,7 @@ def main() -> None:
         sampler = MarlinSampler(
             model,
             constraint,
+            trace=decode_trace,
             bos_token_id=tokenizer.bos_token_id,
             eos_token_id=tokenizer.eos_token_id,
             mask_token_id=tokenizer.mask_token_id,
@@ -793,6 +805,11 @@ def main() -> None:
                 completed.add(row["spec_name"])
                 rows.append(row)
 
+    trace_output = None
+    if args.trace_output is not None:
+        args.trace_output.parent.mkdir(parents=True, exist_ok=True)
+        trace_output = args.trace_output.open("a")
+
     candidate_batch_size = args.candidate_batch_size
     if args.per_spectrum_seconds is not None and candidate_batch_size is None:
         # The sampler reads the deadline inside a batch as well as between them,
@@ -808,6 +825,8 @@ def main() -> None:
                 continue
             if torch.cuda.is_available():
                 torch.cuda.synchronize()
+            if decode_trace is not None:
+                decode_trace.clear()
             started = time.perf_counter()
             ranked, stats = sampler.generate_ranked_with_stats(
                 torch.from_numpy(fingerprints[position]),
@@ -892,6 +911,21 @@ def main() -> None:
             add_formula_metrics(result, target_formula=target_formula)
             output.write(json.dumps(result, sort_keys=True) + "\n")
             output.flush()
+            if trace_output is not None and decode_trace is not None:
+                trace_output.write(
+                    json.dumps(
+                        {
+                            "spec_name": spec_name,
+                            "target_smiles": record["smiles"],
+                            "neutral_mass": float(record["neutral_mass"]),
+                            "candidates": args.candidates,
+                            "runtime_seconds": elapsed,
+                            "steps": list(decode_trace),
+                        }
+                    )
+                    + "\n"
+                )
+                trace_output.flush()
             rows.append(result)
             print(
                 f"{position + 1}/{len(metadata)} {spec_name} "
