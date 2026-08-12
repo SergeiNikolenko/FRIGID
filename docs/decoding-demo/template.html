@@ -661,25 +661,25 @@ function renderStep() {
   });
   el('wallCount').textContent = `${step.support} of ${VOCAB.length} tokens admitted here`;
 
-  /* assembled: carry the last readable structure forward so the molecule keeps
-     growing on screen instead of blinking out mid-fragment */
-  let readable = null;
-  for (let i = state.step; i >= 0; i--) {
-    if (m.steps[i].assembled) { readable = m.steps[i]; break; }
-  }
-  el('assembledFig').innerHTML = readable
-    ? (m.fragment_svgs[readable.assembled] || '')
-    : '<p class="empty">nothing whole yet</p>';
-  el('assembledStruct').dataset.smiles = readable ? readable.assembled : '';
-  el('assembledStruct').classList.toggle('stale', Boolean(readable) && readable !== step);
-  el('assembledCap').textContent = !readable
-    ? 'Assembled here'
-    : (readable === step ? 'Assembled here' : `Last whole fragments · position ${readable.position}`);
-  el('assembledNote').innerHTML = !readable
-    ? 'Nothing readable yet — the string so far is one unfinished fragment.'
-    : (readable === step
-        ? `<span style="color:var(--allowed)">whole fragments at this position</span> · ${escapeHtml(readable.assembled)}`
-        : `<span style="color:var(--text-muted)">last whole fragments, from position ${readable.position}; the current one is still being written</span> · ${escapeHtml(readable.assembled)}`);
+  /* what has been written so far, whole or not: the prefix is normalised to the
+     largest piece of itself RDKit can read, so the frame is never empty */
+  const partial = step.partial;
+  const whole = Boolean(step.assembled);
+  el('assembledFig').innerHTML = partial
+    ? (m.partial_svgs[partial] || '')
+    : '<p class="empty">nothing readable yet</p>';
+  el('assembledStruct').dataset.smiles = partial || '';
+  el('assembledStruct').classList.toggle('stale', Boolean(partial) && !whole);
+  el('assembledCap').textContent = whole
+    ? 'Written so far · whole fragments'
+    : 'Written so far · mid-token';
+  const lit = (partial && m.gold_matches ? m.gold_matches[partial] : null) || [];
+  highlightGold(lit);
+  el('assembledNote').innerHTML = !partial
+    ? 'Nothing readable yet — the string so far cannot be parsed at all.'
+    : (lit.length
+        ? `<span style="color:var(--allowed)">${lit.length} of ${m.heavy_atoms} gold atoms are already in place</span> · ${escapeHtml(partial)}`
+        : `<span style="color:var(--unwritable)">nothing written so far appears in the gold answer</span> · ${escapeHtml(partial)}`);
 
   const cursor = document.querySelector('#supportLine #cursor');
   if (cursor) {
@@ -706,6 +706,22 @@ document.addEventListener('click', event => {
   el('zoomText').textContent = holder.dataset.smiles || (line ? line.textContent : '');
   zoom.classList.add('open');
 });
+
+/* ---- light the gold drawing where the written prefix already matches ---- */
+function highlightGold(atoms) {
+  const drawing = el('targetFig').querySelector('svg');
+  if (!drawing) return;
+  const lit = new Set(atoms);
+  drawing.querySelectorAll('path').forEach(path => {
+    const ids = [...path.classList]
+      .filter(name => name.startsWith('atom-'))
+      .map(name => Number(name.slice(5)));
+    const covered = ids.length > 0 && ids.every(id => lit.has(id));
+    // Element colours are left alone: a match reads as weight, a miss as fade.
+    path.style.opacity = lit.size === 0 ? '' : (covered ? '1' : '0.22');
+    path.style.strokeWidth = covered ? '3px' : '';
+  });
+}
 
 function escapeHtml(text) {
   return text.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
