@@ -148,6 +148,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--sample-tokens", action="store_true")
     parser.add_argument("--fix-safe-decode", action="store_true")
     parser.add_argument(
+        "--keep-repaired-candidates",
+        action="store_true",
+        help=(
+            "score candidates whose SAFE string only became a molecule because "
+            "safe_to_smiles repaired it. Off by default: the repair drops every "
+            "fragment that will not decode, so what it returns is a stump of the "
+            "string the model wrote, not the string the model wrote"
+        ),
+    )
+    parser.add_argument(
         "--isotope-token",
         choices=("omit", "zeros", "oracle"),
         default="omit",
@@ -295,6 +305,68 @@ def add_formula_metrics(
         candidate.get("formula") == target_formula for candidate in candidates[:10]
     )
     return row
+
+
+def safe_string_needed_repair(safe: str) -> bool:
+    """True when a SAFE string only becomes a molecule after repair.
+
+    ``safe_to_smiles`` defaults to ``fix=True`` (``src/dlm/utils/utils_chem.py:26``),
+    and that default does two things silently: it deletes every fragment that will
+    not decode on its own, then decodes what is left with ``ignore_errors=True``.
+    So ``"c1cccccc1-1.[H+]2.O2-1"`` -- a seven-membered aromatic ring RDKit refuses
+    to kekulize -- comes back as ``"O"``, and ``"c12ccccc1.c13.[H]1.[o+]23"`` comes
+    back as ``"[H][H].c1ccccc1"``. Those stumps are not what the model built; they
+    are what survived the deletion, and they lose most of the heavy mass with it.
+
+    Asking the same decoder with ``fix=False`` is the whole test: a string the model
+    spelled correctly parses either way, and a string that needs the repair answers
+    ``None``. This function is the only place the distinction is decided, so a
+    candidate is never both scored and unexamined.
+    """
+    return safe_to_smiles(safe, fix=False) is None
+
+
+def split_repaired_candidates(
+    candidates: list[dict],
+    *,
+    keep_repaired: bool,
+) -> tuple[list[dict], list[dict]]:
+    """Separate candidates the model spelled from candidates the repair invented.
+
+    Returns ``(scored, repaired)``. With ``keep_repaired`` the repaired ones stay in
+    the scored list -- still flagged, never silent -- and the second list is empty,
+    so ``"repaired_candidate_count"`` remains the count of repaired candidates
+    either way.
+    """
+    if keep_repaired:
+        return list(candidates), []
+    scored = [candidate for candidate in candidates if not candidate["repaired"]]
+    repaired = [candidate for candidate in candidates if candidate["repaired"]]
+    return scored, repaired
+
+
+def repair_provenance_metrics(rows: list[dict]) -> dict[str, object]:
+    """Aggregate how many returned candidates only survived the SAFE repair.
+
+    Prediction files written before this field existed carry no provenance at all.
+    They are counted as *unknown* -- excluded from both numerator and denominator --
+    rather than assumed clean, which would understate the rate, or assumed repaired,
+    which would invent one. ``rows_with_repair_provenance`` says how much of the
+    file the rate actually covers, and the rate is ``None`` when it covers nothing.
+    """
+    known = [row for row in rows if row.get("generated_candidate_count") is not None]
+    generated = sum(int(row["generated_candidate_count"]) for row in known)
+    repaired = sum(int(row.get("repaired_candidate_count") or 0) for row in known)
+    return {
+        "rows_with_repair_provenance": len(known),
+        "rows_without_repair_provenance": len(rows) - len(known),
+        "generated_candidates": generated,
+        "repaired_candidates": repaired,
+        "repaired_candidate_rate": (repaired / generated) if generated else None,
+        "spectra_with_repaired_candidate": sum(
+            1 for row in known if int(row.get("repaired_candidate_count") or 0) > 0
+        ),
+    }
 
 
 def formula_metric_summary(rows: list[dict]) -> dict[str, float]:
@@ -746,6 +818,7 @@ def main() -> None:
         "restrict_organic_elements": args.restrict_organic_elements,
         "chemistry_forbidden_token_count": len(chemistry_forbidden_ids),
         "safe_decode_fix": args.fix_safe_decode,
+        "score_repaired_candidates": args.keep_repaired_candidates,
         "isotope_token": args.isotope_token,
         "token_selection": "multinomial" if args.sample_tokens else "argmax",
         "seed": args.seed,
@@ -850,10 +923,10 @@ def main() -> None:
             target_fingerprint = morgan(target_molecule)
             target_formula = rdMolDescriptors.CalcMolFormula(target_molecule)
             target_connectivity = str(record["inchikey_first_block"])
-            candidates = []
+            generated_candidates = []
             for candidate in ranked:
                 molecule = Chem.MolFromSmiles(candidate.smiles)
-                candidates.append(
+                generated_candidates.append(
                     {
                         "smiles": candidate.smiles,
                         "safe": candidate.safe,
@@ -865,8 +938,16 @@ def main() -> None:
                         "exact_connectivity": connectivity(candidate.smiles)
                         == target_connectivity,
                         "formula": rdMolDescriptors.CalcMolFormula(molecule),
+                        # Whether the model spelled this molecule or the repair
+                        # deleted its way to one. Recorded per candidate so a
+                        # stored file can be rescored without re-decoding.
+                        "repaired": safe_string_needed_repair(candidate.safe),
                     }
                 )
+            candidates, repaired_candidates = split_repaired_candidates(
+                generated_candidates,
+                keep_repaired=args.keep_repaired_candidates,
+            )
             top_ten = candidates[:10]
             result = {
                 "spec_name": spec_name,
@@ -907,6 +988,16 @@ def main() -> None:
                     default=0.0,
                 ),
                 "candidates": candidates,
+                # Provenance, not a metric: how many candidates the sampler
+                # returned and how many of those only existed after the repair.
+                # A row that carries these two keys has been examined; a row that
+                # lacks them predates the check and is unknown, not clean.
+                "generated_candidate_count": len(generated_candidates),
+                "repaired_candidate_count": sum(
+                    1 for candidate in generated_candidates if candidate["repaired"]
+                ),
+                # The excluded ones, kept whole so nothing is thrown away silently.
+                "repaired_candidates": repaired_candidates,
             }
             add_formula_metrics(result, target_formula=target_formula)
             output.write(json.dumps(result, sort_keys=True) + "\n")
@@ -960,6 +1051,7 @@ def main() -> None:
         "tanimoto_top1": mean_metric(rows_with_candidate, "tanimoto_top1"),
         "tanimoto_top10": mean_metric(rows_with_candidate, "tanimoto_top10"),
         **formula_metric_summary(rows),
+        **repair_provenance_metrics(rows),
         "mass_bins": mass_bin_metrics(rows),
         "validity": mean_metric(rows, "validity"),
         "completed_validity": mean_metric(rows, "completed_validity"),
@@ -987,6 +1079,11 @@ def main() -> None:
             "formula_top1_returned": "rows with a returned candidate",
             "formula_top10_all": "all rows",
             "formula_top10_returned": "rows with a returned candidate",
+            "repaired_candidate_rate": (
+                "candidates generated by rows that carry repair provenance; "
+                "null when no row does"
+            ),
+            "spectra_with_repaired_candidate": "rows that carry repair provenance",
             "validity": "all rows",
             "completed_validity": "all rows, branches that were not killed by a constraint",
             "mass_validity": "all rows",

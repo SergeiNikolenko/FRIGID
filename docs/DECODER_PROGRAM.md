@@ -239,6 +239,15 @@ Rules from here on:
 6. **A truncated run is reported as truncated.** `MarlinGenerationStats.truncated` exists;
    surface it in the metrics file so a partially searched spectrum can never be mistaken for
    a fully searched one.
+7. **A repaired candidate is not a candidate.** `safe_to_smiles` defaults to `fix=True`
+   (`src/dlm/utils/utils_chem.py:26`), which deletes every fragment that will not decode and
+   returns the stump — `"c1cccccc1-1.[H+]2.O2-1"` becomes `"O"`. Every candidate now carries
+   `repaired`, every row carries `generated_candidate_count` / `repaired_candidate_count`,
+   and a repaired candidate is dropped before scoring unless `--keep-repaired-candidates`
+   says otherwise. Measured cost on every panel we have: **zero** — 0/247 clean321,
+   0/534 test803-c8, 0/497 c64 returned candidates needed the repair, and all four headline
+   runs already ran with `safe_decode_fix = False`. Prediction files written before this
+   report `repaired_candidate_rate: null`, which means *unknown*, not clean.
 
 ## 8. Infrastructure
 
