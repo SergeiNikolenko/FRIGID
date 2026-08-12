@@ -23,23 +23,31 @@ FAN_DATA = ROOT / "docs/attempt-fan/attempt_fan.json"
 OUTPUT = ROOT / "docs/decoding-page/index.html"
 
 EXTRA_CSS = """
-/* ---------- tabs ---------- */
-.tabs { display: inline-flex; gap: 4px; background: var(--muted); padding: 4px; border-radius: var(--radius); margin-bottom: 16px; }
+/* ---------- masthead: title and tabs on one line ---------- */
+header { padding: 16px 0 10px; margin-bottom: 12px; }
+.masthead { display: flex; justify-content: space-between; align-items: flex-end; gap: 20px; flex-wrap: wrap; }
+h1 { font-size: clamp(17px, 1.5vw, 22px); margin: 0; max-width: 46ch; }
+.standfirst { margin-top: 8px; font-size: 12.5px; }
+.tabs { display: inline-flex; gap: 4px; background: var(--muted); padding: 4px; border-radius: var(--radius); margin: 0; }
 .tabs button {
   border: none; background: transparent; padding: 7px 14px; cursor: pointer;
   border-radius: calc(var(--radius) - 4px); font-weight: 500; font-size: 13.5px; color: var(--muted-foreground);
 }
 .tabs button[aria-selected="true"] { background: var(--background); color: var(--foreground); box-shadow: var(--shadow); }
 
-/* ---------- three columns, then two, then one ---------- */
+/* ---------- gold walk: three columns, then two, then one ---------- */
 @media (max-width: 1250px) {
   .grid { grid-template-columns: minmax(280px, 1fr) minmax(320px, 1.2fr); }
   .grid > section:nth-child(3) { grid-column: 1 / -1; }
 }
 @media (max-width: 820px) { .grid { grid-template-columns: 1fr; } }
-.grid.two { grid-template-columns: minmax(300px, 380px) minmax(360px, 1fr); }
-@media (max-width: 820px) { .grid.two { grid-template-columns: 1fr; } }
-.grid.two > section:nth-child(3) { grid-column: auto; }
+
+/* ---------- real runs: the tree beside the position it points at ---------- */
+.fan-layout { display: grid; gap: 14px; align-items: start; grid-template-columns: minmax(440px, 1fr) minmax(320px, 430px); }
+@media (max-width: 1100px) { .fan-layout { grid-template-columns: 1fr; } }
+.tree-scroll { max-height: 46vh; overflow: auto; }
+details.panel > summary { font-size: 12px; font-weight: 600; color: var(--foreground); cursor: pointer; }
+details.panel > summary:hover { color: var(--muted-foreground); }
 
 /* ---------- tree: what was written, and where it left the gold answer ---------- */
 .branch-label { fill: var(--muted-foreground); font-family: var(--mono); font-size: 8.5px; }
@@ -101,16 +109,18 @@ def main() -> int:
 <body>
 <div class="wrap">
 <header>
-  <p class="eyebrow">MARLIN · constrained decoding · one page, two views</p>
-  <h1>What the decoder wanted to write, and what the mask <em>let</em> it write.</h1>
-  <p class="standfirst">Two ways to look at the same decoder. <b>Gold walk</b> replays a correct molecule
-  position by position and shows what the mask admits at each one. <b>Real runs</b> shows what actually
-  happens when the run is left to itself: eight attempts per spectrum, laid out as a tree of shared
-  prefixes, each ending in a returned candidate or in a dead end.</p>
-  <nav class="tabs" role="tablist">
-    <button id="tabGold" role="tab" aria-selected="true" aria-controls="tab-gold">Gold walk</button>
-    <button id="tabFan" role="tab" aria-selected="false" aria-controls="tab-fan">Real runs</button>
-  </nav>
+  <div class="masthead">
+    <div>
+      <p class="eyebrow">MARLIN · constrained decoding</p>
+      <h1>What the mask allows, and what the run actually does.</h1>
+    </div>
+    <nav class="tabs" role="tablist">
+      <button id="tabGold" role="tab" aria-selected="true" aria-controls="tab-gold">Gold walk</button>
+      <button id="tabFan" role="tab" aria-selected="false" aria-controls="tab-fan">Real runs</button>
+    </nav>
+  </div>
+  <p class="standfirst"><b>Gold walk</b>: replay a correct molecule and watch what the mask admits at each
+  position. <b>Real runs</b>: the eight attempts a spectrum really took, drawn as one tree.</p>
 </header>
 
 <section id="tab-gold" role="tabpanel">

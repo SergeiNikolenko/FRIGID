@@ -354,10 +354,6 @@ tbody tr:hover td, tbody tr.picked td { background: var(--muted); }
 <header>
   <p class="eyebrow">MARLIN · recorded decode · every attempt of one spectrum</p>
   <h1>Eight attempts, one spectrum: where they split, and where they <em>died</em>.</h1>
-  <p class="standfirst">Not the gold answer walked forwards — the run itself. Each attempt starts from the
-  same mass and its own dropout of the fingerprint, writes eight positions per forward pass, and ends
-  either as a returned candidate or in a dead end the mask could not get out of. Rows sharing a prefix
-  share a branch; the branch splits at the first position where they disagree.</p>
 </header>
 
 <div class="controls">
@@ -375,35 +371,35 @@ tbody tr:hover td, tbody tr.picked td { background: var(--muted); }
   </div>
 </div>
 
-<section class="panel" style="margin-bottom:16px">
+<div class="fan-layout">
+  <section class="panel">
     <h2>The fan · <span id="fanMeta"></span></h2>
     <div class="stat-row" id="stats"></div>
     <div class="tree-scroll">
       <svg id="tree" role="img" aria-label="Attempts as a tree of shared prefixes"></svg>
     </div>
     <ul class="legend">
-      <li><b style="background:var(--allowed)"></b>returned a candidate</li>
-      <li><b style="background:var(--unwritable)"></b>grammar deadlock <span style="color:var(--muted-foreground)">(nothing may follow)</span></li>
-      <li><b style="background:var(--unreachable)"></b>mass deadlock <span style="color:var(--muted-foreground)">(target no longer reachable)</span></li>
-      <li><b style="background:var(--muted-foreground)"></b>ran out of length or was refused at EOS</li>
+      <li><b style="background:var(--allowed)"></b>returned</li>
+      <li><b style="background:var(--unwritable)"></b>grammar deadlock</li>
+      <li><b style="background:var(--unreachable)"></b>mass deadlock</li>
+      <li><b style="background:var(--muted-foreground)"></b>length or EOS</li>
+      <li><span style="color:var(--unwritable);font-weight:600">&times;</span>&nbsp;left the gold spelling</li>
     </ul>
-    <ul class="legend" style="margin-top:8px">
-      <li><b style="background:var(--allowed)"></b>still spelling the answer the way the gold record spells it</li>
-      <li><span style="color:var(--unwritable);font-weight:600">&times;</span>&nbsp;first token that departs from that spelling</li>
-    </ul>
-    <p class="note" style="margin-top:6px">SAFE writes one molecule in many ways, so departing from the gold
-    spelling is not the same as building the wrong molecule. Judge the molecule by the structure match on the
-    left, and read the cross as the point where this attempt stopped being comparable token by token.</p>
-    <p class="note">Branch thickness is how many attempts still agree at that point. A split is a position
-    where the sampler, given a different dropout of the same fingerprint, chose a different token.
-    <br><br>There is no way back up a branch: the decoder never backtracks. Eight positions are committed in
-    one forward pass, and when the mask leaves nothing to write, the attempt is abandoned and a fresh one
-    starts from the beginning. Every leaf is a whole life of the decoder, not a branch it could retry.</p>
+    <details class="fold">
+      <summary>How to read this</summary>
+      <p class="note">Every attempt starts from the same mass and its own dropout of the fingerprint. Attempts
+      that agree share a branch; the branch splits at the first position where they disagree, and thickness is
+      how many attempts still agree there. Click any branch to walk that attempt from that position.</p>
+      <p class="note">There is no way back up a branch: the decoder never backtracks. Eight positions are
+      committed in one forward pass, and when the mask leaves nothing to write, the attempt is abandoned and a
+      fresh one starts from the beginning. Every leaf is a whole life of the decoder.</p>
+      <p class="note">SAFE writes one molecule in many ways, so leaving the gold spelling (&times;) is not the
+      same as building the wrong molecule — judge that by the structure match on the right.</p>
+    </details>
   </section>
 
-<div class="grid two">
   <section class="panel">
-    <h2>Target · <span id="specName"></span></h2>
+    <h2>At this position · <span id="specName"></span></h2>
     <div class="structures">
       <figure class="struct" id="targetStruct">
         <figcaption>Gold answer</figcaption>
@@ -415,47 +411,44 @@ tbody tr:hover td, tbody tr.picked td { background: var(--muted); }
       </figure>
     </div>
     <p class="note" id="matchNote"></p>
-    <ul class="facts">
-      <li><span>Formula</span><span id="fFormula"></span></li>
-      <li><span>Conditioning mass</span><span id="fMass"></span></li>
-      <li><span>Heavy atoms</span><span id="fHeavy"></span></li>
-      <li><span>Run time</span><span id="fRuntime"></span></li>
-    </ul>
-    <p class="smiles" id="fSmiles"></p>
-  </section>
-
-  <section class="panel">
-    <h2>This attempt, position by position</h2>
     <div class="tape" id="tape"></div>
-    <h2 style="margin-top:16px">Admitted tokens along this attempt</h2>
-    <div class="support-line">
-      <svg id="supportLine" viewBox="0 0 300 60" preserveAspectRatio="none" role="img" aria-label="Admitted token count at each position"></svg>
-    </div>
-    <h2 style="margin-top:16px">This position</h2>
     <table>
       <thead><tr><th>Token</th><th class="bar-cell">Model probability</th><th></th><th>Taken</th></tr></thead>
       <tbody id="tokens"></tbody>
     </table>
     <p class="note" id="endingNote"></p>
+    <details class="fold">
+      <summary>Spectrum and run details</summary>
+      <ul class="facts">
+        <li><span>Formula</span><span id="fFormula"></span></li>
+        <li><span>Conditioning mass</span><span id="fMass"></span></li>
+        <li><span>Heavy atoms</span><span id="fHeavy"></span></li>
+        <li><span>Run time</span><span id="fRuntime"></span></li>
+      </ul>
+      <p class="smiles" id="fSmiles"></p>
+      <div class="support-line">
+        <h2 style="margin-top:12px">Admitted tokens along this attempt</h2>
+        <svg id="supportLine" viewBox="0 0 300 60" preserveAspectRatio="none" role="img" aria-label="Admitted token count at each position"></svg>
+      </div>
+    </details>
   </section>
 </div>
 
-<section class="panel" style="margin-top:16px">
+<section class="panel" style="margin-top:14px">
   <h2>All attempts · <span id="attemptsMeta"></span></h2>
   <ul class="attempt-list" id="attempts"></ul>
 </section>
 
-<section class="panel" style="margin-top:16px">
-  <h2>What each attempt ended up drawing</h2>
-  <div class="cards" id="endings"></div>
+<details class="panel fold" style="margin-top:14px">
+  <summary>What each attempt ended up drawing</summary>
+  <div class="cards" id="endings" style="margin-top:12px"></div>
   <p class="note">A dead end still has a molecule behind it: the largest readable piece of the prefix at the
   moment the mask ran out of tokens. Comparing it with the gold answer is how a defect in the decoder is
   told apart from a defect in the constraints.</p>
-</section>
+</details>
 
 <p class="note">Recorded by <code>scripts/evaluate_marlin_nplib1.py --trace-output</code> on the clean-panel
-settings: 8 candidates, dropout 0.3, temperature 1.0, sampled tokens, ±10 ppm, 1,800 s per spectrum.
-Dead ends are named by putting the recorded prefix back to the same masks the run used.</p>
+settings: 8 candidates, dropout 0.3, temperature 1.0, sampled tokens, ±10 ppm.</p>
 </div>
 <div id="zoom" role="dialog" aria-modal="true" aria-label="Enlarged structure">
   <div class="frame">
