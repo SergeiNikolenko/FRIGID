@@ -44,3 +44,6 @@ token_models/data/*
 token_models/models/*
 token_models/optimization_pubchem/*
 utils_old/*
+
+# Generated demo page: the data is baked into the file, rebuild with scripts/build_decoding_demo.py
+docs/decoding-demo/index.html

@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MARLIN · what the decoder wanted, what the mask allowed</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,700;12..96,800&family=Archivo:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  color-scheme: dark;
+  --bg:            #101010;
+  --surface-1:     #1a1a19;
+  --surface-2:     #232322;
+  --line:          #302f2d;
+  --text-primary:  #ffffff;
+  --text-secondary:#c3c2b7;
+  --text-muted:    #85847c;
+
+  /* Three hues, validated as a set on all pairs (OKLab CVD 9.4, normal 20.9,
+     contrast >= 3:1 on this surface). The exact restriction is always spelled
+     out on the chip, so colour carries the family and the word carries the rest. */
+  --allowed:       #199e70;  /* admitted */
+  --unwritable:    #d95926;  /* the character cannot go here: syntax, chemistry */
+  --unreachable:   #3987e5;  /* the molecule cannot be finished: mass, connectivity */
+
+  --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --ui: "Archivo", ui-sans-serif, system-ui, sans-serif;
+  --display: "Bricolage Grotesque", "Archivo", ui-sans-serif, system-ui, sans-serif;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); }
+body {
+  font-family: var(--ui);
+  color: var(--text-primary);
+  font-size: 14px;
+  line-height: 1.5;
+  padding: 0 0 64px;
+}
+.wrap { max-width: 1440px; margin: 0 auto; padding: 0 24px; }
+
+/* ---------- masthead ---------- */
+header { border-bottom: 1px solid var(--line); padding: 28px 0 22px; margin-bottom: 22px; }
+.eyebrow {
+  font-family: var(--mono); font-size: 11px; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--text-muted); margin: 0 0 10px;
+}
+h1 {
+  font-family: var(--display); font-weight: 800; font-size: clamp(28px, 3.6vw, 46px);
+  line-height: 1.02; letter-spacing: -.02em; margin: 0 0 10px; max-width: 20ch;
+}
+h1 em { font-style: normal; color: var(--allowed); }
+.standfirst { color: var(--text-secondary); max-width: 68ch; margin: 0; }
+
+/* ---------- controls ---------- */
+.controls {
+  display: flex; gap: 16px; align-items: center; flex-wrap: wrap;
+  padding: 14px 16px; background: var(--surface-1);
+  border: 1px solid var(--line); border-radius: 10px; margin-bottom: 20px;
+}
+.controls label {
+  font-family: var(--mono); font-size: 11px; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--text-muted); display: block; margin-bottom: 5px;
+}
+select, button {
+  font-family: var(--ui); font-size: 14px; color: var(--text-primary);
+  background: var(--surface-2); border: 1px solid var(--line);
+  border-radius: 7px; padding: 8px 11px;
+}
+select { min-width: 300px; }
+button { cursor: pointer; min-width: 44px; }
+button:hover { border-color: var(--text-muted); }
+button[aria-pressed="true"] { background: var(--allowed); border-color: var(--allowed); color: #04150e; }
+:focus-visible { outline: 2px solid var(--allowed); outline-offset: 2px; }
+.step-field { flex: 1 1 320px; min-width: 240px; }
+input[type=range] { width: 100%; accent-color: var(--allowed); }
+.step-count { font-family: var(--mono); font-size: 13px; color: var(--text-secondary); }
+
+/* ---------- layout ---------- */
+.grid {
+  display: grid; gap: 16px; align-items: start;
+  grid-template-columns: minmax(260px, 320px) minmax(420px, 1fr) minmax(260px, 340px);
+}
+@media (max-width: 1100px) { .grid { grid-template-columns: 1fr; } }
+.panel {
+  background: var(--surface-1); border: 1px solid var(--line);
+  border-radius: 10px; padding: 16px;
+}
+.panel h2 {
+  font-family: var(--mono); font-size: 11px; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--text-muted); margin: 0 0 12px; font-weight: 500;
+}
+.panel h2 span { color: var(--text-secondary); }
+figure { margin: 0; }
+figure svg { display: block; width: 100%; height: auto; }
+.facts { list-style: none; margin: 12px 0 0; padding: 0; font-family: var(--mono); font-size: 12px; }
+.facts li { display: flex; justify-content: space-between; gap: 12px; padding: 4px 0; border-top: 1px solid var(--line); }
+.facts span:first-child { color: var(--text-muted); }
+.smiles { font-family: var(--mono); font-size: 11px; color: var(--text-secondary); word-break: break-all; margin: 10px 0 0; }
+
+/* ---------- signature: the SAFE tape ---------- */
+.tape { display: flex; flex-wrap: wrap; gap: 3px; margin-bottom: 6px; }
+.cell {
+  font-family: var(--mono); font-size: 13px; font-weight: 500;
+  padding: 5px 6px; border-radius: 4px; background: var(--surface-2);
+  color: var(--text-secondary); border: 1px solid transparent; white-space: pre;
+}
+.cell.done { color: var(--text-primary); }
+.cell.now { background: var(--allowed); color: #04150e; border-color: var(--allowed); }
+.cell.ahead { opacity: .28; }
+/* the positions the model resolves in one forward pass */
+.cell.in-block { border-color: var(--text-muted); opacity: 1; }
+.cell.block-start { margin-left: 10px; }
+
+/* ---------- mass shell ---------- */
+.mass-track {
+  position: relative; height: 26px; background: var(--surface-2);
+  border-radius: 4px; overflow: hidden; margin: 6px 0 4px;
+}
+.mass-fill { position: absolute; inset: 0 auto 0 0; background: var(--unreachable); border-radius: 0 4px 4px 0; }
+.mass-legend { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 11px; color: var(--text-muted); }
+
+/* ---------- token table ---------- */
+table { width: 100%; border-collapse: collapse; margin-top: 4px; }
+th {
+  font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--text-muted); text-align: left; font-weight: 500; padding: 0 8px 7px 0;
+}
+td { padding: 5px 8px 5px 0; border-top: 1px solid var(--line); vertical-align: middle; }
+.tok { font-family: var(--mono); font-size: 13px; font-weight: 700; }
+.tok.is-gold::after {
+  content: "gold"; font-size: 9px; font-weight: 500; letter-spacing: .08em;
+  margin-left: 7px; padding: 2px 5px; border-radius: 3px;
+  background: var(--surface-2); color: var(--text-secondary); text-transform: uppercase;
+}
+.bar-cell { width: 42%; }
+.bar-track { height: 9px; background: var(--surface-2); border-radius: 4px; overflow: hidden; }
+.bar { height: 100%; border-radius: 0 4px 4px 0; background: var(--text-muted); }
+.prob { font-family: var(--mono); font-size: 12px; color: var(--text-secondary); text-align: right; white-space: nowrap; }
+.chip {
+  font-family: var(--mono); font-size: 10px; letter-spacing: .06em; text-transform: uppercase;
+  padding: 3px 7px; border-radius: 999px; white-space: nowrap;
+  border: 1px solid currentColor;
+}
+.g-allowed { color: var(--allowed); } .bar.g-allowed { background: var(--allowed); }
+.g-unwritable { color: var(--unwritable); } .bar.g-unwritable { background: var(--unwritable); }
+.g-unreachable { color: var(--unreachable); } .bar.g-unreachable { background: var(--unreachable); }
+
+/* ---------- model input ---------- */
+.fingerprint { display: grid; grid-template-columns: repeat(64, 1fr); gap: 1px; }
+.fingerprint i { display: block; aspect-ratio: 1; background: var(--surface-2); border-radius: 1px; }
+.fingerprint i.on { background: var(--allowed); }
+
+/* ---------- signature: the vocabulary wall ---------- */
+.wall { display: grid; grid-template-columns: repeat(47, 1fr); gap: 1px; margin-bottom: 10px; }
+.wall i {
+  display: block; aspect-ratio: 1; border-radius: 1px;
+  background: var(--surface-2); transition: background 90ms linear;
+}
+@media (prefers-reduced-motion: reduce) { .wall i { transition: none; } }
+.wall i.on { background: var(--allowed); }
+.wall i.gold { background: var(--text-primary); }
+.legend { display: flex; flex-wrap: wrap; gap: 10px 14px; margin: 12px 0 0; padding: 0; list-style: none; }
+.legend li { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-secondary); }
+.legend b { width: 10px; height: 10px; border-radius: 2px; display: block; }
+.support-line { margin-top: 12px; }
+.support-line svg { width: 100%; height: 54px; display: block; }
+
+/* ---------- footer panels ---------- */
+.pair { display: grid; gap: 16px; grid-template-columns: 1fr 1fr; margin-top: 16px; }
+@media (max-width: 860px) { .pair { grid-template-columns: 1fr; } }
+.cards { display: flex; gap: 12px; flex-wrap: wrap; }
+.card { background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; padding: 10px; width: 210px; }
+.card figure svg { max-height: 150px; }
+.card p { font-family: var(--mono); font-size: 11px; color: var(--text-secondary); margin: 8px 0 0; word-break: break-all; }
+.flag { display: inline-block; font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: .06em; padding: 2px 6px; border-radius: 3px; margin-bottom: 6px; }
+.flag.split { background: var(--unreachable); color: #04101f; }
+.flag.whole { background: var(--allowed); color: #04150e; }
+.empty { color: var(--text-muted); font-family: var(--mono); font-size: 12px; }
+.note { color: var(--text-muted); font-size: 12px; margin-top: 14px; max-width: 80ch; }
+#tip {
+  position: fixed; pointer-events: none; z-index: 20; opacity: 0;
+  background: #000; border: 1px solid var(--line); border-radius: 6px;
+  padding: 5px 8px; font-family: var(--mono); font-size: 11px; color: var(--text-primary);
+  transition: opacity 90ms linear;
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <p class="eyebrow">MARLIN · constrained decoding · teacher-forced walk of the gold answer</p>
+  <h1>What the decoder wanted to write, and what the mask <em>let</em> it write.</h1>
+  <p class="standfirst">Every position of a real molecule, one step at a time. The model ranks the whole
+  vocabulary; the mask then refuses most of it — for chemistry, for syntax, because the target mass
+  would become unreachable, or because the piece could never bond to what is already written. Pick a
+  molecule and walk it.</p>
+</header>
+
+<div class="controls">
+  <div>
+    <label for="molecule">Molecule</label>
+    <select id="molecule"></select>
+  </div>
+  <div class="step-field">
+    <label for="step">Position <span class="step-count" id="stepCount"></span></label>
+    <input type="range" id="step" min="0" value="0">
+  </div>
+  <div>
+    <label for="prev">Walk</label>
+    <button id="prev" title="Previous position (←)">←</button>
+    <button id="next" title="Next position (→)">→</button>
+    <button id="play" aria-pressed="false" title="Play the walk">Play</button>
+  </div>
+</div>
+
+<div class="grid">
+  <section class="panel">
+    <h2>Target · <span id="specName"></span></h2>
+    <figure id="targetFig"></figure>
+    <ul class="facts">
+      <li><span>Formula</span><span id="fFormula"></span></li>
+      <li><span>Conditioning mass</span><span id="fMass"></span></li>
+      <li><span>Heavy atoms</span><span id="fHeavy"></span></li>
+      <li><span>SAFE length</span><span id="fLen"></span></li>
+    </ul>
+    <p class="smiles" id="fSmiles"></p>
+
+    <h2 style="margin-top:18px">Everything the model is given</h2>
+    <div class="fingerprint" id="fingerprint" title="4,096 Morgan bits"></div>
+    <p class="note" id="fpNote" style="margin-top:8px"></p>
+  </section>
+
+  <section class="panel">
+    <h2>The string being written · <span id="tapeCount"></span></h2>
+    <div class="tape" id="tape"></div>
+    <h2 style="margin-top:18px">Mass shell</h2>
+    <div class="mass-track">
+      <div class="mass-fill" id="massFill"></div>
+    </div>
+    <div class="mass-legend"><span id="massWritten"></span><span id="massTarget"></span></div>
+    <h2 style="margin-top:18px">This position · model ranking against the mask</h2>
+    <table>
+      <thead><tr><th>Token</th><th class="bar-cell">Model probability</th><th></th><th>Verdict</th></tr></thead>
+      <tbody id="tokens"></tbody>
+    </table>
+  </section>
+
+  <section class="panel">
+    <h2>Vocabulary · <span id="wallCount"></span></h2>
+    <div class="wall" id="wall"></div>
+    <ul class="legend">
+      <li><b style="background:var(--allowed)"></b>admitted here</li>
+      <li><b style="background:var(--surface-2)"></b>refused here</li>
+      <li><b style="background:var(--text-primary)"></b>gold token</li>
+    </ul>
+    <div class="support-line">
+      <h2>Admitted tokens across the walk</h2>
+      <svg id="supportLine" viewBox="0 0 300 54" preserveAspectRatio="none" role="img" aria-label="Admitted token count at each position"></svg>
+    </div>
+    <ul class="legend" style="margin-top:14px">
+      <li><b style="background:var(--allowed)"></b>admitted</li>
+      <li><b style="background:var(--unwritable)"></b>character can't go here <span style="color:var(--text-muted)">(syntax, chemistry)</span></li>
+      <li><b style="background:var(--unreachable)"></b>molecule can't be finished <span style="color:var(--text-muted)">(mass, connectivity)</span></li>
+    </ul>
+  </section>
+</div>
+
+<div class="pair">
+  <section class="panel">
+    <h2>Assembled so far</h2>
+    <figure id="assembledFig"></figure>
+    <p class="note" id="assembledNote"></p>
+  </section>
+  <section class="panel">
+    <h2>What the run actually returned · <span id="runMeta"></span></h2>
+    <div class="cards" id="returned"></div>
+    <p class="note">These came from the 321-spectrum clean-panel run, before the connectivity rule.
+    A candidate marked <em>in pieces</em> is one the mask now refuses: the decoder had finished a
+    molecule and then padded it up to the target mass with fragments that share no bond with it.</p>
+  </section>
+</div>
+
+<p class="note">Teacher-forced: at every position the prefix is the gold answer, so the ranking shown is
+what the model would have proposed had it written the molecule correctly up to that point. Probabilities
+come from the same <code>sampling_logits</code> call the sampler makes; verdicts come from the same mask
+the evaluation run builds, and a token is attributed to the first restriction that refuses it.</p>
+</div>
+<div id="tip" role="status"></div>
+
+<script>
+const DEMO = /*DEMO_DATA*/;
+
+/* Colour carries the family; the chip keeps the exact restriction in words. */
+const GROUP = {
+  allowed: 'allowed',
+  syntax: 'unwritable', chemistry: 'unwritable',
+  mass: 'unreachable', connectivity: 'unreachable',
+};
+
+const el = id => document.getElementById(id);
+const state = { molecule: 0, step: 0, timer: null };
+
+/* ---- vocabulary wall order: group the tokens so the wall reads ---- */
+const VOCAB = DEMO.vocabulary_tokens;
+function family(token) {
+  if (/^\[/.test(token)) return 3;
+  if (/^%?\d+$/.test(token)) return 2;
+  if (/^[A-Za-z]+$/.test(token)) return 1;
+  if (/^[()=#.\-\/\\+]+$/.test(token)) return 0;
+  return 4;
+}
+const WALL_ORDER = VOCAB.map((t, i) => i).sort((a, b) =>
+  family(VOCAB[a]) - family(VOCAB[b]) || VOCAB[a].localeCompare(VOCAB[b]));
+
+const wall = el('wall');
+WALL_ORDER.forEach(id => {
+  const cell = document.createElement('i');
+  cell.dataset.id = id;
+  wall.appendChild(cell);
+});
+const WALL_CELLS = [...wall.children];
+
+/* ---- tooltip ---- */
+const tip = el('tip');
+function showTip(text, event) {
+  tip.textContent = text;
+  tip.style.opacity = 1;
+  tip.style.left = Math.min(event.clientX + 12, innerWidth - 180) + 'px';
+  tip.style.top = (event.clientY + 14) + 'px';
+}
+wall.addEventListener('mousemove', event => {
+  const cell = event.target.closest('i');
+  if (!cell) return;
+  const id = +cell.dataset.id;
+  showTip(`${JSON.stringify(VOCAB[id])} · ${cell.classList.contains('on') ? 'admitted' : 'refused'}`, event);
+});
+wall.addEventListener('mouseleave', () => { tip.style.opacity = 0; });
+
+/* ---- molecule picker ---- */
+const picker = el('molecule');
+DEMO.molecules.forEach((m, i) => {
+  const option = document.createElement('option');
+  option.value = i;
+  option.textContent = `${m.formula} · ${m.target_mass.toFixed(1)} Da · ${m.spec_name}`;
+  picker.appendChild(option);
+});
+
+function unpack(base64, size) {
+  const binary = atob(base64);
+  const bits = new Uint8Array(size);
+  for (let i = 0; i < size; i++) {
+    bits[i] = (binary.charCodeAt(i >> 3) >> (i & 7)) & 1;
+  }
+  return bits;
+}
+
+function renderMolecule() {
+  const m = DEMO.molecules[state.molecule];
+  el('specName').textContent = m.spec_name;
+  el('targetFig').innerHTML = m.target_svg || '';
+  el('fFormula').textContent = m.formula;
+  el('fMass').textContent = m.target_mass.toFixed(4) + ' Da';
+  el('fHeavy').textContent = m.heavy_atoms;
+  el('fLen').textContent = m.safe.length + ' chars · ' + m.steps.length + ' tokens';
+  el('fSmiles').textContent = m.smiles;
+
+  const bits = unpack(m.fingerprint_bits, DEMO.fingerprint_size);
+  const fingerprint = el('fingerprint');
+  fingerprint.innerHTML = '';
+  for (let i = 0; i < DEMO.fingerprint_size; i++) {
+    const cell = document.createElement('i');
+    if (bits[i]) cell.className = 'on';
+    fingerprint.appendChild(cell);
+  }
+  el('fpNote').textContent =
+    `${m.fingerprint_on} of ${DEMO.fingerprint_size} Morgan bits are on, plus the ${m.target_mass.toFixed(3)} Da `
+    + `conditioning mass. That is the whole input: no spectrum, no formula, no atom count. `
+    + `Everything below is the model turning these bits into a string, one block of `
+    + `${DEMO.block_width} positions at a time.`;
+  el('step').max = m.steps.length - 1;
+  el('wallCount').textContent = VOCAB.length + ' tokens, ' + DEMO.chemistry_forbidden + ' withheld by chemistry everywhere';
+
+  const returned = el('returned');
+  returned.innerHTML = '';
+  if (!m.returned || !m.returned.candidates.length) {
+    el('runMeta').textContent = m.returned
+      ? `${m.returned.attempts} attempts, nothing returned`
+      : 'not in the run';
+    returned.innerHTML = '<p class="empty">Every attempt died in a constraint dead end.</p>';
+  } else {
+    el('runMeta').textContent =
+      `${m.returned.runtime_seconds.toFixed(0)} s · ${m.returned.attempts} attempts · ${m.returned.constraint_dead_ends} dead ends`;
+    m.returned.candidates.forEach(c => {
+      const card = document.createElement('div');
+      card.className = 'card';
+      const split = c.fragments > 1;
+      card.innerHTML =
+        `<span class="flag ${split ? 'split' : 'whole'}">${split ? 'in ' + c.fragments + ' pieces' : 'one molecule'}</span>` +
+        `<figure>${c.svg || ''}</figure>` +
+        `<p>${c.mass_error_ppm.toFixed(1)} ppm · tanimoto ${c.tanimoto.toFixed(2)}<br>${c.smiles}</p>`;
+      returned.appendChild(card);
+    });
+  }
+  drawSupportLine(m);
+}
+
+function drawSupportLine(m) {
+  const svg = el('supportLine');
+  const values = m.steps.map(s => s.support);
+  const top = Math.max(...values, 1);
+  const points = values.map((v, i) => {
+    const x = values.length > 1 ? (i / (values.length - 1)) * 300 : 0;
+    return `${x.toFixed(1)},${(50 - (v / top) * 46).toFixed(1)}`;
+  }).join(' ');
+  svg.innerHTML =
+    `<polyline points="${points}" fill="none" stroke="var(--allowed)" stroke-width="2"
+       vector-effect="non-scaling-stroke" stroke-linejoin="round"/>` +
+    `<line id="cursor" x1="0" x2="0" y1="0" y2="54" stroke="var(--text-muted)" stroke-width="1" vector-effect="non-scaling-stroke"/>`;
+}
+
+function renderStep() {
+  const m = DEMO.molecules[state.molecule];
+  const step = m.steps[state.step];
+  el('step').value = state.step;
+  el('stepCount').textContent = `${state.step + 1} of ${m.steps.length}`;
+
+  /* tape */
+  const tape = el('tape');
+  tape.innerHTML = '';
+  m.steps.forEach((s, i) => {
+    const cell = document.createElement('span');
+    const where = i < state.step ? 'done' : i === state.step ? 'now' : 'ahead';
+    const sameBlock = s.block === step.block && i !== state.step;
+    cell.className = 'cell ' + where
+      + (sameBlock ? ' in-block' : '')
+      + (i > 0 && s.block !== m.steps[i - 1].block ? ' block-start' : '');
+    cell.textContent = s.gold_token;
+    cell.title = `position ${s.position} · block ${s.block + 1}`;
+    cell.addEventListener('click', () => { state.step = i; renderStep(); });
+    tape.appendChild(cell);
+  });
+  el('tapeCount').textContent =
+    `${step.written.length} of ${m.safe.length} characters · block ${step.block + 1}, `
+    + `${DEMO.block_width} positions resolved per forward pass`;
+
+  /* mass shell: the lower bound the prefix already commits, against the target */
+  const committed = step.written_mass;
+  const share = committed === null ? 0 : Math.min(committed / m.target_mass, 1);
+  el('massFill').style.width = (share * 100).toFixed(2) + '%';
+  el('massWritten').textContent = committed === null
+    ? 'mid-token — no mass committed yet'
+    : `${committed.toFixed(3)} Da committed · ${(m.target_mass - committed).toFixed(3)} Da still to place`;
+  el('massTarget').textContent = `${m.target_mass.toFixed(3)} Da target · ±${DEMO.ppm_tolerance} ppm`;
+
+  /* token table */
+  const body = el('tokens');
+  body.innerHTML = '';
+  const top = Math.max(...step.tokens.map(t => t.probability), 1e-9);
+  step.tokens.forEach(t => {
+    const row = document.createElement('tr');
+    const family = GROUP[t.verdict];
+    row.innerHTML =
+      `<td class="tok ${t.gold ? 'is-gold' : ''}">${escapeHtml(t.token)}</td>` +
+      `<td class="bar-cell"><div class="bar-track"><div class="bar g-${family}" style="width:${Math.max((t.probability / top) * 100, 1.5).toFixed(1)}%"></div></div></td>` +
+      `<td class="prob">${t.probability < 0.001 ? t.probability.toExponential(1) : t.probability.toFixed(3)}</td>` +
+      `<td><span class="chip g-${family}">${t.verdict}</span></td>`;
+    body.appendChild(row);
+  });
+
+  /* vocabulary wall */
+  const bits = unpack(step.support_bits, VOCAB.length);
+  const goldId = VOCAB.indexOf(step.gold_token);
+  WALL_CELLS.forEach(cell => {
+    const id = +cell.dataset.id;
+    cell.className = id === goldId ? 'gold' : (bits[id] ? 'on' : '');
+  });
+  el('wallCount').textContent = `${step.support} of ${VOCAB.length} tokens admitted here`;
+
+  /* assembled: carry the last readable structure forward so the molecule keeps
+     growing on screen instead of blinking out mid-fragment */
+  let readable = null;
+  for (let i = state.step; i >= 0; i--) {
+    if (m.steps[i].assembled) { readable = m.steps[i]; break; }
+  }
+  el('assembledFig').innerHTML = readable ? (m.fragment_svgs[readable.assembled] || '') : '';
+  el('assembledNote').innerHTML = !readable
+    ? 'Nothing readable yet — the string so far is one unfinished fragment.'
+    : (readable === step
+        ? `<span style="color:var(--allowed)">whole fragments at this position</span> · ${escapeHtml(readable.assembled)}`
+        : `<span style="color:var(--text-muted)">last whole fragments, from position ${readable.position}; the current one is still being written</span> · ${escapeHtml(readable.assembled)}`);
+
+  const cursor = document.querySelector('#supportLine #cursor');
+  if (cursor) {
+    const x = m.steps.length > 1 ? (state.step / (m.steps.length - 1)) * 300 : 0;
+    cursor.setAttribute('x1', x); cursor.setAttribute('x2', x);
+  }
+}
+
+function escapeHtml(text) {
+  return text.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+}
+
+picker.addEventListener('change', () => {
+  state.molecule = +picker.value; state.step = 0; renderMolecule(); renderStep();
+});
+el('step').addEventListener('input', () => { state.step = +el('step').value; renderStep(); });
+el('prev').addEventListener('click', () => { state.step = Math.max(0, state.step - 1); renderStep(); });
+el('next').addEventListener('click', () => { step(+1); });
+el('play').addEventListener('click', () => {
+  const button = el('play');
+  if (state.timer) {
+    clearInterval(state.timer); state.timer = null;
+    button.setAttribute('aria-pressed', 'false'); button.textContent = 'Play';
+    return;
+  }
+  button.setAttribute('aria-pressed', 'true'); button.textContent = 'Pause';
+  state.timer = setInterval(() => step(+1, true), 420);
+});
+function step(delta, stopAtEnd) {
+  const last = DEMO.molecules[state.molecule].steps.length - 1;
+  if (state.step >= last && stopAtEnd) { el('play').click(); return; }
+  state.step = Math.min(last, Math.max(0, state.step + delta));
+  renderStep();
+}
+addEventListener('keydown', event => {
+  if (event.target.tagName === 'SELECT') return;
+  if (event.key === 'ArrowRight') { step(+1); event.preventDefault(); }
+  if (event.key === 'ArrowLeft') { step(-1); event.preventDefault(); }
+});
+
+renderMolecule();
+renderStep();
+</script>
+</body>
+</html>
