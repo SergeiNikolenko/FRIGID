@@ -388,9 +388,12 @@ tbody tr:hover td, tbody tr.picked td { background: var(--muted); }
       <li><b style="background:var(--muted-foreground)"></b>ran out of length or was refused at EOS</li>
     </ul>
     <ul class="legend" style="margin-top:8px">
-      <li><b style="background:var(--allowed)"></b>this branch is still writing the gold string</li>
-      <li><span style="color:var(--unwritable);font-weight:600">&times;</span>&nbsp;the token where it left the gold answer</li>
+      <li><b style="background:var(--allowed)"></b>still spelling the answer the way the gold record spells it</li>
+      <li><span style="color:var(--unwritable);font-weight:600">&times;</span>&nbsp;first token that departs from that spelling</li>
     </ul>
+    <p class="note" style="margin-top:6px">SAFE writes one molecule in many ways, so departing from the gold
+    spelling is not the same as building the wrong molecule. Judge the molecule by the structure match on the
+    left, and read the cross as the point where this attempt stopped being comparable token by token.</p>
     <p class="note">Branch thickness is how many attempts still agree at that point. A split is a position
     where the sampler, given a different dropout of the same fingerprint, chose a different token.
     <br><br>There is no way back up a branch: the decoder never backtracks. Eight positions are committed in
@@ -796,7 +799,8 @@ function renderAttempt() {
 
   drawSupport(attempt);
   el('endingNote').innerHTML =
-    `Wrote the gold string for ${attempt.agrees_to} of ${attempt.steps.length} positions, then left it.<br>`
+    `Matched the gold spelling for ${attempt.agrees_to} of ${attempt.steps.length} positions `
+    + `(SAFE has many spellings — the structure match is the real check).<br>`
     + `Position ${step ? step.position : '—'} · ${step ? step.support : '—'} of the vocabulary admitted · `
     + `${step ? step.heavy_mass.toFixed(3) : '—'} Da committed of ${spectrum.target_mass.toFixed(3)} Da. `
     + `<br>This attempt ${outcomeWords(attempt)}`
