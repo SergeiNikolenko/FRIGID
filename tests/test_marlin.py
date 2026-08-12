@@ -1346,3 +1346,16 @@ def test_time_budget_truncates_between_batches_and_says_so():
         sampler.generate_ranked_with_stats(
             torch.zeros(8), target_mass, candidates=2, time_budget_seconds=0
         )
+
+    # scripts/evaluate_marlin_nplib1.py asks for 8 candidates in one batch of 8,
+    # so a deadline read only between batches is never read at all: a spectrum of
+    # the clean 321-spectrum panel ran 19,311 s against --per-spectrum-seconds
+    # 1800, and the panel's own three-spectrum arm never finished.
+    _, single_batch = sampler.generate_ranked_with_stats(
+        torch.zeros(8),
+        target_mass,
+        candidates=8,
+        candidate_batch_size=8,
+        time_budget_seconds=1e-9,
+    )
+    assert single_batch.truncated

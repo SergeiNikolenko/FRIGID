@@ -291,7 +291,10 @@ class MarlinSampler:
                 temperature=temperature,
                 generator=generator,
                 isotope_ratios=isotope_ratios,
+                deadline=deadline,
             )
+            if deadline is not None and time.perf_counter() >= deadline:
+                truncated = True
             generated.extend(batch_generated)
             valid += batch_valid
             for name in (
@@ -366,6 +369,7 @@ class MarlinSampler:
         temperature: float,
         generator: torch.Generator | None,
         isotope_ratios: Sequence[float] | None = None,
+        deadline: float | None = None,
     ) -> tuple[list[tuple[str, str, bool] | None], int, dict[str, int | list[str]]]:
         """Generate candidates in one GPU batch and retain per-row constraints."""
         device = next(self.model.parameters()).device
@@ -403,6 +407,13 @@ class MarlinSampler:
 
         while prefix.shape[1] < self.model.config.max_length:
             if not active.any():
+                break
+            if deadline is not None and time.perf_counter() >= deadline:
+                # A batch holding every candidate never reaches a batch boundary,
+                # so a deadline read only there is never read: one spectrum of the
+                # clean panel ran 19,311 s against a 1,800 s budget. The rows still
+                # decoding are abandoned unfinished, exactly as the length cap
+                # abandons them.
                 break
             block_start = prefix.shape[1]
             block_width = self._next_block_width(block_start)
@@ -583,6 +594,7 @@ class MarlinSampler:
         temperature: float,
         generator: torch.Generator | None,
         isotope_ratios: Sequence[float] | None = None,
+        deadline: float | None = None,
     ) -> tuple[list[tuple[str, str, bool] | None], int, dict[str, int | list[str]]]:
         """Generate candidates by filling a fixed masked canvas like DLM sampling."""
         device = next(self.model.parameters()).device
@@ -624,6 +636,8 @@ class MarlinSampler:
         }
 
         while unresolved.any():
+            if deadline is not None and time.perf_counter() >= deadline:
+                break
             with torch.autocast(
                 device_type=device.type,
                 dtype=torch.bfloat16,

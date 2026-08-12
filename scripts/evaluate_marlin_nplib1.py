@@ -795,8 +795,10 @@ def main() -> None:
 
     candidate_batch_size = args.candidate_batch_size
     if args.per_spectrum_seconds is not None and candidate_batch_size is None:
-        # The deadline is only observable between batches, so a single batch of
-        # every candidate would make the budget unenforceable.
+        # The sampler reads the deadline inside a batch as well as between them,
+        # so this only bounds how much work one unfinished batch discards. It
+        # used to be the whole enforcement, and with --candidates 8 it left a
+        # single batch that never reached a boundary to check.
         candidate_batch_size = min(8, args.candidates)
 
     with predictions_path.open("a") as output:
