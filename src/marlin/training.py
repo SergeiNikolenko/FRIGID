@@ -17,7 +17,7 @@ from rdkit.Chem import AllChem, Descriptors
 from dlm.utils.utils_chem import safe_to_smiles, smiles_to_safe
 from marlin.ema import AllParameterExponentialMovingAverage
 from marlin.model import MarlinDecoder, MarlinDecoderConfig
-from marlin.noise import symmetric_fingerprint_noise
+from marlin.noise import one_sided_fingerprint_dropout, symmetric_fingerprint_noise
 from marlin.isotopes import theoretical_isotope_ratios
 
 
@@ -499,6 +499,7 @@ class MarlinLightningModule(L.LightningModule):
         noise_probability: float = 0.5,
         noise_min_fraction: float = 0.1,
         noise_max_fraction: float = 0.3,
+        fingerprint_noise_mode: str = "symmetric",
         ema_decay: float = 0.9999,
         metric_interval: int = 50,
         eos_loss_weight: float = 1.0,
@@ -518,6 +519,11 @@ class MarlinLightningModule(L.LightningModule):
         super().__init__()
         if conditioning_only_steps < 0 or cross_attention_only_steps < 0:
             raise ValueError("adaptation stage durations must be non-negative")
+        if fingerprint_noise_mode not in {"symmetric", "dropout"}:
+            raise ValueError(
+                "fingerprint_noise_mode must be 'symmetric' or 'dropout', "
+                f"got {fingerprint_noise_mode!r}"
+            )
         if context_corruption_warmup_steps < 0:
             raise ValueError("context_corruption_warmup_steps must be non-negative")
         self.save_hyperparameters(
@@ -528,6 +534,7 @@ class MarlinLightningModule(L.LightningModule):
                 "noise_probability": noise_probability,
                 "noise_min_fraction": noise_min_fraction,
                 "noise_max_fraction": noise_max_fraction,
+                "fingerprint_noise_mode": fingerprint_noise_mode,
                 "ema_decay": ema_decay,
                 "metric_interval": metric_interval,
                 "eos_loss_weight": eos_loss_weight,
@@ -549,6 +556,7 @@ class MarlinLightningModule(L.LightningModule):
         self.learning_rate = learning_rate
         self.weight_decay = weight_decay
         self.noise_probability = noise_probability
+        self.fingerprint_noise_mode = fingerprint_noise_mode
         self.noise_min_fraction = noise_min_fraction
         self.noise_max_fraction = noise_max_fraction
         self.ema_decay = ema_decay
@@ -660,7 +668,12 @@ class MarlinLightningModule(L.LightningModule):
         self.apply_adaptation_stage(int(self.global_step))
 
     def training_step(self, batch: dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:
-        fingerprint = symmetric_fingerprint_noise(
+        corrupt_fingerprint = (
+            symmetric_fingerprint_noise
+            if self.fingerprint_noise_mode == "symmetric"
+            else one_sided_fingerprint_dropout
+        )
+        fingerprint = corrupt_fingerprint(
             batch["fingerprint"],
             corruption_probability=self.noise_probability,
             min_fraction=self.noise_min_fraction,

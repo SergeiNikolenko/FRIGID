@@ -189,6 +189,18 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument("--noise-probability", type=float, default=0.5)
+    parser.add_argument(
+        "--fingerprint-noise-mode",
+        choices=("symmetric", "dropout"),
+        default="symmetric",
+        help=(
+            "how the conditioning fingerprint is corrupted during training. "
+            "'symmetric' moves an on-bit to an off position, keeping the "
+            "cardinality but inventing bits; 'dropout' only removes on-bits, "
+            "which is what inference diversity does to the vector the decoder "
+            "is given"
+        ),
+    )
     parser.add_argument("--noise-min-fraction", type=float, default=0.1)
     parser.add_argument("--noise-max-fraction", type=float, default=0.3)
     parser.add_argument("--seed", type=int, default=42)
@@ -445,6 +457,7 @@ def main() -> None:
         learning_rate=args.learning_rate,
         weight_decay=0.0,
         noise_probability=args.noise_probability,
+        fingerprint_noise_mode=args.fingerprint_noise_mode,
         noise_min_fraction=args.noise_min_fraction,
         noise_max_fraction=args.noise_max_fraction,
         ema_decay=0.9999,
@@ -491,7 +504,8 @@ def main() -> None:
             "source": "model runner-up tokens under a fully masked block",
             "targets": "gold",
         },
-        "symmetric_fingerprint_noise": {
+        "fingerprint_noise": {
+            "mode": args.fingerprint_noise_mode,
             "probability": args.noise_probability,
             "min_fraction": args.noise_min_fraction,
             "max_fraction": args.noise_max_fraction,

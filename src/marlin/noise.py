@@ -49,6 +49,48 @@ def symmetric_fingerprint_noise(
     return output.to(dtype=fingerprints.dtype)
 
 
+def one_sided_fingerprint_dropout(
+    fingerprints: torch.Tensor,
+    *,
+    corruption_probability: float = 0.5,
+    min_fraction: float = 0.1,
+    max_fraction: float = 0.3,
+    generator: torch.Generator | None = None,
+) -> torch.Tensor:
+    """Drop on-bits without replacing them, the way inference corrupts.
+
+    ``symmetric_fingerprint_noise`` moves an on-bit to an off position, so the
+    decoder is trained on a conditioning vector of constant cardinality that
+    contains invented bits. Inference does the opposite: ``perturb_fingerprint``
+    only removes bits, and the DreaMS vector it removes them from is already
+    missing most of the true ones. This teaches the corruption the decoder
+    actually meets - a sparser but never invented fingerprint.
+    """
+    if fingerprints.ndim != 2:
+        raise ValueError("fingerprints must have shape [batch, bits]")
+    if not 0 <= corruption_probability <= 1:
+        raise ValueError("corruption_probability must be in [0, 1]")
+    if not 0 <= min_fraction <= max_fraction <= 1:
+        raise ValueError("noise fractions must satisfy 0 <= min <= max <= 1")
+
+    device = fingerprints.device
+    output = fingerprints.clone()
+    on = fingerprints > 0.5
+    for row in range(fingerprints.shape[0]):
+        if torch.rand((), device=device, generator=generator) >= corruption_probability:
+            continue
+        fraction = torch.empty((), device=device).uniform_(
+            min_fraction, max_fraction, generator=generator
+        )
+        # Independent per bit, exactly as `perturb_fingerprint` drops them.
+        dropped = (
+            torch.rand(fingerprints.shape[1], device=device, generator=generator)
+            < fraction
+        ) & on[row]
+        output[row, dropped] = 0.0
+    return output.to(dtype=fingerprints.dtype)
+
+
 def perturb_fingerprint(
     fingerprint: torch.Tensor,
     *,
