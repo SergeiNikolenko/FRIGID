@@ -462,3 +462,197 @@ Readings that matter:
 3. The next full-panel launch waits on R1, and when it goes it should carry `cap = 1800` so
    it is comparable with `clean-before`, and more shards than six — bounded by the 40 GB card
    and one 2.75 GB checkpoint per shard, so roughly 8–10 per GPU, not 24.
+
+## 11. FRIGID prior art and the comparison axis
+
+Appended 2026-08-12. Sections 1–10 are unedited. Everything below is either verified in this
+section or explicitly marked unverified. Numbers taken from a README are labelled as such and
+are never used as a target.
+
+### 11.1 The comparison target on our axis
+
+Our panels are **NPLIB1/CANOPUS**, not MassSpecGym. They are built through FRIGID's own
+CANOPUS loader — `scripts/prepare_marlin_nplib1.py:58` pins
+`splits/canopus_hplus_100_0.tsv` and calls `load_spec_data` from
+`scripts/benchmark_spec2mol.py:320`, which hands the same split file to
+`PresetSpectraSplitter` (`scripts/benchmark_spec2mol.py:354-357`). The raw split is
+6,810 train / 401 val / 819 test; our usable panels after fingerprint computation are
+6,748 / 396 / 803 (§2). MassSpecGym shares no rows with any of it.
+
+So the comparable claims on **our** axis are:
+
+| Claim | Value | Axis | Status |
+|---|---:|---|---|
+| MARLIN paper target | 16.94% Exact@1 | NPLIB1 | The number to beat |
+| FRIGID README, base | 19.80% Top-1 | NPLIB1 | `README.md:77`, **README only, never reproduced here** |
+| FRIGID README, scaled | 25.03% Top-1 | NPLIB1 | `README.md:78`, **README only, never reproduced here** |
+| Ours, `full803-c8-100k` | **2.74%** (22/803) | NPLIB1 | Measured (§3, §10.5) |
+
+Numbers that are **not** on our axis and must never be set against 2.74%:
+FRIGID README MassSpecGym 16.09% / 18.29% (`README.md:77-78`), FRIGID's measured MassSpecGym
+13.86% (`docs/MSMS_ENCODER_BENCHMARK_REPORT.md:370-373`, MIST-binary row of the 1,400-spectrum
+paired diagnostic), and the full-MSG 10.97% below. Mixing MassSpecGym and NPLIB1 numbers is
+the single easiest way to misreport this project.
+
+### 11.2 Measured versus README, on both sides
+
+FRIGID does not reproduce its own headline either. FRIGID's own full MassSpecGym run over
+17,082 eligible spectra at threshold 0.187 measured **exact top-1 0.109706** and
+**generated-structure Tanimoto top-1 0.459838**
+(`docs/MSMS_ENCODER_BENCHMARK_REPORT.md:362-366`). The README claims 16.09% base / 18.29%
+full on the same benchmark (`README.md:77-78`). That is a gap of roughly five points on
+FRIGID's own numbers — the same *class* of gap this project suspects behind MARLIN's
+reported 16.94%.
+
+The consequence is a rule, not a datum: **compare against measured numbers only.** There is
+no measured FRIGID NPLIB1 number available to us at all — the NPLIB1 19.80%/25.03% figures
+exist only in the README, and no NPLIB1 reproduction of FRIGID has been run on this machine.
+Until one is, the 16.94% paper target is the only NPLIB1 anchor we have, and it is itself a
+paper number.
+
+The strongest *honest* FRIGID evidence in the record is not a full-split number at all. It is
+the locked 1,024 molecule-diverse gate (FRIGID experiments 19 and 23), which measured
+four-source union over DLM control at Tanimoto top-1 `+0.0189` `[+0.0148, +0.0232]` and
+Exact top-1 `+0.0127` `[+0.0049, +0.0215]` (`docs/FRIGID_EXPERIMENT_REPORT_RU.md:751-769`
+on `origin/research/msg-quality-gates`). The full four-source 17,082 confirmation that report
+describes as running **never completed**: Slurm shows `frigid-ctl-0/1000/2000/3000`
+(jobs 133–136) COMPLETED and `frigid-ctl-4000` (job 137) plus every `frigid-ctl-5000`…`17000`
+and every `frigid-t08-*` (jobs 138–168) **CANCELLED at 2026-07-14T12:15:35**. Coverage
+reached roughly 4,000 of 17,082 rows on the control source and **zero** on the
+temperature-0.8 source. Experiments 24, 25, 34, 36 and 37 in that report are described as
+in flight and are not. Every `FRIGID_*_runs` artifact directory has since been deleted from a
+94%-full root filesystem, so the partial shards are gone too. Treat
+`docs/FRIGID_EXPERIMENT_REPORT_RU.md` as frozen at 2026-07-13.
+
+### 11.3 Settled negatives that bear on training
+
+These are FRIGID's, measured, and they constrain what a MARLIN training arm may claim to be
+new. They do **not** all transfer — the transfer conditions are stated with each.
+
+| Killed | Evidence | What it forbids |
+|---|---|---|
+| Fine-tuning the decoder on the encoder's *own* predicted fingerprints (FRIGID experiment 8) | Ground-truth Tanimoto top-1 0.3897 → 0.3109, MIST-fingerprint 0.3209 → 0.2796 (`FRIGID_EXPERIMENT_REPORT_RU.md:378-399`; restated `MSMS_ENCODER_BENCHMARK_REPORT.md:381-385`) | Adapting on noisy conditioning alone closes the clean/noisy gap **by getting worse in both regimes**. Any arm that trains only on corrupted conditioning must report the clean arm too, or it is repeating this. |
+| A 50/50 clean+noisy mixture objective | 10,000-step mixed adaptation: 0.3486 clean / 0.2870 noisy, still below the 0.3897/0.3209 baseline on both arms (`MSMS_ENCODER_BENCHMARK_REPORT.md:385`) | The obvious repair for the row above — mix clean and noisy — **was already tried and failed both arms.** A mixture is not, by itself, a new idea. |
+| Raw probability conditioning | Reported to us as Tanimoto@1 0.1258 with formula success 0.0000. **Unverified:** no surviving artifact for these two numbers was found in either repo. The directionally identical, verified statement is that `mist_binary` conditioning degrades every metric against ground truth on the 64-spectrum paired diagnostic (`DLM_FINGERPRINT_ROBUSTNESS_RESULTS.md:68-78`) | Feeding unthresholded probabilities to a decoder trained on binary fingerprints is a distribution break, not a conditioning improvement. |
+| Threshold-only fingerprint processing (FRIGID experiment 9) | threshold 0.50 gave `+0.0118` Tanimoto on 64 spectra, shrinking to `+0.0080` with a CI containing zero on 200; top-32 bits worse than baseline; confidence gate lost on a fresh holdout (`FRIGID_EXPERIMENT_REPORT_RU.md:402-422`) | "Just move the threshold" is closed. Our 0.95 soft gate is admissible only because it is a *parity* change — it makes training match evaluation — not because a higher threshold is expected to help. |
+| Encoder swaps, as a class (undocumented FRIGID "experiment 38", 2026-07-15/16, locked 15,325-row molecule-disjoint partition) | MIST 0.5415; DiffMS MIST-512 0.437133; JESTR 0.2778; MS2DeepScore 2.0 0.2277; SpecEmbedding 0.1942; MSBERT 0.1844. **Nothing met the +0.005 gate.** Results live in this repo: `docs/MSMS_ENCODER_BENCHMARK_REPORT.md:7-10,162-205` | No off-the-shelf encoder beats MIST on fingerprint Tanimoto. R7 stands as *processing* only; a lane switch has no supporting evidence. |
+
+The decoder upper bound from the same source is worth keeping in view: on a 1,400-spectrum
+paired diagnostic, ground-truth conditioning gave Exact top-1 0.4879 and MIST-binary gave
+0.1386 (`MSMS_ENCODER_BENCHMARK_REPORT.md:370-373`). The conditioning gap is the dominant
+term over there too, which is the same diagnosis as §4.5.
+
+### 11.4 Two operational traps
+
+**Trap 1 — the FRIGID checkout is on the wrong branch.**
+`/home/nikolenko/work/Projects/FRIGID` is on `main` at `65c0855`. Verified: that tree's
+`scripts/` contains ten files and **no** `--spec-manifest` / `--start-index` support, no
+`submit_*.sbatch`, no fusion, no retrieval, no MolForge tooling. `grep -rn "spec-manifest"`
+over the working tree returns nothing. The runnable protocol is
+`origin/research/msg-quality-gates` at `e14c6f8`, where `--spec-manifest` appears in
+`scripts/benchmark_dlm_fingerprint_robustness.py`, `scripts/finalize_full_four_source.py`,
+`scripts/submit_msg_full_retrieval.sbatch`, `scripts/submit_msg_full_molforge_resume.sbatch`
+and `src/dlm/utils/benchmark_selection.py`. Anyone running FRIGID from that checkout as it
+stands is running a different, weaker protocol than the one the report describes.
+
+**Trap 2 — the config still ships the bug that invalidated two long runs.**
+`configs/spec2mol_benchmark_msg.yaml:56` is `randomness: 10.0` on **both** `main` and
+`origin/research/msg-quality-gates`. It is only ever corrected on the command line:
+`scripts/benchmark_spec2mol.py` overrides it exclusively under
+`if args.randomness is not None:` (in `merge_config_with_args`). A run launched "from the
+config", with the flag omitted, therefore silently reproduces the discarded setting and looks
+like a valid run. Fixing this is out of scope here (the FRIGID tree is read-only for us), but
+no FRIGID launch may omit `--randomness`.
+
+### 11.5 Cost, measured against the Slurm record
+
+The report states "примерно `10-14 s/spectrum`" for a DLM full run
+(`FRIGID_EXPERIMENT_REPORT_RU.md:785`). The Slurm record disagrees. The four completed
+control chunks were 1,000 spectra each on a **whole** A100 (`gres/gpu=1`, not `gres/shard`):
+
+| Job | Name | Elapsed | s/spectrum |
+|---|---|---:|---:|
+| 133 | `frigid-ctl-0` | 07:06:47 | 25.6 |
+| 134 | `frigid-ctl-1000` | 06:45:34 | 24.3 |
+| 135 | `frigid-ctl-2000` | 06:40:31 | 24.0 |
+| 136 | `frigid-ctl-3000` | 06:56:43 | 25.0 |
+
+Mean **24.7 s/spectrum**, i.e. **1.8×–2.5× the quoted range** — the "optimistic by about 2×"
+claim is confirmed, and job 133's 7.11 A100-hours per 1,000 rows is consistent with the
+reported ~7.0 A100-hours for a 1,024-spectrum control gate.
+
+**Not confirmed:** the ~9–12.5 A100-hours attributed to the temperature-0.8 source. Every
+`frigid-t08-*` job (151–168) shows `Start=None` and `Elapsed=00:00:00` — that source never
+ran a single spectrum on this cluster, and `sacct` over 2026-07-01…2026-07-20 lists no other
+GPU job longer than two hours besides 133–136 and an unrelated `frigid-spectral-jepa`. The
+t08 figure must come from a non-Slurm run or from an estimate; it is not in the record we can
+reach. The safe planning number is therefore **~7 A100-hours per 1,000 spectra per DLM
+source**, and a two-source 1,024 gate should be budgeted at ≥14 A100-hours with the second
+source unmeasured.
+
+### 11.6 Reconciliation with the three queued training arms
+
+All three sit on ClearML queue `sience` (`e0841e72c8a544efa9c54b5e768b1683`), all
+`status: queued`, all pinned to entry point `scripts/run_marlin_faro_spectrum_adaptation.sh`
+at commit `4fc867a`, all sharing the out-of-fold runtime bundle
+`runtime-inputs-spectrum-oof-v1` (sha256 `4305cf00…`), warm-started from the same
+`step=100000.ckpt` (sha256 `aed408c7…`), soft fingerprint on, train and validation threshold
+both 0.95, 20,000 steps, evaluated on `nplib1_val_clean322_v1` (321 spectra, 8 candidates).
+
+**One fact applies to all three and must be recorded before the individual verdicts.**
+None of the three sets `MARLIN_NOISE_PROBABILITY`, so all three inherit the default `0.5`
+(`scripts/run_marlin_faro_spectrum_adaptation.sh:96`), which
+`src/marlin/training.py:671-681` applies per row every step. **Every arm is already a 50/50
+clean+noisy conditioning mixture.** That is the same *shape* as the FRIGID mixture killed in
+§11.3. It is not the same *content*: FRIGID's noisy half was MIST's real predicted
+fingerprints, while ours is synthetic bit noise over 10–30% of the ON bits
+(`src/marlin/noise.py:8-38`), and — decisively — this setting was already in the run that
+produced our 2.74% baseline, so it is the incumbent, not a proposal. The honest reading is
+that the mixture question is **not open** in any of these arms; none of them tests it, and
+none of them may claim it as the novelty.
+
+**T1a — `781de15ee38c408aa2cc068fade83110`, conditioning parity (R4).** Distinct, and it is
+the arm to keep. Its only levers against the 2.74% baseline are (a) the out-of-fold
+fingerprint bundle, which removes the in-sample probe leak so `train/dreams_predictions.npz`
+stops being a rehearsal of its own answers, and (b) `MARLIN_TRAIN_FINGERPRINT_THRESHOLD` and
+`MARLIN_VALIDATION_FINGERPRINT_THRESHOLD` both at 0.95 with `MARLIN_SOFT_FINGERPRINT=1`, so
+the training gate is the evaluation gate. Neither is what FRIGID rejected. Experiment 8
+killed *fine-tuning on the encoder's noisy output*; T1a changes *whose* fingerprints the
+model sees at the same noise level, and the direction is toward less leakage, not more noise.
+Experiment 9 killed *threshold-tuning as a quality lever*; T1a does not tune the threshold to
+find a better one, it copies the evaluation threshold into training to remove a train/test
+mismatch — the opposite operation. This arm attacks the measured 0.750-vs-0.547 teacher-forced
+gap of §4.5 directly and has an external anchor in MS-BART's 1.71% → 7.45% on NPLIB1. Run it.
+
+**T2 — `3f163b90b6494d0f91762fa8cd92171a`, self-correction on top of parity (R5).** Distinct,
+and the most distinct of the three. It is T1a plus
+`MARLIN_CONTEXT_CORRUPTION_PROBABILITY=0.5`, warmup 1,000 steps, corrupted fraction 0.05–0.25,
+`MARLIN_RESTORATION_LOSS_WEIGHT=0.5`. The corruption here is on the **decoded SAFE prefix**,
+not on the conditioning fingerprint: a fraction of clean-stream *content positions* is
+replaced by the model's own runner-up tokens while every cross-entropy target stays gold
+(`src/marlin/model.py:384-394`). FRIGID never tried this — every FRIGID negative in §11.3 is
+about the fingerprint input, and no FRIGID experiment touched the decoder's context stream at
+all. It also addresses a defect we measured ourselves and FRIGID never looked for: §4.4's
+irreversible commitment, where every step after the first mistake is off-distribution. The one
+caveat is that it is confounded with T1a — it changes two things at once — so its result is
+only interpretable against T1a's, which means T1a must run and must not be cancelled to make
+room for it. Run it, second.
+
+**T1b — `50ef8dcd85e348b6861fdbadea2cecdb`, one-sided training corruption.** Distinct from
+FRIGID's negatives, but weakly motivated and the one to cut if compute is short. Its sole
+delta from T1a is `MARLIN_FINGERPRINT_NOISE_MODE=dropout`, switching
+`symmetric_fingerprint_noise` (drop *n* ON bits, add *n* OFF bits) for
+`one_sided_fingerprint_dropout` (drop ON bits only) at
+`src/marlin/training.py:671-674`. This is not FRIGID's 50/50 mixture and not experiment 8:
+the noise *rate* is unchanged at 0.5, only its *shape* changes, and it is motivated by a real
+observation — that the encoder's dominant error is false negatives, with false-negative bit
+count correlating −0.5604 with quality delta (`DLM_FINGERPRINT_ROBUSTNESS_RESULTS.md:90`).
+So it is a legitimate, non-duplicate hypothesis. But note what it is **not**: §6's R4 asked
+for "a paired arm with symmetric noise switched off", and T1b does not switch noise off — it
+reshapes it. The genuine noise-ablation control that R4 specified is therefore still missing
+from the queue, and T1b is a third variant of a nuisance parameter rather than the control it
+is standing in for. **Recommendation: not a cancel-on-duplication call — it duplicates
+nothing — but it is the lowest-value of the three.** If the two GPU slots are contended,
+deprioritise T1b behind T1a and T2, and if it is requeued, requeue it as
+`MARLIN_NOISE_PROBABILITY=0.0` (the true control R4 asked for) rather than as a second noise
+shape. Nothing here is cancelled by this document; the decision is the project lead's (§9).
