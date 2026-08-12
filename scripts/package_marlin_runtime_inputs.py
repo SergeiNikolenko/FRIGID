@@ -24,7 +24,26 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--reproduction-root", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
-    return parser.parse_args()
+    parser.add_argument(
+        "--train-predictions",
+        type=Path,
+        help=(
+            "replacement for runs/dreams/probe/train_predictions.npz, so a "
+            "bundle can carry out-of-fold train fingerprints instead of the "
+            "in-sample ones the single-probe recipe produces"
+        ),
+    )
+    parser.add_argument(
+        "--train-predictions-summary",
+        type=Path,
+        help="summary that documents --train-predictions",
+    )
+    args = parser.parse_args()
+    if bool(args.train_predictions) != bool(args.train_predictions_summary):
+        raise ValueError(
+            "--train-predictions and --train-predictions-summary go together"
+        )
+    return args
 
 
 def main() -> None:
@@ -55,6 +74,11 @@ def main() -> None:
         ),
         "test/metadata.csv": root / "data/processed/test/metadata.csv",
     }
+    if args.train_predictions is not None:
+        sources["train/dreams_predictions.npz"] = args.train_predictions.resolve()
+        sources["train/dreams_predictions.summary.json"] = (
+            args.train_predictions_summary.resolve()
+        )
     missing = [str(path) for path in sources.values() if not path.is_file()]
     if missing:
         raise FileNotFoundError("missing runtime inputs: " + ", ".join(missing))
