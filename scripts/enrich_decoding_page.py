@@ -38,8 +38,18 @@ def draw(smiles: str, width: int = 260, height: int = 190) -> str | None:
     options = drawer.drawOptions()
     options.clearBackground = False
     options.bondLineWidth = 2
-    options.setBackgroundColour((0, 0, 0, 0))
-    drawer.DrawMolecule(molecule)
+    # The same palette as the rest of the page: light bonds for a dark surface,
+    # which the stylesheet inverts on the light theme.
+    options.setAtomPalette({-1: (0.83, 0.85, 0.90)})
+    for element, colour in (
+        (7, (0.45, 0.68, 1.00)),
+        (8, (1.00, 0.47, 0.42)),
+        (9, (0.42, 0.85, 0.66)),
+        (16, (0.98, 0.78, 0.35)),
+        (17, (0.42, 0.85, 0.66)),
+    ):
+        options.updateAtomPalette({element: colour})
+    rdMolDraw2D.PrepareAndDrawMolecule(drawer, molecule)
     drawer.FinishDrawing()
     return drawer.GetDrawingText().replace("<?xml version='1.0' encoding='iso-8859-1'?>", "")
 
