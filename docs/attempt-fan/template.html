@@ -352,8 +352,7 @@ tbody tr:hover td, tbody tr.picked td { background: var(--muted); }
 <body>
 <div class="wrap">
 <header>
-  <p class="eyebrow">MARLIN · recorded decode · every attempt of one spectrum ·
-  <a href="../decoding-demo/index.html" style="color:var(--allowed)">&larr; back to the gold walk</a></p>
+  <p class="eyebrow">MARLIN · recorded decode · every attempt of one spectrum</p>
   <h1>Eight attempts, one spectrum: where they split, and where they <em>died</em>.</h1>
   <p class="standfirst">Not the gold answer walked forwards — the run itself. Each attempt starts from the
   same mass and its own dropout of the fingerprint, writes eight positions per forward pass, and ends
@@ -376,7 +375,30 @@ tbody tr:hover td, tbody tr.picked td { background: var(--muted); }
   </div>
 </div>
 
-<div class="grid">
+<section class="panel" style="margin-bottom:16px">
+    <h2>The fan · <span id="fanMeta"></span></h2>
+    <div class="stat-row" id="stats"></div>
+    <div class="tree-scroll">
+      <svg id="tree" role="img" aria-label="Attempts as a tree of shared prefixes"></svg>
+    </div>
+    <ul class="legend">
+      <li><b style="background:var(--allowed)"></b>returned a candidate</li>
+      <li><b style="background:var(--unwritable)"></b>grammar deadlock <span style="color:var(--muted-foreground)">(nothing may follow)</span></li>
+      <li><b style="background:var(--unreachable)"></b>mass deadlock <span style="color:var(--muted-foreground)">(target no longer reachable)</span></li>
+      <li><b style="background:var(--muted-foreground)"></b>ran out of length or was refused at EOS</li>
+    </ul>
+    <ul class="legend" style="margin-top:8px">
+      <li><b style="background:var(--allowed)"></b>this branch is still writing the gold string</li>
+      <li><span style="color:var(--unwritable);font-weight:600">&times;</span>&nbsp;the token where it left the gold answer</li>
+    </ul>
+    <p class="note">Branch thickness is how many attempts still agree at that point. A split is a position
+    where the sampler, given a different dropout of the same fingerprint, chose a different token.
+    <br><br>There is no way back up a branch: the decoder never backtracks. Eight positions are committed in
+    one forward pass, and when the mask leaves nothing to write, the attempt is abandoned and a fresh one
+    starts from the beginning. Every leaf is a whole life of the decoder, not a branch it could retry.</p>
+  </section>
+
+<div class="grid two">
   <section class="panel">
     <h2>Target · <span id="specName"></span></h2>
     <div class="structures">
@@ -397,26 +419,6 @@ tbody tr:hover td, tbody tr.picked td { background: var(--muted); }
       <li><span>Run time</span><span id="fRuntime"></span></li>
     </ul>
     <p class="smiles" id="fSmiles"></p>
-  </section>
-
-  <section class="panel">
-    <h2>The fan · <span id="fanMeta"></span></h2>
-    <div class="stat-row" id="stats"></div>
-    <div class="tree-scroll">
-      <svg id="tree" role="img" aria-label="Attempts as a tree of shared prefixes"></svg>
-    </div>
-    <ul class="legend">
-      <li><b style="background:var(--allowed)"></b>returned a candidate</li>
-      <li><b style="background:var(--unwritable)"></b>grammar deadlock <span style="color:var(--muted-foreground)">(nothing may follow)</span></li>
-      <li><b style="background:var(--unreachable)"></b>mass deadlock <span style="color:var(--muted-foreground)">(target no longer reachable)</span></li>
-      <li><b style="background:var(--muted-foreground)"></b>ran out of length or was refused at EOS</li>
-    </ul>
-    <p class="note">Branch thickness is how many attempts still agree at that point. A split is a position
-    where the sampler, given a different dropout of the same fingerprint, chose a different token.
-    <br><br>There is no way back up a branch: the decoder never backtracks. A block of eight positions is
-    committed in one forward pass, and when the mask leaves nothing to write, that attempt is abandoned and
-    a fresh one starts from the beginning. Every leaf below is therefore a whole life of the decoder, not a
-    branch it could have retried.</p>
   </section>
 
   <section class="panel">
@@ -535,6 +537,7 @@ function buildTree(attempts) {
 
 function drawTree(spectrum) {
   const root = buildTree(spectrum.attempts);
+  root.onGold = true;
   const svg = el('tree');
   let leafIndex = 0;
   let maxDepth = 0;
@@ -546,7 +549,9 @@ function drawTree(spectrum) {
     return node.y;
   })(root);
 
-  const dx = Math.max(7, Math.min(16, 1100 / Math.max(maxDepth, 1)));
+  // Wide enough that a token label fits between two positions; the row of
+  // labels is what makes the tree readable as writing rather than as a graph.
+  const dx = Math.max(9, Math.min(34, 1200 / Math.max(maxDepth, 1)));
   const dy = 26;
   const left = 14;
   const top = 22;
@@ -571,13 +576,32 @@ function drawTree(spectrum) {
         ? `M ${x(node.depth)},${y(node.y)} L ${x(child.depth)},${y(child.y)}`
         : `M ${x(node.depth)},${y(node.y)} L ${midpoint},${y(node.y)} `
           + `L ${midpoint},${y(child.y)} L ${x(child.depth)},${y(child.y)}`;
+      const gold = spectrum.gold_tokens || [];
+      const onGold = child.depth <= gold.length && gold[child.depth - 1] === child.token
+        && node.depth === 0 ? true : node.onGold && gold[child.depth - 1] === child.token;
+      child.onGold = Boolean(onGold);
       parts.push(
-        `<path class="branch" d="${path}" stroke-width="${1 + child.rows.length * 0.5}" `
+        `<path class="branch${child.onGold ? ' on-gold' : ''}" d="${path}" `
+        + `stroke-width="${1 + child.rows.length * 0.5}" `
         + `data-row="${child.rows[0]}" data-depth="${child.depth}" `
         + `data-token="${child.token.replace(/"/g, '&quot;')}" `
         + `data-support="${child.step ? child.step.support : ''}" `
         + `data-rows="${child.rows.length}"></path>`
       );
+      if (dx >= 15) {
+        const label = child.token.length > 4 ? child.token.slice(0, 4) : child.token;
+        parts.push(
+          `<text class="branch-label" x="${x(child.depth) - dx / 2}" y="${y(child.y) - 5}" `
+          + `text-anchor="middle">${escapeHtml(label)}</text>`
+        );
+      }
+      // the first token that is no longer what the gold answer writes
+      if (node.onGold && !child.onGold) {
+        parts.push(
+          `<path class="left-gold" d="M ${x(child.depth) - 3.5},${y(child.y) - 3.5} `
+          + `l 7,7 M ${x(child.depth) + 3.5},${y(child.y) - 3.5} l -7,7"></path>`
+        );
+      }
       if (child.children.size > 1) {
         parts.push(`<circle class="split" cx="${x(child.depth)}" cy="${y(child.y)}" r="3"></circle>`);
       }
@@ -684,7 +708,7 @@ function renderSpectrum() {
       + `attempt ${attempt.row}</span> `
       + `<span class="dot ${outcomeClass(attempt)}"></span>`
       + `<figure>${attempt.svg || ''}</figure>`
-      + `<p>${facts.join(' · ') || 'nothing readable'}<br>${escapeHtml(attempt.smiles || '')}</p></div>`;
+      + `<p>${facts.join(' · ') || 'nothing readable'}<br>${attempt.smiles || ''}</p></div>`;
   }).join('');
 
   state.attempt = 0;
@@ -720,22 +744,32 @@ function renderAttempt() {
   el('step').value = state.step;
   el('stepCount').textContent = `${state.step + 1} of ${attempt.steps.length}`;
 
-  el('attemptFig').innerHTML = attempt.svg || '<p class="empty">nothing readable</p>';
-  el('attemptStruct').dataset.smiles = attempt.smiles || '';
-  el('attemptCap').textContent = `Attempt ${attempt.row} · ${outcomeWords(attempt)}`;
-  highlightGold(attempt.gold_atoms || []);
-  const share = Math.round(100 * (attempt.gold_share || 0));
-  el('matchNote').innerHTML = attempt.gold_atoms && attempt.gold_atoms.length
-    ? `<span style="color:var(--allowed)">${attempt.gold_atoms.length} of ${spectrum.heavy_atoms} gold atoms `
-      + `are in this attempt (${share}%)</span>`
-    : `<span style="color:var(--unwritable)">nothing this attempt wrote appears in the gold answer</span>`;
+  const here = attempt.steps[state.step];
+  const partial = here ? here.partial : null;
+  const lit = (partial && spectrum.gold_matches ? spectrum.gold_matches[partial] : null) || [];
+  el('attemptFig').innerHTML = partial
+    ? (spectrum.partial_svgs[partial] || '')
+    : '<p class="empty">nothing readable yet</p>';
+  el('attemptStruct').dataset.smiles = partial || '';
+  el('attemptCap').textContent =
+    `Attempt ${attempt.row} at position ${here ? here.position : '—'}`;
+  highlightGold(lit);
+  el('matchNote').innerHTML = !partial
+    ? 'Nothing readable at this position yet.'
+    : (lit.length
+        ? `<span style="color:var(--allowed)">${lit.length} of ${spectrum.heavy_atoms} gold atoms are in `
+          + `place here</span> · ${escapeHtml(partial)}`
+        : `<span style="color:var(--unwritable)">nothing written here appears in the gold answer</span> · `
+          + `${escapeHtml(partial)}`);
 
   const tape = el('tape');
   tape.innerHTML = '';
   attempt.steps.forEach((step, index) => {
     const cell = document.createElement('span');
     cell.className = 'cell ' + (index < state.step ? 'done' : index === state.step ? 'now' : 'ahead')
-      + (index > 0 && step.block !== attempt.steps[index - 1].block ? ' block-start' : '');
+      + (index > 0 && step.block !== attempt.steps[index - 1].block ? ' block-start' : '')
+      + (index < attempt.agrees_to ? ' agrees' : '')
+      + (index === attempt.agrees_to ? ' leaves-gold' : '');
     cell.textContent = step.token;
     cell.title = `position ${step.position} · block ${step.block + 1} · ${step.support} admitted`;
     cell.addEventListener('click', () => { state.step = index; renderAttempt(); });
@@ -762,7 +796,8 @@ function renderAttempt() {
 
   drawSupport(attempt);
   el('endingNote').innerHTML =
-    `Position ${step ? step.position : '—'} · ${step ? step.support : '—'} of the vocabulary admitted · `
+    `Wrote the gold string for ${attempt.agrees_to} of ${attempt.steps.length} positions, then left it.<br>`
+    + `Position ${step ? step.position : '—'} · ${step ? step.support : '—'} of the vocabulary admitted · `
     + `${step ? step.heavy_mass.toFixed(3) : '—'} Da committed of ${spectrum.target_mass.toFixed(3)} Da. `
     + `<br>This attempt ${outcomeWords(attempt)}`
     + (attempt.syntax_support !== undefined

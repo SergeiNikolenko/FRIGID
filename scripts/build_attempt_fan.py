@@ -34,7 +34,7 @@ from rdkit import Chem, DataStructs, RDLogger, rdBase
 from rdkit.Chem import AllChem, rdDepictor
 from rdkit.Chem.Draw import rdMolDraw2D
 
-from dlm.utils.utils_chem import safe_to_smiles
+from dlm.utils.utils_chem import safe_to_smiles, smiles_to_safe
 from marlin.grammar import SafeGrammarMask
 from marlin.mass_shell import conditioning_mass
 from marlin.token_properties import foreign_element_token_ids, isotope_token_ids
@@ -204,6 +204,16 @@ def main() -> int:
         for entry in record["steps"]:
             rows[int(entry["row"])].append(entry)
 
+        gold_safe = smiles_to_safe(record["target_smiles"]) or ""
+        gold_tokens = [
+            token_strings[int(token_id)]
+            for token_id in tokenizer(gold_safe)["input_ids"]
+        ][1:] if gold_safe else []
+
+        partial_svgs: dict[str, str] = {}
+        gold_matches: dict[str, list[int]] = {}
+        readable_cache: dict[str, str | None] = {}
+
         attempts = []
         for row_index in sorted(rows):
             entries = rows[row_index]
@@ -216,6 +226,14 @@ def main() -> int:
                     continue
                 token = token_strings[int(entry["token"])]
                 written += token
+                if written not in readable_cache:
+                    readable_cache[written] = readable_prefix(written)
+                partial = readable_cache[written]
+                if partial and partial not in partial_svgs:
+                    drawing = draw(partial, 240, 175)
+                    if drawing is not None:
+                        partial_svgs[partial] = drawing
+                        gold_matches[partial] = matched_atoms(target, partial)
                 steps.append(
                     {
                         "position": int(entry["position"]),
@@ -224,18 +242,28 @@ def main() -> int:
                         "support": int(entry["support"]),
                         "confidence": round(float(entry["confidence"]), 5),
                         "heavy_mass": round(float(entry["heavy_mass"]), 4),
+                        "partial": partial,
                         "alternatives": [
                             [token_strings[int(token_id)], round(float(probability), 5)]
                             for token_id, probability in entry.get("alternatives", [])
                         ],
                     }
                 )
+            agrees = 0
+            for index, step in enumerate(steps):
+                if index < len(gold_tokens) and step["token"] == gold_tokens[index]:
+                    agrees = index + 1
+                else:
+                    break
             attempt = {
                 "row": row_index,
                 "steps": steps,
                 "written": written,
                 "ending": ending.get("ending") if ending else "unfinished",
                 "safe": ending.get("safe") if ending else written,
+                # The position after which this attempt no longer writes what the
+                # gold answer writes: the point where it left the target.
+                "agrees_to": agrees,
             }
             smiles = ending.get("smiles") if ending else None
             if not smiles:
@@ -281,6 +309,9 @@ def main() -> int:
                 "runtime_seconds": float(record.get("runtime_seconds", 0.0)),
                 "candidates_requested": int(record.get("candidates", len(attempts))),
                 "returned": len(prediction.get("candidates", [])),
+                "gold_tokens": gold_tokens,
+                "partial_svgs": partial_svgs,
+                "gold_matches": gold_matches,
                 "attempts": attempts,
             }
         )
