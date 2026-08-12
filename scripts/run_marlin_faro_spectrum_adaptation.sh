@@ -92,4 +92,10 @@ python -X faulthandler scripts/train_marlin_spectrum_adaptation.py \
   --selection-metric "${MARLIN_SELECTION_METRIC:-candidate_return_rate}" \
   --selection-patience "${MARLIN_SELECTION_PATIENCE:-3}" \
   --cross-attention-only-steps "${MARLIN_CROSS_ATTENTION_ONLY_STEPS:-100}" \
-  --learning-rate "${MARLIN_LEARNING_RATE:-1e-5}"
+  --learning-rate "${MARLIN_LEARNING_RATE:-1e-5}" \
+  --noise-probability "${MARLIN_NOISE_PROBABILITY:-0.5}" \
+  --context-corruption-probability "${MARLIN_CONTEXT_CORRUPTION_PROBABILITY:-0}" \
+  --context-corruption-warmup-steps "${MARLIN_CONTEXT_CORRUPTION_WARMUP_STEPS:-1000}" \
+  --context-corruption-min-fraction "${MARLIN_CONTEXT_CORRUPTION_MIN_FRACTION:-0.05}" \
+  --context-corruption-max-fraction "${MARLIN_CONTEXT_CORRUPTION_MAX_FRACTION:-0.25}" \
+  --restoration-loss-weight "${MARLIN_RESTORATION_LOSS_WEIGHT:-0}"

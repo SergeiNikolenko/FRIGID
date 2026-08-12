@@ -298,6 +298,37 @@ class MarlinDecoder(nn.Module):
             include_mass_conditioning=include_mass_conditioning,
         )
 
+    @torch.no_grad()
+    def sample_confusions(
+        self,
+        clean_ids: torch.Tensor,
+        precursor_mass: torch.Tensor,
+        fingerprint: torch.Tensor,
+        isotope_ratios: torch.Tensor | None = None,
+    ) -> torch.Tensor:
+        """Return, per position, the token this model would most plausibly
+        write instead of the gold one.
+
+        One forward pass with the whole content masked puts every block in the
+        state the sampler is in when it commits that block's first token; the
+        runner-up there is the mistake the sampler actually makes at temperature
+        1, which is a far more informative corruption than a uniform draw. No
+        gradient flows through it.
+        """
+        valid = clean_ids.ne(self.config.pad_token_id)
+        valid[:, 0] = False
+        masked_ids = clean_ids.masked_fill(valid, self.config.mask_token_id)
+        logits = self.two_stream_logits(
+            clean_ids,
+            masked_ids,
+            precursor_mass,
+            fingerprint,
+            isotope_ratios,
+            include_mass_conditioning=True,
+        )
+        top2 = logits.topk(2, dim=-1).indices
+        return torch.where(top2[..., 0].eq(clean_ids), top2[..., 1], top2[..., 0])
+
     def diffusion_loss(
         self,
         clean_ids: torch.Tensor,
@@ -341,9 +372,27 @@ class MarlinDecoder(nn.Module):
         balanced_token_loss_alpha: float = 0.0,
         token_loss_weight_max: float = 20.0,
         full_sequence_mask_probability: float = 0.0,
+        context_corruption_probability: float = 0.0,
+        context_corruption_min_fraction: float = 0.05,
+        context_corruption_max_fraction: float = 0.25,
+        restoration_loss_weight: float = 0.0,
+        confusion_ids: torch.Tensor | None = None,
         collect_metrics: bool = False,
     ) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
-        """Return the NELBO and optional reconstruction diagnostics."""
+        """Return the NELBO and optional reconstruction diagnostics.
+
+        ``context_corruption_probability`` teaches the decoder to survive its own
+        mistakes. At sampling time ``sampling_logits`` feeds the *committed*
+        prefix into the clean stream, so a wrong committed token becomes the
+        clean context of every later block; during training the clean stream is
+        always gold, and nothing in the objective ever shows the model a wrong
+        visible token. With this option a selected example has a fraction of its
+        clean-stream content positions replaced by ``confusion_ids`` (the
+        model's own runner-up tokens), while every cross-entropy target stays
+        gold. ``restoration_loss_weight`` additionally scores the corrupted
+        positions that were not masked, which is the explicit
+        "this token is wrong, here is the right one" signal.
+        """
         if eos_loss_weight <= 0:
             raise ValueError("eos_loss_weight must be positive")
         if not 0.0 <= eos_mask_probability <= 1.0:
@@ -354,6 +403,23 @@ class MarlinDecoder(nn.Module):
             raise ValueError("balanced_token_loss_alpha must be non-negative")
         if token_loss_weight_max < 1:
             raise ValueError("token_loss_weight_max must be at least 1")
+        if not 0.0 <= context_corruption_probability <= 1.0:
+            raise ValueError("context_corruption_probability must be in [0, 1]")
+        if not (
+            0.0
+            <= context_corruption_min_fraction
+            <= context_corruption_max_fraction
+            <= 1.0
+        ):
+            raise ValueError(
+                "context corruption fractions must satisfy 0 <= min <= max <= 1"
+            )
+        if restoration_loss_weight < 0:
+            raise ValueError("restoration_loss_weight must be non-negative")
+        if context_corruption_probability and confusion_ids is None:
+            raise ValueError(
+                "context corruption needs confusion_ids; call sample_confusions"
+            )
         valid = clean_ids.ne(self.config.pad_token_id)
         valid[:, 0] = False
         batch, length = clean_ids.shape
@@ -383,9 +449,30 @@ class MarlinDecoder(nn.Module):
                 < eos_mask_probability
             ) & eos_targets
             masked = masked | eos_masked
-        noised = clean_ids.masked_fill(masked, self.config.mask_token_id)
+        corrupted = torch.zeros_like(valid)
+        context_ids = clean_ids
+        if context_corruption_probability:
+            if confusion_ids.shape != clean_ids.shape:
+                raise ValueError("confusion_ids must match clean_ids in shape")
+            selected = (
+                torch.rand((batch, 1), device=clean_ids.device, generator=generator)
+                < context_corruption_probability
+            )
+            span = context_corruption_max_fraction - context_corruption_min_fraction
+            fractions = context_corruption_min_fraction + span * torch.rand(
+                (batch, 1), device=clean_ids.device, generator=generator
+            )
+            corrupted = (
+                torch.rand(clean_ids.shape, device=clean_ids.device, generator=generator)
+                < fractions
+            ) & valid & selected
+            # A confusion that happens to equal the gold token corrupts nothing,
+            # so it must not be scored as a restoration target either.
+            corrupted &= confusion_ids.ne(clean_ids)
+            context_ids = torch.where(corrupted, confusion_ids.detach(), clean_ids)
+        noised = context_ids.masked_fill(masked, self.config.mask_token_id)
         logits = self.two_stream_logits(
-            clean_ids,
+            context_ids,
             noised,
             precursor_mass,
             fingerprint,
@@ -421,6 +508,18 @@ class MarlinDecoder(nn.Module):
         ).clamp_min(1)
         per_example = (losses * target_weights * weights * masked).sum(dim=1) / valid_block_counts
         loss = per_example.mean()
+        # Visible-but-wrong positions carry no 1/t importance weight - they are
+        # not part of the absorbing NELBO - so they enter as a separate mean
+        # with its own coefficient and leave the NELBO estimator untouched.
+        restoration = corrupted & ~masked
+        restoration_count = restoration.sum()
+        restoration_loss = torch.where(
+            restoration_count > 0,
+            (losses * restoration).sum() / restoration_count.clamp_min(1),
+            losses.new_tensor(0.0),
+        )
+        if restoration_loss_weight:
+            loss = loss + restoration_loss_weight * restoration_loss
         if not collect_metrics:
             return loss, {}
 
@@ -568,6 +667,21 @@ class MarlinDecoder(nn.Module):
             "masked_eos_target_probability": eos_target_probability,
             "masked_eos_target_rank": eos_target_rank,
             "mask_fraction": masked.sum() / valid.sum().clamp_min(1),
+            "context_corruption_fraction": corrupted.sum() / valid.sum().clamp_min(1),
+            "restoration_loss": restoration_loss,
+            "restoration_token_count": restoration_count.float(),
+            # Did the model put the gold token back where it saw a wrong one?
+            "restoration_token_accuracy_top1": (
+                predictions.eq(clean_ids) & restoration
+            ).sum() / restoration_count.clamp_min(1),
+            # ... or did it simply copy the wrong token it was shown?
+            "restoration_copy_rate": (
+                predictions.eq(context_ids) & restoration
+            ).sum() / restoration_count.clamp_min(1),
+            "masked_token_accuracy_top1_uncorrupted_rows": (
+                correct & masked & ~corrupted.any(dim=1, keepdim=True)
+            ).sum()
+            / (masked & ~corrupted.any(dim=1, keepdim=True)).sum().clamp_min(1),
             "full_sequence_mask_fraction": full_sequence_masked.float().mean(),
             "masked_sequence_accuracy": (
                 (correct | ~masked).all(dim=1) & masked.any(dim=1)

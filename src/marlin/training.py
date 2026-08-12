@@ -509,10 +509,17 @@ class MarlinLightningModule(L.LightningModule):
         conditioning_only_steps: int = 0,
         cross_attention_only_steps: int = 0,
         adapt_fingerprint: bool = False,
+        context_corruption_probability: float = 0.0,
+        context_corruption_warmup_steps: int = 0,
+        context_corruption_min_fraction: float = 0.05,
+        context_corruption_max_fraction: float = 0.25,
+        restoration_loss_weight: float = 0.0,
     ) -> None:
         super().__init__()
         if conditioning_only_steps < 0 or cross_attention_only_steps < 0:
             raise ValueError("adaptation stage durations must be non-negative")
+        if context_corruption_warmup_steps < 0:
+            raise ValueError("context_corruption_warmup_steps must be non-negative")
         self.save_hyperparameters(
             {
                 "config": asdict(config),
@@ -531,6 +538,11 @@ class MarlinLightningModule(L.LightningModule):
                 "conditioning_only_steps": conditioning_only_steps,
                 "cross_attention_only_steps": cross_attention_only_steps,
                 "adapt_fingerprint": adapt_fingerprint,
+                "context_corruption_probability": context_corruption_probability,
+                "context_corruption_warmup_steps": context_corruption_warmup_steps,
+                "context_corruption_min_fraction": context_corruption_min_fraction,
+                "context_corruption_max_fraction": context_corruption_max_fraction,
+                "restoration_loss_weight": restoration_loss_weight,
             }
         )
         self.decoder = MarlinDecoder(config)
@@ -549,6 +561,11 @@ class MarlinLightningModule(L.LightningModule):
         self.conditioning_only_steps = conditioning_only_steps
         self.cross_attention_only_steps = cross_attention_only_steps
         self.adapt_fingerprint = adapt_fingerprint
+        self.context_corruption_probability = context_corruption_probability
+        self.context_corruption_warmup_steps = context_corruption_warmup_steps
+        self.context_corruption_min_fraction = context_corruption_min_fraction
+        self.context_corruption_max_fraction = context_corruption_max_fraction
+        self.restoration_loss_weight = restoration_loss_weight
         self._last_metric_step = -1
         self._active_adaptation_stage: str | None = None
         self._trainable_parameter_fraction = 1.0
@@ -619,6 +636,21 @@ class MarlinLightningModule(L.LightningModule):
         )
         return stage
 
+    def context_corruption_schedule(self, step: int) -> float:
+        """Ramp the corrupted-context probability in from zero.
+
+        Step 0 must reproduce the source checkpoint's objective exactly, so any
+        divergence in the first logged steps is attributable to the ramp and not
+        to a silent change of objective. The ramp is linear and short.
+        """
+        if not self.context_corruption_probability:
+            return 0.0
+        if step >= self.context_corruption_warmup_steps:
+            return self.context_corruption_probability
+        return self.context_corruption_probability * (
+            step / max(self.context_corruption_warmup_steps, 1)
+        )
+
     def on_train_batch_start(
         self,
         batch: dict[str, torch.Tensor],
@@ -638,6 +670,21 @@ class MarlinLightningModule(L.LightningModule):
             self.global_step % self.metric_interval == 0
             and self.global_step != self._last_metric_step
         )
+        corruption_probability = self.context_corruption_schedule(
+            int(self.global_step)
+        )
+        confusion_ids = None
+        if corruption_probability:
+            was_training = self.decoder.training
+            # Dropout would make the confusion a different model's mistake.
+            self.decoder.eval()
+            confusion_ids = self.decoder.sample_confusions(
+                batch["input_ids"],
+                batch["precursor_mass"],
+                fingerprint,
+                batch["isotope_ratios"],
+            )
+            self.decoder.train(was_training)
         loss, reconstruction_metrics = self.decoder.diffusion_objective(
             batch["input_ids"],
             batch["precursor_mass"],
@@ -648,6 +695,11 @@ class MarlinLightningModule(L.LightningModule):
             balanced_token_loss_alpha=self.balanced_token_loss_alpha,
             token_loss_weight_max=self.token_loss_weight_max,
             full_sequence_mask_probability=self.full_sequence_mask_probability,
+            context_corruption_probability=corruption_probability,
+            context_corruption_min_fraction=self.context_corruption_min_fraction,
+            context_corruption_max_fraction=self.context_corruption_max_fraction,
+            restoration_loss_weight=self.restoration_loss_weight,
+            confusion_ids=confusion_ids,
             collect_metrics=collect_metrics,
         )
         if collect_metrics:
@@ -683,6 +735,12 @@ class MarlinLightningModule(L.LightningModule):
         self.log(
             "fingerprint_noise_fraction",
             (fingerprint != batch["fingerprint"]).float().mean(),
+            on_step=True,
+            sync_dist=True,
+        )
+        self.log(
+            "context_corruption_probability",
+            corruption_probability,
             on_step=True,
             sync_dist=True,
         )

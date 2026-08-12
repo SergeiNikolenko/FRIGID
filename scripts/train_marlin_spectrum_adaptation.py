@@ -158,6 +158,36 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--num-workers", type=int, default=4)
     parser.add_argument("--learning-rate", type=float, default=1e-5)
     parser.add_argument("--cross-attention-only-steps", type=int, default=100)
+    parser.add_argument(
+        "--context-corruption-probability",
+        type=float,
+        default=0.0,
+        help=(
+            "probability that a training example has part of its clean-stream "
+            "context replaced by the model's own runner-up tokens, with the "
+            "cross-entropy targets left gold. At sampling time the clean stream "
+            "is the committed prefix, so a wrong committed token is context the "
+            "training objective never produces; 0 keeps the historical objective"
+        ),
+    )
+    parser.add_argument(
+        "--context-corruption-warmup-steps",
+        type=int,
+        default=1000,
+        help="linear ramp of the corruption probability from 0",
+    )
+    parser.add_argument("--context-corruption-min-fraction", type=float, default=0.05)
+    parser.add_argument("--context-corruption-max-fraction", type=float, default=0.25)
+    parser.add_argument(
+        "--restoration-loss-weight",
+        type=float,
+        default=0.0,
+        help=(
+            "coefficient of the extra cross-entropy on corrupted, unmasked "
+            "positions. It is not part of the absorbing NELBO, so it is kept "
+            "as a separate mean with its own coefficient"
+        ),
+    )
     parser.add_argument("--noise-probability", type=float, default=0.5)
     parser.add_argument("--noise-min-fraction", type=float, default=0.1)
     parser.add_argument("--noise-max-fraction", type=float, default=0.3)
@@ -273,6 +303,26 @@ def validate_args(args: argparse.Namespace) -> None:
         raise ValueError("training and evaluation sizes must be positive")
     if not 0.0 <= args.noise_probability <= 1.0:
         raise ValueError("noise probability must be in [0, 1]")
+    if not 0.0 <= args.context_corruption_probability <= 1.0:
+        raise ValueError("context corruption probability must be in [0, 1]")
+    if not (
+        0.0
+        <= args.context_corruption_min_fraction
+        <= args.context_corruption_max_fraction
+        <= 1.0
+    ):
+        raise ValueError(
+            "context corruption fractions must satisfy 0 <= min <= max <= 1"
+        )
+    if args.context_corruption_warmup_steps < 0:
+        raise ValueError("--context-corruption-warmup-steps must be non-negative")
+    if args.restoration_loss_weight < 0:
+        raise ValueError("--restoration-loss-weight must be non-negative")
+    if args.restoration_loss_weight and not args.context_corruption_probability:
+        raise ValueError(
+            "a restoration loss without context corruption has no corrupted "
+            "positions to score"
+        )
     if not 0.0 <= args.noise_min_fraction <= args.noise_max_fraction <= 1.0:
         raise ValueError("noise fractions must satisfy 0 <= min <= max <= 1")
     if args.evaluation_shards < 1:
@@ -402,6 +452,11 @@ def main() -> None:
         conditioning_only_steps=0,
         cross_attention_only_steps=args.cross_attention_only_steps,
         adapt_fingerprint=True,
+        context_corruption_probability=args.context_corruption_probability,
+        context_corruption_warmup_steps=args.context_corruption_warmup_steps,
+        context_corruption_min_fraction=args.context_corruption_min_fraction,
+        context_corruption_max_fraction=args.context_corruption_max_fraction,
+        restoration_loss_weight=args.restoration_loss_weight,
     )
     start_report = load_marlin_decoder_weights(
         module.decoder,
@@ -427,6 +482,15 @@ def main() -> None:
         "learning_rate": args.learning_rate,
         "max_steps": args.max_steps,
         "cross_attention_only_steps": args.cross_attention_only_steps,
+        "context_corruption": {
+            "probability": args.context_corruption_probability,
+            "warmup_steps": args.context_corruption_warmup_steps,
+            "min_fraction": args.context_corruption_min_fraction,
+            "max_fraction": args.context_corruption_max_fraction,
+            "restoration_loss_weight": args.restoration_loss_weight,
+            "source": "model runner-up tokens under a fully masked block",
+            "targets": "gold",
+        },
         "symmetric_fingerprint_noise": {
             "probability": args.noise_probability,
             "min_fraction": args.noise_min_fraction,

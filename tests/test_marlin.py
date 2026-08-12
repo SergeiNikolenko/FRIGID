@@ -526,6 +526,14 @@ def test_diffusion_objective_reports_reconstruction_metrics():
         "masked_eos_target_probability",
         "masked_eos_target_rank",
         "mask_fraction",
+        # Reported at every step so a corrupted-context run is legible; all
+        # zero, and the loss unchanged, while the corruption probability is 0.
+        "context_corruption_fraction",
+        "restoration_loss",
+        "restoration_token_count",
+        "restoration_token_accuracy_top1",
+        "restoration_copy_rate",
+        "masked_token_accuracy_top1_uncorrupted_rows",
         "full_sequence_mask_fraction",
         "masked_sequence_accuracy",
         "first_block_masked_count",
