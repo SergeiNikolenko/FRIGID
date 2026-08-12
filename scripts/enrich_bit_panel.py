@@ -51,31 +51,55 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def draw_environment(molecule: Chem.Mol, atom: int, radius: int) -> str:
-    """Draw the whole molecule with one Morgan environment lit up."""
-    bonds = (
-        list(Chem.FindAtomEnvironmentOfRadiusN(molecule, radius, atom))
-        if radius
-        else []
-    )
-    atoms = {atom}
-    for bond_index in bonds:
-        bond = molecule.GetBondWithIdx(bond_index)
-        atoms.add(bond.GetBeginAtomIdx())
-        atoms.add(bond.GetEndAtomIdx())
+def fragment_of(molecule: Chem.Mol, atom: int, radius: int) -> tuple[Chem.Mol | None, str]:
+    """Cut the Morgan environment out as a molecule of its own.
 
-    rdDepictor.Compute2DCoords(molecule)
-    drawer = rdMolDraw2D.MolDraw2DSVG(150, 110)
+    Drawing the whole molecule with a few atoms highlighted makes every bit look
+    the same. The environment itself -- an atom and everything within ``radius``
+    bonds of it -- is what the bit actually stands for, so that is what gets
+    drawn.
+    """
+    if radius == 0:
+        single = Chem.RWMol()
+        source = molecule.GetAtomWithIdx(atom)
+        copy = Chem.Atom(source.GetSymbol())
+        copy.SetIsAromatic(source.GetIsAromatic())
+        copy.SetFormalCharge(source.GetFormalCharge())
+        # A radius-0 bit is the atom alone. Without this RDKit fills in the
+        # hydrogens and the card reads "CH4" where the bit means "a carbon".
+        copy.SetNoImplicit(True)
+        single.AddAtom(copy)
+        piece = single.GetMol()
+        return piece, source.GetSymbol()
+    bonds = list(Chem.FindAtomEnvironmentOfRadiusN(molecule, radius, atom))
+    if not bonds:
+        return None, ""
+    piece = Chem.PathToSubmol(molecule, bonds)
+    try:
+        label = Chem.MolToSmiles(piece)
+    except Exception:
+        label = ""
+    return piece, label
+
+
+def draw(piece: Chem.Mol, width: int = 150, height: int = 110) -> str | None:
+    if piece is None:
+        return None
+    try:
+        rdDepictor.Compute2DCoords(piece)
+    except Exception:
+        return None
+    drawer = rdMolDraw2D.MolDraw2DSVG(width, height)
     options = drawer.drawOptions()
     options.clearBackground = False
-    options.bondLineWidth = 1
+    options.bondLineWidth = 2
     options.setAtomPalette(PALETTE)
     for element, colour in ELEMENTS:
         options.updateAtomPalette({element: colour})
-    options.setHighlightColour((0.10, 0.62, 0.44, 0.55))
-    rdMolDraw2D.PrepareAndDrawMolecule(
-        drawer, molecule, highlightAtoms=sorted(atoms), highlightBonds=bonds
-    )
+    try:
+        rdMolDraw2D.PrepareAndDrawMolecule(drawer, piece)
+    except Exception:
+        drawer.DrawMolecule(piece)
     drawer.FinishDrawing()
     return drawer.GetDrawingText().replace(
         "<?xml version='1.0' encoding='iso-8859-1'?>", ""
@@ -132,14 +156,21 @@ def main() -> int:
             else:
                 kind = "spurious"
             svg = None
+            label = ""
+            radius = None
             if bit in info:
-                atom, radius = info[bit][0]
-                svg = draw_environment(molecule, int(atom), int(radius))
-                drawn += 1
+                atom, environment_radius = info[bit][0]
+                radius = int(environment_radius)
+                piece, label = fragment_of(molecule, int(atom), radius)
+                svg = draw(piece)
+                if svg is not None:
+                    drawn += 1
             entries.append(
                 {
                     "bit": int(bit),
                     "kind": kind,
+                    "radius": radius,
+                    "label": label,
                     "probability": None if probability is None else round(probability, 4),
                     "svg": svg,
                 }
