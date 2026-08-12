@@ -272,3 +272,145 @@ active bits), so the difference is attributable to the conditioning alone.
    experiments, i.e. the actual objective — cannot be queued until the branch is pushed.
 2. Cancel and resubmit run C with 24 shards, or drop the 64-candidate arm entirely given
    that budget was already killed as a primary lever (§5).
+
+## 10. Back on full panels — measurement wave of 2026-08-12, 19:00–19:30Z
+
+Appended, not merged into anything above. Sections 1–9 are unedited.
+
+### 10.1 The throughput regression is still in the code that is running
+
+`git log --oneline -8` at the time of writing carries no lazy or top-k mask commit. The
+lazy top-k probe exists only as an **uncommitted working-tree change** to
+`src/marlin/sampler.py` (`_probe_token`, `lazy_probe_width`), `src/marlin/grammar.py`
+(`_decoded_prefix` / `_prefix_scan` caches) and the untracked
+`scripts/audit_lazy_probe_identity.py`. Those files were still being edited at 19:05Z while
+this measurement ran, so R1 is in flight, not landed.
+
+Code does **not** reach the ClearML worker by git clone for evaluation: the entry point is
+`marlin_clean_panel_eval.sh`, and the tree arrives as artifact `code` of payload task
+`3993339892da42c9be34c7e76022376e`
+(`code.tar.gz` sha256 `30cd5d937b23acb5d206af85f212c2d9933d141113b89f8af1b6b694d32c1bba`).
+That tarball's `src/marlin/sampler.py` and `src/marlin/grammar.py` hash to
+`d03f5b2031df…` and `de9f6a0f469c…`, byte-identical to commit `9d0a919`, and contain no
+`lazy_probe`. **Both running evaluations therefore execute the pre-lazy-mask code.**
+
+Measured from the two tasks' own 10-minute heartbeats rather than from the commit titles,
+over the steady-state window 1,212 s → 5,412/6,012 s:
+
+| Run | rows/h | s/spectrum wall (6 shards) | s/spectrum of shard time |
+|---|---:|---:|---:|
+| `1adf897039114c38a1c9a06e8384211e` oracle | 52.3 | 68.9 | **413** |
+| `99e971d1ec1644bb80f5e0ed7106e93d` DreaMS | 49.7 | 72.7 | **436** |
+
+Baseline for the same 321 spectra at commit `2049e10`, from
+`/mnt/netstorage/nikolenko/marlin/evaluations/clean-before/shard0*.log`: median **54.5 s**,
+mean **108.7 s**, **34,882 shard-seconds** in total.
+
+So the current cost is **3.80x / 4.01x the baseline mean** and **7.6x / 8.0x the baseline
+median** — and that is measured under a per-spectrum cap of **300 s** against the baseline's
+1,800 s, so the like-for-like factor is larger than these ratios. The reported ~10.8x
+regression is real and unfixed in shipped code.
+
+The cap is also overshot: mean shard time 413–436 s under a 300 s budget.
+
+### 10.2 The pair now running is a truncated evaluation
+
+At baseline speed 23 of 321 spectra (7.2%) ran past 300 s; `clean-before` truncated **0**
+rows at its 1,800 s cap. At the measured ~4x, the rows that will hit the new 300 s cap are
+those past ~75 s at baseline: **124 of 321 (38.6%)**.
+
+Both arms are truncated identically, so the oracle-vs-predicted *contrast* survives; the
+*absolute* Exact@1 of these two runs will **not** be comparable with `clean-before`'s 0.93%
+and must be published with its `truncated_spectra` count (§7 rule 6).
+
+A local paired probe on one clean-panel spectrum (`CCMSLIB00000077068`, GPU baseline 28.7 s)
+run on CPU on the login host — which is simultaneously carrying three other workflows, so
+only the ratio is claimed — gives 409.9 s at `9d0a919` against 314.4 s with the
+working-tree lazy probe applied. Both saturate the 300 s cap, so this measures **deadline
+overshoot, not throughput**: 1.37x over budget without the per-token deadline check, 1.05x
+with it. `/tmp/speed_out_head/head.log`, `/tmp/speed_out_lazy/lazy.log`.
+
+### 10.3 Runs in flight: true state and what was done
+
+| Task | What | True state at 19:25Z | Action |
+|---|---|---|---|
+| `1adf897039114c38a1c9a06e8384211e` | clean panel 321, **oracle** fingerprint, c8, 6 shards, cap 300 | `in_progress`, 73/321 rows at 5,412 s | **left running**, ETA ≈ 00:05Z |
+| `99e971d1ec1644bb80f5e0ed7106e93d` | clean panel 321, DreaMS fingerprint, c8, 6 shards, cap 300 | `in_progress`, 77/321 rows at 6,012 s | **left running**, ETA ≈ 00:20Z |
+| `c25c3ac3c6b44e66bbeffe04187ba445` | clean panel 321, DreaMS, **c64**, 6 shards, cap 900 | `queued`, never started | **cancelled** (`stopped`) and removed from queue `sience`, which is now empty with both GPU slots on A and B |
+
+ETAs are computed from the measured 68.9 / 72.7 s per row above, not assumed; they exclude
+the shard tail, since the six interleaved shards do not finish together.
+
+**Why C was cancelled.** The 64-candidate budget is already a killed lever (§5: 5.6x compute
+for +1.05 pp). At the throughput measured in §10.1 the 803-split c64:c8 compute ratio puts it
+near **33 h on 6 shards**, and it was the only entry in queue `sience`, so it would have
+blocked the slot that the post-R1 reruns need. Cancelling it costs nothing that §5 has not
+already priced.
+
+**Why A and B were not cancelled and relaunched.** Relaunching on *current HEAD* buys nothing
+— the payload already is current HEAD, verified by hash above — so the only gain would be
+more shards. That gain is bounded: the worker's GPU is a 40 GB A100
+(`nvidia-smi` line in the task log, `host=… nproc=64`), each shard holds its own copy of a
+2.75 GB checkpoint, and six shards are the known-good configuration; ten would sit at the
+edge of the card. Against ~1 h of saving, a relaunch discards the 150 rows already decoded
+and risks an OOM that costs the night. The decisive fact is that R1 lands within hours: once
+the lazy mask is committed and gated, the same full-panel pair costs a fraction of this, so
+the right rerun is a *post-R1* one and not a resharded repeat of the slow code.
+
+### 10.4 The decisive pair is already full-size and matched
+
+Verified rather than assumed:
+
+- Panel: `configs/benchmarks/nplib1_v1/nplib1_val_clean322_v1.tsv`, sha256
+  `23426dabf916822ab4961d83e3942c1f59c317d6500480e7c812f2fea58a4a14`, identical in the local
+  tree and in the payload tarball; its 321 spec names are exactly the union of the six
+  `clean-before` shards. The launcher shards the whole file — no `MARLIN_MAX_SPECTRA`.
+- Flags are identical apart from the fingerprint source: `--candidates 8`,
+  `--diversity-dropout 0.3 --temperature 1.0 --threshold 0.95 --sample-tokens
+  --soft-fingerprint --mass-reachability-prune --forbid-isotope-tokens
+  --restrict-organic-elements --isotope-token omit --no-ema --generation-mode block
+  --ppm-tolerance 10.0 --eos-boost 1.0 --seed 42 --per-spectrum-seconds 300`.
+- The oracle arm's fingerprints are the ClearML artifact `oracle_fingerprints`, which is
+  `np.array_equal`-identical to `val/fingerprints.npz['ground_truth']` (396 × 4,096, mean
+  46.93 active bits) with a `spectrum_ids` key added for keying. The DreaMS arm reads
+  `val/dreams_predictions.npz` key `probs`.
+
+So the requirement "both arms, entire 321-spectrum clean panel, 8 candidates, identical flags
+apart from the fingerprint source" is already satisfied by the pair in flight; what is not
+satisfied is the shard count and the cap, and both of those are worth fixing only after R1.
+
+### 10.5 One scorer over everything finished
+
+`src/marlin/frigid_convention.py`, FRIGID convention, every denominator "all spectra" unless
+named otherwise. Nothing here is new decoding; it is the existing evidence re-scored so the
+table is comparable end to end.
+
+| Run | Panel | n | Exact@1 | Exact@10 | Tanimoto@1 | Tanimoto (all candidates) | Formula@1 | Return rate | Truncated |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| `full803-c8-100k` | locked test | 803 | **2.74%** (22) | 3.24% (26) | 0.1697 | 0.1602 | 0.3238 | 0.3786 | 0 |
+| `full803-c64-100k` | locked test, partial | 190 | 5.26% (10) | 7.89% (15) | 0.3166 | 0.2660 | 0.5368 | 0.7158 | 1 |
+| `clean-before` | clean 321 | 321 | **0.93%** (3) | 0.93% (3) | 0.1575 | 0.1473 | 0.2399 | 0.4143 | 0 |
+| `hgate-prefix` | **val396, burned** | 314 | 1.59% (5) | 1.91% (6) | 0.1372 | 0.1302 | 0.2516 | 0.3185 | 0 |
+| `hgate-postfix` | **val396, burned** | 316 | 1.58% (5) | 1.90% (6) | 0.1656 | 0.1552 | 0.2563 | 0.4019 | 0 |
+| MARLIN paper (DreaMS) | NPLIB1 test | — | 16.94% | 23.54% | 0.55 | — | 0.767 | — | — |
+
+Readings that matter:
+
+- The `full803-c64-100k` row is **190 of 803 spectra**, not a panel result; it is the paired
+  subset already reported in §3 and is listed only so its denominator travels with it.
+- `hgate-prefix` and `hgate-postfix` ran on `nplib1_val_full396_v1`, which §2 declares burned.
+  They are printed here so that nobody re-scores them later believing they are panels. **Do
+  not quote them.**
+- Two evaluation directories hold no usable result: `clean-after` (3 rows, aborted) and
+  `paper-proto-100k` / `paper-protocol-step100000` (0 rows).
+- Exact@10 on the clean panel equals Exact@1 exactly, which is §5's reranker verdict
+  restated: 3 = 3, zero ranking headroom on the clean panel.
+
+### 10.6 What this wave changes
+
+1. Every evaluation from here runs on the clean 321 panel or the locked 803 split. The 8-,
+   32- and 48-spectrum arms are retired; nothing in §10.5 is drawn from one.
+2. The 64-candidate arm is gone from the queue and should stay gone (§5).
+3. The next full-panel launch waits on R1, and when it goes it should carry `cap = 1800` so
+   it is comparable with `clean-before`, and more shards than six — bounded by the 40 GB card
+   and one 2.75 GB checkpoint per shard, so roughly 8–10 per GPU, not 24.
