@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>MARLIN · eight attempts, one spectrum</title>
+<title>decodescope · one spectrum, every attempt</title>
 <style>
 /* shadcn/ui design language: neutral scale, one radius, hairline borders, and
    a focus ring. Fonts are system stacks, so nothing depends on a font CDN. */
@@ -315,6 +315,20 @@ tbody tr:hover td, tbody tr.picked td { background: var(--muted); }
   transition: opacity 90ms linear; box-shadow: var(--shadow);
 }
 
+/* ---------- the bar both surfaces share ---------- */
+.site-bar { border-bottom: 1px solid var(--border); background: var(--card); }
+.site-bar-inner {
+  max-width: 1500px; margin: 0 auto; padding: 12px 20px;
+  display: flex; align-items: center; gap: 14px;
+}
+.brand { font-weight: 600; font-size: 14px; letter-spacing: -0.01em; color: var(--foreground); text-decoration: none; }
+.brand-note { font-family: var(--mono); font-size: 11px; letter-spacing: .04em; text-transform: uppercase; color: var(--muted-foreground); }
+.brand-link {
+  margin-left: auto; font-size: 13px; color: var(--muted-foreground); text-decoration: none;
+  border: 1px solid var(--border); border-radius: calc(var(--radius) - 4px); padding: 5px 10px;
+}
+.brand-link:hover { color: var(--foreground); border-color: var(--ring); }
+
 /* ---------- the fan ---------- */
 .tree-scroll { overflow: auto; padding: 4px 0 8px; }
 .tree-scroll svg { display: block; height: auto; }
@@ -360,6 +374,13 @@ tbody tr:hover td, tbody tr.picked td { background: var(--muted); }
 </style>
 </head>
 <body>
+<div class="site-bar">
+  <div class="site-bar-inner">
+    <a class="brand" href="/">decodescope</a>
+    <span class="brand-note">MARLIN · recorded decodes</span>
+    <a class="brand-link" href="/">All cases</a>
+  </div>
+</div>
 <div class="wrap">
 <header>
   <p class="eyebrow">MARLIN · recorded decode · every attempt of one spectrum</p>

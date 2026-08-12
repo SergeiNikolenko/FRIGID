@@ -23,7 +23,7 @@ import sys
 import urllib.request
 from pathlib import Path
 
-SITE = os.environ.get("MARLIN_VIEWER_SITE", "https://marlin-viewer.vercel.app")
+SITE = os.environ.get("MARLIN_VIEWER_SITE", "https://decodescope.vercel.app")
 BLOB = "https://blob.vercel-storage.com"
 ID = re.compile(r"^[a-z0-9][a-z0-9._-]{0,63}$", re.IGNORECASE)
 
