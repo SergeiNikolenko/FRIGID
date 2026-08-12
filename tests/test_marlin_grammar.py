@@ -11,6 +11,7 @@ from marlin.grammar import (
     SafeGrammarMask,
     _GrammarState,
     _HYDROGEN_MASS,
+    _aromatic_system_kekulizes,
     _has_hydrogen_only_exact_mass,
     _has_reachable_exact_mass,
     _has_structurally_viable_continuation,
@@ -239,7 +240,11 @@ def test_safe_grammar_accepts_branch_bonds_and_partial_vocabulary_tokens():
     assert _scan("[13C-11") is not None
     assert _scan("[13C-111") is None
     assert _scan("[NHHE") is None
-    assert _scan("c[nH]c").terminal
+    # "c[nH]c" is lexically clean and chemically impossible: RDKit refuses a
+    # non-ring atom marked aromatic, and none of these three can reach a ring.
+    assert Chem.MolFromSmiles("c[nH]c") is None
+    assert _scan("c[nH]c") is None
+    assert _scan("c1[nH]c1") is not None
     assert _scan("C1[2H]1") is None
     assert _scan("C%1") is not None
     assert not _scan("C%1").terminal
@@ -746,3 +751,96 @@ def test_foreign_element_token_ids_keep_the_organic_set_and_drop_metals():
 def test_foreign_element_token_ids_leave_unresolvable_tokens_supported():
     # A partial token whose element cannot be read must not be banned on a guess.
     assert foreign_element_token_ids(("[", "(", ")", "=", "%10")) == ()
+
+
+# The three strings the decoder actually wrote and RDKit refused, with the class
+# it named for each. The first two put an aromatic atom on a chain; the third
+# closes a seven-membered all-aromatic ring that has no Kekule structure.
+UNPARSABLE_TERMINALS = (
+    ("c12ccccc1.c13.[H]1.[o+]23", "c12ccccc1.c13.[H]1"),
+    ("Cc1ccccc12.[H+]1.[o+]12", "Cc1ccccc12.[H+]1.[o+]1"),
+    ("c1cccccc1-1.[H+]2.O2-1", None),
+)
+
+
+@pytest.mark.parametrize("safe,refused_prefix", UNPARSABLE_TERMINALS)
+def test_grammar_refuses_the_strings_rdkit_refuses(safe, refused_prefix):
+    # RDKit is the authority on both classes, so the grammar has to agree with it
+    # on every one of them before it may agree with it on anything else.
+    assert Chem.MolFromSmiles(safe) is None, safe
+    state = _scan(safe)
+
+    if refused_prefix is None:
+        # Kekulisation is a property of the finished molecule, so the string
+        # stays scannable and EOS is what the mask withholds.
+        assert state is not None
+        assert not _aromatic_system_kekulizes(safe, state)
+    else:
+        assert state is None
+        # And refused as early as the state allows: the shortest refused prefix
+        # is where the decoder gets its choice back.
+        assert _scan(refused_prefix) is None
+        assert _scan(refused_prefix[:-1]) is not None
+
+
+def test_grammar_refuses_an_aromatic_atom_that_can_never_reach_a_ring():
+    # An aromatic atom written past without a ring label can gain no further
+    # bond, so no ring can ever contain it.
+    assert _scan("cC") is None
+    assert _scan("c[nH]c") is None
+    assert _scan("Cc(C)C") is None
+    # ... while every legitimate way of reaching a ring survives: opening a label
+    # at once, sitting in a branch of a ring, and being closed onto by a later
+    # SAFE fragment through a separator.
+    assert _scan("c1ccccc1") is not None
+    assert _scan("c1cc(C)ccc1") is not None
+    assert _scan("C1.C1") is not None
+    assert _scan("c13c[nH]c2ccccc12.NCC3") is not None
+    assert _scan("c1ccccc1") is not None and _scan("c1ccccc1").terminal
+    # An atom holding two open labels can still be closed into a ring by two
+    # later fragments, and an atom holding one cannot unless something else on
+    # its side of the graph can still take a bond.
+    assert _scan("c12") is not None
+    assert _scan("c12ccccc1.c13.[H]1") is None
+
+
+def test_grammar_refuses_a_closing_aromatic_ring_that_cannot_kekulize():
+    # "c1ccccc1" parses and "c1cccccc1" does not, and it is kekulisation rather
+    # than the ring size that decides: azulene's seven-membered ring is fine.
+    for safe, parses in (
+        ("c1ccccc1", True),
+        ("c1cccccc1", False),
+        ("c1cco(O1)", False),
+        ("c1ccc2cccc-2cc1", True),
+        ("c1ccc2ccccc2c1", True),
+    ):
+        state = _scan(safe)
+        assert state is not None, safe
+        assert _aromatic_system_kekulizes(safe, state) is parses, safe
+        assert (Chem.MolFromSmiles(safe) is not None) is parses, safe
+
+
+def test_eos_is_withheld_from_a_finished_string_rdkit_cannot_read():
+    tokens = ("[UNK]", "[CLS]", "[SEP]", "[PAD]", "[MASK]", "c", "1", "C")
+    grammar = SafeGrammarMask(
+        tokens,
+        lambda ids: "".join(tokens[index] for index in ids if index >= 5),
+        eos_token_id=2,
+        mask_token_id=4,
+        special_token_ids=(0, 1, 2, 3, 4),
+    )
+    benzene = [5, 6, 5, 5, 5, 5, 5, 6]
+    seven = [5, 6, 5, 5, 5, 5, 5, 5, 6]
+
+    assert grammar.decode_prefix(benzene) == "c1ccccc1"
+    assert grammar.decode_prefix(seven) == "c1cccccc1"
+    assert grammar.admits(benzene, grammar.eos_token_id)
+    assert not grammar.admits(seven, grammar.eos_token_id)
+
+
+@pytest.mark.parametrize("safe", TERMINAL_HYDROGEN_CASES)
+def test_the_aromatic_rules_cost_no_finished_gold_string(safe):
+    state = _scan(safe)
+
+    assert state is not None and state.terminal, safe
+    assert _aromatic_system_kekulizes(safe, state), safe

@@ -10,7 +10,7 @@ from typing import Callable, NamedTuple, Sequence
 
 import numpy as np
 import torch
-from rdkit import Chem
+from rdkit import Chem, rdBase
 
 from marlin.token_properties import (
     HYDROGEN_MASS,
@@ -36,6 +36,12 @@ _ELEMENT_PATTERN = "|".join(
 _BONDS = frozenset("-=#:/\\~")
 _BOND_ORDERS = {"-": 1.0, "=": 2.0, "#": 3.0, ":": 1.5, "/": 1.0, "\\": 1.0, "~": 1.0}
 _HYDROGEN_MASS = HYDROGEN_MASS
+# A lowercase atom symbol says "aromatic", and RDKit refuses a molecule whose
+# aromatic atom does not sit in a ring. "*" is a wildcard, not an aromatic atom.
+_AROMATIC_SYMBOLS = frozenset("bcnops")
+# The one node standing for every atom and bond the string has not written yet.
+# Negative so it can never collide with an atom index.
+_FUTURE_ATOM = -1
 # The elements a *future* atom is allowed to be while the mass reachability search
 # decides whether the residual mass can still be hit exactly, with the valence each
 # one can offer to the hydrogens still outstanding. This is a search space, not a
@@ -295,6 +301,18 @@ def _has_mass_viable_bracket_completion(
     )
 
 
+def _free_ring_label(state: _GrammarState) -> str:
+    """Return a ring label the state has not opened yet."""
+    for digit in "123456789":
+        if digit not in state.open_rings:
+            return digit
+    for value in range(10, 100):
+        label = f"%{value}"
+        if label not in state.open_rings:
+            return label
+    return ""
+
+
 def _has_mass_viable_atom_completion(
     text: str,
     target_mass: float,
@@ -306,16 +324,30 @@ def _has_mass_viable_atom_completion(
         base = _scan_base(text)
         if base is None:
             return False
-    return any(
-        (state := _scan_continuation(base, atom)) is not None
-        and state.minimum_mass(valence_slack) <= target_mass + tolerance
-        and _has_reachable_exact_mass(
-            state,
-            target_mass,
-            valence_slack,
-            tolerance,
+
+    def viable(suffix: str) -> bool:
+        state = _scan_continuation(base, suffix)
+        return (
+            state is not None
+            and state.minimum_mass(valence_slack) <= target_mass + tolerance
+            and _has_reachable_exact_mass(
+                state,
+                target_mass,
+                valence_slack,
+                tolerance,
+            )
         )
-        for atom in _ATOM_COMPLETIONS
+
+    if any(viable(atom) for atom in _ATOM_COMPLETIONS):
+        return True
+    # An aromatic atom the string has just written is not allowed a bare atom
+    # after it -- that would seal it outside every ring -- so a probe made only
+    # of atoms answers "no continuation" for "c", which is the opening token of
+    # a fifth of the gold answers. The label it must open first carries no mass
+    # and only reserves a bond, so it belongs in the probe, not in the support.
+    opening = _free_ring_label(base.state)
+    return bool(opening) and any(
+        viable(opening + atom) for atom in _ATOM_COMPLETIONS
     )
 
 
@@ -398,6 +430,7 @@ class _GrammarState:
     atom_symbols: dict[int, str] | None = None
     explicit_hydrogens: dict[int, int] | None = None
     bracket_atoms: set[int] | None = None
+    aromatic_atoms: set[int] | None = None
     bonds: set[tuple[int, int]] | None = None
     pending_bond_order: float | None = None
     incomplete_token: bool = False
@@ -428,6 +461,8 @@ class _GrammarState:
             self.explicit_hydrogens = {}
         if self.bracket_atoms is None:
             self.bracket_atoms = set()
+        if self.aromatic_atoms is None:
+            self.aromatic_atoms = set()
         if self.bonds is None:
             self.bonds = set()
 
@@ -459,6 +494,7 @@ class _GrammarState:
         clone.atom_symbols = dict(self.atom_symbols)
         clone.explicit_hydrogens = dict(self.explicit_hydrogens)
         clone.bracket_atoms = set(self.bracket_atoms)
+        clone.aromatic_atoms = set(self.aromatic_atoms)
         clone.bonds = set(self.bonds)
         clone.pending_bond_order = self.pending_bond_order
         clone.incomplete_token = self.incomplete_token
@@ -472,6 +508,10 @@ class _GrammarState:
             and self.branch_depth == 0
             and not self.open_rings
             and not self.incomplete_token
+            # A finished string has no future to put a stray aromatic atom in a
+            # ring, so here the reachability question collapses to the question
+            # RDKit asks: is every aromatic atom on a cycle?
+            and _aromatic_atoms_can_reach_a_ring(self, finished=True)
         )
 
     def minimum_mass(self, valence_slack: float) -> float:
@@ -577,7 +617,138 @@ def _every_fragment_can_still_attach(state: "_GrammarState") -> bool:
     return all(root(atom) in attachable for atom in parent)
 
 
+def _atoms_on_a_cycle(adjacency: dict[int, list[tuple[int, int]]]) -> set[int]:
+    """Return every vertex of ``adjacency`` that lies on a cycle.
+
+    ``adjacency[node]`` lists ``(neighbour, edge id)``; parallel edges carry
+    distinct ids, so a pair of them is a cycle of its own. A vertex lies on a
+    cycle exactly when one of its edges is not a bridge, which one iterative
+    Tarjan pass over the whole graph answers for every vertex at once.
+    """
+    discovery: dict[int, int] = {}
+    low: dict[int, int] = {}
+    on_cycle: set[int] = set()
+    timer = 0
+    for root in adjacency:
+        if root in discovery:
+            continue
+        discovery[root] = low[root] = timer
+        timer += 1
+        stack = [(root, -1, iter(adjacency[root]))]
+        while stack:
+            node, entered_by, neighbours = stack[-1]
+            descended = False
+            for neighbour, edge in neighbours:
+                if edge == entered_by:
+                    continue
+                if neighbour in discovery:
+                    if discovery[neighbour] < low[node]:
+                        low[node] = discovery[neighbour]
+                    continue
+                discovery[neighbour] = low[neighbour] = timer
+                timer += 1
+                stack.append((neighbour, edge, iter(adjacency[neighbour])))
+                descended = True
+                break
+            if descended:
+                continue
+            stack.pop()
+            if stack:
+                parent = stack[-1][0]
+                if low[node] < low[parent]:
+                    low[parent] = low[node]
+                if low[node] <= discovery[parent]:
+                    on_cycle.add(parent)
+                    on_cycle.add(node)
+    return on_cycle
+
+
+def _aromatic_atoms_can_reach_a_ring(
+    state: "_GrammarState", *, finished: bool = False
+) -> bool:
+    """Report whether every aromatic atom written so far can still land in a ring.
+
+    RDKit refuses "non-ring atom marked aromatic" outright, and the two classes
+    the decoder writes are exactly that: ``c12ccccc1.c13.[H]1.[o+]23`` and
+    ``Cc1ccccc12.[H+]1.[o+]12`` both put an aromatic ``[o+]`` on a chain. The
+    mask tracked lexis, mass and connectivity but never asked this.
+
+    The test is one graph question. Take the bonds written so far and add a
+    single node standing for everything not written yet (``_FUTURE_ATOM``),
+    joined to each atom by one edge per bond that atom can still receive:
+
+    * one per ring label the atom holds open, because that label *will* close
+      onto an atom that does not exist yet (``open_rings``, filled at
+      ``_advance``'s ring branch);
+    * ``bond_limits - bond_counts`` more when the atom is still reachable for a
+      chain or a branch bond, which is exactly ``current_atom`` and the branch
+      stack ``branch_atoms``; every other atom has been written past and only a
+      ring label it already holds can reach it again.
+
+    An aromatic atom can end up in a ring exactly when it lies on a cycle of
+    that graph: two parallel future edges are the atom that opened two labels,
+    a cycle through the future node is the ring a later fragment closes onto it
+    across a SAFE separator, and a cycle avoiding the future node is a ring it
+    already sits in. The reading is conservative in the safe direction -- an
+    atom the future could not possibly reach is refused, everything else is
+    kept -- and it is monotone, because a sealed atom never becomes reachable
+    again and two components with no reachable atom between them never merge.
+
+    With ``finished`` the future is empty, which is the question RDKit asks of a
+    string the decoder has just ended.
+    """
+    if not state.aromatic_atoms:
+        return True
+    adjacency: dict[int, list[tuple[int, int]]] = {
+        atom: [] for atom in state.atom_symbols
+    }
+    edge = 0
+    for left, right in state.bonds:
+        adjacency[left].append((right, edge))
+        adjacency[right].append((left, edge))
+        edge += 1
+    if not finished:
+        reachable = set(state.branch_atoms)
+        if state.current_atom is not None:
+            reachable.add(state.current_atom)
+        future: dict[int, int] = {}
+        for atom in state.open_rings.values():
+            future[atom] = future.get(atom, 0) + 1
+        for atom in reachable:
+            spare = state.bond_limits[atom] - state.bond_counts[atom]
+            if spare > 0:
+                future[atom] = future.get(atom, 0) + spare
+        if future:
+            adjacency[_FUTURE_ATOM] = []
+            for atom, slots in future.items():
+                # Two parallel edges already make a cycle, so counting past two
+                # cannot change any answer.
+                for _ in range(min(slots, 2)):
+                    adjacency[atom].append((_FUTURE_ATOM, edge))
+                    adjacency[_FUTURE_ATOM].append((atom, edge))
+                    edge += 1
+    return state.aromatic_atoms <= _atoms_on_a_cycle(adjacency)
+
+
 def _advance(
+    state: _GrammarState,
+    text: str,
+    *,
+    stop_before_lookahead: bool = False,
+) -> int | None:
+    """Fold ``text`` into ``state`` and report how much of it was consumed.
+
+    Every exit point is checked against
+    :func:`_aromatic_atoms_can_reach_a_ring`, so no caller can hold a state
+    whose aromatic atoms are already stranded outside every possible ring.
+    """
+    consumed = _consume(state, text, stop_before_lookahead=stop_before_lookahead)
+    if consumed is None or not _aromatic_atoms_can_reach_a_ring(state):
+        return None
+    return consumed
+
+
+def _consume(
     state: _GrammarState,
     text: str,
     *,
@@ -665,6 +836,8 @@ def _advance(
             mass - atom.charge * _HYDROGEN_MASS
         )
         state.atom_symbols[state.atom_index] = symbol
+        if symbol in _AROMATIC_SYMBOLS:
+            state.aromatic_atoms.add(state.atom_index)
         state.explicit_hydrogens[state.atom_index] = atom.explicit_hydrogens
         if previous_atom is not None:
             previous_symbol = state.atom_symbols[previous_atom]
@@ -941,6 +1114,41 @@ def _extend_base(base: _ScanBase, suffix: str) -> _ScanBase | None:
     return _ScanBase(state, text[consumed:])
 
 
+@lru_cache(maxsize=32_768)
+def _rdkit_reads_back(text: str) -> bool:
+    """Report whether RDKit reads a finished SAFE string back as a molecule."""
+    blocker = rdBase.BlockLogs()
+    try:
+        return Chem.MolFromSmiles(text) is not None
+    finally:
+        del blocker
+
+
+def _aromatic_system_kekulizes(text: str, state: _GrammarState) -> bool:
+    """Report whether a *finished* ``text`` has a Kekule structure.
+
+    "c1ccccc1" parses and "c1cccccc1" does not, so a closing aromatic ring has
+    to be kekulizable and the mask never asked. The obvious cheap form of the
+    rule -- allow only the aromatic ring sizes the gold answers use -- was put
+    to the 7,947 gold answers and **the data refused it**. Ring perception says
+    real aromatic rings are 5 and 6 (1,703 and 11,337 of 13,056, with 10 sevens,
+    5 sixteens and one three), but a mask sees ring *closures*, not rings, and
+    the smallest all-aromatic cycle a gold closure completes runs 3, 5, 6, 7, 8,
+    9, 10, 11, 12, 14, 16, 17 and 22, with 1,018 closures completing no aromatic
+    cycle at all. Fused polycycles are why: their perimeter closes first and the
+    six-membered rings inside it close afterwards, so a size cut at closure time
+    costs thousands of gold answers. The size is not the invariant.
+
+    What is left is the question itself, asked once the string is finished and
+    the answer can no longer change: RDKit's own kekulisation, on the aromatic
+    systems only, so a molecule the decoder wrote without a lowercase atom pays
+    nothing. A finished string is one call, memoised, and it is the same call
+    the sampler makes afterwards -- moving it in front of EOS is what lets the
+    decoder keep writing instead of returning a string that cannot be read.
+    """
+    return not state.aromatic_atoms or _rdkit_reads_back(text)
+
+
 def _has_hydrogen_only_exact_mass(
     state: _GrammarState,
     target_mass: float,
@@ -977,11 +1185,15 @@ def _has_structurally_viable_continuation(
 ) -> bool:
     if state.incomplete_token:
         return True
-    if state.terminal and _has_hydrogen_only_exact_mass(
-        state,
-        target_mass,
-        valence_slack,
-        tolerance,
+    if (
+        state.terminal
+        and _aromatic_system_kekulizes(text, state)
+        and _has_hydrogen_only_exact_mass(
+            state,
+            target_mass,
+            valence_slack,
+            tolerance,
+        )
     ):
         return True
     if base is None:
@@ -1178,7 +1390,7 @@ class SafeGrammarMask:
     ) -> bool:
         """Report whether ``token_id`` is in the lexical support of ``prefix``."""
         if token_id == self.eos_token_id:
-            return state.terminal
+            return state.terminal and _aromatic_system_kekulizes(prefix, state)
         if token_id in self._blocked_token_ids:
             return False
         token = self.token_strings[token_id]
@@ -1216,8 +1428,12 @@ class SafeGrammarMask:
     ) -> bool:
         """Report whether ``token_id`` keeps ``target_mass`` reachable."""
         if token_id == self.eos_token_id:
-            return state.terminal and _has_hydrogen_only_exact_mass(
-                state, target_mass, self.valence_slack, tolerance
+            return (
+                state.terminal
+                and _aromatic_system_kekulizes(prefix, state)
+                and _has_hydrogen_only_exact_mass(
+                    state, target_mass, self.valence_slack, tolerance
+                )
             )
         if token_id in self._blocked_token_ids:
             return False

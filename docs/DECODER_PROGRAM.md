@@ -120,7 +120,45 @@ competitors), the true fingerprint ranks the gold structure first **99.2%** of t
 DreaMS fingerprint **48.3%**. Use that pair as the encoder-side metric — Tanimoto is
 unreadable by comparison.
 
-### 4.7 Ceiling
+### 4.7 The mask now agrees with RDKit on every finished string it admits
+
+The mask tracked lexis, mass and connectivity and never asked two chemical
+questions, so it admitted finished strings RDKit refuses in two named classes:
+an aromatic atom outside any ring (`c12ccccc1.c13.[H]1.[o+]23`) and an aromatic
+ring with no Kekule structure (`c1cccccc1-1.[H+]2.O2-1`). Both are closed now.
+
+- **An aromatic atom must be able to reach a ring.** Decided on the parsed atom:
+  take the bonds written so far, add one node standing for everything unwritten,
+  join it to each atom by one edge per bond that atom can still receive — one per
+  ring label it holds open, plus its spare valence when it is still the current
+  atom or on the branch stack — and require every aromatic atom to lie on a cycle
+  of that graph. `src/marlin/grammar.py:_aromatic_atoms_can_reach_a_ring`.
+- **A closing aromatic ring must kekulize.** Asked once, of the finished string,
+  in front of EOS. `src/marlin/grammar.py:_aromatic_system_kekulizes`.
+
+Measured over the three stored runs, terminal strings the mask admits and RDKit
+refuses go **116 → 0** (`full803-c8-100k`), **13 → 0** (`clean-before`) and
+**79 → 0** (`full803-c64-100k`). Nothing that parses is lost: strings RDKit reads
+and the mask admits stay at 360, 3 and 190, and returned candidates stay at
+397/534, 132/247 and 316/497. The two classes are 241 of the 1,413 sampled
+terminals of the 803-spectrum run (17.06%), and **all 241 are now refused** — 162
+while the string is still being written, 79 at EOS. Per spectrum, 116 of the 499
+empty-return test spectra, 25 of 188 on the clean panel and 30 of 54 on c64 had
+at least one attempt killed by one of them.
+
+Read the size of the prize honestly: the median refusal lands at **96.7% of the
+string**. The decoder does not get the attempt back, it gets its last few tokens
+back — the doomed token leaves the support and the model picks another instead of
+ending on a string nothing can read. The whole-attempt lever is still R2.
+
+**The acceptance gate constant moved: 32 gold rejections → 28**, same 7,551
+targets and 431,904 positions, still 0 on test. The 28 are a strict subset of the
+32 and no gold answer is newly refused; the four rescued rows (train 1781, 3962,
+4063, 4070, e.g. `c13cccc2nnsc12.CSC3=O`) come from widening the mass-viability
+probe, which now also tries the ring label an aromatic atom must open before any
+atom may follow it.
+
+### 4.8 Ceiling
 
 Calibrated against the teacher-forced anchors, a *perfect* fingerprint puts this decoder at
 **10.75–17.99% Exact@1**. Reaching 16.94% needs per-token 0.795, above what the decoder
@@ -146,6 +184,7 @@ the decoder has to get better.** That is the programme.
 | Early abort as a standalone fix | 0/803, 0/321 spectra hit the time cap; every spectrum ran its full attempt budget, so freed time has nowhere to go |
 | Formula conditioning, *now* | FRIGID's 0 → 53% jump is real but comes from a decoder trained with `formula_dropout_prob = 0.0`; adopting it needs a full retrain |
 | `safe_to_smiles(fix=True)` rescue | Rescues 60 of 91 unparsable strings; 0 of them land inside the 10 ppm shell |
+| An admissible-ring-size rule for kekulisation | Ring perception over the 7,947 gold answers says aromatic rings are 5 and 6 (1,703 and 11,337 of 13,056, plus 10 sevens, 5 sixteens, one three), but a mask sees *closures*, and the smallest all-aromatic cycle a gold closure completes is 3, 5, 6, 7, 8, 9 (456), 10 (573), 11, 12, 14, 16, 17 and 22, with 1,045 completing none at all — fused polycycles close their perimeter first. A size cut costs thousands of gold answers. `scripts/audit_marlin_aromatic_rings.py` |
 
 ## 6. The programme, ranked
 
