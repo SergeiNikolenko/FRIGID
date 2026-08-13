@@ -1051,3 +1051,184 @@ reviewers asked for (arm D) is still owed.
    and the run is void.
 5. Re-price one clean-panel shard end to end on the post-R1 tree before buying any
    paired decode, and evaluate at cap 1800, never 300.
+
+## 14. Run order, decided 2026-08-13 14:53Z
+
+Appended after §13. Sections 1–13 are unedited. §13.7's run table is superseded on
+one row (T1b) and one row is added (T2); everything else in §13 stands. Every state
+below was read from the ClearML API today, not from a plan.
+
+### 14.1 What is now true, in the four terms the wave was set
+
+**1. The recipe is fixed and the arms are running on it — verified in the running
+tasks, not in the code.** Both surviving arms carry, in their own
+`resolved_config`: `lr_schedule = warmup_cosine`, `learning_rate =
+3.164707848388532e-07`, `lr_min = 5.2697058404552555e-08`, `lr_warmup_steps =
+1000`, `loss_reduction = token_mean`, `time_sampling = per_sequence_antithetic`,
+`fp32_forward = True`, `probe_early_stopping_metric = probe_top1_predicted`
+(patience 4, probe interval 1,000), global batch 256, `max_steps = 20000`, warm
+start `aed408c7…`. T1a's own log at 14:00:49.959Z prints
+`MARLIN adaptation learning rate: schedule=warmup_cosine peak=3.16471e-07 (6.0x
+the released terminal 5.2697058404552555e-08), displacement bound 0.0036653`.
+
+The `--fp32-forward` memory risk did not materialise: T1a's task monitor reports
+**8.65 GB used of 40.0 GB** (31.35 GB free) on `aiagent03:gpu0`.
+
+**Measured cost of the fixed recipe.** T1a advanced step 675 → 752 between
+14:44:59Z and 14:50:46Z = **4.51 s/step**; T1b advanced 288 → 364 over the same
+349 s = **4.59 s/step** (both windows read from `Training metrics/learning_rate`
+iterations). §13.1's 0.258 steps/s (3.88 s/step) was a 120 s window; over ~350 s
+the rate is 4.5 s/step. Against the old bf16 recipe's **3.292 s/step** (100,000
+steps in 91.45 h, ClearML `3f6a2461d77b4261a916a4d8259be0a5`) the fixed recipe
+costs **1.37×**, so **20,000 steps = 21.2–25.1 h of training per arm** before any
+in-training evaluation. Both windows were measured with two arms sharing the node;
+T1a now runs alone and should be re-measured.
+
+**2. The speed regression: the overshoot is gone, the throughput is still
+unmeasured — and the running arms do not have R1 at all.** Same spectrum, same
+host, same flags, same 300 s cap, one process on CPU:
+
+| Tree | `runtime_seconds` | overshoot | outcome |
+|---|---:|---:|---|
+| `9d0a919` (pre-R1) | 409.860 | +36.6% | truncated, 0 candidates |
+| working-tree lazy probe, 2026-08-12 | 314.430 | +4.8% | truncated, 0 candidates |
+| **HEAD `58aaaa0`** (R1 committed at `a766389`) | **300.314** | **+0.10%** | truncated, 0 candidates |
+
+`/tmp/speed_out_head`, `/tmp/speed_out_lazy`, `/tmp/speed_out_r1`, spectrum
+`CCMSLIB00000077068`. So the deadline is now honoured to 0.3 s where it used to be
+missed by 110 s, which is what §10.1 called the cap overshoot. It is **not** a
+throughput number: the spectrum still spends its whole budget and returns nothing,
+so §13.8 item 5 — re-price one clean-panel shard end to end on the post-R1 tree —
+is still owed and every decode cost below is quoted as unpriced until it lands.
+
+**The arms in flight are pinned to `94290c032a051bad49d7727fe744d2b59cfe3c5d`,
+which predates `a766389`.** Their in-training panel evaluations therefore run the
+pre-R1 decoder, at 16 shards, on the 321-spectrum clean panel, **with no
+per-spectrum cap at all**: nothing sets `evaluation.per_spectrum_seconds`, and
+`src/marlin/periodic_evaluation.py:153-155` passes `--per-spectrum-seconds` only
+when it is set. That is four blocking evaluations per arm (`evaluation_interval =
+checkpoint_interval = 5000`) whose cost is unknown and whose result nothing reads:
+`evaluation/selection/enabled = False`, and early stopping runs off the
+conditioning probe. See §14.4 risk 1.
+
+**3. The oracle-vs-predicted verdict is decisive and closed.** §12: 19.00% (61/321)
+oracle against 1.25% (4/321) DreaMS on the same 321 spectra, same weights, same
+flags; discordance **57–0**, exact McNemar **p = 1.39e-17**, paired difference
+**+17.76 pp** [13.58, 21.94]; on the 105 spectra where both arms returned anything,
+38.10% against 3.81%, 36–0, p = 2.91e-11. **n = 321 paired.** No further sample is
+needed (§12.6). The decoder is sound; the fingerprint it is conditioned on is the
+binding constraint, and the decoder-side objective is therefore *decode correctly
+under a wrong fingerprint*, not *decode better*.
+
+**4. The corpus pipeline is built and measured but not connected to a trainer.**
+Corpus, error model, control, leakage guard and their audits all exist and are
+committed (§13.5, §13.6). What does not exist is the join:
+`src/marlin/training.py:602` still accepts only `{"symmetric", "dropout"}`, and
+neither `Fp2MolStream` nor `EncoderErrorModel` is imported by `training.py`,
+`scripts/train_marlin_spectrum_adaptation.py` or the launcher. Two further gaps
+that only bite on the worker: the corpus is on the login host's NFS and the
+worker's `/mnt/netstorage` is a different filesystem (§12.1, §13.1), and the
+exclusion list `configs/marlin_nplib1.yaml:32` points at
+`/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/data/nplib1_holdout_inchikeys_v2.csv`
+— **outside the git repo**, so a worker that gets its code by `git clone` does not
+have it. Verified present on the login host: 1,095 blocks, sha256
+`7d1f45937f284dbc9dc93be0ff6ae6eedf02b1cc293496acff7ffcd8c5dab44a`.
+
+### 14.2 Two changes made to the fleet today
+
+**T2 was never rejected by the recipe — it lost a `git clone`.** Task
+`d7771805d55242fcbf4b23a412b11aaf` died at 13:55:26Z, five minutes in, on
+`error: RPC failed; curl 92 HTTP/2 stream 0 was not closed cleanly` /
+`fetch-pack: unexpected disconnect` / `fatal: early EOF` while cloning
+`https://github.com/SergeiNikolenko/FRIGID.git`. Nothing in the arm is wrong. It
+was **reset and re-enqueued to `sience` at 14:52Z** and is `queued`, still pinned
+to `94290c0` so that its only training delta from T1a stays
+`context_corruption_probability 0.5` against `0.0`.
+
+**T1b was stopped at step 400 and its slot given to T2.** Task
+`a6e928d83acf40ccab31bb665f4eae62`, `stopped` at 14:53:07Z. §11.6 pre-registered it
+as the arm to cut if compute were short, and today's out-of-fold refit prices the
+cut: T1b's whole delta from T1a is `fingerprint_noise_mode = dropout`, and against
+the real held-out DreaMS Tanimoto distribution dropout noise is the **worst** of
+the four laws measured — KS **0.9308** (median 0.8070) against symmetric 0.8727
+(0.6667), rate-matched control 0.2214 (0.3333) and the fitted model 0.0738
+(0.2933), with the real test distribution at median **0.3043**
+(`artifacts/encoder-error-model-oof-v1/report_oof.json`). Spending 25 GPU-hours to
+reshape a corruption law that is 2.65× too mild, while the law that fits is
+already fitted and waiting for a trainer, is the wrong use of the second slot.
+T1b is recoverable at any time: clone the task and enqueue it.
+
+### 14.3 The queue
+
+Two GPU slots on ClearML `sience` (`aiagent03:gpu0`, `gpu1`). Training has both.
+GPU-hours are quoted at the measured 4.51 s/step; decode costs are marked unpriced
+until §13.8 item 5 lands. Every arm names the control it is read against, because
+an arm without one cannot support the claim this project exists to make.
+
+| # | Run | Control it is read against | GPU-hours | State |
+|---:|---|---|---:|---|
+| 1 | **T1a** conditioning parity, fixed recipe, 20k `356c0d926d004d28a78f6f97e07afe5c` | the incumbent it warm-starts from (`control-r2 step=100000`, 2.74% test / 1.25% clean panel), and arm D for the warm-start confound | ~24.1 remaining + 4 uncapped panel evaluations | **running**, gpu0, step 752 at 14:50Z |
+| 2 | **T2** self-correction on top of parity, 20k `d7771805d55242fcbf4b23a412b11aaf` | T1a — same commit, same recipe, same corpus; the only training delta is `context_corruption_probability` 0.5 vs 0.0 | 25.1 + 4 evaluations | **queued**, takes gpu1 when T1b's container exits |
+| 3 | **D** — released DLM → recipe-fixed adaptation, 20k, no corpus | T1a. D vs T1a prices the corrupted warm start; D alone is the only arm that can say *the recipe fix* moved the number (§13.7, §13.8 item 3) | 25.1 | **not submitted.** Needs only `DLM.ckpt` staged on the worker — no new code |
+| 4 | **C-A1 / C-A0** — fitted frequency-aware corruption vs rate-matched uniform control, fp2mol stage 1, 10k steps each | each other: `EncoderErrorModel.rate_matched_uniform_control()` holds pooled sensitivity and pooled FPR fixed and removes only the frequency dependence and the row latent, which is exactly CoRe-Gen's −4.77 pp ablation | 12.5 each, **25.1 for the pair** | **blocked on integration** (§14.1 point 4, §13.8 items 1–2, 4) |
+| 5 | Locked-803 scoring of whichever checkpoints survive 1–4, cap 1800, post-R1 tree | the stored `full803-c8-100k` (2.74%) | unpriced | **blocked** on §13.8 item 5 |
+| 6 | Distillation KL anchor against the oracle-conditioned teacher | T1a; teacher outputs already on disk at `clean-new-oracle-c8/predictions.jsonl` | unpriced, unwired | not designed |
+| — | ~~T1b one-sided noise~~ | — | — | **stopped at step 400**, §14.2 |
+
+Why this order and not another:
+
+- **1 and 2 are already paid for.** T1a is 3.8% of the way through a 25-hour run
+  and is the control every later arm is read against; stopping it to start
+  something else throws away the only fixed-recipe baseline we will have.
+- **3 before 4 because it is launchable and 4 is not.** The §13.8 integration is a
+  day of code with no GPU in it, so the honest schedule runs D in the first free
+  slot and C-A in the second the moment the join lands. If the integration is
+  finished before a slot frees, swap them: C-A carries the larger expected effect
+  (§12.7: up to +17.8 pp is on the table; CoRe-Gen prices its own corruption at
+  −4.77 pp when ablated), D carries the attribution.
+- **5 is not optional.** The clean 321 panel resolves **2.45 pp** at best (§12.6)
+  and the number to move on it is **1.25%**. An arm that buys +1.5 pp is real and
+  unreadable there. The locked 803 resolves +1.25 pp at 2% discordance. Every
+  headline claim from arms 1–4 has to end on the 803.
+- **6 last** because it is the only entry with neither code nor a price.
+
+### 14.4 What could waste the next day of compute
+
+1. **The uncapped, pre-R1, 16-shard periodic evaluation.** T1a reaches step 5,000
+   around 19:30Z today and will fork 16 evaluators over the full 321-spectrum
+   panel at commit `94290c0`, with no per-spectrum deadline, blocking training
+   until they finish (`_run_sharded` waits on every child). Nothing consumes the
+   result. It is fail-soft (`periodic_evaluation.py:421-427`) so it cannot kill
+   the run, but it can eat the night. **Watch T1a's first one; if it costs more
+   than ~2 h, requeue both arms with `MARLIN_EVALUATION_INTERVAL` =
+   `MARLIN_CHECKPOINT_INTERVAL` = 20000** (they must stay equal —
+   `periodic_evaluation.py:52` is what killed the first submission) and rely on
+   `last.ckpt`.
+2. **GPU memory at that same moment.** The callback calls
+   `torch.cuda.empty_cache()` and then forks 16 evaluators at roughly 1.8 GB each
+   (its own docstring, measured on twelve holding 22 GB) onto a card with 31.35 GB
+   free — about 29 GB of shards against 31.35 GB — and the trainer then has to
+   allocate its own working set back.
+3. **Worker disk.** `aiagent03` reported `disk_free_percent = 8.04` while T1a ran.
+   Each checkpoint upload is 1,722.69 MB and each arm writes step 5,000 / 10,000 /
+   15,000 / 20,000 plus `last`. A full disk takes both arms.
+4. **Panel resolution.** Reporting an arm only on the clean 321 panel risks
+   calling a real +1.5 pp "no effect". Budget the 803 decode into the arm, not
+   after it.
+5. **The corpus arm cannot see its own inputs from the worker.** The 67 GB corpus
+   and the 1,095-block exclusion list both live where the compute is not (§14.1
+   point 4). Stage a row-group subset and the list as run inputs, or run stage 1
+   on the local card — and never take the `Fp2MolStream` opt-out that `bfedcba`
+   left in place, because 10M fp2mol rows carry 23 of the 320 clean-panel blocks
+   against a 3-spectrum baseline.
+6. **A transient `git clone` kills an arm five minutes in.** That is exactly how T2
+   died. Check every newly started arm within 15 minutes of its start.
+7. **Probe early stopping can end an arm long before step 20,000** (patience 4 at a
+   1,000-step cadence), leaving `last.ckpt` at an odd step. That is the intended
+   bound on 3,846-fold replay — but such a checkpoint must never be described as a
+   20,000-step run.
+8. **The warm-start confound is still unpaid.** T1a and T2 both resume
+   `control-r2 step=100000`, itself 100,000 steps of the broken recipe (272.8× the
+   displacement budget, §6 of `TRAINING_RECIPE_FINDINGS.md`). Until arm D runs, a
+   gain from these arms cannot be attributed to the recipe fix, which is the claim
+   the project exists to make.
