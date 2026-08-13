@@ -854,3 +854,200 @@ reported above as indistinguishable from zero.
 4. **Results must be harvested from the ClearML `results` artifact, not from
    `/mnt/netstorage`.** The worker's netstorage is not the login host's. Any launcher that
    writes only to `$ROOT` and does not tar it into an artifact loses its run.
+
+## 13. Campaign state, 2026-08-13 evening — what is built, what is launched, what is refused
+
+Written after four specification agents, three build agents and three adversarial
+reviewers. The reviewers changed the plan more than the specs did; §13.2 records
+which arms died and why, because an arm killed before it burns a fleet-day is the
+cheapest result this project can buy.
+
+### 13.1 The fleet is not what the plan assumed
+
+| Resource | Assumed | Measured, 2026-08-13 17:00–17:35 |
+|---|---|---|
+| Local A100 80 GB | free, 0 MiB | **held by another user**: pid 1993492, `m.isangulov`, 7,587 MiB, 98–99% util |
+| Slurm `gpu`/`gpu-shared` | a separate pool | **the same card.** `hostname` = `spectrum`; `scontrol show node spectrum` reports the same 24 cores and `gpu:a100:1` |
+| ClearML `sience`, 2 slots | free | **both busy**: `aiagent03:gpu0` = T1a, `aiagent03:gpu1` = T1b |
+
+So the whole fleet is one contended A100 plus two occupied queue slots. Slurm
+reports `spectrum` IDLE while a bare non-Slurm process holds the card at 99%,
+which is why "the scheduler says idle" is not the test to use.
+
+**Measured queue rate.** T1a advanced 280 → 311 iterations in 120 s = **0.258
+steps/s** at global batch 256 (66 mol/s). Its 20,000 steps therefore finish in
+**~21.2 h**, and both slots are unavailable until then. That also settles half of
+the unexplained 10.6× throughput question in `TRAINING_RECIPE_FINDINGS.md`: the
+real queue rate is 0.258 steps/s, not the 2.30 measured on a free 80 GB card, so
+any A100-hour budget written at 2.30 is optimistic by ~9× **on the queue**.
+
+### 13.2 Arms a reviewer called fatal, and what happened to them
+
+| Arm | Verdict | Action |
+|---|---|---|
+| Corpus stage-1 A (fitted) vs B (rate-matched control) | best design in the set, but unlaunchable | **not launched.** The integration (`fitted` branch in `training.py`, `Fp2MolStream` wiring) does not exist: grep for `Fp2MolStream\|EncoderErrorModel` in `src/marlin/training.py` returns nothing. And the ClearML worker's `/mnt/netstorage` is a per-worker local ext4, so the 67 GB corpus is not visible from the only compute that could take it. |
+| MIST vs DreaMS paired decode | six variables at once; 87 sh (clean 321) to 285 sh (locked 803) for a central estimate at or below panel resolution | **replaced** by the forward-pass lane probe, §13.4. |
+| Formula Stage A (A0/A1/A2) | ceiling 1.81 pp against a 2.45 pp panel resolution — arithmetically unreadable | **not launched.** |
+| CoRe-Gen formula-distance reranker | effect is exactly zero by measurement (Exact@10 == Exact@1 in both §12.2 arms) | **not launched**; it would claim nothing. |
+| Any decode at cap 300 on the pre-R1 tree | `clean-new-c8` spent 43.46 shard-hours to truncate 298/321 | **fixed at the root**, §13.3. |
+
+### 13.3 R1 landed: a token is now committed without building the support
+
+`a766389`. The block lane masked all 1,880 tokens at every position, and that call
+is the decode's wall clock. Measured on this host over real val prefixes at the
+run's own mask settings:
+
+| prefix length | full support | one `admits` probe | ratio |
+|---:|---:|---:|---:|
+| 30 | 223.2 ms | 0.233 ms | 958× |
+| 50 | 76.3 ms | 0.307 ms | 249× |
+| 65 | 123.6 ms | 0.565 ms | 219× |
+| 80 | 1101.4 ms | 4.505 ms | 244× |
+
+against a ~10 ms model forward. Both selection rules read the masked distribution
+only through an argmax and restricting the support rescales the survivors by one
+positive constant, so walking the ranked tokens and stopping at the first the
+grammar admits commits the same token; `scripts/audit_lazy_probe_identity.py`
+asserts that on replayed decode prefixes under both argmax and multinomial
+selection, and asserts the generator ends in the same state.
+
+**Acceptance gate on the merged tree**: test 803 targets / 45,351 positions / 0
+gold rejections; train 6,748 / 386,553 / 28. Totals **7,551 / 431,904 / 28, 0 on
+test** — the constants of §4.7. **581 tests pass.**
+
+### 13.4 Ranking the conditioning lanes without buying a decode
+
+Four specs each wanted a paired decode to choose a conditioning lane. The ordering
+question is answerable with forward passes: `scripts/probe_conditioning_lanes.py`
+runs the existing teacher-forced conditioning probe once per lane over one fixed
+256-row set drawn from the locked 803, so lanes differ in nothing but which
+fingerprint file is read. Two checkpoints, because a lane comparison on a
+checkpoint adapted 100,000 steps to one lane's bit vocabulary is biased toward
+that lane; two probe seeds, because a gate with no measured spread is not a gate.
+
+Read this as an **ordering**, not a price: the map from per-token top-1 to Exact@1
+is steep and non-linear (0.547 → 1.25%, 0.750 → 19.00%, §12), and these absolute
+values are not comparable to §3's 24-molecule anchors because the probe masks a
+different fraction of positions.
+
+Lanes probed, all on the locked 803 (the only panel where every lane is honest —
+the clean 321 is drawn from val396, which is MIST's early-stopping fold):
+
+| Lane | Source | Threshold |
+|---|---|---|
+| `true` | `runs/true_fingerprints/test/fingerprints.npz` (gold, 46.34 mean on-bits) | 0.5 |
+| `dreams095` | `runs/dreams/probe/test_predictions.npz` | 0.95 |
+| `mist_formula_blind_010` | `runs/mist_cf_peakformula_fingerprints_job693/fingerprints.npz` | 0.10 |
+| `mist_oracle_formula_020` | `runs/mist/test/fingerprints_with_ids.npz` | 0.20 |
+
+The fourth lane is labelled **oracle** deliberately. `runs/mist/*` was produced
+with ground-truth-formula subformulae; the deployable MIST lane is the
+formula-blind job693 export. Their medians differ by 0.16 Tanimoto (0.549 against
+0.393), so any "MIST buys +23.6 pp of conditioning" claim taken from `runs/mist`
+is an oracle-formula number and must not be used to justify a decode.
+
+Results land in `runs/conditioning-lanes/test803_lanes_v1.json`; the run was still
+executing when this section was written. Read it with the two guards the script
+enforces: `probe_top1_true` must be identical across lanes on a given checkpoint
+(it is the same gold fingerprint regardless of which predicted file is loaded, so
+a difference there means the row sets drifted), and the per-seed spread must be
+smaller than any lane gap being claimed.
+
+### 13.5 The corruption model no longer contains the panel it will be scored on
+
+`58aaaa0`. `report.json` recorded `fit_split: "nplib1 locked test 803"` and
+`validation_split: "nplib1 val 396"` — the headline panel and the superset of the
+iteration panel were both inside the fit. The fit split is now an argument and the
+model is refitted on the 6,748 **out-of-fold** train DreaMS predictions
+(`runs/dreams/probe/train_predictions_oof.npz`), validated on the locked 803.
+
+Three things that refit establishes:
+
+1. **The out-of-fold train predictions are not leaky.** Median Tanimoto 0.3000
+   against the test split's 0.3043, KS 0.0293 (p 0.56). The 0.444 that made the
+   train split unusable belongs to the in-sample probe, not to the OOF one. So
+   train is a legitimate fit surface and the panels can stay outside the fit.
+2. **The frequency dependence replicates out of fold.** Sensitivity rises
+   **0.239 → 0.992** across corpus-frequency deciles and the false-positive rate
+   **0.00074 → 0.889**, against the in-fold 0.252 → 0.991 and 0.00079 → 0.872.
+   "The incumbent noise is structurally inverted" survives the leak removal.
+3. **The level fit degrades, honestly.** KS against the held-out 803 is **0.0738
+   (p 6.65e-4)** where the in-fold fit scored 0.0503 (p 0.315), against a real
+   train-vs-test noise floor of KS 0.0293. The model is measurably imperfect out
+   of fold — and still far closer than the rate-matched control (0.2214) or the
+   incumbent symmetric (0.8727) and dropout (0.9308) noise.
+
+Artefacts, `/mnt/netstorage/nikolenko/marlin/artifacts/encoder-error-model-oof-v1/`:
+`encoder_error_model_oof.npz` `815da77b47ef1f07e3e4948e229bfcbad3f8181e82d5720377ee25eafb089748`,
+`encoder_error_model_oof_control.npz` `f99b512febc35f90aeddeb6a47344ca6127395a8ba50788e19d698c8e8f578f3`,
+`report_oof.json` `cdf51ba6fafa4e04259969ca63a97d21986b49b527b2e9b00b776d490f315dac`.
+
+### 13.6 The corpus stream can no longer train on the panel
+
+`bfedcba`. Measured here: `data/nplib1_test_inchikeys.csv` covers 701/701 test
+connectivity blocks, **0/394 val blocks and 0/320 clean-panel blocks**, and
+`Fp2MolStream` defaulted `exclude_inchikeys` to None and skipped the check on an
+empty set. In the first 10,000,000 fp2mol rows — one paired stage-1 experiment —
+the corpus carries 74 of the 701 locked-test blocks and **23 of the 320
+clean-panel blocks**, against a 0.93% (3/321) baseline and a sought effect of
+about 15 spectra. The stream now refuses to start without a list, refuses a list
+that excludes nothing, and `configs/marlin_nplib1.yaml` points at
+`data/nplib1_holdout_inchikeys_v2.csv` (1,095 blocks, sha256
+`7d1f45937f284dbc9dc93be0ff6ae6eedf02b1cc293496acff7ffcd8c5dab44a`, rebuilt by
+`scripts/build_nplib1_holdout_inchikeys.py`). When comparing to CoRe-Gen's 19.54%,
+say that this excludes more than they do: the paper removes test overlap only.
+
+### 13.7 Run table
+
+| Run | Where | Task / job | Control | Answers | State |
+|---|---|---|---|---|---|
+| T1a `marlin-T1a-…-20k-fixedrecipe-r1` | ClearML `sience`, aiagent03:gpu0 | `356c0d926d004d28a78f6f97e07afe5c` | T1b | recipe fixes + symmetric noise | in flight, 0.258 steps/s, ETA ~21.2 h |
+| T1b `…-dropoutnoise-20k-fixedrecipe-r1` | ClearML `sience`, aiagent03:gpu1 | `a6e928d83acf40ccab31bb665f4eae62` | T1a | same, dropout noise | in flight |
+| conditioning-lane probe | local CPU, 12 threads | `runs/conditioning-lanes/test803_lanes_v1.json` | `true` lane and `frigid-warmstart-step0` checkpoint | which fingerprint lane to condition on | finished |
+| encoder error model, OOF refit | local CPU | `artifacts/encoder-error-model-oof-v1` | rate-matched uniform control | does the inversion survive leak removal | finished |
+| FRIGID reference, clean 321 | Slurm `gpu`, node `spectrum` | job **786**, array 0-1 | arm 0 fingerprint-only vs arm 1 formula+fingerprint | the number our re-implementation must beat | running, ~11 min/arm |
+
+**The FRIGID reference costs minutes, not hours.** The brief's cost model —
+24.7 s/spectrum, ~7 A100-hours per 1,000 spectra — does not hold for this
+configuration. Measured on job 786 at 8 candidates: **2.1 s/spectrum**, so the
+whole clean 321 panel is ~11 minutes per arm and the pair is ~22 minutes on one
+card. Every plan that priced a FRIGID-side comparison in A100-hours was pricing
+it ~700× too high. Two operational notes paid for in a wasted submission:
+`evaluate_frigid_parity.py --max-spectra` **defaults to 4**, so an sbatch that
+omits it silently evaluates four spectra and reports a metrics block that looks
+complete (job 782 did exactly this); and the script refuses to reuse an output
+directory, which is what caught it.
+
+The gate that launched it is `scripts/submit_when_gpu_idle.sh`: it polls for
+compute processes owned by another user and submits only when there are none.
+The card cleared at 17:47 and the job went in unattended, without ever competing
+with the run that held it.
+
+Both T1a and T1b warm-start from `control-r2 step=100000`
+(`aed408c7d2c01c86a4b257e5119c28b11404971c3df3fd09a76c054ef0e7b14f`), not from
+the released DLM. They therefore price the recipe fixes *on top of* a checkpoint
+that already absorbed 3,846 replays at ~190× its terminal lr. That is a real
+confound in the "training is what did it" claim and the released-DLM arm the
+reviewers asked for (arm D) is still owed.
+
+### 13.8 What is owed before the headline pair can run
+
+1. Integrate `Fp2MolStream` and `EncoderErrorModel` into `src/marlin/training.py`
+   behind `--fingerprint-noise-mode fitted|fitted_control`, and set **stage 2 to
+   the same corruption mode as stage 1**. As specified, stage 2 runs the
+   incumbent symmetric noise at p=0.5 for 20,000 steps against stage 1's 5,000 —
+   50–80% of each arm's optimizer steps would run the measured-inverted law and
+   the arms would converge by construction.
+2. Stage the corpus where the compute is, or run stage 1 on the local card. A
+   5,120,000-row subset is ~395 MB and `Fp2MolStream` takes an explicit
+   `row_groups` list.
+3. Add **arm D**: released DLM → recipe-fixed NPLIB1 stage 2 only, no corpus. D→B
+   prices the corpus, A−B prices the placement law, D alone prices the recipe
+   fixes. Without D a result of A=4.5%, B=1.5% cannot separate "the frequency-aware
+   law worked" from "5.12M distinct molecules worked".
+4. Emit a per-row `seen_in_corpus` flag in the prediction file and report Exact@1
+   on the held-out complement as well as overall. With the §13.6 exclusion in
+   place it should be identically zero; if it is not, the exclusion is not wired
+   and the run is void.
+5. Re-price one clean-panel shard end to end on the post-R1 tree before buying any
+   paired decode, and evaluate at cap 1800, never 300.
