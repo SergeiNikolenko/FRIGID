@@ -660,6 +660,12 @@ class MarlinSampler:
                         if self.forbidden_token_ids:
                             position_logits[list(self.forbidden_token_ids)] = -torch.inf
                         if lazy_probe:
+                            # The probe writes ``best_*`` without comparing
+                            # confidences, which is only sound because it is
+                            # reached once: ``_lazy_probe_available`` demands the
+                            # same grammar mask and mask token that truncated
+                            # ``candidate_positions`` to the leftmost hole above.
+                            assert len(candidate_positions) == 1
                             probed = self._probe_token(
                                 prefix[row, :position].tolist(),
                                 position_logits,
