@@ -104,6 +104,13 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=11)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--report", type=Path, default=None)
+    # Which split the rates are fitted on is a correctness question, not a
+    # convenience one: a model fitted on the panel a run is later scored on makes
+    # that panel part of the fit, and the campaign forbids quoting a training-arm
+    # gain against its own fit.
+    parser.add_argument("--fit-split", default="test")
+    parser.add_argument("--held-out-split", default="val")
+    parser.add_argument("--name", default=None)
     arguments = parser.parse_args()
 
     import torch
@@ -112,10 +119,15 @@ def main() -> None:
         frequency = np.asarray(z["freq"], dtype=np.float64) / float(z["n"])
         corpus_rows = int(z["n"])
 
-    fit_true, fit_pred = load_split(arguments.bundle, "test", arguments.threshold)
-    held_true, held_pred = load_split(arguments.bundle, "val", arguments.threshold)
+    fit_true, fit_pred = load_split(
+        arguments.bundle, arguments.fit_split, arguments.threshold
+    )
+    held_true, held_pred = load_split(
+        arguments.bundle, arguments.held_out_split, arguments.threshold
+    )
     print(
-        f"fit on locked test n={len(fit_true)}, held out val n={len(held_true)}, "
+        f"fit on {arguments.fit_split} n={len(fit_true)}, "
+        f"held out {arguments.held_out_split} n={len(held_true)}, "
         f"corpus frequency from {corpus_rows:,} molecules, threshold {arguments.threshold}"
     )
 
@@ -124,12 +136,12 @@ def main() -> None:
         fit_pred,
         frequency,
         bins=arguments.bins,
-        name="dreams_nplib1_test803",
+        name=arguments.name or f"dreams_nplib1_{arguments.fit_split}",
         extra_metadata={
             "threshold": arguments.threshold,
             "corpus_frequency_rows": corpus_rows,
-            "fit_split": "nplib1 locked test 803",
-            "validation_split": "nplib1 val 396",
+            "fit_split": f"nplib1 {arguments.fit_split} ({len(fit_true)} rows)",
+            "validation_split": f"nplib1 {arguments.held_out_split} ({len(held_true)} rows)",
         },
     )
 
@@ -147,8 +159,14 @@ def main() -> None:
         f"\n{'distribution':<34}{'median':>8}{'mean':>8}{'q10':>8}{'q25':>8}"
         f"{'q75':>8}{'q90':>8}{'sd':>8}{'KS':>9}{'KS p':>11}"
     )
-    rows = [describe("REAL val 396 (held out)", real_held, real_held)]
-    rows.append(describe("REAL test 803 (fit split)", tanimoto(fit_true, fit_pred), real_held))
+    rows = [describe(f"REAL {arguments.held_out_split} (held out)", real_held, real_held)]
+    rows.append(
+        describe(
+            f"REAL {arguments.fit_split} (fit split)",
+            tanimoto(fit_true, fit_pred),
+            real_held,
+        )
+    )
 
     torch.manual_seed(arguments.seed)
     stacked = np.tile(held_true, (arguments.replicates, 1))
