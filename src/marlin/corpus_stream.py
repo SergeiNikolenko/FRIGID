@@ -102,12 +102,25 @@ class Fp2MolStream(torch.utils.data.IterableDataset):
         max_length: int = 256,
         fingerprint_bits: int = FINGERPRINT_BITS,
         exclude_inchikeys: str | Path | None = None,
+        allow_evaluation_structures: bool = False,
         remove_stereo: bool = True,
         seed: int = 0,
         row_groups: list[RowGroupRef] | None = None,
         limit: int | None = None,
     ) -> None:
         super().__init__()
+        # Measured on ten row groups: the first 10,000,000 corpus molecules --- the
+        # size of one paired stage-1 experiment --- carry 74 of the 701 locked-test
+        # connectivity blocks and 23 of the 320 clean-panel ones. A stream that
+        # defaults to no exclusion therefore trains on the panel it is about to be
+        # scored on, silently. Saying "yes, unfiltered" has to be an act.
+        if exclude_inchikeys is None and not allow_evaluation_structures:
+            raise ValueError(
+                "Fp2MolStream needs exclude_inchikeys; the corpus contains evaluation "
+                "structures (23 of the 320 clean-panel blocks in the first 10M rows). "
+                "Pass data/nplib1_holdout_inchikeys_v2.csv, or "
+                "allow_evaluation_structures=True to train on them deliberately."
+            )
         self.snapshot = Path(snapshot)
         self.tokenizer = tokenizer
         self.max_length = int(max_length)
@@ -119,6 +132,10 @@ class Fp2MolStream(torch.utils.data.IterableDataset):
         if not self.row_groups:
             raise ValueError(f"no parquet row groups under {self.snapshot}")
         self.excluded = _load_excluded(exclude_inchikeys)
+        if exclude_inchikeys is not None and not self.excluded:
+            # An empty list reads as "filtered" everywhere downstream while
+            # excluding nothing, which is the same failure wearing a file name.
+            raise ValueError(f"{exclude_inchikeys} lists no connectivity blocks")
         self.rejections: dict[str, int] = {}
 
     # ------------------------------------------------------------------

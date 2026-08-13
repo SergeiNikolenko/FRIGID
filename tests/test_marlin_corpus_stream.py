@@ -64,7 +64,9 @@ def test_row_groups_are_enumerated_without_reading_data(snapshot):
 
 
 def test_examples_carry_the_shape_the_collator_expects(snapshot):
-    stream = Fp2MolStream(snapshot=snapshot, tokenizer=_Tokenizer(), limit=5)
+    stream = Fp2MolStream(
+        snapshot=snapshot, tokenizer=_Tokenizer(), limit=5, allow_evaluation_structures=True
+    )
     examples = list(stream)
     assert len(examples) == 5
     for example in examples:
@@ -80,7 +82,9 @@ def test_the_safe_string_decodes_to_the_molecule_the_fingerprint_describes(snaps
     from dlm.utils.utils_chem import safe_to_smiles
 
     generator = rdFingerprintGenerator.GetMorganGenerator(radius=2, fpSize=4096)
-    for example in Fp2MolStream(snapshot=snapshot, tokenizer=_Tokenizer(), limit=5):
+    for example in Fp2MolStream(
+        snapshot=snapshot, tokenizer=_Tokenizer(), limit=5, allow_evaluation_structures=True
+    ):
         molecule = Chem.MolFromSmiles(safe_to_smiles(example["safe"], fix=False))
         assert molecule is not None
         expected = generator.GetFingerprintAsNumPy(molecule).astype(np.float32)
@@ -88,7 +92,9 @@ def test_the_safe_string_decodes_to_the_molecule_the_fingerprint_describes(snaps
 
 
 def test_stereo_is_stripped_because_the_adaptation_set_has_none(snapshot):
-    examples = list(Fp2MolStream(snapshot=snapshot, tokenizer=_Tokenizer(), limit=5))
+    examples = list(Fp2MolStream(
+        snapshot=snapshot, tokenizer=_Tokenizer(), limit=5, allow_evaluation_structures=True
+    ))
     assert all("@" not in example["safe"] for example in examples)
     # the two enantiomers collapse onto one SAFE string, so five inputs give four
     assert len({example["safe"] for example in examples}) == 4
@@ -97,7 +103,11 @@ def test_stereo_is_stripped_because_the_adaptation_set_has_none(snapshot):
 def test_stereo_survives_when_the_stream_is_told_to_keep_it(snapshot):
     examples = list(
         Fp2MolStream(
-            snapshot=snapshot, tokenizer=_Tokenizer(), limit=5, remove_stereo=False
+            snapshot=snapshot,
+            tokenizer=_Tokenizer(),
+            limit=5,
+            remove_stereo=False,
+            allow_evaluation_structures=True,
         )
     )
     assert any("@" in example["safe"] for example in examples)
@@ -107,7 +117,13 @@ def test_stereo_survives_when_the_stream_is_told_to_keep_it(snapshot):
 def test_a_molecule_too_long_for_the_decoder_is_dropped_not_truncated(snapshot):
     # "CC(=O)Oc1ccccc1C(=O)O" is the longest of the five, so a cut just under it
     # drops that one and keeps the rest.
-    stream = Fp2MolStream(snapshot=snapshot, tokenizer=_Tokenizer(), max_length=22, limit=4)
+    stream = Fp2MolStream(
+        snapshot=snapshot,
+        tokenizer=_Tokenizer(),
+        max_length=22,
+        limit=4,
+        allow_evaluation_structures=True,
+    )
     examples = list(stream)
     assert len(examples) == 4
     assert stream.rejections["too_long"] > 0
@@ -116,7 +132,10 @@ def test_a_molecule_too_long_for_the_decoder_is_dropped_not_truncated(snapshot):
 
 def test_a_corpus_that_yields_nothing_raises_instead_of_hanging(snapshot):
     stream = Fp2MolStream(
-        snapshot=snapshot, tokenizer=_Tokenizer(per_char=10.0), max_length=8
+        snapshot=snapshot,
+        tokenizer=_Tokenizer(per_char=10.0),
+        max_length=8,
+        allow_evaluation_structures=True,
     )
     with pytest.raises(ValueError, match="emitted nothing"):
         list(stream)
@@ -149,7 +168,12 @@ def test_evaluation_structures_are_refused(snapshot, tmp_path):
 
 
 def test_the_stream_wraps_rather_than_stopping(snapshot):
-    examples = _drain(Fp2MolStream(snapshot=snapshot, tokenizer=_Tokenizer()), 12)
+    examples = _drain(
+        Fp2MolStream(
+            snapshot=snapshot, tokenizer=_Tokenizer(), allow_evaluation_structures=True
+        ),
+        12,
+    )
     assert len(examples) == 12  # 5 distinct molecules, so it must have wrapped
 
 
@@ -158,7 +182,11 @@ def test_the_order_is_a_function_of_the_seed(snapshot):
         return tuple(
             example["safe"]
             for example in Fp2MolStream(
-                snapshot=snapshot, tokenizer=_Tokenizer(), seed=seed, limit=5
+                snapshot=snapshot,
+                tokenizer=_Tokenizer(),
+                seed=seed,
+                limit=5,
+                allow_evaluation_structures=True,
             )
         )
 
@@ -176,4 +204,22 @@ def test_an_empty_snapshot_is_refused(tmp_path):
     root.mkdir()
     (root / "manifest.json").write_text(json.dumps({"files": []}))
     with pytest.raises(ValueError, match="no parquet row groups"):
-        Fp2MolStream(snapshot=root, tokenizer=_Tokenizer())
+        Fp2MolStream(
+            snapshot=root, tokenizer=_Tokenizer(), allow_evaluation_structures=True
+        )
+
+
+def test_an_unfiltered_stream_is_refused_unless_it_is_asked_for(snapshot):
+    # The corpus carries 23 of the 320 clean-panel connectivity blocks in its
+    # first ten million rows, so defaulting to no exclusion trains on the panel.
+    with pytest.raises(ValueError, match="needs exclude_inchikeys"):
+        Fp2MolStream(snapshot=snapshot, tokenizer=_Tokenizer())
+
+
+def test_an_exclusion_file_that_excludes_nothing_is_refused(snapshot, tmp_path):
+    empty = tmp_path / "empty.csv"
+    empty.write_text("inchikey\n")
+    with pytest.raises(ValueError, match="lists no connectivity blocks"):
+        Fp2MolStream(
+            snapshot=snapshot, tokenizer=_Tokenizer(), exclude_inchikeys=empty
+        )

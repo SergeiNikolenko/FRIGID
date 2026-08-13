@@ -25,7 +25,11 @@ data:
   snapshot_manifest: /mnt/netstorage/nikolenko/marlin/safe-gpt-16d0be9ad6177ae683a32a86204530e8ee624a0f/manifest.json
   snapshot_file_list_sha256: ca5356076d4e6e4920a019d55af0a769b0984d736f3feb9799045f3c49244e6f
   verify_snapshot_hashes: true
-  exclude_inchikeys: /home/nikolenko/work/Projects/MARLIN_reproduction_20260717/data/nplib1_test_inchikeys.csv
+  # Test *and* val connectivity blocks. The list this replaced held the 701 test
+  # blocks only, which left all 320 blocks of the clean 321 panel --- the panel we
+  # iterate on --- eligible for corpus training.
+  # 1,095 blocks, sha256 7d1f45937f284dbc9dc93be0ff6ae6eedf02b1cc293496acff7ffcd8c5dab44a
+  exclude_inchikeys: /home/nikolenko/work/Projects/MARLIN_reproduction_20260717/data/nplib1_holdout_inchikeys_v2.csv
   # Inferred: preserve complete SAFE targets within the fixed 256-token context.
   length_audit_manifest: /home/nikolenko/work/Projects/MARLIN_reproduction_20260717/manifests/safe_gpt_eligibility_a7a49f6_first1000000.json
   length_audit_sha256: c6267bfcffe51b42fa82d3514cb148ba15fa9e7c0141119682aa12c64413b0fd
