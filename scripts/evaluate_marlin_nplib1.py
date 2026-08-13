@@ -110,6 +110,18 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--disable-grammar-mask", action="store_true")
     parser.add_argument(
+        "--lazy-probe-width",
+        type=int,
+        default=16,
+        help=(
+            "commit a token by probing the ranked support with "
+            "SafeGrammarMask.admits instead of masking the whole vocabulary; "
+            "0 restores the full-support call. Output is identical either way "
+            "(scripts/audit_lazy_probe_identity.py), so this is a speed knob "
+            "and an A/B handle, never an accuracy one."
+        ),
+    )
+    parser.add_argument(
         "--mass-reachability-prune",
         action="store_true",
         help=(
@@ -776,6 +788,7 @@ def main() -> None:
             mass_shell_enabled=not args.disable_mass_shell,
             generation_mode=args.generation_mode,
             sample_tokens=args.sample_tokens,
+            lazy_probe_width=args.lazy_probe_width,
         )
 
     current_git_commit = git_commit()
@@ -813,6 +826,13 @@ def main() -> None:
         ),
         "mass_shell_constraint": not args.disable_mass_shell,
         "mass_reachability_prune": args.mass_reachability_prune,
+        # A trace forces the full-support path whatever this says, because a
+        # trace records the support size and the four most probable tokens.
+        "lazy_probe_width": (
+            args.lazy_probe_width
+            if args.architecture == "marlin" and decode_trace is None
+            else 0
+        ),
         "per_spectrum_seconds": args.per_spectrum_seconds,
         "forbid_isotope_tokens": args.forbid_isotope_tokens,
         "restrict_organic_elements": args.restrict_organic_elements,

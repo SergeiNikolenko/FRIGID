@@ -40,6 +40,42 @@ class MarlinGenerationStats:
     truncated: bool = False
 
 
+# A committed token stays the same when the ranking is rescaled by the softmax
+# normaliser the grammar support would have supplied, but float32 only carries
+# about seven digits and ``exp(x - max)`` loses a few of them at large offsets.
+# A winner this close to the next-ranked token is therefore decided by the full
+# support instead of by the probe.
+_PROBE_MARGIN = 1e-4
+# ``torch.isfinite`` on a scalar stands in for the confidence of a position the
+# probe resolved: the block loop only reads that value to reject a dead end, and
+# with a grammar mask exactly one position is ever scored.
+_PROBE_RESOLVED = torch.tensor(1.0)
+
+
+def _capture_rng(
+    generator: torch.Generator | None, device: torch.device
+) -> tuple[torch.Generator | None, torch.device, torch.Tensor]:
+    """Record the draw state the probe is about to advance."""
+    if generator is not None:
+        return generator, device, generator.get_state()
+    if device.type == "cuda":
+        return None, device, torch.cuda.get_rng_state(device)
+    return None, device, torch.random.get_rng_state()
+
+
+def _restore_rng(
+    state: tuple[torch.Generator | None, torch.device, torch.Tensor],
+) -> None:
+    """Undo a draw the full-support path would never have made."""
+    generator, device, saved = state
+    if generator is not None:
+        generator.set_state(saved)
+    elif device.type == "cuda":
+        torch.cuda.set_rng_state(saved, device)
+    else:
+        torch.random.set_rng_state(saved)
+
+
 class MarlinSampler:
     def __init__(
         self,
@@ -60,9 +96,12 @@ class MarlinSampler:
         generation_mode: str = "block",
         sample_tokens: bool = False,
         trace: list[dict[str, object]] | None = None,
+        lazy_probe_width: int = 16,
     ) -> None:
         if generation_mode not in {"block", "canvas"}:
             raise ValueError("generation_mode must be 'block' or 'canvas'")
+        if lazy_probe_width < 0:
+            raise ValueError("lazy_probe_width must not be negative")
         self.model = model
         self.constraint = constraint
         self.bos_token_id = bos_token_id
@@ -80,6 +119,128 @@ class MarlinSampler:
         # the decoding path is untouched.
         self.trace = trace
         self._trace_batch = 0
+        # Probing the ranked tokens one at a time instead of masking the whole
+        # vocabulary. Set to 0 to force the full-support path.
+        self.lazy_probe_width = lazy_probe_width
+        self.lazy_probe_positions = 0
+        # Positions whose answer was not among the first ``lazy_probe_width``
+        # ranked tokens, and positions that had to build the support anyway.
+        self.lazy_probe_misses = 0
+        self.lazy_probe_fallbacks = 0
+        self.lazy_probe_admits_calls = 0
+
+    @property
+    def _lazy_probe_available(self) -> bool:
+        """Report whether the block lane may resolve a position by probing.
+
+        The probe needs a mask that can answer about one token
+        (``SafeGrammarMask.admits``); it cannot serve a trace, which records the
+        support size and the four most probable tokens and therefore needs the
+        whole masked distribution anyway.
+        """
+        return (
+            self.lazy_probe_width > 0
+            and self.trace is None
+            and self.grammar_mask is not None
+            and self.mask_token_id is not None
+            and callable(getattr(self.grammar_mask, "admits", None))
+        )
+
+    def _probe_token(
+        self,
+        prefix_ids: list[int],
+        shell_logits: torch.Tensor,
+        target_mass: float,
+        generator: torch.Generator | None,
+    ) -> int | None:
+        """Commit the token the full-support path would commit, without building it.
+
+        The full-support call is the whole wall clock: 270 ms at prefix length 30
+        and 5-23 s at 65-88, against 0.47 ms for a single-token ``admits`` probe
+        and ~10 ms for the model forward.
+
+        Both selection rules read the masked distribution only through an argmax.
+        ``probabilities.argmax()`` is the highest-scoring token the grammar
+        admits, and ``torch.multinomial(probabilities, 1)`` is implemented as
+        ``argmax(probabilities / q)`` with ``q ~ Exp(1)`` drawn over the whole
+        vocabulary independently of ``probabilities`` -- one ``multinomial_out``
+        serves both CPU and CUDA in ``native_functions.yaml``, and the draw it
+        makes is the ``exponential_`` call reproduced here. Restricting the
+        support only removes candidates and rescales the rest by one positive
+        constant, so in both cases the answer is the first token the grammar
+        admits when the vocabulary is walked in the order the mass shell alone
+        already fixes.
+
+        ``lazy_probe_width`` is where a position stops being cheap, not where the
+        walk stops: the positions whose answer is ranked low are exactly the long
+        prefixes whose support costs 13-23 s to build, and walking on stops at
+        the answer instead of testing every token past it. The support is built
+        only when the ranking cannot be trusted -- a score that underflowed to
+        zero, or a winner too close to the next token to survive the float32
+        rounding of the path being reproduced.
+
+        Returns the token id, or ``None`` for a dead end. On a dead end the
+        generator is left exactly where the full-support path would have left it,
+        because that path never reaches its ``multinomial`` call.
+        """
+        assert self.grammar_mask is not None
+        if not torch.isfinite(shell_logits).any():
+            # The full-support path softmaxes to NaN here and never draws.
+            return None
+        self.lazy_probe_positions += 1
+        finite = torch.isfinite(shell_logits)
+        state = None
+        quantiles = None
+        if self.sample_tokens:
+            state = _capture_rng(generator, shell_logits.device)
+            # Drawn exactly as ``torch.multinomial`` draws it, from the same
+            # generator, so the stream advances identically either way.
+            quantiles = torch.empty_like(shell_logits).exponential_(
+                1, generator=generator
+            )
+        # float64 keeps the ranking free of the rounding the float32 path carries,
+        # so ``_PROBE_MARGIN`` is a bound on that path's error and not on ours.
+        scores = shell_logits.to(torch.float64).softmax(dim=-1)
+        if quantiles is not None:
+            scores = scores / quantiles.to(torch.float64)
+        # A token the mass shell already rejected must never win, and 0/0 from a
+        # zero quantile would otherwise sort ahead of everything as NaN.
+        scores = torch.where(finite, scores, torch.full_like(scores, -1.0))
+        candidates = int(finite.sum().item())
+        values, ranked = scores.sort(descending=True, stable=True)
+        values = values[:candidates].tolist()
+        trusted = True
+        for index, token_id in enumerate(ranked[:candidates].tolist()):
+            if not values[index] > 0.0:
+                # Underflow lost the ranking; let the full support decide.
+                trusted = False
+                break
+            if index == self.lazy_probe_width:
+                self.lazy_probe_misses += 1
+            self.lazy_probe_admits_calls += 1
+            if not self.grammar_mask.admits(prefix_ids, token_id, target_mass):
+                continue
+            runner_up = values[index + 1] if index + 1 < candidates else 0.0
+            if runner_up > 0.0 and values[index] <= runner_up * (1.0 + _PROBE_MARGIN):
+                trusted = False
+                break
+            return token_id
+        if trusted:
+            # Every token the mass shell left standing was tested and refused, so
+            # the masked distribution is all -inf and the position is a dead end.
+            if state is not None:
+                _restore_rng(state)
+            return None
+        self.lazy_probe_fallbacks += 1
+        masked = self.grammar_mask(prefix_ids, shell_logits, target_mass)
+        probabilities = masked.softmax(dim=-1)
+        if not torch.isfinite(probabilities.max(dim=-1).values):
+            if state is not None:
+                _restore_rng(state)
+            return None
+        if quantiles is not None:
+            return int((probabilities / quantiles).argmax().item())
+        return int(probabilities.argmax().item())
 
     def _sampling_logits(
         self,
@@ -414,10 +575,14 @@ class MarlinSampler:
             if len(examples) < 5:
                 examples.append(safe[:512])
 
+        def expired() -> bool:
+            return deadline is not None and time.perf_counter() >= deadline
+
+        lazy_probe = self._lazy_probe_available
         while prefix.shape[1] < self.model.config.max_length:
             if not active.any():
                 break
-            if deadline is not None and time.perf_counter() >= deadline:
+            if expired():
                 # A batch holding every candidate never reaches a batch boundary,
                 # so a deadline read only there is never read: one spectrum of the
                 # clean panel ran 19,311 s against a 1,800 s budget. The rows still
@@ -444,6 +609,13 @@ class MarlinSampler:
             for _ in range(block_width):
                 if not unresolved.any():
                     break
+                if expired():
+                    # A block is 8 positions and one of them could take minutes,
+                    # so a deadline read only between blocks overshoots: a 900 s
+                    # budget produced a 1,308 s spectrum. The positions left in
+                    # this block stay masked and decode away, exactly as the
+                    # length cap leaves them.
+                    break
                 with torch.autocast(
                     device_type=device.type,
                     dtype=torch.bfloat16,
@@ -456,6 +628,10 @@ class MarlinSampler:
                     positions = torch.nonzero(unresolved[row], as_tuple=False).flatten()
                     if positions.numel() == 0:
                         continue
+                    if expired():
+                        # One row's fallback to the full support can still cost
+                        # seconds, so the budget is read per row as well.
+                        break
                     best_position = None
                     best_token = None
                     best_confidence = -torch.inf
@@ -483,6 +659,19 @@ class MarlinSampler:
                             )
                         if self.forbidden_token_ids:
                             position_logits[list(self.forbidden_token_ids)] = -torch.inf
+                        if lazy_probe:
+                            probed = self._probe_token(
+                                prefix[row, :position].tolist(),
+                                position_logits,
+                                target_mass,
+                                generator,
+                            )
+                            if probed is None:
+                                continue
+                            best_confidence = _PROBE_RESOLVED
+                            best_position = relative_position
+                            best_token = probed
+                            continue
                         if self.grammar_mask is not None:
                             position_logits = self.grammar_mask(
                                 prefix[row, :position].tolist(),

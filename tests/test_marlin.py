@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 import torch
 from rdkit import Chem
@@ -1367,3 +1369,334 @@ def test_time_budget_truncates_between_batches_and_says_so():
         time_budget_seconds=1e-9,
     )
     assert single_batch.truncated
+
+
+LAZY_PROBE_TOKENIZER_PATHS = (
+    Path(
+        "/mnt/netstorage/nikolenko/marlin/cache/runtime-inputs-spectrum-v1/"
+        "16b1af5276034c041e85a4b7c43129a790b4fc091826485b691c93f9f7b699b3/"
+        "tokenizer.json"
+    ),
+    Path(
+        "/home/nikolenko/work/Projects/MARLIN_reproduction_20260717/"
+        "data/safe-gpt/tokenizer.json"
+    ),
+)
+# Prefixes taken from the recorded decodes under
+# /mnt/netstorage/nikolenko/marlin/evaluations/attempt-fan{,-big}/trace.jsonl:
+# the opening of an attempt, a ring under construction, a branch, a closed ring
+# and a long chain, which is where the full-support call costs 5-23 s.
+LAZY_PROBE_PREFIXES = (
+    "",
+    "C",
+    "CC",
+    "c1ccc",
+    "COc1cc(",
+    "CC1(C)CCc2c(O1)",
+    "CC(=O)N1CCC(O)CC1",
+    "Cc1c(C)c2c(OCC(=O)N3CCC(O)CC3)cc3c(c2oc1=O)",
+    "C" * 24,
+)
+
+
+def _lazy_probe_fixture():
+    """Build the sampler pieces one clean-panel evaluation actually runs with."""
+    from marlin.grammar import SafeGrammarMask
+    from marlin.token_properties import (
+        foreign_element_token_ids,
+        isotope_token_ids,
+    )
+
+    for path in LAZY_PROBE_TOKENIZER_PATHS:
+        if path.exists():
+            tokenizer = load_safe_tokenizer(path)
+            break
+    else:
+        pytest.skip(f"no real SAFE tokenizer under {LAZY_PROBE_TOKENIZER_PATHS}")
+
+    special_ids = {
+        tokenizer.bos_token_id,
+        tokenizer.eos_token_id,
+        tokenizer.mask_token_id,
+        tokenizer.pad_token_id,
+    }
+    token_strings = [
+        tokenizer.convert_ids_to_tokens(index) for index in range(len(tokenizer))
+    ]
+    masses, atoms, valences = build_token_property_table(
+        len(tokenizer), tokenizer.convert_ids_to_tokens, special_ids
+    )
+    constraint = MassShellConstraint(
+        masses,
+        atoms,
+        valences,
+        ppm_tolerance=10.0,
+        valence_slack=4.0,
+        eos_boost=1.0,
+        eos_token_id=tokenizer.eos_token_id,
+    )
+    chemistry_forbidden_ids = tuple(
+        sorted(
+            set(isotope_token_ids(token_strings))
+            | set(foreign_element_token_ids(token_strings))
+        )
+    )
+    mask = SafeGrammarMask(
+        token_strings,
+        lambda ids: tokenizer.decode(ids, skip_special_tokens=True),
+        eos_token_id=tokenizer.eos_token_id,
+        mask_token_id=tokenizer.mask_token_id,
+        special_token_ids=tuple(special_ids) + (tokenizer.unk_token_id,),
+        forbidden_token_ids=chemistry_forbidden_ids,
+        ppm_tolerance=10.0,
+        valence_slack=4.0,
+        mass_reachability_prune=True,
+        restrict_organic_elements=True,
+        forbid_isotopes=True,
+    )
+    forbidden = tuple(
+        token_id
+        for token_id in (
+            tokenizer.unk_token_id,
+            tokenizer.bos_token_id,
+            tokenizer.eos_token_id,
+            tokenizer.mask_token_id,
+            tokenizer.pad_token_id,
+        )
+        + chemistry_forbidden_ids
+        if token_id != tokenizer.eos_token_id
+    )
+    return tokenizer, constraint, mask, forbidden
+
+
+class _ProbeOnlyModel(torch.nn.Module):
+    """A stand-in for the decoder: ``_probe_token`` never reads the model."""
+
+    def __init__(self, vocab_size: int, mask_token_id: int) -> None:
+        super().__init__()
+        self.anchor = torch.nn.Parameter(torch.zeros(()))
+        self.config = MarlinDecoderConfig(
+            vocab_size=vocab_size,
+            hidden_size=4,
+            num_layers=1,
+            num_heads=1,
+            intermediate_size=4,
+            max_length=8,
+            block_width=4,
+            fingerprint_bits=8,
+            dropout=0.0,
+            mask_token_id=mask_token_id,
+            pad_token_id=0,
+        )
+
+    def forward(self, input_ids, precursor_mass, fingerprint):
+        return torch.zeros((*input_ids.shape, self.config.vocab_size))
+
+
+def test_lazy_probe_commits_the_token_the_full_support_would_commit():
+    tokenizer, constraint, mask, forbidden = _lazy_probe_fixture()
+    sampler = MarlinSampler(
+        _ProbeOnlyModel(len(tokenizer), tokenizer.mask_token_id),
+        constraint,
+        bos_token_id=tokenizer.bos_token_id,
+        eos_token_id=tokenizer.eos_token_id,
+        mask_token_id=tokenizer.mask_token_id,
+        decode_tokens=lambda ids: tokenizer.decode(ids, skip_special_tokens=True),
+        safe_to_smiles=lambda safe: None,
+        grammar_mask=mask,
+        forbidden_token_ids=forbidden,
+    )
+    assert sampler._lazy_probe_available
+
+    target_mass = 415.197710533379
+    checked = 0
+    for prefix_text in LAZY_PROBE_PREFIXES:
+        prefix = [tokenizer.bos_token_id] + (
+            tokenizer(prefix_text, add_special_tokens=False)["input_ids"]
+            if prefix_text
+            else []
+        )
+        state = MassShellState()
+        for token_id in prefix[1:]:
+            state = constraint.advance(state, token_id)
+        for logit_seed in range(3):
+            draw = torch.Generator().manual_seed(logit_seed)
+            # Peaked like the decoder's own output: 70.3% of the positions of a
+            # real decode have exactly one token above p=0.01.
+            logits = 6.0 * torch.randn(len(tokenizer), generator=draw)
+            shell = constraint.apply(logits, state, target_mass)
+            shell[list(forbidden)] = -torch.inf
+            masked = mask(prefix, shell.clone(), target_mass)
+            probabilities = masked.softmax(dim=-1)
+            alive = bool(torch.isfinite(probabilities.max(dim=-1).values))
+
+            for sample_tokens in (False, True):
+                sampler.sample_tokens = sample_tokens
+                for seed in range(4):
+                    full = torch.Generator().manual_seed(seed)
+                    if not alive:
+                        expected = None
+                    elif sample_tokens:
+                        expected = int(
+                            torch.multinomial(
+                                probabilities, num_samples=1, generator=full
+                            ).item()
+                        )
+                    else:
+                        expected = int(probabilities.argmax().item())
+                    lazy = torch.Generator().manual_seed(seed)
+                    assert (
+                        sampler._probe_token(
+                            prefix, shell.clone(), target_mass, lazy
+                        )
+                        == expected
+                    )
+                    # The stream has to advance identically or every later
+                    # position of the decode diverges.
+                    assert torch.equal(full.get_state(), lazy.get_state())
+                    checked += 1
+    assert checked == len(LAZY_PROBE_PREFIXES) * 3 * 2 * 4
+    assert sampler.lazy_probe_positions == checked
+
+
+def test_lazy_probe_walks_past_its_width_and_builds_the_support_only_when_it_must():
+    tokens = ("[UNK]", "[CLS]", "[SEP]", "[PAD]", "[MASK]", "a", "b", "c", "d")
+    admitted = {8}
+
+    class NarrowMask:
+        eos_token_id = 2
+
+        def __init__(self):
+            self.supports_built = 0
+
+        def admits(self, prefix_ids, token_id, target_mass=None):
+            return token_id in admitted
+
+        def __call__(self, prefix_ids, logits, target_mass=None):
+            self.supports_built += 1
+            support = torch.zeros(len(tokens), dtype=torch.bool)
+            support[list(admitted)] = True
+            return torch.where(support, logits, torch.full_like(logits, -torch.inf))
+
+    grammar = NarrowMask()
+    sampler = MarlinSampler(
+        _ProbeOnlyModel(len(tokens), 4),
+        MassShellConstraint([0.0] * len(tokens), eos_token_id=2, ppm_tolerance=10),
+        bos_token_id=1,
+        eos_token_id=2,
+        mask_token_id=4,
+        decode_tokens=lambda ids: "",
+        safe_to_smiles=lambda safe: None,
+        grammar_mask=grammar,
+        forbidden_token_ids=(0, 1, 3, 4),
+        lazy_probe_width=2,
+        sample_tokens=False,
+    )
+    logits = torch.tensor([0.0, 0.0, 1.0, 0.0, 0.0, 9.0, 8.0, 7.0, 6.0])
+
+    # The answer is the lowest-ranked token the mass shell left standing, well
+    # past the probe width. Building the support instead would cost 13-23 s at
+    # the prefix lengths where that happens, so the walk simply continues.
+    assert sampler._probe_token([1], logits.clone(), 100.0, None) == 8
+    assert sampler.lazy_probe_misses == 1
+    assert sampler.lazy_probe_fallbacks == 0
+    assert grammar.supports_built == 0
+    assert sampler.lazy_probe_admits_calls == 4
+
+    # Nothing admissible anywhere is a dead end the walk proves on its own, and
+    # it leaves the generator where the full-support path -- which never reaches
+    # its multinomial call -- would have left it.
+    admitted.clear()
+    sampler.sample_tokens = True
+    generator = torch.Generator().manual_seed(3)
+    before = generator.get_state()
+    assert sampler._probe_token([1], logits.clone(), 100.0, generator) is None
+    assert torch.equal(generator.get_state(), before)
+    assert grammar.supports_built == 0
+
+    # A winner the float32 path could rank differently is handed to that path.
+    admitted.update({5, 6})
+    sampler.sample_tokens = False
+    tied = logits.clone()
+    tied[6] = tied[5]
+    assert sampler._probe_token([1], tied, 100.0, None) == 5
+    assert sampler.lazy_probe_fallbacks == 1
+    assert grammar.supports_built == 1
+
+
+def test_time_budget_stops_a_decode_inside_a_block():
+    import time as _time
+
+    class SlowModel(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.anchor = torch.nn.Parameter(torch.zeros(()))
+            self.calls = 0
+            self.config = MarlinDecoderConfig(
+                vocab_size=4,
+                hidden_size=4,
+                num_layers=1,
+                num_heads=1,
+                intermediate_size=4,
+                max_length=5,
+                block_width=4,
+                fingerprint_bits=8,
+                dropout=0.0,
+                mask_token_id=3,
+                pad_token_id=0,
+            )
+
+        def forward(self, input_ids, precursor_mass, fingerprint):
+            self.calls += 1
+            _time.sleep(0.05)
+            logits = torch.zeros((*input_ids.shape, 4), device=input_ids.device)
+            logits[..., 1] = 10.0
+            return logits
+
+    target_mass = Descriptors.ExactMolWt(Chem.MolFromSmiles("C"))
+
+    def build():
+        model = SlowModel()
+        decoded: list[list[int]] = []
+
+        def decode(token_ids):
+            decoded.append(list(token_ids))
+            return "C"
+
+        return model, decoded, MarlinSampler(
+            model,
+            MassShellConstraint([0.0] * 4, eos_token_id=2, ppm_tolerance=10),
+            bos_token_id=0,
+            eos_token_id=2,
+            mask_token_id=3,
+            decode_tokens=decode,
+            safe_to_smiles=lambda _: "C",
+            forbidden_token_ids=(0, 3),
+        )
+
+    model, _, sampler = build()
+    _, stats = sampler.generate_ranked_with_stats(
+        torch.zeros(8), target_mass, candidates=1
+    )
+    assert not stats.truncated
+    # One block of four positions, so four forward passes when nothing stops it.
+    assert model.calls == 4
+
+    # A budget of one position's work has to stop inside that block; read only at
+    # the block boundary it would run all four. A 900 s budget produced a 1,308 s
+    # spectrum for exactly this reason.
+    model, decoded, sampler = build()
+    _, capped = sampler.generate_ranked_with_stats(
+        torch.zeros(8),
+        target_mass,
+        candidates=1,
+        time_budget_seconds=0.06,
+    )
+    assert capped.truncated
+    assert 0 < model.calls < 4
+    # Positions are resolved leftmost first, so an abandoned block leaves masks
+    # only at the end: what is decoded is a prefix, never a string with a hole.
+    assert decoded
+    for token_ids in decoded:
+        holes = [index for index, token in enumerate(token_ids) if token == 3]
+        assert holes == list(range(len(token_ids) - len(holes), len(token_ids)))

@@ -1482,6 +1482,27 @@ class SafeGrammarMask:
             )
         )
 
+    @lru_cache(maxsize=32_768)
+    def _decoded_prefix(self, prefix_ids: tuple[int, ...]) -> str:
+        """Spell a committed prefix once however many tokens are asked about."""
+        return self.decode_prefix(prefix_ids)
+
+    @lru_cache(maxsize=32_768)
+    def _prefix_scan(self, prefix: str) -> tuple[_GrammarState, _ScanBase] | None:
+        """Parse a committed prefix once however many tokens are asked about.
+
+        ``_valid_token_ids`` already reuses one scan across the whole vocabulary;
+        a walk that asks about tokens one at a time rescans the prefix per token
+        instead, which is O(prefix length) work repeated up to the probe width.
+        """
+        state = _scan(prefix, self.policy)
+        if state is None:
+            return None
+        # A prefix that scans always has a base; only its deferred tail can fail.
+        base = _scan_base(prefix, self.policy)
+        assert base is not None
+        return state, base
+
     def admits(
         self,
         prefix_ids: Sequence[int],
@@ -1493,16 +1514,16 @@ class SafeGrammarMask:
         Asking about a single token instead of building the whole support is what
         makes a token-by-token walk of every gold answer affordable, which is the
         acceptance gate for any change to this mask
-        (``scripts/audit_marlin_gold_mask_walk.py``).
+        (``scripts/audit_marlin_gold_mask_walk.py``), and what lets the sampler
+        commit a token without ever building the support.
         """
         if self.mask_token_id is not None and self.mask_token_id in prefix_ids:
             return False
-        prefix = self.decode_prefix(prefix_ids)
-        state = _scan(prefix, self.policy)
-        if state is None:
+        prefix = self._decoded_prefix(tuple(prefix_ids))
+        scanned = self._prefix_scan(prefix)
+        if scanned is None:
             return False
-        base = _scan_base(prefix, self.policy)
-        assert base is not None
+        state, base = scanned
         if self.mass_reachability_prune and target_mass is not None:
             return self._token_is_mass_reachable(
                 prefix,
