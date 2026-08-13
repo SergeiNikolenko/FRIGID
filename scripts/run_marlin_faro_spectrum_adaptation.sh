@@ -82,6 +82,37 @@ if [[ "${MARLIN_FP32_FORWARD:-0}" == "1" ]]; then
   RECIPE_ARGS+=(--fp32-forward)
 fi
 
+# The corruption law. An unset MARLIN_FINGERPRINT_NOISE_MODE means "inherit the
+# warm-start checkpoint's law", which is what a stage 2 must do: stage 2 is
+# longer than stage 1, so a stage 2 that silently reverts to symmetric noise
+# spends most of its steps erasing stage 1 and the paired arms converge by
+# construction. Naming a mode is how a stage 1, or a deliberate change, is said.
+NOISE_ARGS=()
+if [[ -n "${MARLIN_FINGERPRINT_NOISE_MODE:-}" ]]; then
+  NOISE_ARGS+=(--fingerprint-noise-mode "$MARLIN_FINGERPRINT_NOISE_MODE")
+fi
+if [[ -n "${MARLIN_FINGERPRINT_ERROR_MODEL:-}" ]]; then
+  NOISE_ARGS+=(--fingerprint-error-model "$MARLIN_FINGERPRINT_ERROR_MODEL")
+fi
+if [[ "${MARLIN_ALLOW_CORRUPTION_MODE_CHANGE:-0}" == "1" ]]; then
+  NOISE_ARGS+=(--allow-corruption-mode-change)
+fi
+
+# The fp2mol corpus stage. Off unless a snapshot is named.
+CORPUS_ARGS=()
+if [[ -n "${MARLIN_CORPUS_SNAPSHOT:-}" ]]; then
+  CORPUS_ARGS+=(--corpus-snapshot "$MARLIN_CORPUS_SNAPSHOT")
+  if [[ -n "${MARLIN_CORPUS_ROW_GROUPS:-}" ]]; then
+    CORPUS_ARGS+=(--corpus-row-groups "$MARLIN_CORPUS_ROW_GROUPS")
+  fi
+  if [[ -n "${MARLIN_CORPUS_SEED:-}" ]]; then
+    CORPUS_ARGS+=(--corpus-seed "$MARLIN_CORPUS_SEED")
+  fi
+  if [[ -n "${MARLIN_CORPUS_EXCLUDE_INCHIKEYS:-}" ]]; then
+    CORPUS_ARGS+=(--corpus-exclude-inchikeys "$MARLIN_CORPUS_EXCLUDE_INCHIKEYS")
+  fi
+fi
+
 # The conditioning probe, and early stopping on it. Both off unless asked for.
 PROBE_ARGS=()
 if [[ -n "${MARLIN_CONDITIONING_PROBE_INTERVAL:-}" ]]; then
@@ -135,7 +166,8 @@ python -X faulthandler scripts/train_marlin_spectrum_adaptation.py \
   --cross-attention-only-steps "${MARLIN_CROSS_ATTENTION_ONLY_STEPS:-100}" \
   --learning-rate "${MARLIN_LEARNING_RATE:-1e-5}" \
   --noise-probability "${MARLIN_NOISE_PROBABILITY:-0.5}" \
-  --fingerprint-noise-mode "${MARLIN_FINGERPRINT_NOISE_MODE:-symmetric}" \
+  "${NOISE_ARGS[@]}" \
+  "${CORPUS_ARGS[@]}" \
   --context-corruption-probability "${MARLIN_CONTEXT_CORRUPTION_PROBABILITY:-0}" \
   --context-corruption-warmup-steps "${MARLIN_CONTEXT_CORRUPTION_WARMUP_STEPS:-1000}" \
   --context-corruption-min-fraction "${MARLIN_CONTEXT_CORRUPTION_MIN_FRACTION:-0.05}" \

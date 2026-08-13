@@ -153,6 +153,12 @@ class PeriodicMolecularEvaluation(L.Callback):
         per_spectrum_seconds = evaluation.get("per_spectrum_seconds")
         if per_spectrum_seconds is not None and str(per_spectrum_seconds):
             command.extend(["--per-spectrum-seconds", str(per_spectrum_seconds)])
+        # The contamination guard travels with the run that could contaminate:
+        # an in-training panel evaluation of a corpus arm has to say, per row,
+        # whether the corpus stage was allowed to train on that structure.
+        corpus_exclude = evaluation.get("corpus_exclude_inchikeys")
+        if corpus_exclude is not None and str(corpus_exclude):
+            command.extend(["--corpus-exclude-inchikeys", str(corpus_exclude)])
         if str(self.config.get("architecture", "marlin")) == "expanding":
             command.extend(
                 [

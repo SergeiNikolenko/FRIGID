@@ -47,6 +47,7 @@ from marlin.token_properties import (
     isotope_token_ids,
 )
 from marlin.tokenizer import load_safe_tokenizer
+from marlin.training import load_excluded_connectivity_keys
 
 
 def sampling_isotope_ratios(mode: str, record) -> tuple[float, float] | None:
@@ -106,6 +107,18 @@ def parse_args() -> argparse.Namespace:
         "--spec-manifest",
         type=Path,
         help="Ordered CSV/TSV panel; cannot be truncated by --max-spectra.",
+    )
+    parser.add_argument(
+        "--corpus-exclude-inchikeys",
+        type=Path,
+        help=(
+            "the connectivity blocks the corpus stage was told never to emit. "
+            "Every row then carries seen_in_corpus --- true when the corpus "
+            "stream was allowed to train on that structure --- and the metrics "
+            "carry Exact@1 on the held-out complement as well as overall. With "
+            "the exclusion wired it must be identically zero; if it is not, the "
+            "exclusion was not in the path and the run is void."
+        ),
     )
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--disable-grammar-mask", action="store_true")
@@ -378,6 +391,35 @@ def repair_provenance_metrics(rows: list[dict]) -> dict[str, object]:
         "spectra_with_repaired_candidate": sum(
             1 for row in known if int(row.get("repaired_candidate_count") or 0) > 0
         ),
+    }
+
+
+def corpus_contamination_metrics(rows: list[dict]) -> dict[str, object]:
+    """Exact@1 on the rows a corpus stage could never have trained on.
+
+    A headline read on a panel whose structures the run trained on is not a
+    headline, so the complement is reported beside the overall number rather
+    than instead of it. ``seen_in_corpus_spectra`` is the number that has to be
+    zero: with the exclusion list in the training path it is, and if it is not
+    the exclusion was not wired and the run is void.
+    """
+    known = [row for row in rows if row.get("seen_in_corpus") is not None]
+    if not known:
+        return {
+            "seen_in_corpus_spectra": None,
+            "corpus_unseen_spectra": None,
+            "exact_top1_corpus_unseen": None,
+            "exact_top10_corpus_unseen": None,
+        }
+    seen = [row for row in known if row["seen_in_corpus"]]
+    unseen = [row for row in known if not row["seen_in_corpus"]]
+    return {
+        "seen_in_corpus_spectra": len(seen),
+        "corpus_unseen_spectra": len(unseen),
+        "exact_top1_corpus_unseen": mean_metric(unseen, "exact_top1"),
+        "exact_top10_corpus_unseen": mean_metric(unseen, "exact_top10"),
+        "exact_top1_corpus_seen": mean_metric(seen, "exact_top1") if seen else None,
+        "corpus_provenance_spectra": len(known),
     }
 
 
@@ -834,6 +876,16 @@ def main() -> None:
             else 0
         ),
         "per_spectrum_seconds": args.per_spectrum_seconds,
+        "corpus_exclude_inchikeys": (
+            str(args.corpus_exclude_inchikeys)
+            if args.corpus_exclude_inchikeys
+            else None
+        ),
+        "corpus_exclude_inchikeys_sha256": (
+            sha256(args.corpus_exclude_inchikeys)
+            if args.corpus_exclude_inchikeys
+            else None
+        ),
         "forbid_isotope_tokens": args.forbid_isotope_tokens,
         "restrict_organic_elements": args.restrict_organic_elements,
         "chemistry_forbidden_token_count": len(chemistry_forbidden_ids),
@@ -881,6 +933,18 @@ def main() -> None:
             )
         signature_path.write_text(
             json.dumps(signature, indent=2, sort_keys=True) + "\n"
+        )
+
+    corpus_excluded: set[str] | None = (
+        load_excluded_connectivity_keys(args.corpus_exclude_inchikeys)
+        if args.corpus_exclude_inchikeys is not None
+        else None
+    )
+    if corpus_excluded is not None and not corpus_excluded:
+        # An empty list reads as "filtered" everywhere downstream while
+        # excluding nothing, which is the same failure wearing a file name.
+        raise ValueError(
+            f"{args.corpus_exclude_inchikeys} lists no connectivity blocks"
         )
 
     predictions_path = args.output_dir / "predictions.jsonl"
@@ -974,6 +1038,14 @@ def main() -> None:
                 "lane": args.lane,
                 "target_smiles": record["smiles"],
                 "target_inchikey_first_block": target_connectivity,
+                # Contamination guard. None means "no list was given", which is
+                # unknown, not clean --- the same convention the repair
+                # provenance uses.
+                "seen_in_corpus": (
+                    None
+                    if corpus_excluded is None
+                    else target_connectivity not in corpus_excluded
+                ),
                 "neutral_mass": float(record["neutral_mass"]),
                 "runtime_seconds": elapsed,
                 "attempts": stats.attempts,
@@ -1072,6 +1144,7 @@ def main() -> None:
         "tanimoto_top10": mean_metric(rows_with_candidate, "tanimoto_top10"),
         **formula_metric_summary(rows),
         **repair_provenance_metrics(rows),
+        **corpus_contamination_metrics(rows),
         "mass_bins": mass_bin_metrics(rows),
         "validity": mean_metric(rows, "validity"),
         "completed_validity": mean_metric(rows, "completed_validity"),
@@ -1104,6 +1177,15 @@ def main() -> None:
                 "null when no row does"
             ),
             "spectra_with_repaired_candidate": "rows that carry repair provenance",
+            "exact_top1_corpus_unseen": (
+                "rows whose connectivity block the corpus stage was forbidden "
+                "to emit; null when no exclusion list was named"
+            ),
+            "exact_top10_corpus_unseen": "same rows as exact_top1_corpus_unseen",
+            "seen_in_corpus_spectra": (
+                "rows the corpus stage was allowed to train on; must be 0 when "
+                "the exclusion list is wired"
+            ),
             "validity": "all rows",
             "completed_validity": "all rows, branches that were not killed by a constraint",
             "mass_validity": "all rows",

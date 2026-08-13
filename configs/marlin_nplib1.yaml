@@ -29,7 +29,12 @@ data:
   # blocks only, which left all 320 blocks of the clean 321 panel --- the panel we
   # iterate on --- eligible for corpus training.
   # 1,095 blocks, sha256 7d1f45937f284dbc9dc93be0ff6ae6eedf02b1cc293496acff7ffcd8c5dab44a
-  exclude_inchikeys: /home/nikolenko/work/Projects/MARLIN_reproduction_20260717/data/nplib1_holdout_inchikeys_v2.csv
+  # Repo-relative and committed: this used to be an absolute path outside the
+  # repository, which a worker that gets its code by `git clone` does not have,
+  # and a missing exclusion list is not a crash but a run that trains on the
+  # panel it is scored on. `marlin.corpus_stream.resolve_repository_path`
+  # resolves it against the repository rather than the working directory.
+  exclude_inchikeys: data/nplib1_holdout_inchikeys_v2.csv
   # Inferred: preserve complete SAFE targets within the fixed 256-token context.
   length_audit_manifest: /home/nikolenko/work/Projects/MARLIN_reproduction_20260717/manifests/safe_gpt_eligibility_a7a49f6_first1000000.json
   length_audit_sha256: c6267bfcffe51b42fa82d3514cb148ba15fa9e7c0141119682aa12c64413b0fd

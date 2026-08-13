@@ -32,6 +32,13 @@ SPLIT=${SPLIT:-test}
 CANDIDATES=${CANDIDATES:-8}
 CAP=${CAP:-1800}
 SHARDS=${SHARDS:-16}
+# The corpus exclusion list, so every row carries seen_in_corpus. Empty means
+# "unknown", which is not the same as clean.
+CORPUS_EXCLUDE=${CORPUS_EXCLUDE:-}
+CORPUS_ARGS=()
+if [ -n "$CORPUS_EXCLUDE" ]; then
+  CORPUS_ARGS+=(--corpus-exclude-inchikeys "$CORPUS_EXCLUDE")
+fi
 CKPT="$1"
 ROOT=${ROOT:-/mnt/netstorage/nikolenko/marlin/evaluations/sharded-${SPLIT}-c${CANDIDATES}}
 
@@ -69,6 +76,7 @@ for i in $(seq -w 0 $((SHARDS-1))); do
     --threshold 0.95 --sample-tokens --soft-fingerprint \
     --mass-reachability-prune --forbid-isotope-tokens --restrict-organic-elements \
     --isotope-token omit --no-ema --per-spectrum-seconds "$CAP" \
+    "${CORPUS_ARGS[@]}" \
     > "$ROOT/shard$i.log" 2>&1 &
   sleep 2
 done

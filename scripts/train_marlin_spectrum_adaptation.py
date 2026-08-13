@@ -45,15 +45,24 @@ from marlin.model import (
     TIME_SAMPLING_MODES,
     MarlinDecoderConfig,
 )
+from marlin.corpus_stream import (
+    PACKAGED_HOLDOUT_INCHIKEYS,
+    Fp2MolStream,
+    corpus_row_groups,
+)
 from marlin.periodic_evaluation import PeriodicMolecularEvaluation
 from marlin.tokenizer import load_safe_tokenizer, validate_safe_tokenizer
 from marlin.training import (
+    FINGERPRINT_NOISE_MODES,
+    FITTED_NOISE_MODES,
     LR_SCHEDULES,
     MarlinCollator,
     MarlinLightningModule,
     MarlinSpectrumFingerprintDataset,
     PeriodicHeldOutLoss,
+    checkpoint_fingerprint_corruption,
     holdout_split_report,
+    resolve_inherited_corruption,
     structure_disjoint_holdout,
 )
 from marlin.warm_start import load_marlin_decoder_weights, sha256_file
@@ -368,15 +377,75 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--noise-probability", type=float, default=0.5)
     parser.add_argument(
         "--fingerprint-noise-mode",
-        choices=("symmetric", "dropout"),
-        default="symmetric",
+        choices=FINGERPRINT_NOISE_MODES,
+        default=None,
         help=(
             "how the conditioning fingerprint is corrupted during training. "
             "'symmetric' moves an on-bit to an off position, keeping the "
             "cardinality but inventing bits; 'dropout' only removes on-bits, "
             "which is what inference diversity does to the vector the decoder "
-            "is given"
+            "is given; 'fitted' draws from the measured out-of-fold encoder "
+            "error model and 'fitted_control' from its rate-matched uniform "
+            "control. Omit it to inherit the law of the warm-start checkpoint, "
+            "which is what a stage 2 must do"
         ),
+    )
+    parser.add_argument(
+        "--fingerprint-error-model",
+        type=Path,
+        default=None,
+        help=(
+            "encoder_error_model_oof.npz for --fingerprint-noise-mode fitted "
+            "and fitted_control; the control is derived from the same file, so "
+            "the pair can never drift apart"
+        ),
+    )
+    parser.add_argument(
+        "--allow-corruption-mode-change",
+        action="store_true",
+        help=(
+            "permit a corruption law different from the warm-start "
+            "checkpoint's. Stage 2 is longer than stage 1, so changing it "
+            "erases stage 1; saying so has to be an act"
+        ),
+    )
+    parser.add_argument(
+        "--corpus-snapshot",
+        type=Path,
+        default=None,
+        help=(
+            "train on the fp2mol corpus at this snapshot instead of on the "
+            "spectrum adaptation table. The validation panel, the held-out "
+            "loss and the conditioning probe are unchanged, so a corpus stage "
+            "is read on exactly the instruments a spectrum stage is"
+        ),
+    )
+    parser.add_argument(
+        "--corpus-exclude-inchikeys",
+        type=Path,
+        default=PACKAGED_HOLDOUT_INCHIKEYS,
+        help=(
+            "connectivity blocks the corpus stream must never emit. Defaults "
+            "to the packaged 1,095-block list, which is inside the repository "
+            "so a worker that gets its code by git clone cannot silently skip "
+            "it"
+        ),
+    )
+    parser.add_argument(
+        "--corpus-row-groups",
+        type=int,
+        default=None,
+        help=(
+            "use only the first N row groups of the corpus, after the "
+            "deterministic hash permutation. One row group is ~1,048,576 "
+            "molecules"
+        ),
+    )
+    parser.add_argument(
+        "--corpus-seed",
+        type=int,
+        default=0,
+        help="seed of the corpus stream's row-group and within-group order",
     )
     parser.add_argument("--noise-min-fraction", type=float, default=0.1)
     parser.add_argument("--noise-max-fraction", type=float, default=0.3)
@@ -514,6 +583,25 @@ def validate_args(args: argparse.Namespace) -> None:
         )
     if not 0.0 <= args.noise_min_fraction <= args.noise_max_fraction <= 1.0:
         raise ValueError("noise fractions must satisfy 0 <= min <= max <= 1")
+    if args.fingerprint_noise_mode in FITTED_NOISE_MODES:
+        if args.fingerprint_error_model is None:
+            raise ValueError(
+                f"--fingerprint-noise-mode {args.fingerprint_noise_mode} needs "
+                "--fingerprint-error-model"
+            )
+        if not args.fingerprint_error_model.exists():
+            raise FileNotFoundError(
+                f"encoder error model not found: {args.fingerprint_error_model}"
+            )
+    if args.corpus_snapshot is not None:
+        if args.corpus_row_groups is not None and args.corpus_row_groups < 1:
+            raise ValueError("--corpus-row-groups must be at least 1")
+        if not args.corpus_exclude_inchikeys.exists():
+            raise FileNotFoundError(
+                "the corpus exclusion list is missing: "
+                f"{args.corpus_exclude_inchikeys}. Without it the stream trains "
+                "on the panel it is scored on"
+            )
     if args.evaluation_shards < 1:
         raise ValueError("--evaluation-shards must be at least 1")
     if args.evaluation_spectra > 128 and args.evaluation_shards < 2:
@@ -720,13 +808,73 @@ def main() -> None:
         if not holdout_indices
         else torch.utils.data.Subset(dataset, train_indices)
     )
+    corpus_plan: dict[str, object] | None = None
+    train_collator = collator
+    if args.corpus_snapshot is not None:
+        refs = corpus_row_groups(args.corpus_snapshot)
+        selected = refs
+        if args.corpus_row_groups is not None:
+            # Take the head of the run's own permutation rather than of the
+            # manifest, so a subset is a sample of the corpus and not the first
+            # library in source order.
+            selected = sorted(
+                refs,
+                key=lambda ref: hashlib.sha256(
+                    f"{args.corpus_seed}:0:{ref.path}:{ref.row_group}".encode()
+                ).hexdigest(),
+            )[: args.corpus_row_groups]
+        if len(selected) < max(args.num_workers, 1):
+            # A dataloader worker with no row group finishes a pass having
+            # emitted nothing, and the stream calls that a hang and raises.
+            raise ValueError(
+                f"{len(selected)} corpus row groups cannot feed "
+                f"{args.num_workers} dataloader workers"
+            )
+        train_dataset = Fp2MolStream(
+            snapshot=args.corpus_snapshot,
+            tokenizer=tokenizer,
+            max_length=decoder_config.max_length,
+            fingerprint_bits=decoder_config.fingerprint_bits,
+            exclude_inchikeys=args.corpus_exclude_inchikeys,
+            seed=args.corpus_seed,
+            row_groups=selected,
+        )
+        # A second guard on the batch itself: the stream filters on the parsed
+        # molecule, the collator on the SAFE round trip. If they ever disagree
+        # the run dies instead of training on an evaluation structure.
+        train_collator = MarlinCollator(
+            tokenizer,
+            max_length=decoder_config.max_length,
+            fingerprint_bits=decoder_config.fingerprint_bits,
+            exclude_inchikeys=args.corpus_exclude_inchikeys,
+            allow_soft_fingerprints=args.soft_fingerprint,
+        )
+        corpus_plan = {
+            "snapshot": str(args.corpus_snapshot),
+            "row_groups_available": len(refs),
+            "row_groups_used": len(selected),
+            "seed": args.corpus_seed,
+            "exclude_inchikeys": str(args.corpus_exclude_inchikeys),
+            "exclude_inchikeys_sha256": _sha256(args.corpus_exclude_inchikeys),
+            "excluded_connectivity_blocks": len(train_dataset.excluded),
+            "fingerprint": "true Morgan r2, 4096 bits, corrupted on device",
+        }
+        print(
+            "MARLIN corpus stage: "
+            f"{corpus_plan['row_groups_used']}/{corpus_plan['row_groups_available']} "
+            f"row groups, excluding {corpus_plan['excluded_connectivity_blocks']} "
+            f"connectivity blocks from {corpus_plan['exclude_inchikeys']}",
+            flush=True,
+        )
     loader = torch.utils.data.DataLoader(
         train_dataset,
         batch_size=args.batch_size,
-        shuffle=True,
+        # An IterableDataset shuffles inside itself; the corpus stream permutes
+        # its row groups and the rows inside each of them.
+        shuffle=corpus_plan is None,
         num_workers=args.num_workers,
         pin_memory=True,
-        collate_fn=collator,
+        collate_fn=train_collator,
     )
     holdout_loader = (
         torch.utils.data.DataLoader(
@@ -738,6 +886,25 @@ def main() -> None:
         )
         if holdout_indices
         else None
+    )
+
+    # Stage 2 inherits stage 1's corruption law unless the run says otherwise.
+    # A stage 2 that silently reverts to symmetric noise spends more steps
+    # unlearning stage 1 than stage 1 spent learning, and the paired arms
+    # converge by construction.
+    corruption_plan = resolve_inherited_corruption(
+        requested_mode=args.fingerprint_noise_mode,
+        requested_error_model=args.fingerprint_error_model,
+        stage_one=checkpoint_fingerprint_corruption(args.checkpoint),
+        allow_change=args.allow_corruption_mode_change,
+    )
+    print(
+        "MARLIN fingerprint corruption: "
+        f"mode={corruption_plan['fingerprint_noise_mode']} "
+        f"({corruption_plan['source']}), "
+        f"warm start carried {corruption_plan['inherited_fingerprint_noise_mode']!r}, "
+        f"model={corruption_plan['fingerprint_error_model']}",
+        flush=True,
     )
 
     learning_rate_plan = resolve_learning_rate(args)
@@ -763,7 +930,8 @@ def main() -> None:
         loss_reduction=args.loss_reduction,
         fp32_forward=args.fp32_forward,
         noise_probability=args.noise_probability,
-        fingerprint_noise_mode=args.fingerprint_noise_mode,
+        fingerprint_noise_mode=str(corruption_plan["fingerprint_noise_mode"]),
+        fingerprint_error_model=corruption_plan["fingerprint_error_model"],
         noise_min_fraction=args.noise_min_fraction,
         noise_max_fraction=args.noise_max_fraction,
         ema_decay=0.9999,
@@ -840,9 +1008,22 @@ def main() -> None:
             "source": "model runner-up tokens under a fully masked block",
             "targets": "gold",
         },
+        "training_source": "corpus" if corpus_plan else "spectrum",
+        "corpus": corpus_plan,
         "fingerprint_noise": {
-            "mode": args.fingerprint_noise_mode,
+            "mode": corruption_plan["fingerprint_noise_mode"],
+            "error_model": corruption_plan["fingerprint_error_model"],
+            "error_model_sha256": (
+                _sha256(Path(str(corruption_plan["fingerprint_error_model"])))
+                if corruption_plan["fingerprint_error_model"]
+                else None
+            ),
+            "mode_source": corruption_plan["source"],
+            "inherited_mode": corruption_plan["inherited_fingerprint_noise_mode"],
+            "changed_from_stage_one": corruption_plan["changed_from_stage_one"],
             "probability": args.noise_probability,
+            # The fraction knobs belong to the incumbent laws only; the fitted
+            # law's rates are the measured per-bin ones.
             "min_fraction": args.noise_min_fraction,
             "max_fraction": args.noise_max_fraction,
             "equal_drop_add": True,
@@ -896,6 +1077,9 @@ def main() -> None:
             "shards": args.evaluation_shards,
             "sample_tokens": True,
             "soft_fingerprint": args.soft_fingerprint,
+            "corpus_exclude_inchikeys": (
+                str(args.corpus_exclude_inchikeys) if corpus_plan else None
+            ),
             "selection": {
                 "enabled": bool(args.select_best_checkpoint),
                 "metric": args.selection_metric,
@@ -962,6 +1146,11 @@ def main() -> None:
                 "restrict_organic_elements": args.restrict_organic_elements,
                 "ppm_tolerance": 10.0,
                 "seed": args.seed,
+                # Only a corpus stage can contaminate a panel, so only a corpus
+                # stage asks its panel evaluations to carry the flag.
+                "corpus_exclude_inchikeys": (
+                    str(args.corpus_exclude_inchikeys) if corpus_plan else None
+                ),
             },
             "data": {"tokenizer_file": str(args.tokenizer)},
             "output": {

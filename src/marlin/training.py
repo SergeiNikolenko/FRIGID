@@ -29,10 +29,157 @@ from marlin.model import (
     MarlinDecoderConfig,
 )
 from marlin.noise import one_sided_fingerprint_dropout, symmetric_fingerprint_noise
+from marlin.encoder_error_model import EncoderErrorModel
 from marlin.isotopes import theoretical_isotope_ratios
 
 
 LR_SCHEDULES = ("constant", "warmup_cosine")
+
+# ``symmetric`` and ``dropout`` are the incumbent laws of ``marlin.noise``.
+# ``fitted`` and ``fitted_control`` are the out-of-fold encoder error model and
+# its rate-matched uniform control (``marlin.encoder_error_model``): the pair
+# whose only difference is the frequency dependence and the row latent, which is
+# the ablation CoRe-Gen prices at -4.77 pp.
+FINGERPRINT_NOISE_MODES = ("symmetric", "dropout", "fitted", "fitted_control")
+FITTED_NOISE_MODES = ("fitted", "fitted_control")
+
+
+def sha256_file(path: str | Path) -> str:
+    """Digest a file in chunks, so a manifest can pin the bytes it read."""
+    digest = hashlib.sha256()
+    with Path(path).open("rb") as handle:
+        for chunk in iter(lambda: handle.read(8 * 1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def fingerprint_corruption(
+    mode: str, error_model_path: str | Path | None
+) -> EncoderErrorModel | None:
+    """Return the fitted corruption a mode asks for, or ``None`` for the incumbent.
+
+    ``fitted_control`` is derived from the same file as ``fitted`` rather than
+    stored separately, so the pair can never drift apart: the control is exactly
+    the fitted model with its frequency dependence and row latent removed and
+    its pooled rates held. A separately fitted control file is also accepted,
+    because the artifact directory ships one, and in that case the derivation is
+    idempotent.
+    """
+    if mode not in FITTED_NOISE_MODES:
+        return None
+    if error_model_path is None:
+        raise ValueError(f"mode {mode!r} needs an encoder error model path")
+    model = EncoderErrorModel.load(error_model_path)
+    if mode == "fitted_control":
+        return model.rate_matched_uniform_control()
+    return model
+
+
+def checkpoint_fingerprint_corruption(
+    checkpoint_path: str | Path,
+) -> dict[str, object] | None:
+    """Read back the corruption law a checkpoint was trained under.
+
+    ``None`` means the checkpoint predates this record — the released DLM, or
+    any run written before the key existed — and nothing can be inherited from
+    it.
+    """
+    checkpoint = torch.load(
+        Path(checkpoint_path), map_location="cpu", weights_only=False, mmap=True
+    )
+    hyper_parameters = checkpoint.get("hyper_parameters") or {}
+    del checkpoint
+    mode = hyper_parameters.get("fingerprint_noise_mode")
+    if mode is None:
+        return None
+    return {
+        "fingerprint_noise_mode": str(mode),
+        "fingerprint_error_model": hyper_parameters.get("fingerprint_error_model"),
+        "fingerprint_error_model_sha256": hyper_parameters.get(
+            "fingerprint_error_model_sha256"
+        ),
+        "noise_probability": hyper_parameters.get("noise_probability"),
+    }
+
+
+def resolve_inherited_corruption(
+    *,
+    requested_mode: str | None,
+    requested_error_model: str | Path | None,
+    stage_one: Mapping[str, object] | None,
+    allow_change: bool = False,
+) -> dict[str, object]:
+    """Carry stage 1's corruption law into stage 2, or refuse to erase it.
+
+    Why this exists, in one measurement. A corpus stage 1 of 5,000 steps
+    followed by an NPLIB1 stage 2 of 20,000 steps under the incumbent symmetric
+    noise spends 80% of its optimizer steps under a law whose KS distance to the
+    real held-out DreaMS error is 0.8727, against the fitted law's 0.0738
+    (``artifacts/encoder-error-model-oof-v1/report_oof.json``). The fitted arm
+    and its control would then differ only over the first fifth of their steps
+    and would converge by construction, so the experiment would measure the
+    length of stage 2 rather than the placement law.
+
+    So stage 2 inherits, and a deliberate change has to say so.
+    """
+    inherited_mode = (
+        str(stage_one["fingerprint_noise_mode"]) if stage_one is not None else None
+    )
+    inherited_model = stage_one.get("fingerprint_error_model") if stage_one else None
+    inherited_sha256 = (
+        stage_one.get("fingerprint_error_model_sha256") if stage_one else None
+    )
+
+    if requested_mode is None:
+        mode = inherited_mode if inherited_mode is not None else "symmetric"
+        error_model = (
+            requested_error_model
+            if requested_error_model is not None
+            else (inherited_model if mode in FITTED_NOISE_MODES else None)
+        )
+        source = "inherited from the warm-start checkpoint"
+        if inherited_mode is None:
+            source = "default; the warm-start checkpoint records no corruption law"
+    else:
+        mode = requested_mode
+        error_model = requested_error_model
+        source = "explicit"
+
+    if mode not in FINGERPRINT_NOISE_MODES:
+        raise ValueError(
+            "fingerprint_noise_mode must be one of "
+            f"{', '.join(FINGERPRINT_NOISE_MODES)}, got {mode!r}"
+        )
+    if mode in FITTED_NOISE_MODES and error_model is None:
+        raise ValueError(
+            f"fingerprint_noise_mode {mode!r} needs an encoder error model path"
+        )
+
+    changed = inherited_mode is not None and mode != inherited_mode
+    model_changed = False
+    if not changed and mode in FITTED_NOISE_MODES and inherited_sha256:
+        model_changed = (
+            error_model is None or sha256_file(error_model) != inherited_sha256
+        )
+    if (changed or model_changed) and not allow_change:
+        raise ValueError(
+            "stage 2 would train under a different fingerprint corruption than "
+            f"the checkpoint it warm-starts from ({inherited_mode!r} "
+            f"{inherited_sha256 or ''} -> {mode!r} "
+            f"{sha256_file(error_model) if error_model else ''}). Stage 2 is "
+            "longer than stage 1, so this erases stage 1 and makes the arms "
+            "converge by construction. Omit --fingerprint-noise-mode to "
+            "inherit, or pass --allow-corruption-mode-change to say that "
+            "changing it is the experiment."
+        )
+    return {
+        "fingerprint_noise_mode": mode,
+        "fingerprint_error_model": str(error_model) if error_model else None,
+        "source": source,
+        "inherited_fingerprint_noise_mode": inherited_mode,
+        "inherited_fingerprint_error_model_sha256": inherited_sha256,
+        "changed_from_stage_one": bool(changed or model_changed),
+    }
 
 
 def fp32_forward_context(enabled: bool, device_type: str):
@@ -543,6 +690,7 @@ class MarlinLightningModule(L.LightningModule):
         noise_min_fraction: float = 0.1,
         noise_max_fraction: float = 0.3,
         fingerprint_noise_mode: str = "symmetric",
+        fingerprint_error_model: str | Path | None = None,
         ema_decay: float = 0.9999,
         metric_interval: int = 50,
         eos_loss_weight: float = 1.0,
@@ -599,10 +747,26 @@ class MarlinLightningModule(L.LightningModule):
                 f"unknown loss_reduction {loss_reduction!r}; expected one of "
                 f"{', '.join(LOSS_REDUCTIONS)}"
             )
-        if fingerprint_noise_mode not in {"symmetric", "dropout"}:
+        if fingerprint_noise_mode not in FINGERPRINT_NOISE_MODES:
             raise ValueError(
-                "fingerprint_noise_mode must be 'symmetric' or 'dropout', "
+                "fingerprint_noise_mode must be one of "
+                f"{', '.join(FINGERPRINT_NOISE_MODES)}, "
                 f"got {fingerprint_noise_mode!r}"
+            )
+        fitted_mode = fingerprint_noise_mode in FITTED_NOISE_MODES
+        if fitted_mode and fingerprint_error_model is None:
+            raise ValueError(
+                f"fingerprint_noise_mode {fingerprint_noise_mode!r} needs "
+                "fingerprint_error_model: a fitted law with no fitted "
+                "parameters is not a law"
+            )
+        if not fitted_mode and fingerprint_error_model is not None:
+            # Otherwise a run carries a model path in its manifest that nothing
+            # reads, and the arm looks fitted when it is symmetric.
+            raise ValueError(
+                "fingerprint_error_model is only meaningful for "
+                f"{' or '.join(FITTED_NOISE_MODES)}, not "
+                f"{fingerprint_noise_mode!r}"
             )
         if context_corruption_warmup_steps < 0:
             raise ValueError("context_corruption_warmup_steps must be non-negative")
@@ -615,6 +779,19 @@ class MarlinLightningModule(L.LightningModule):
                 "noise_min_fraction": noise_min_fraction,
                 "noise_max_fraction": noise_max_fraction,
                 "fingerprint_noise_mode": fingerprint_noise_mode,
+                # Provenance the next stage reads: stage 2 inherits the
+                # corruption of the checkpoint it warm-starts from, and it can
+                # only do that if the checkpoint says what it was.
+                "fingerprint_error_model": (
+                    str(fingerprint_error_model)
+                    if fingerprint_error_model is not None
+                    else None
+                ),
+                "fingerprint_error_model_sha256": (
+                    sha256_file(fingerprint_error_model)
+                    if fingerprint_error_model is not None
+                    else None
+                ),
                 "ema_decay": ema_decay,
                 "metric_interval": metric_interval,
                 "eos_loss_weight": eos_loss_weight,
@@ -645,6 +822,14 @@ class MarlinLightningModule(L.LightningModule):
         self.weight_decay = weight_decay
         self.noise_probability = noise_probability
         self.fingerprint_noise_mode = fingerprint_noise_mode
+        self.fingerprint_error_model_path = (
+            str(fingerprint_error_model) if fingerprint_error_model else None
+        )
+        # Not a submodule and not a buffer: it holds numpy rates, it is never
+        # optimised, and it must not travel into the decoder's state dict.
+        self.encoder_error_model = fingerprint_corruption(
+            fingerprint_noise_mode, fingerprint_error_model
+        )
         self.noise_min_fraction = noise_min_fraction
         self.noise_max_fraction = noise_max_fraction
         self.ema_decay = ema_decay
@@ -763,18 +948,35 @@ class MarlinLightningModule(L.LightningModule):
         del batch, batch_idx
         self.apply_adaptation_stage(int(self.global_step))
 
-    def training_step(self, batch: dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:
+    def corrupt_conditioning(self, fingerprint: torch.Tensor) -> torch.Tensor:
+        """Apply this run's corruption law to a batch of conditioning vectors.
+
+        The incumbent branch is untouched, argument for argument, so a
+        ``symmetric`` or ``dropout`` run draws exactly the numbers it drew
+        before this method existed.
+        """
+        if self.encoder_error_model is not None:
+            # The fitted law has no fraction knobs: the drop and invention rates
+            # are the measured per-bin ones, and ``noise_probability`` keeps its
+            # incumbent meaning of "how often a row is corrupted at all".
+            return self.encoder_error_model.corrupt(
+                fingerprint,
+                corruption_probability=self.noise_probability,
+            )
         corrupt_fingerprint = (
             symmetric_fingerprint_noise
             if self.fingerprint_noise_mode == "symmetric"
             else one_sided_fingerprint_dropout
         )
-        fingerprint = corrupt_fingerprint(
-            batch["fingerprint"],
+        return corrupt_fingerprint(
+            fingerprint,
             corruption_probability=self.noise_probability,
             min_fraction=self.noise_min_fraction,
             max_fraction=self.noise_max_fraction,
         )
+
+    def training_step(self, batch: dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:
+        fingerprint = self.corrupt_conditioning(batch["fingerprint"])
         collect_metrics = (
             self.global_step % self.metric_interval == 0
             and self.global_step != self._last_metric_step

@@ -51,6 +51,34 @@ FP2MOL_SNAPSHOT = Path(
 )
 FINGERPRINT_BITS = 4096
 
+# The exclusion list travels with the code. It used to be an absolute path
+# outside the repository (``configs/marlin_nplib1.yaml``), which a worker that
+# receives its code by ``git clone`` does not have --- and a missing exclusion
+# list is not a crash, it is a run that trains on the panel it is scored on.
+# 1,095 connectivity blocks, sha256
+# 7d1f45937f284dbc9dc93be0ff6ae6eedf02b1cc293496acff7ffcd8c5dab44a.
+PACKAGED_HOLDOUT_INCHIKEYS = (
+    Path(__file__).resolve().parents[2] / "data" / "nplib1_holdout_inchikeys_v2.csv"
+)
+PACKAGED_HOLDOUT_INCHIKEYS_SHA256 = (
+    "7d1f45937f284dbc9dc93be0ff6ae6eedf02b1cc293496acff7ffcd8c5dab44a"
+)
+REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
+
+
+def resolve_repository_path(path: str | Path) -> Path:
+    """Resolve a repo-relative path against the repository, not the cwd.
+
+    A configuration that names ``data/nplib1_holdout_inchikeys_v2.csv`` has to
+    mean the same file wherever the process was started from, or the exclusion
+    list is present on the machine that wrote the config and missing on the one
+    that runs it.
+    """
+    candidate = Path(path)
+    if candidate.is_absolute():
+        return candidate
+    return REPOSITORY_ROOT / candidate
+
 
 @dataclass(frozen=True)
 class RowGroupRef:

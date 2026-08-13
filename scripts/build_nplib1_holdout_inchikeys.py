@@ -21,6 +21,9 @@ from pathlib import Path
 import pandas as pd
 
 ROOT = Path(__file__).resolve().parent.parent.parent
+# The list is read from inside the repository, so it is written there: a copy
+# that lives only beside the repository is a copy a `git clone` does not carry.
+REPOSITORY_ROOT = Path(__file__).resolve().parent.parent
 
 
 def blocks(metadata: Path) -> set[str]:
@@ -32,7 +35,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--processed", type=Path, default=ROOT / "data" / "processed")
     parser.add_argument(
-        "--output", type=Path, default=ROOT / "data" / "nplib1_holdout_inchikeys_v2.csv"
+        "--output",
+        type=Path,
+        default=REPOSITORY_ROOT / "data" / "nplib1_holdout_inchikeys_v2.csv",
     )
     parser.add_argument("--split", action="append", default=None)
     arguments = parser.parse_args()

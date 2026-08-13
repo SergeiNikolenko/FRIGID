@@ -31,6 +31,7 @@ from marlin.dataset import (
     verify_shuffled_stream_cache,
     verify_snapshot_manifest,
 )
+from marlin.corpus_stream import resolve_repository_path
 from marlin.model import MarlinDecoderConfig
 from marlin.periodic_evaluation import PeriodicMolecularEvaluation
 from marlin.clearml_metrics import ClearMLTrainingMetrics
@@ -339,6 +340,12 @@ def initialize_clearml(config: DictConfig):
 
 @hydra.main(version_base=None, config_path="../configs", config_name="marlin_nplib1")
 def main(config: DictConfig) -> None:
+    # The exclusion list is named repo-relative so that it travels with the
+    # code; resolve it against the repository rather than the working directory
+    # a launcher happened to pick.
+    config.data.exclude_inchikeys = str(
+        resolve_repository_path(config.data.exclude_inchikeys)
+    )
     initialization_sources = {
         "resume_checkpoint": config.get("resume_checkpoint"),
         "initial_weights_checkpoint": config.get("initial_weights_checkpoint"),

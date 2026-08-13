@@ -1232,3 +1232,161 @@ Why this order and not another:
    displacement budget, §6 of `TRAINING_RECIPE_FINDINGS.md`). Until arm D runs, a
    gain from these arms cannot be attributed to the recipe fix, which is the claim
    the project exists to make.
+
+## 15. The corpus and the fitted corruption are joined to the trainer, 2026-08-13 night
+
+Appended after §14. Sections 1–14 are unedited. This section closes §13.8 items 1–4
+and §14.1 point 4. Every number below was measured on this host today; the two that
+were not measured here are labelled with the run that measured them.
+
+### 15.1 The switch now has four laws, and two of them are fitted
+
+`src/marlin/training.py` accepts `fingerprint_noise_mode ∈ {symmetric, dropout,
+fitted, fitted_control}` and a `fingerprint_error_model` path.
+`marlin.training.fingerprint_corruption` loads
+`artifacts/encoder-error-model-oof-v1/encoder_error_model_oof.npz` and derives the
+control from **the same file** with `rate_matched_uniform_control()`, so the pair
+cannot drift apart: the control is the fitted model with its frequency dependence and
+row latent removed and its pooled rates held, which is exactly CoRe-Gen's −4.77 pp
+ablation.
+
+The incumbent branch is untouched argument for argument
+(`MarlinLightningModule.corrupt_conditioning`), and
+`test_symmetric_still_draws_exactly_what_it_drew_before` asserts that a `symmetric`
+run draws the identical tensor from the same seed. The frozen-loss identity in
+`tests/test_marlin_training_recipe.py` (`45.71464157104492`) still passes.
+
+Measured on **64 real fp2mol molecules** (mean 49.4 true on-bits), corruption
+probability 1.0:
+
+| law | recall of true on-bits | invented bits/row | median Tanimoto to truth |
+|---|---:|---:|---:|
+| `fitted` | 0.555 | 17.75 | **0.3538** |
+| `fitted_control` | 0.487 | 23.56 | 0.3373 |
+| `symmetric` (incumbent) | 0.798 | 10.00 | 0.6508 |
+
+The real held-out DreaMS median is **0.3043** (`report_oof.json`). The fitted law
+lands at 0.354 on corpus molecules; the incumbent at 0.651 is 2.1× too clean, and it
+is flat where the real encoder is not. That is §4 of `TRAINING_RECIPE_FINDINGS.md`
+reproduced on the corpus the arm will actually train on.
+
+### 15.2 Stage 2 can no longer erase stage 1
+
+The reviewer's finding is now a refusal, not a note. `resolve_inherited_corruption`
+reads the corruption law out of the warm-start checkpoint's own hyper-parameters
+(`checkpoint_fingerprint_corruption`) and:
+
+- an omitted `--fingerprint-noise-mode` **inherits** it;
+- a different mode, or a different fitted file, **raises** unless
+  `--allow-corruption-mode-change` says the change is the experiment;
+- a checkpoint that records nothing — the released DLM does not — falls back to
+  `symmetric`, which is what every run on record used.
+
+`scripts/run_marlin_faro_spectrum_adaptation.sh` no longer passes
+`--fingerprint-noise-mode symmetric` unconditionally; an unset
+`MARLIN_FINGERPRINT_NOISE_MODE` now means "inherit". Tests:
+`test_stage_two_may_not_silently_revert_to_the_incumbent_noise`,
+`test_the_two_fitted_arms_do_not_inherit_each_others_law`,
+`test_a_different_fitted_file_is_also_a_change`.
+
+Why it matters, in the units of the experiment: stage 1 is 10,000 steps and a stage 2
+is 20,000, so a reverting stage 2 would run **two thirds** of the pair's optimizer
+steps under a law whose KS distance to the real held-out DreaMS error is 0.8727
+against the fitted law's 0.0738, and arms A and B would converge by construction.
+
+### 15.3 Data locality: the corpus streams, it does not move
+
+Measured from **inside a Slurm allocation on node `spectrum`** (job 790, `gpu-shared`,
+8 CPUs, COMPLETED in 25 s). The login host **is** the Slurm node, and the Slurm job
+sees the real NFS:
+
+| quantity | measured |
+|---|---:|
+| corpus visible from the job | 94 shards, **934 row groups**, 67 GB |
+| one 1,048,576-row group off NFS | **0.189 s = 5.54 M rows/s** |
+| `Fp2MolStream`, single worker | **407 mol/s/core** (5 rejections in 4,000, all `too_long`) |
+| `Fp2MolStream` + real collator, 8 workers | **599 mol/s** |
+| training demand, global batch 256 at 4.51 s/step | **56.8 mol/s** |
+| headroom | **10.6×** |
+| fitted corruption, batch of 32 on CPU | 6.399 ms = 5,001 mol/s |
+
+So the 67 GB corpus needs no staging, no subset copy and no cache: at 10.6× headroom
+the stream is never the bottleneck, and the corruption runs on the training device.
+The alternative — staging to the ClearML worker — is refused by measurement rather
+than by preference: that worker's `/mnt/netstorage` is a per-worker ext4 with
+**8.04% free** (§14.4 item 3) and both its slots are held until T1a and T2 finish.
+
+**The exclusion list now travels with the code.** `data/nplib1_holdout_inchikeys_v2.csv`
+(1,095 blocks, sha256 `7d1f4593…`) is committed **inside the repository**;
+`configs/marlin_nplib1.yaml` names it repo-relative and
+`marlin.corpus_stream.resolve_repository_path` resolves it against the repository
+rather than the working directory, so a `git clone` on any worker carries it.
+`test_the_holdout_list_is_inside_the_repository` pins the digest and the count.
+
+### 15.4 The contamination guard is in the prediction file
+
+`scripts/evaluate_marlin_nplib1.py --corpus-exclude-inchikeys` writes a per-row
+`seen_in_corpus` flag — true when the corpus stream was **allowed** to emit that
+structure — and `metrics.json` gains `seen_in_corpus_spectra`,
+`corpus_unseen_spectra`, `exact_top1_corpus_unseen` and `exact_top1_corpus_seen`.
+A row written without the flag reports `null`, which means **unknown, not clean**,
+the same convention the repair provenance uses. The flag is threaded through
+`src/marlin/periodic_evaluation.py` and `scripts/evaluate_marlin_sharded.sh`
+(`CORPUS_EXCLUDE=…`), so an in-training panel evaluation of a corpus arm carries it
+too.
+
+`seen_in_corpus_spectra` **must be 0**. Its precondition is measured rather than
+assumed: `test_the_panel_is_entirely_inside_the_packaged_exclusion` checks that every
+connectivity block of `nplib1_val_clean322_v1` is in the packaged list. If a corpus
+arm ever reports a non-zero count, the exclusion was not in the path and the run is
+void.
+
+### 15.5 The pair, and what it costs
+
+Stage 1 is `scripts/slurm_marlin_corpus_stage1.sbatch`. It warm-starts from the
+**released DLM in MARLIN layout**
+(`checkpoints/frigid-warmstart-marlin/step=0.ckpt`, sha256
+`71f463709a68071396b1b030923c17a98a12f9dfa51fc5fe89a620faaab35244`) and not from
+control-r2, for two reasons: control-r2 exists only on the ClearML worker's local
+disk, and it is itself 100,000 steps of the broken recipe, which is §14.4 item 8's
+unpaid confound. Its own `hyper_parameters` carry no corruption law, verified by
+reading them, so stage 1 must name its mode and the inheritance rule has nothing to
+inherit — which is correct.
+
+```bash
+# arm C-A1, the fitted law
+MARLIN_ERROR_MODEL_VARIANT=fitted \
+  scripts/submit_when_gpu_idle.sh scripts/slurm_marlin_corpus_stage1.sbatch
+
+# arm C-A0, the rate-matched uniform control
+MARLIN_ERROR_MODEL_VARIANT=fitted_control \
+  scripts/submit_when_gpu_idle.sh scripts/slurm_marlin_corpus_stage1.sbatch
+```
+
+`submit_when_gpu_idle.sh` polls for compute processes owned by another user and
+submits only when there are none, so neither arm can evict the colleague's run.
+
+Cost. The data side is measured above and is not the constraint. The optimizer step
+is quoted from the fleet's own measurement, not from this host: **4.51 s/step** at
+global batch 256 with `--fp32-forward`, read from T1a's iteration timestamps
+(§14.1). 10,000 steps is therefore **≈12.5 GPU-hours per arm, ≈25.1 for the pair**,
+and 10,000 × 256 = 2,560,000 molecules against the 8 row groups (≈8.4 M eligible
+molecules) the script streams — **no replay at all**, against the 770 replays a
+20,000-step NPLIB1 arm performs. The local A100 is 80 GB against the worker's 40 GB
+and is otherwise unmeasured for this recipe; the first arm must be re-timed in its
+first ten minutes and the figure corrected.
+
+Verified end to end on CPU before any GPU was asked for: `Fp2MolStream` → real
+`MarlinCollator` → `fitted` corruption → four Lightning optimizer steps, weights
+moved, `fingerprint_error_model_sha256 = 815da77b…` recorded in the module's
+hyper-parameters.
+
+### 15.6 What this does not yet do
+
+1. **Stage 2 is not written as a script.** The inheritance rule is in the trainer and
+   tested, but the NPLIB1 stage 2 that reads a stage-1 checkpoint still has to be
+   submitted by hand, omitting `--fingerprint-noise-mode` so that it inherits.
+2. **No decode has been priced on the post-R1 tree** (§13.8 item 5), so every decode
+   cost in this section is still marked unpriced.
+3. **Arm D is still owed** (§13.8 item 3). Without it, A−B prices the placement law
+   but nothing separates "the corpus worked" from "the recipe fix worked".
