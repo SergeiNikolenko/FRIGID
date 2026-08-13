@@ -656,3 +656,201 @@ nothing — but it is the lowest-value of the three.** If the two GPU slots are 
 deprioritise T1b behind T1a and T2, and if it is requeued, requeue it as
 `MARLIN_NOISE_PROBABILITY=0.0` (the true control R4 asked for) rather than as a second noise
 shape. Nothing here is cancelled by this document; the decision is the project lead's (§9).
+
+## 12. The oracle-vs-predicted fingerprint verdict — both arms finished, 2026-08-13
+
+Appended 2026-08-13. Sections 1–11 are unedited. This section closes the pair that §10.3
+left running and supersedes §10.2's expectation that the pair would be unusably truncated.
+
+### 12.1 True state: both tasks completed, both panels are full
+
+| Task | Name | Status | `MARLIN_RUN_NAME` | Rows landed |
+|---|---|---|---|---:|
+| `1adf897039114c38a1c9a06e8384211e` | `marlin-B-full-clean-panel-ORACLE-c8` | **completed** 2026-08-13 01:10:23Z, worker `aiagent03:gpu0` | `clean-new-oracle-c8` | **321 / 321** |
+| `99e971d1ec1644bb80f5e0ed7106e93d` | `marlin-A-full-clean-panel-dreams-c8` | **completed** 2026-08-13 02:28:30Z, worker `aiagent03:gpu1` | `clean-new-c8` | **321 / 321** |
+
+Neither run is partial. Each of the six interleaved shards wrote its own
+`predictions.jsonl` (54/54/54/53/53/53 = 321) plus `metrics.json` and `run_signature.json`.
+
+**Where the outputs actually are.** `/mnt/netstorage/nikolenko/marlin/evaluations/clean-new-*`
+does **not** exist on the login host: `aiagent03`'s `/mnt/netstorage` is a different
+filesystem. The worker paths the launcher verified —
+`/mnt/netstorage/nikolenko/marlin/runs/spectrum-fingerprint-adaptation-3f6a2461d77b4261a916a4d8259be0a5/checkpoints/step=100000.ckpt`
+and `/mnt/netstorage/nikolenko/marlin/runtime-inputs-spectrum-v1` — are both absent here,
+while the login host's mount is `10.100.10.100:/pool0/ai/datastorage`. The results survived
+only because the launcher tars the run directory into the ClearML artifact `results`. Both
+tarballs were fetched and unpacked onto the login host at the same run names:
+
+- `/mnt/netstorage/nikolenko/marlin/evaluations/clean-new-oracle-c8/predictions.jsonl`
+  sha256 `363779bc5d71995fa319c751a6c4c5af6e6b47f376f472e19006fe4bf6825661`
+- `/mnt/netstorage/nikolenko/marlin/evaluations/clean-new-c8/predictions.jsonl`
+  sha256 `fabaaea363d3288358923b201554f04568c191745814d2290b9f07fe3f08b80f`
+
+The directories `oracle-vs-dreams-A` (8 rows), `oracle-vs-dreams-B` (9 rows) and
+`oracle-vs-dreams-A-aborted-massorder0` (0 rows) on the login host are **not** these runs:
+their `run_signature.json` names `/tmp/panel48.tsv` and a 240 s cap. They are the retired
+48-spectrum pilots of §10.6 rule 1. Do not quote them.
+
+**Matched flag-for-flag, verified.** Diffing the two `shard00/run_signature.json` settings
+blocks leaves exactly three keys: `fingerprint_key` (`ground_truth` vs `probs`), the shard
+manifest path, and `git_commit`. The commit divergence
+(`cc9f064a…` vs `d35d615f…`) is an artefact, not a code difference: both arms unpack the
+**same** payload artifact from the **same** payload task `3993339892da42c9be34c7e76022376e`
+(`code.tar.gz` sha256 `30cd5d937b23…`, §10.1), and the launcher then runs `git init && git
+commit` inside the container because `evaluate_marlin_nplib1.py:224` records provenance with
+`git rev-parse HEAD`. A fresh commit hash depends on its timestamp, so two containers
+committing byte-identical trees one minute apart necessarily disagree. The six per-shard
+`ordered_spec_names_sha256` values are **pairwise identical between the arms**
+(`d88435d0…`, `24aba668…`, `485eed32…`, `51718198…`, `f0427d8d…`, `b39d1229…`), which is the
+statement that both arms decoded the same 321 spectra in the same order. Both ran cap 300 s,
+8 candidates, checkpoint `aed408c7…` (`control-r2 step=100000`).
+
+### 12.2 Both arms, one scorer
+
+`src/marlin/frigid_convention.py`, every denominator "all spectra" unless named. The
+worker-side `frigid_convention` artifact of each task reproduces these values exactly.
+
+| | Oracle fingerprint | DreaMS fingerprint | `clean-before` (DreaMS, cap 1800 s) |
+|---|---:|---:|---:|
+| Spectra | 321 | 321 | 321 |
+| **Exact@1** | **19.00% (61/321)** | **1.25% (4/321)** | 0.93% (3/321) |
+| Exact@10 | 19.00% (61/321) | 1.25% (4/321) | 0.93% (3/321) |
+| Tanimoto@1 (FRIGID convention) | 0.3973 | 0.1527 | 0.1575 |
+| Tanimoto, all returned candidates | 0.3364 | 0.1418 | 0.1473 |
+| Formula@1 | 0.4984 | 0.2617 | 0.2399 |
+| Candidate return rate | 59.50% (191/321) | 40.81% (131/321) | 41.43% |
+| Never-matched rate | 40.50% | 59.19% | 58.57% |
+| **Truncated spectra** | **261/321** | **298/321** | 0 |
+| Attempts (mean / to match) | 8.0 / 8.0 | 8.0 / 8.0 | — |
+| Repair provenance | absent (pre-dates the check) | absent | absent |
+| Total shard time | 38.3 h | 43.5 h | 9.7 h |
+
+95% Wilson intervals on Exact@1: oracle **[15.09%, 23.65%]**, DreaMS **[0.49%, 3.16%]**.
+They do not overlap and are not close to overlapping.
+
+Exact@10 equals Exact@1 in both arms, which is §5's reranker verdict restated at a much
+higher accuracy: when a correct structure is in the returned set it is already ranked first,
+so there is still zero ranking headroom — 61 = 61 and 4 = 4.
+
+### 12.3 The paired contrast
+
+The two arms cover the identical 321 spec names, so the pairing is complete — no spectrum is
+dropped and no unpaired comparison is involved.
+
+|  | DreaMS correct | DreaMS wrong |
+|---|---:|---:|
+| **Oracle correct** | 4 | **57** |
+| **Oracle wrong** | **0** | 260 |
+
+Every single spectrum the DreaMS arm solved, the oracle arm also solved. The discordance is
+57–0. Exact McNemar, two-sided: **p = 1.39e-17** on 57 discordant pairs. Paired difference
+**+17.76 pp**, 95% CI **[13.58, 21.94] pp**. Paired Tanimoto@1 difference **+0.2446**
+(sd 0.3373, se 0.0188, t = 12.99, n = 321).
+
+**This is not inside the noise.** It is roughly nine paired standard errors.
+
+Three progressively harsher subsets, each removing a possible confound:
+
+| Subset | n | Oracle Exact@1 | DreaMS Exact@1 | Discordance | Exact McNemar p |
+|---|---:|---:|---:|---|---:|
+| Whole panel | 321 | 19.00% (61) | 1.25% (4) | 57–0 | 1.39e-17 |
+| Both arms returned a candidate | 105 | **38.10% (40)** | 3.81% (4) | 36–0 | 2.91e-11 |
+| Neither arm truncated | 12 | 75.00% (9) | 33.33% (4) | 5–0 | 6.25e-02 |
+
+The middle row is the one that matters: restricted to the 105 spectra where **both** arms
+returned a molecule at all, the oracle arm is right 10.0x as often, and mean Tanimoto@1 is
+**0.7070 vs 0.4243**. So the gap is not merely a yield gap — conditioned on the decoder
+having produced something, the answer under the true fingerprint is right ten times more
+often and much closer even when wrong.
+
+### 12.4 What the truncation does and does not cost
+
+§10.2 predicted the cap would make these runs unusable. It over-predicted, and the reason is
+measurable rather than assumed.
+
+- Every spectrum in both arms recorded `attempts = 8`. All eight candidates were launched in
+  a single batch, so no spectrum lost a *batch* of its budget; `truncated` here fires at
+  `src/marlin/sampler.py:463-464` and `:585-591`, meaning the deadline elapsed while
+  candidates inside that one batch were still decoding, and those unfinished rows are
+  abandoned. So truncation costs candidates, not attempts, and it costs them silently.
+- The size of that cost is measurable against `clean-before`, which is the **same panel, same
+  checkpoint, same DreaMS fingerprint, 1,800 s cap, 0 truncations**: 0.93% (3/321) there
+  against **1.25% (4/321)** here. Six times the time budget bought the DreaMS lane nothing
+  distinguishable from zero. The 300 s cap is therefore not what is holding the predicted-
+  fingerprint arm at 1%.
+- Truncation is itself an *effect* of the arm, not only a handicap on it: 261 oracle vs 298
+  DreaMS spectra truncated (paired: 250 both, 48 DreaMS-only, 11 oracle-only). Worse
+  conditioning produces longer, deader decodes. The 29 exact matches the oracle arm scored on
+  *truncated* spectra against the DreaMS arm's **0 of 298** says the oracle arm wins even
+  where the clock is against it.
+
+Consequently the honest statement is narrower than "not comparable": the **DreaMS** arm's
+1.25% is comparable to `clean-before`'s 0.93% (the cap costs it nothing), while the
+**oracle** arm's 19.00% is a **floor**, not a ceiling — 261 of its 321 spectra were still
+decoding when time ran out, and on the 60 it finished it scored 32 (53.3%). The direction of
+the remaining bias is known and it is against the headline.
+
+### 12.5 Verdict: the conditioning is the ceiling, the decoder is sound
+
+The question §10.4 posed was which of the two is the binding constraint. The answer is not
+ambiguous.
+
+Under the true fingerprint, this decoder — the *same* `control-r2 step=100000` weights, the
+same grammar mask, the same mass shell, the same 8 candidates, and a time cap that costs it
+261 truncations — reaches **19.00% Exact@1 on the clean 321 panel**, above MARLIN's paper
+16.94% and level with CoRe-Gen's measured 19.54% on our axis. Under the DreaMS fingerprint it
+reaches 1.25%. **The decoder is not the binding constraint. The fingerprint it is conditioned
+on is, and it accounts for essentially the entire distance to the state of the art on this
+axis.**
+
+The three qualifications that keep this honest:
+
+1. **19.00% is not a benchmark number.** It is a ceiling probe: an oracle fingerprint is not
+   available at inference. MARLIN's 16.94% and CoRe-Gen's 19.54% are *predicted*-fingerprint
+   numbers. The comparable cell of our table is **1.25%**, and that is the number that has to
+   move.
+2. This bounds what better *decoder training* alone can buy on the present conditioning: the
+   oracle arm shows the weights already contain a 19% solution, so the remaining decoder-side
+   headroom at fixed conditioning is the part of the 1.25 → 19.00 gap that a decoder can close
+   by becoming robust to a wrong fingerprint — which is exactly the objective §5 of
+   `TRAINING_RECIPE_FINDINGS.md` ranks first (frequency-aware fitted corruption at
+   pretraining scale) and second (distillation against the oracle-conditioned distribution of
+   this very decoder). Those two now have a measured target rather than a hope: the oracle
+   arm **is** the teacher, and its output on these 321 spectra is on disk.
+3. It does **not** license "fix the encoder instead". The project's objective is to move the
+   number by training the decoder; the finding redirects *which* decoder objective, from
+   "decode better" to "decode correctly under a corrupted fingerprint", and it prices that
+   objective at up to +17.8 pp on this panel.
+
+### 12.6 Sample size
+
+The current sample is more than sufficient — this is the rare case where no more data is
+needed. The paired design on n = 321 with 57–0 discordance gives p = 1.39e-17; even the
+harshest confound-free subset (105 spectra where both arms returned) gives 36–0 and
+p = 2.91e-11. The 95% CI on the paired difference, [13.58, 21.94] pp, excludes zero by more
+than six standard errors.
+
+For calibration of *future* arms on this panel, at α = 0.05 and 80% power with one-directional
+discordance, a paired McNemar on the clean 321 panel resolves a **3.0 pp** difference
+(n ≈ 262 needed) and, at the limit, a **2.45 pp** one; it cannot resolve **2.0 pp** (n ≈ 393),
+**1.0 pp** (n ≈ 785) or **0.5 pp** (n ≈ 1,570). So the clean 321 panel is the right instrument
+for effects of ~3 pp and larger — which covers every lever in §5 of
+`TRAINING_RECIPE_FINDINGS.md` including CoRe-Gen's −4.77 pp corruption ablation — and the
+locked 803 test split is required for anything smaller. Note that the only sub-3 pp row
+already measured (`clean-before` 0.93% vs this DreaMS arm 1.25%, +0.32 pp) is correctly
+reported above as indistinguishable from zero.
+
+### 12.7 What this changes
+
+1. **§5's ranking is confirmed by measurement, not argument.** Fingerprint-corruption
+   robustness moves from "CoRe-Gen says −4.77 pp" to "worth up to +17.8 pp here". It is the
+   first experiment.
+2. **The oracle arm is now a teacher, not just a control.** Distillation (`TRAINING_RECIPE_
+   FINDINGS.md` §5.2) has its teacher outputs already computed on the panel it will be scored
+   on: `clean-new-oracle-c8/predictions.jsonl`.
+3. **Any future arm must publish `truncated_spectra`** (§7 rule 6) and, given §12.4, must also
+   publish `attempts` — a run can be 81% truncated and still have spent every attempt, and the
+   two words mean different things.
+4. **Results must be harvested from the ClearML `results` artifact, not from
+   `/mnt/netstorage`.** The worker's netstorage is not the login host's. Any launcher that
+   writes only to `$ROOT` and does not tar it into an artifact loses its run.
