@@ -23,12 +23,32 @@ import torch
 from clearml import Task
 from omegaconf import OmegaConf
 
-from marlin.checkpoint_selection import CheckpointSelector
+from marlin.checkpoint_selection import (
+    PANEL_SELECTION_METRICS,
+    PROBE_SELECTION_METRICS,
+    CheckpointSelector,
+)
 from marlin.clearml_metrics import ClearMLTrainingMetrics
-from marlin.model import MarlinDecoderConfig
+from marlin.conditioning_probe import (
+    PeriodicConditioningProbe,
+    probe_batches_from_paths,
+)
+from marlin.gradient_diagnostics import EmaDivergence, GradientDiagnostics
+from marlin.lr_schedule import (
+    ADAMW_SECOND_MOMENT_WINDOW,
+    RELEASED_TERMINAL_LEARNING_RATE,
+    derive_peak_learning_rate,
+    schedule_displacement,
+)
+from marlin.model import (
+    LOSS_REDUCTIONS,
+    TIME_SAMPLING_MODES,
+    MarlinDecoderConfig,
+)
 from marlin.periodic_evaluation import PeriodicMolecularEvaluation
 from marlin.tokenizer import load_safe_tokenizer, validate_safe_tokenizer
 from marlin.training import (
+    LR_SCHEDULES,
     MarlinCollator,
     MarlinLightningModule,
     MarlinSpectrumFingerprintDataset,
@@ -37,6 +57,11 @@ from marlin.training import (
     structure_disjoint_holdout,
 )
 from marlin.warm_start import load_marlin_decoder_weights, sha256_file
+
+
+# The threshold the reported clipping rate is measured against; keep the
+# trainer and the diagnostics reading the same number.
+GRADIENT_CLIP_VAL = 1.0
 
 
 def parse_args() -> argparse.Namespace:
@@ -126,6 +151,49 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--gradient-diagnostics-interval",
+        type=int,
+        default=0,
+        help=(
+            "log pre-clip gradient norms per pathway (fingerprint conditioner, "
+            "cross-attention stack, backbone), the global norm, the clipping "
+            "rate and the EMA-to-live distance every this many steps; 0 keeps "
+            "the historical single global norm every 50 steps and nothing else"
+        ),
+    )
+    parser.add_argument(
+        "--conditioning-probe-interval",
+        type=int,
+        default=0,
+        help=(
+            "run the fixed conditioning probe every this many steps: "
+            "teacher-forced top-1 under the true versus the predicted "
+            "fingerprint, and the fraction of the probe whose loss is "
+            "explained by the conditioning-free prior; 0 disables it"
+        ),
+    )
+    parser.add_argument("--conditioning-probe-metadata", type=Path, default=None)
+    parser.add_argument("--conditioning-probe-fingerprints", type=Path, default=None)
+    parser.add_argument("--conditioning-probe-fingerprint-key", default="probs")
+    parser.add_argument(
+        "--conditioning-probe-threshold",
+        type=float,
+        default=None,
+        help="defaults to --validation-fingerprint-threshold, the gate inference uses",
+    )
+    parser.add_argument("--conditioning-probe-size", type=int, default=64)
+    parser.add_argument("--conditioning-probe-batch-size", type=int, default=8)
+    parser.add_argument(
+        "--conditioning-probe-seed",
+        type=int,
+        default=0,
+        help=(
+            "seed of the probe's structure hash and mask draw. Kept separate "
+            "from --seed so every arm of a multi-seed protocol is probed on the "
+            "same molecules at the same positions"
+        ),
+    )
+    parser.add_argument(
         "--select-best-checkpoint",
         action="store_true",
         help=(
@@ -153,10 +221,119 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument("--selection-min-delta", type=float, default=0.0)
+    parser.add_argument(
+        "--probe-early-stopping-metric",
+        default=None,
+        choices=(None, *PROBE_SELECTION_METRICS),
+        help=(
+            "stop the run when this conditioning-probe metric stops improving. "
+            "'probe_top1_predicted' is teacher-forced per-token top-1 under the "
+            "fingerprint inference supplies, on structures the optimizer never "
+            "sees. Needs --conditioning-probe-interval. Off by default, which "
+            "is the historical behaviour: no run in this lineage has ever had a "
+            "stopping criterion, and the corpus is replayed 3,846 times over "
+            "100,000 steps"
+        ),
+    )
+    parser.add_argument(
+        "--probe-early-stopping-patience",
+        type=int,
+        default=3,
+        help=(
+            "probes without improvement before stopping. MS-BART uses 3 at an "
+            "every-200-step cadence (docs/TRAINING_RECIPE_FINDINGS.md:48)"
+        ),
+    )
+    parser.add_argument(
+        "--probe-early-stopping-min-delta",
+        type=float,
+        default=0.0,
+    )
     parser.add_argument("--batch-size", type=int, default=8)
     parser.add_argument("--accumulate-grad-batches", type=int, default=32)
     parser.add_argument("--num-workers", type=int, default=4)
-    parser.add_argument("--learning-rate", type=float, default=1e-5)
+    parser.add_argument(
+        "--learning-rate",
+        type=float,
+        default=1e-5,
+        help=(
+            "the optimizer's base rate, and the PEAK when --lr-schedule is "
+            "warmup_cosine"
+        ),
+    )
+    parser.add_argument(
+        "--lr-schedule",
+        choices=LR_SCHEDULES,
+        default="constant",
+        help=(
+            "'constant' is the historical recipe: no schedule at all, resuming "
+            "weights annealed to 5.2697058404552555e-08 at a flat 1e-5, which "
+            "is 190x the rate they were left at. 'warmup_cosine' warms up over "
+            "--lr-warmup-steps and anneals to --lr-min; see "
+            "src/marlin/lr_schedule.py for the peak derivation"
+        ),
+    )
+    parser.add_argument(
+        "--lr-warmup-steps",
+        type=int,
+        default=ADAMW_SECOND_MOMENT_WINDOW,
+        help=(
+            "default 1000 = AdamW's second-moment averaging window at "
+            "beta2=0.999; the optimizer state is not restored, so the peak is "
+            "not meaningful before that window has filled"
+        ),
+    )
+    parser.add_argument(
+        "--lr-min",
+        type=float,
+        default=RELEASED_TERMINAL_LEARNING_RATE,
+        help=(
+            "where the cosine ends; defaults to the rate the released "
+            "checkpoint's own schedule left its weights at"
+        ),
+    )
+    parser.add_argument(
+        "--derive-learning-rate",
+        action="store_true",
+        help=(
+            "ignore --learning-rate and set the peak from the displacement "
+            "budget of the released run's final decade of learning rate, given "
+            "--max-steps, --lr-warmup-steps and --lr-min. Requires "
+            "--lr-schedule warmup_cosine"
+        ),
+    )
+    parser.add_argument(
+        "--time-sampling",
+        choices=TIME_SAMPLING_MODES,
+        default="per_block_iid",
+        help=(
+            "'per_block_iid' is the historical recipe: one diffusion time per "
+            "(example, block), so a 256-token row draws 32 of them. "
+            "'per_sequence_antithetic' is what the released checkpoint was "
+            "trained with: one stratified t per sequence over [eps, 1] "
+            "(src/dlm/model.py:222-223)"
+        ),
+    )
+    parser.add_argument("--time-sampling-eps", type=float, default=1e-3)
+    parser.add_argument(
+        "--loss-reduction",
+        choices=LOSS_REDUCTIONS,
+        default="block_mean",
+        help=(
+            "'block_mean' is the historical recipe: per-example sum over "
+            "ceil(n_valid/8), about 8x a token mean. 'token_mean' is the "
+            "checkpoint's global_mean_loss, sum over valid tokens divided by "
+            "their count (src/dlm/model.py:953)"
+        ),
+    )
+    parser.add_argument(
+        "--fp32-forward",
+        action="store_true",
+        help=(
+            "compute the training forward in fp32 under a bf16-mixed trainer, "
+            "which is what the released model does (src/dlm/model.py:949)"
+        ),
+    )
     parser.add_argument("--cross-attention-only-steps", type=int, default=100)
     parser.add_argument(
         "--context-corruption-probability",
@@ -347,6 +524,25 @@ def validate_args(args: argparse.Namespace) -> None:
         )
     if not 0.0 <= args.validation_loss_fraction < 0.5:
         raise ValueError("--validation-loss-fraction must be in [0, 0.5)")
+    if args.gradient_diagnostics_interval < 0:
+        raise ValueError("--gradient-diagnostics-interval must be non-negative")
+    if args.conditioning_probe_interval < 0:
+        raise ValueError("--conditioning-probe-interval must be non-negative")
+    if args.conditioning_probe_interval:
+        if (
+            args.conditioning_probe_metadata is None
+            or args.conditioning_probe_fingerprints is None
+        ):
+            raise ValueError(
+                "the conditioning probe needs --conditioning-probe-metadata and "
+                "--conditioning-probe-fingerprints; a probe drawn from whatever "
+                "split happened to be lying around is not comparable between runs"
+            )
+        if args.conditioning_probe_batch_size < 2:
+            # ``mismatched`` conditioning is a roll along the batch.
+            raise ValueError("--conditioning-probe-batch-size must be at least 2")
+        if args.conditioning_probe_size < 2:
+            raise ValueError("--conditioning-probe-size must be at least 2")
     if args.selection_patience < 0:
         raise ValueError("--selection-patience must be non-negative")
     if args.select_best_checkpoint:
@@ -357,6 +553,98 @@ def validate_args(args: argparse.Namespace) -> None:
             patience=args.selection_patience,
             min_delta=args.selection_min_delta,
         )
+        if args.selection_metric not in PANEL_SELECTION_METRICS:
+            raise ValueError(
+                f"--selection-metric {args.selection_metric!r} is not a "
+                "molecular-panel metric; expected one of "
+                f"{', '.join(PANEL_SELECTION_METRICS)}"
+            )
+    if args.probe_early_stopping_metric is not None:
+        if not args.conditioning_probe_interval:
+            raise ValueError(
+                "--probe-early-stopping-metric needs "
+                "--conditioning-probe-interval: a stopping rule with nothing "
+                "to read stops nothing"
+            )
+        if args.probe_early_stopping_patience <= 0:
+            raise ValueError(
+                "--probe-early-stopping-patience must be positive; a patience "
+                "of 0 records a best probe but never stops, which is the "
+                "behaviour --probe-early-stopping-metric exists to replace"
+            )
+        CheckpointSelector(
+            metric=args.probe_early_stopping_metric,
+            patience=args.probe_early_stopping_patience,
+            min_delta=args.probe_early_stopping_min_delta,
+        )
+    if args.lr_schedule == "constant":
+        if args.derive_learning_rate:
+            raise ValueError(
+                "--derive-learning-rate has nothing to derive without "
+                "--lr-schedule warmup_cosine"
+            )
+    else:
+        if not 0 <= args.lr_warmup_steps < args.max_steps:
+            raise ValueError(
+                "--lr-warmup-steps must satisfy 0 <= warmup < --max-steps"
+            )
+        if args.lr_min < 0:
+            raise ValueError("--lr-min must be non-negative")
+        if not args.derive_learning_rate and args.learning_rate < args.lr_min:
+            raise ValueError(
+                f"peak --learning-rate {args.learning_rate:g} is below --lr-min "
+                f"{args.lr_min:g}"
+            )
+    if args.time_sampling_eps <= 0 or args.time_sampling_eps >= 1:
+        raise ValueError("--time-sampling-eps must be in (0, 1)")
+
+
+def resolve_learning_rate(args: argparse.Namespace) -> dict[str, object]:
+    """Fix the peak rate and record how it was arrived at.
+
+    Returned rather than printed so the manifest and the ClearML config carry
+    the derivation: a run whose peak cannot be traced back to a rule is a run
+    whose result cannot be attributed to the rule.
+    """
+    if args.lr_schedule == "constant":
+        return {
+            "schedule": "constant",
+            "peak": args.learning_rate,
+            "source": "--learning-rate",
+            "released_terminal_learning_rate": RELEASED_TERMINAL_LEARNING_RATE,
+            "peak_over_released_terminal": (
+                args.learning_rate / RELEASED_TERMINAL_LEARNING_RATE
+            ),
+            "displacement_bound": args.learning_rate * args.max_steps,
+        }
+    peak = args.learning_rate
+    source = "--learning-rate"
+    if args.derive_learning_rate:
+        peak = derive_peak_learning_rate(
+            total_steps=args.max_steps,
+            warmup_steps=args.lr_warmup_steps,
+            floor=args.lr_min,
+        )
+        source = (
+            "displacement budget of the released schedule's final decade of "
+            "learning rate; see src/marlin/lr_schedule.py"
+        )
+    return {
+        "schedule": "warmup_cosine",
+        "peak": peak,
+        "source": source,
+        "warmup_steps": args.lr_warmup_steps,
+        "total_steps": args.max_steps,
+        "floor": args.lr_min,
+        "released_terminal_learning_rate": RELEASED_TERMINAL_LEARNING_RATE,
+        "peak_over_released_terminal": peak / RELEASED_TERMINAL_LEARNING_RATE,
+        "displacement_bound": schedule_displacement(
+            peak,
+            total_steps=args.max_steps,
+            warmup_steps=args.lr_warmup_steps,
+            floor=args.lr_min,
+        ),
+    }
 
 
 def main() -> None:
@@ -452,10 +740,28 @@ def main() -> None:
         else None
     )
 
+    learning_rate_plan = resolve_learning_rate(args)
+    print(
+        "MARLIN adaptation learning rate: "
+        f"schedule={learning_rate_plan['schedule']} "
+        f"peak={learning_rate_plan['peak']:.6g} "
+        f"({learning_rate_plan['peak_over_released_terminal']:.1f}x the "
+        "released terminal 5.2697058404552555e-08), displacement bound "
+        f"{learning_rate_plan['displacement_bound']:.6g}",
+        flush=True,
+    )
     module = MarlinLightningModule(
         decoder_config,
-        learning_rate=args.learning_rate,
+        learning_rate=float(learning_rate_plan["peak"]),
         weight_decay=0.0,
+        lr_schedule=args.lr_schedule,
+        lr_warmup_steps=args.lr_warmup_steps,
+        lr_total_steps=args.max_steps,
+        lr_min=args.lr_min,
+        time_sampling=args.time_sampling,
+        time_sampling_eps=args.time_sampling_eps,
+        loss_reduction=args.loss_reduction,
+        fp32_forward=args.fp32_forward,
         noise_probability=args.noise_probability,
         fingerprint_noise_mode=args.fingerprint_noise_mode,
         noise_min_fraction=args.noise_min_fraction,
@@ -479,6 +785,29 @@ def main() -> None:
     )
     module.reset_ema()
 
+    probe_batches = None
+    probe_threshold = (
+        args.conditioning_probe_threshold
+        if args.conditioning_probe_threshold is not None
+        else args.validation_fingerprint_threshold
+    )
+    if args.conditioning_probe_interval:
+        # Built before the output directory so a misconfigured probe fails
+        # before a run directory and a ClearML task exist.
+        probe_batches = probe_batches_from_paths(
+            args.conditioning_probe_metadata,
+            args.conditioning_probe_fingerprints,
+            tokenizer,
+            fingerprint_key=args.conditioning_probe_fingerprint_key,
+            threshold=probe_threshold,
+            max_length=decoder_config.max_length,
+            fingerprint_bits=decoder_config.fingerprint_bits,
+            size=args.conditioning_probe_size,
+            batch_size=args.conditioning_probe_batch_size,
+            seed=args.conditioning_probe_seed,
+            soft_fingerprint=args.soft_fingerprint,
+        )
+
     args.output_dir.mkdir(parents=True)
     checkpoint_dir = args.output_dir / "checkpoints"
     resolved = {
@@ -492,7 +821,14 @@ def main() -> None:
         "training_soft_fingerprint": args.soft_fingerprint,
         "excluded_metadata": [str(path) for path in args.exclude_metadata],
         "training_rows_after_exclusions": len(dataset),
-        "learning_rate": args.learning_rate,
+        "learning_rate": float(learning_rate_plan["peak"]),
+        "learning_rate_plan": learning_rate_plan,
+        "objective": {
+            "time_sampling": args.time_sampling,
+            "time_sampling_eps": args.time_sampling_eps,
+            "loss_reduction": args.loss_reduction,
+            "fp32_forward": args.fp32_forward,
+        },
         "max_steps": args.max_steps,
         "cross_attention_only_steps": args.cross_attention_only_steps,
         "context_corruption": {
@@ -520,6 +856,34 @@ def main() -> None:
             "source": "adaptation set, not the molecular validation panel",
             "fingerprint_corruption": False,
             **holdout_report,
+        },
+        "instrumentation": {
+            "gradient_diagnostics_interval": args.gradient_diagnostics_interval,
+            "gradient_clip_val": GRADIENT_CLIP_VAL,
+            "conditioning_probe": {
+                "interval_steps": args.conditioning_probe_interval,
+                "metadata": (
+                    str(args.conditioning_probe_metadata)
+                    if args.conditioning_probe_metadata
+                    else None
+                ),
+                "fingerprints": (
+                    str(args.conditioning_probe_fingerprints)
+                    if args.conditioning_probe_fingerprints
+                    else None
+                ),
+                "fingerprint_key": args.conditioning_probe_fingerprint_key,
+                "threshold": probe_threshold,
+                "size": args.conditioning_probe_size,
+                "batch_size": args.conditioning_probe_batch_size,
+                "seed": args.conditioning_probe_seed,
+                "soft_fingerprint": args.soft_fingerprint,
+                "early_stopping": {
+                    "metric": args.probe_early_stopping_metric,
+                    "patience": args.probe_early_stopping_patience,
+                    "min_delta": args.probe_early_stopping_min_delta,
+                },
+            },
         },
         "evaluation": {
             "metadata": str(args.validation_metadata),
@@ -622,8 +986,51 @@ def main() -> None:
         # periodic checkpoint, so an adaptation run keeps no history to compare
         # or fall back to.
         save_top_k=-1,
+        # An early-stopped run ends between two checkpoint intervals, so without
+        # this it would leave no weights at all. Only when early stopping can
+        # actually fire, so a run without it writes exactly the files it always
+        # did.
+        save_last=args.probe_early_stopping_metric is not None,
     )
     callbacks = [checkpoint_callback]
+    if args.gradient_diagnostics_interval:
+        callbacks.extend(
+            [
+                GradientDiagnostics(
+                    interval_steps=args.gradient_diagnostics_interval,
+                    clip_value=GRADIENT_CLIP_VAL,
+                    clearml_task=clearml_task,
+                ),
+                EmaDivergence(
+                    interval_steps=args.gradient_diagnostics_interval,
+                    clearml_task=clearml_task,
+                ),
+            ]
+        )
+    if probe_batches is not None:
+        probe_selector = (
+            CheckpointSelector(
+                metric=args.probe_early_stopping_metric,
+                patience=args.probe_early_stopping_patience,
+                min_delta=args.probe_early_stopping_min_delta,
+            )
+            if args.probe_early_stopping_metric is not None
+            else None
+        )
+        callbacks.append(
+            PeriodicConditioningProbe(
+                probe_batches,
+                interval_steps=args.conditioning_probe_interval,
+                seed=args.conditioning_probe_seed,
+                clearml_task=clearml_task,
+                selector=probe_selector,
+                selection_path=(
+                    args.output_dir / "selection" / "probe_selection.json"
+                    if probe_selector is not None
+                    else None
+                ),
+            )
+        )
     if holdout_loader is not None:
         # Before the molecular panel, so the cheap held-out signal is logged even
         # when the panel is still running or fails.
@@ -651,7 +1058,7 @@ def main() -> None:
         precision="bf16-mixed",
         max_steps=args.max_steps,
         accumulate_grad_batches=args.accumulate_grad_batches,
-        gradient_clip_val=1.0,
+        gradient_clip_val=GRADIENT_CLIP_VAL,
         log_every_n_steps=25,
         callbacks=callbacks,
         default_root_dir=args.output_dir,

@@ -63,6 +63,45 @@ if [[ "${MARLIN_SELECT_BEST_CHECKPOINT:-1}" == "1" ]]; then
   SELECTION_ARGS+=(--select-best-checkpoint)
 fi
 
+# The four recipe corrections. Every one defaults to the historical behaviour,
+# so an arm that sets none of these variables runs the recipe that produced the
+# checkpoints already on record. See src/marlin/lr_schedule.py for the peak
+# derivation and docs/TRAINING_RECIPE_FINDINGS.md:13-24 for what each corrects.
+RECIPE_ARGS=(
+  --lr-schedule "${MARLIN_LR_SCHEDULE:-constant}"
+  --lr-warmup-steps "${MARLIN_LR_WARMUP_STEPS:-1000}"
+  --lr-min "${MARLIN_LR_MIN:-5.2697058404552555e-08}"
+  --time-sampling "${MARLIN_TIME_SAMPLING:-per_block_iid}"
+  --time-sampling-eps "${MARLIN_TIME_SAMPLING_EPS:-1e-3}"
+  --loss-reduction "${MARLIN_LOSS_REDUCTION:-block_mean}"
+)
+if [[ "${MARLIN_DERIVE_LEARNING_RATE:-0}" == "1" ]]; then
+  RECIPE_ARGS+=(--derive-learning-rate)
+fi
+if [[ "${MARLIN_FP32_FORWARD:-0}" == "1" ]]; then
+  RECIPE_ARGS+=(--fp32-forward)
+fi
+
+# The conditioning probe, and early stopping on it. Both off unless asked for.
+PROBE_ARGS=()
+if [[ -n "${MARLIN_CONDITIONING_PROBE_INTERVAL:-}" ]]; then
+  PROBE_ARGS+=(
+    --conditioning-probe-interval "$MARLIN_CONDITIONING_PROBE_INTERVAL"
+    --conditioning-probe-metadata "${MARLIN_CONDITIONING_PROBE_METADATA:-$RUNTIME_ROOT/val/metadata.csv}"
+    --conditioning-probe-fingerprints "${MARLIN_CONDITIONING_PROBE_FINGERPRINTS:-$RUNTIME_ROOT/val/dreams_predictions.npz}"
+    --conditioning-probe-size "${MARLIN_CONDITIONING_PROBE_SIZE:-64}"
+    --conditioning-probe-batch-size "${MARLIN_CONDITIONING_PROBE_BATCH_SIZE:-8}"
+    --conditioning-probe-seed "${MARLIN_CONDITIONING_PROBE_SEED:-0}"
+  )
+fi
+if [[ -n "${MARLIN_PROBE_EARLY_STOPPING_METRIC:-}" ]]; then
+  PROBE_ARGS+=(
+    --probe-early-stopping-metric "$MARLIN_PROBE_EARLY_STOPPING_METRIC"
+    --probe-early-stopping-patience "${MARLIN_PROBE_EARLY_STOPPING_PATIENCE:-3}"
+    --probe-early-stopping-min-delta "${MARLIN_PROBE_EARLY_STOPPING_MIN_DELTA:-0.0}"
+  )
+fi
+
 python -X faulthandler scripts/train_marlin_spectrum_adaptation.py \
   --checkpoint "$CHECKPOINT" \
   --checkpoint-sha256 "$MARLIN_SOURCE_CHECKPOINT_SHA256" \
@@ -89,6 +128,8 @@ python -X faulthandler scripts/train_marlin_spectrum_adaptation.py \
   --validation-loss-fraction "${MARLIN_VALIDATION_LOSS_FRACTION:-0.05}" \
   --validation-loss-split-seed "${MARLIN_VALIDATION_LOSS_SPLIT_SEED:-0}" \
   "${SELECTION_ARGS[@]}" \
+  "${RECIPE_ARGS[@]}" \
+  "${PROBE_ARGS[@]}" \
   --selection-metric "${MARLIN_SELECTION_METRIC:-candidate_return_rate}" \
   --selection-patience "${MARLIN_SELECTION_PATIENCE:-3}" \
   --cross-attention-only-steps "${MARLIN_CROSS_ATTENTION_ONLY_STEPS:-100}" \

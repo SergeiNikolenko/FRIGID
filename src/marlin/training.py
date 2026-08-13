@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import asdict
@@ -16,9 +17,39 @@ from rdkit.Chem import AllChem, Descriptors
 
 from dlm.utils.utils_chem import safe_to_smiles, smiles_to_safe
 from marlin.ema import AllParameterExponentialMovingAverage
-from marlin.model import MarlinDecoder, MarlinDecoderConfig
+from marlin.lr_schedule import (
+    ADAMW_SECOND_MOMENT_WINDOW,
+    RELEASED_TERMINAL_LEARNING_RATE,
+    build_warmup_cosine_scheduler,
+)
+from marlin.model import (
+    LOSS_REDUCTIONS,
+    TIME_SAMPLING_MODES,
+    MarlinDecoder,
+    MarlinDecoderConfig,
+)
 from marlin.noise import one_sided_fingerprint_dropout, symmetric_fingerprint_noise
 from marlin.isotopes import theoretical_isotope_ratios
+
+
+LR_SCHEDULES = ("constant", "warmup_cosine")
+
+
+def fp32_forward_context(enabled: bool, device_type: str):
+    """The released model's fp32 forward override, as a context manager.
+
+    ``src/dlm/model.py:949`` wraps its whole training forward in
+    ``torch.amp.autocast('cuda', dtype=torch.float32)``. Torch does not support
+    fp32 as an autocast target, so that call warns and disables autocasting for
+    the region -- i.e. the released model computes its forward in fp32 while the
+    trainer is nominally in bf16. ``torch.autocast(..., enabled=False)`` is that
+    same region without the warning, and it is what this returns. Our runs use
+    ``precision="bf16-mixed"`` with no such override, so the objective they
+    optimise is not the one the checkpoint was trained under.
+    """
+    if not enabled:
+        return contextlib.nullcontext()
+    return torch.autocast(device_type=device_type, enabled=False)
 
 
 def load_excluded_connectivity_keys(path: str | Path | None) -> set[str]:
@@ -440,6 +471,18 @@ class PeriodicHeldOutLoss(L.Callback):
                         full_sequence_mask_probability=(
                             pl_module.full_sequence_mask_probability
                         ),
+                        # The held-out loss has to be the training objective or
+                        # it cannot be read against it, so it follows whatever
+                        # reduction and time sampling the run selected.
+                        time_sampling=getattr(
+                            pl_module, "time_sampling", "per_block_iid"
+                        ),
+                        time_sampling_eps=getattr(
+                            pl_module, "time_sampling_eps", 1e-3
+                        ),
+                        loss_reduction=getattr(
+                            pl_module, "loss_reduction", "block_mean"
+                        ),
                         collect_metrics=True,
                     )
                     batches += 1
@@ -515,10 +558,47 @@ class MarlinLightningModule(L.LightningModule):
         context_corruption_min_fraction: float = 0.05,
         context_corruption_max_fraction: float = 0.25,
         restoration_loss_weight: float = 0.0,
+        lr_schedule: str = "constant",
+        lr_warmup_steps: int = ADAMW_SECOND_MOMENT_WINDOW,
+        lr_total_steps: int | None = None,
+        lr_min: float = RELEASED_TERMINAL_LEARNING_RATE,
+        time_sampling: str = "per_block_iid",
+        time_sampling_eps: float = 1e-3,
+        loss_reduction: str = "block_mean",
+        fp32_forward: bool = False,
     ) -> None:
         super().__init__()
         if conditioning_only_steps < 0 or cross_attention_only_steps < 0:
             raise ValueError("adaptation stage durations must be non-negative")
+        if lr_schedule not in LR_SCHEDULES:
+            raise ValueError(
+                f"unknown lr_schedule {lr_schedule!r}; expected one of "
+                f"{', '.join(LR_SCHEDULES)}"
+            )
+        if lr_schedule == "warmup_cosine":
+            if not lr_total_steps or lr_total_steps <= 0:
+                raise ValueError(
+                    "a warmup-cosine schedule needs lr_total_steps: a cosine "
+                    "with no end is not a schedule"
+                )
+            if not 0 <= lr_warmup_steps < lr_total_steps:
+                raise ValueError(
+                    "lr_warmup_steps must satisfy 0 <= warmup < lr_total_steps"
+                )
+            if not 0.0 <= lr_min <= learning_rate:
+                raise ValueError(
+                    f"lr_min {lr_min:g} must be in [0, peak {learning_rate:g}]"
+                )
+        if time_sampling not in TIME_SAMPLING_MODES:
+            raise ValueError(
+                f"unknown time_sampling {time_sampling!r}; expected one of "
+                f"{', '.join(TIME_SAMPLING_MODES)}"
+            )
+        if loss_reduction not in LOSS_REDUCTIONS:
+            raise ValueError(
+                f"unknown loss_reduction {loss_reduction!r}; expected one of "
+                f"{', '.join(LOSS_REDUCTIONS)}"
+            )
         if fingerprint_noise_mode not in {"symmetric", "dropout"}:
             raise ValueError(
                 "fingerprint_noise_mode must be 'symmetric' or 'dropout', "
@@ -550,6 +630,14 @@ class MarlinLightningModule(L.LightningModule):
                 "context_corruption_min_fraction": context_corruption_min_fraction,
                 "context_corruption_max_fraction": context_corruption_max_fraction,
                 "restoration_loss_weight": restoration_loss_weight,
+                "lr_schedule": lr_schedule,
+                "lr_warmup_steps": lr_warmup_steps,
+                "lr_total_steps": lr_total_steps,
+                "lr_min": lr_min,
+                "time_sampling": time_sampling,
+                "time_sampling_eps": time_sampling_eps,
+                "loss_reduction": loss_reduction,
+                "fp32_forward": fp32_forward,
             }
         )
         self.decoder = MarlinDecoder(config)
@@ -574,6 +662,14 @@ class MarlinLightningModule(L.LightningModule):
         self.context_corruption_min_fraction = context_corruption_min_fraction
         self.context_corruption_max_fraction = context_corruption_max_fraction
         self.restoration_loss_weight = restoration_loss_weight
+        self.lr_schedule = lr_schedule
+        self.lr_warmup_steps = lr_warmup_steps
+        self.lr_total_steps = lr_total_steps
+        self.lr_min = lr_min
+        self.time_sampling = time_sampling
+        self.time_sampling_eps = time_sampling_eps
+        self.loss_reduction = loss_reduction
+        self.fp32_forward = fp32_forward
         self._last_metric_step = -1
         self._active_adaptation_stage: str | None = None
         self._trainable_parameter_fraction = 1.0
@@ -691,30 +787,35 @@ class MarlinLightningModule(L.LightningModule):
             was_training = self.decoder.training
             # Dropout would make the confusion a different model's mistake.
             self.decoder.eval()
-            confusion_ids = self.decoder.sample_confusions(
+            with fp32_forward_context(self.fp32_forward, self.device.type):
+                confusion_ids = self.decoder.sample_confusions(
+                    batch["input_ids"],
+                    batch["precursor_mass"],
+                    fingerprint,
+                    batch["isotope_ratios"],
+                )
+            self.decoder.train(was_training)
+        with fp32_forward_context(self.fp32_forward, self.device.type):
+            loss, reconstruction_metrics = self.decoder.diffusion_objective(
                 batch["input_ids"],
                 batch["precursor_mass"],
                 fingerprint,
-                batch["isotope_ratios"],
+                isotope_ratios=batch["isotope_ratios"],
+                eos_loss_weight=self.eos_loss_weight,
+                eos_mask_probability=self.eos_mask_probability,
+                balanced_token_loss_alpha=self.balanced_token_loss_alpha,
+                token_loss_weight_max=self.token_loss_weight_max,
+                full_sequence_mask_probability=self.full_sequence_mask_probability,
+                context_corruption_probability=corruption_probability,
+                context_corruption_min_fraction=self.context_corruption_min_fraction,
+                context_corruption_max_fraction=self.context_corruption_max_fraction,
+                restoration_loss_weight=self.restoration_loss_weight,
+                confusion_ids=confusion_ids,
+                time_sampling=self.time_sampling,
+                time_sampling_eps=self.time_sampling_eps,
+                loss_reduction=self.loss_reduction,
+                collect_metrics=collect_metrics,
             )
-            self.decoder.train(was_training)
-        loss, reconstruction_metrics = self.decoder.diffusion_objective(
-            batch["input_ids"],
-            batch["precursor_mass"],
-            fingerprint,
-            isotope_ratios=batch["isotope_ratios"],
-            eos_loss_weight=self.eos_loss_weight,
-            eos_mask_probability=self.eos_mask_probability,
-            balanced_token_loss_alpha=self.balanced_token_loss_alpha,
-            token_loss_weight_max=self.token_loss_weight_max,
-            full_sequence_mask_probability=self.full_sequence_mask_probability,
-            context_corruption_probability=corruption_probability,
-            context_corruption_min_fraction=self.context_corruption_min_fraction,
-            context_corruption_max_fraction=self.context_corruption_max_fraction,
-            restoration_loss_weight=self.restoration_loss_weight,
-            confusion_ids=confusion_ids,
-            collect_metrics=collect_metrics,
-        )
         if collect_metrics:
             self._last_metric_step = self.global_step
             stage_codes = {
@@ -785,9 +886,24 @@ class MarlinLightningModule(L.LightningModule):
             self.log("grad_norm", grad_norm, on_step=True, sync_dist=True)
 
     def configure_optimizers(self):
-        return torch.optim.AdamW(
+        optimizer = torch.optim.AdamW(
             self.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay
         )
+        if self.lr_schedule == "constant":
+            return optimizer
+        scheduler = build_warmup_cosine_scheduler(
+            optimizer,
+            total_steps=int(self.lr_total_steps),
+            warmup_steps=int(self.lr_warmup_steps),
+            floor=float(self.lr_min),
+        )
+        return {
+            "optimizer": optimizer,
+            # Per optimizer step, not per epoch: the adaptation set is replayed
+            # thousands of times, so an epoch-stepped cosine would finish in the
+            # first few minutes.
+            "lr_scheduler": {"scheduler": scheduler, "interval": "step"},
+        }
 
     def on_train_start(self) -> None:
         self.apply_adaptation_stage(int(self.global_step))

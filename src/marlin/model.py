@@ -12,6 +12,44 @@ from torch.nn import functional as F
 from marlin.conditioning import MarlinConditioner
 
 
+# How the diffusion time is drawn. ``per_block_iid`` is what every MARLIN run
+# recorded so far used; ``per_sequence_antithetic`` is what the released
+# checkpoint was trained with.
+TIME_SAMPLING_MODES = ("per_block_iid", "per_sequence_antithetic")
+
+# How the weighted token losses are reduced to a scalar. ``block_mean`` is the
+# historical per-example sum over ceil(n_valid / block_width); ``token_mean`` is
+# the checkpoint's ``global_mean_loss``.
+LOSS_REDUCTIONS = ("block_mean", "token_mean")
+
+
+def antithetic_uniform_times(
+    count: int,
+    *,
+    device: torch.device | str = "cpu",
+    generator: torch.Generator | None = None,
+    sampling_eps: float = 1e-3,
+) -> torch.Tensor:
+    """One stratified, antithetic diffusion time per sequence.
+
+    A literal port of the time distribution the released checkpoint used
+    (``src/dlm/utils/utils_moco.py:82-86``, reached from
+    ``src/dlm/model.py:222-223``): draw ``count`` uniforms, compress each into
+    its own 1/count-wide stratum, offset it by that stratum's start, and map the
+    result onto ``[sampling_eps, 1]``. The strata make a batch cover the time
+    axis instead of clustering, which is what removes most of the variance the
+    ``1/t`` importance weight injects.
+    """
+    if count <= 0:
+        raise ValueError("antithetic time sampling needs at least one sequence")
+    if not 0.0 < sampling_eps < 1.0:
+        raise ValueError("sampling_eps must be in (0, 1)")
+    draws = torch.rand(count, device=device, generator=generator)
+    offset = torch.arange(count, device=device, dtype=draws.dtype) / count
+    times = (draws / count + offset) % 1
+    return (1 - sampling_eps) * times + sampling_eps
+
+
 @dataclass(frozen=True)
 class MarlinDecoderConfig:
     vocab_size: int = 1880
@@ -377,6 +415,9 @@ class MarlinDecoder(nn.Module):
         context_corruption_max_fraction: float = 0.25,
         restoration_loss_weight: float = 0.0,
         confusion_ids: torch.Tensor | None = None,
+        time_sampling: str = "per_block_iid",
+        time_sampling_eps: float = 1e-3,
+        loss_reduction: str = "block_mean",
         collect_metrics: bool = False,
     ) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
         """Return the NELBO and optional reconstruction diagnostics.
@@ -392,6 +433,27 @@ class MarlinDecoder(nn.Module):
         gold. ``restoration_loss_weight`` additionally scores the corrupted
         positions that were not masked, which is the explicit
         "this token is wrong, here is the right one" signal.
+
+        ``time_sampling`` and ``loss_reduction`` exist because the released
+        checkpoint was not trained the way this function samples or reduces.
+
+        - ``per_block_iid`` (the historical default) draws one diffusion time
+          per (example, block), so a 256-token sequence carries 32 independent
+          draws and the heavy 1/t tail is sampled 32x per row. ``src/dlm`` draws
+          **one t per sequence** with antithetic stratification over
+          ``[time_sampling_eps, 1]`` (``src/dlm/model.py:222-223``,
+          ``src/dlm/utils/utils_moco.py:82-86``), which is what
+          ``per_sequence_antithetic`` reproduces.
+        - ``block_mean`` (the historical default) divides each example's summed
+          token loss by ``ceil(n_valid / block_width)``, which is about ``8x`` a
+          token mean at ``block_width = 8``. ``token_mean`` is the checkpoint's
+          ``global_mean_loss``: the whole batch's weighted token losses summed
+          and divided by the number of valid tokens in the batch
+          (``src/dlm/model.py:953``, ``bionemo/moco`` MDLM ``loss(...,
+          global_mean=True)``).
+
+        Both defaults are the historical behaviour, so a run that passes
+        neither is bit-identical to every run recorded before they existed.
         """
         if eos_loss_weight <= 0:
             raise ValueError("eos_loss_weight must be positive")
@@ -420,6 +482,18 @@ class MarlinDecoder(nn.Module):
             raise ValueError(
                 "context corruption needs confusion_ids; call sample_confusions"
             )
+        if time_sampling not in TIME_SAMPLING_MODES:
+            raise ValueError(
+                f"unknown time_sampling {time_sampling!r}; expected one of "
+                f"{', '.join(TIME_SAMPLING_MODES)}"
+            )
+        if not 0.0 < time_sampling_eps < 1.0:
+            raise ValueError("time_sampling_eps must be in (0, 1)")
+        if loss_reduction not in LOSS_REDUCTIONS:
+            raise ValueError(
+                f"unknown loss_reduction {loss_reduction!r}; expected one of "
+                f"{', '.join(LOSS_REDUCTIONS)}"
+            )
         valid = clean_ids.ne(self.config.pad_token_id)
         valid[:, 0] = False
         batch, length = clean_ids.shape
@@ -428,8 +502,17 @@ class MarlinDecoder(nn.Module):
             rounding_mode="floor",
         )
         block_count = int(block_ids.max().item()) + 1
-        times = torch.rand((batch, block_count), device=clean_ids.device, generator=generator).clamp_min(1e-4)
-        probabilities = times[:, block_ids]
+        if time_sampling == "per_block_iid":
+            times = torch.rand((batch, block_count), device=clean_ids.device, generator=generator).clamp_min(1e-4)
+            probabilities = times[:, block_ids]
+        else:
+            times = antithetic_uniform_times(
+                batch,
+                device=clean_ids.device,
+                generator=generator,
+                sampling_eps=time_sampling_eps,
+            )
+            probabilities = times.unsqueeze(1).expand(batch, length)
         masked = (torch.rand(clean_ids.shape, device=clean_ids.device, generator=generator) < probabilities) & valid
         full_sequence_masked = torch.zeros((batch,), dtype=torch.bool, device=clean_ids.device)
         if full_sequence_mask_probability:
@@ -502,12 +585,19 @@ class MarlinDecoder(nn.Module):
         if eos_loss_weight != 1.0:
             target_weights = target_weights.masked_fill(eos_targets, eos_loss_weight)
         weights = loss_probabilities.reciprocal()
-        valid_block_counts = valid.sum(dim=1).add(self.config.block_width - 1).div(
-            self.config.block_width,
-            rounding_mode="floor",
-        ).clamp_min(1)
-        per_example = (losses * target_weights * weights * masked).sum(dim=1) / valid_block_counts
-        loss = per_example.mean()
+        weighted = losses * target_weights * weights * masked
+        if loss_reduction == "block_mean":
+            valid_block_counts = valid.sum(dim=1).add(self.config.block_width - 1).div(
+                self.config.block_width,
+                rounding_mode="floor",
+            ).clamp_min(1)
+            per_example = weighted.sum(dim=1) / valid_block_counts
+            loss = per_example.mean()
+        else:
+            # The checkpoint's global_mean_loss: one sum over the whole batch
+            # divided by the batch's valid-token count, so a long sequence
+            # contributes more tokens rather than being renormalised away.
+            loss = weighted.sum() / valid.sum().clamp_min(1)
         # Visible-but-wrong positions carry no 1/t importance weight - they are
         # not part of the absorbing NELBO - so they enter as a separate mean
         # with its own coefficient and leave the NELBO estimator untouched.

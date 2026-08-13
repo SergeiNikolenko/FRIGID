@@ -85,3 +85,78 @@ encoder error.
 Recipe fixes to apply to **every** arm regardless of objective: restore a cosine schedule with
 warmup, start from a terminal-lr-compatible peak, fix the loss reduction to a true token mean,
 adopt per-sequence antithetic time sampling, and cap replay of the tiny corpus.
+
+## 6. The recipe is fixed, behind flags, 2026-08-13
+
+Each of the four corrections in §1 is now implemented with the **current behaviour as the
+default**, so a run that asks for none of them is bit-identical to every run already on
+record. `tests/test_marlin_training_recipe.py` freezes that identity on a fixed seed and
+batch (`block_mean` / `per_block_iid` loss `45.71464157104492`), and each correction has its
+own test.
+
+| Correction | Flag | Default | Corrected value |
+|---|---|---|---|
+| (a) lr schedule | `--lr-schedule` / `--derive-learning-rate` | `constant` | `warmup_cosine`, peak **3.1647e-7** |
+| (b) loss reduction | `--loss-reduction` | `block_mean` | `token_mean` |
+| (c) time sampling | `--time-sampling` | `per_block_iid` | `per_sequence_antithetic` |
+| (d) precision | `--fp32-forward` | off | on |
+| replay bound | `--probe-early-stopping-metric` | off | `probe_top1_predicted`, patience 3 |
+
+### The peak, derived rather than guessed
+
+Read verbatim from `DLM.ckpt["lr_schedulers"][0]` (sha256
+`b6177c2d43448380aba80ff41c01461ea34ca2ca93b213986954c5afb7f0f457`): `LinearLR` from
+`start_factor 1e-6` over 6,000 steps into `CosineAnnealingLR(T_max=520000, eta_min=1e-8)`
+on `base_lr 1.3e-4`, stopped at cosine step 514,000 with
+`_last_lr = 5.2697058404552555e-08`. `src/marlin/lr_schedule.py:released_learning_rate`
+reproduces that terminal value to 1e-9 relative, which is what makes the rest arithmetic
+rather than assertion.
+
+AdamW's per-step update has magnitude of order `lr`, so `sum_t lr_t` bounds how far a run
+can move any one weight. The weight scale to compare it against is measured: the RMS of the
+173,801,752 float parameters under `decoder.` in the control-r2 checkpoint the arms
+warm-start from is **0.082472829079876**.
+
+Three anchors, all computed in `src/marlin/lr_schedule.py`:
+
+1. **Pure continuation.** Our 20,000 steps at global batch 256 are 5.12M examples, which the
+   released run covered in 2,667 of its steps at batch 1,920; its schedule there reads
+   **2.32e-8**, *below* the rate the weights were left at. No continuation criterion can
+   justify anything larger, which is the honest statement of the problem.
+2. **A full retrain at our batch.** `1.3e-4 * 256 / 1920 = 1.7333e-5`. **Today's constant
+   `1e-5` is 58% of that** — the current "fine-tune" runs at a pretraining peak, flat,
+   forever. That is the defect, stated in the units that matter.
+3. **The released run's final decade** — the 14,890 steps over which its own rate fell from
+   `10x` terminal to terminal. `sum_t lr_t` over that segment is **3.6653e-3**, or 4.44% of
+   the weight RMS. It is the last well-defined stretch in which the released optimiser was
+   still making updates of the order we are about to make, and it is the budget adopted.
+
+Solving anchor 3 for a 20,000-step warmup-cosine with a 1,000-step warmup and a floor at the
+checkpoint's terminal rate gives **peak = 3.1647e-7**: `6.0x` the terminal rate rather than
+`190x`, and `54x` below the batch-scaled pretraining peak.
+
+For scale, the same budget prices what has already been spent: the 20,000-step arms at a
+constant `1e-5` were about to spend **54.6x** that budget, and control-r2's 100,000 steps
+spent **272.8x** it — a displacement bound of **12.1x the weight RMS**.
+
+The warmup is 1,000 steps because the optimizer state is not restored: AdamW's second-moment
+estimate has an averaging window of `1 / (1 - beta2) = 1000` at the default `beta2 = 0.999`,
+and the peak is not the peak it was chosen to be before that window has filled.
+
+### Bounding the replay
+
+`--probe-early-stopping-metric probe_top1_predicted` stops a run when teacher-forced
+per-token top-1 **under the predicted fingerprint**, on structures the optimizer never sees,
+stops improving for `--probe-early-stopping-patience` probes. That is MS-BART's rule (§3) at
+a cadence the conditioning probe can afford — four short forward passes rather than the hours
+a molecular panel costs — so a run stops when it starts forgetting instead of at an arbitrary
+step count.
+
+### Why the three arms had to be resubmitted anyway
+
+`781de15ee38c408aa2cc068fade83110`, `3f163b90b6494d0f91762fa8cd92171a` and
+`50ef8dcd85e348b6861fdbadea2cecdb` are **`failed`**, not queued: all three died 5 minutes in
+at commit `4fc867a` with
+`ValueError: evaluation.interval_steps must equal output.checkpoint_interval`
+(`src/marlin/periodic_evaluation.py:52`), because they were submitted with
+`MARLIN_CHECKPOINT_INTERVAL=5000` against `MARLIN_EVALUATION_INTERVAL=20000`.

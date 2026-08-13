@@ -22,12 +22,28 @@ from typing import Any
 
 
 # Every admitted metric is a rate in [0, 1] that improves upward.
-SELECTION_METRICS = (
+PANEL_SELECTION_METRICS = (
     "candidate_return_rate",
     "uniqueness",
     "mass_validity",
     "completed_validity",
 )
+
+# Metrics from the fixed conditioning probe (``marlin.conditioning_probe``),
+# which is cheap enough to run every few hundred steps. ``probe_top1_predicted``
+# is teacher-forced per-token top-1 under the fingerprint inference actually
+# supplies, on structures the optimizer never sees -- the direct analogue of the
+# validation Top-1 that MS-BART early-stops on every 200 steps with patience 3,
+# and the signal FRIGID's experiment 8 ran without
+# (``docs/TRAINING_RECIPE_FINDINGS.md:46-55``). It bounds the replay problem:
+# 6,032 unique molecules replayed 3,846 times will start to be memorised, and
+# this is the number that turns over when that happens.
+PROBE_SELECTION_METRICS = (
+    "probe_top1_predicted",
+    "probe_top1_true",
+)
+
+SELECTION_METRICS = PANEL_SELECTION_METRICS + PROBE_SELECTION_METRICS
 
 REFUSED_SELECTION_METRICS = {
     "exact_top1": (
