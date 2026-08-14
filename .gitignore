@@ -48,3 +48,6 @@ utils_old/*
 # Generated demo page: the data is baked into the file, rebuild with scripts/build_decoding_demo.py
 docs/decoding-demo/index.html
 docs/decoding-page/index.html
+
+# Agent-local settings and worktrees: never part of a training provenance
+.claude/
