@@ -41,7 +41,7 @@ import torch
 from rdkit import Chem, RDLogger
 from rdkit.Chem import Descriptors, rdFingerprintGenerator
 
-from dlm.utils.utils_chem import smiles_to_safe
+from dlm.utils.utils_chem import safe_to_smiles, smiles_to_safe
 
 RDLogger.DisableLog("rdApp.*")
 
@@ -241,6 +241,17 @@ class Fp2MolStream(torch.utils.data.IterableDataset):
             return None
         if len(self.tokenizer.encode(safe, add_special_tokens=True)) > self.max_length:
             self._reject("too_long")
+            return None
+        # Encoding to SAFE is not the contract; the collator decodes the SAFE
+        # string back with ``fix=False`` and raises on anything RDKit refuses.
+        # A corpus molecule can encode cleanly and still fail that round trip —
+        # the same class of string the decoder itself writes and RDKit rejects,
+        # an aromatic atom outside a ring or a ring with no Kekule structure.
+        # Job 795 died 6:39 in on exactly this, so the stream must apply the
+        # collator's own test rather than a weaker one.
+        decoded = safe_to_smiles(safe, fix=False)
+        if not decoded or Chem.MolFromSmiles(decoded) is None:
+            self._reject("no_safe_round_trip")
             return None
         if self.excluded:
             key = Chem.MolToInchiKey(molecule).split("-")[0]

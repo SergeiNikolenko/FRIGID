@@ -223,3 +223,42 @@ def test_an_exclusion_file_that_excludes_nothing_is_refused(snapshot, tmp_path):
         Fp2MolStream(
             snapshot=snapshot, tokenizer=_Tokenizer(), exclude_inchikeys=empty
         )
+
+
+def test_a_safe_string_the_collator_would_refuse_is_dropped_upstream(
+    snapshot, monkeypatch
+):
+    # The collator decodes with fix=False and raises on anything RDKit refuses
+    # (src/marlin/training.py:267). Encoding to SAFE is a weaker test than that
+    # round trip, so a corpus molecule can pass the stream and kill the batch:
+    # Slurm job 795 died 6 minutes 39 seconds in on exactly that. The stream must
+    # apply the collator's own test, and it must name the reason rather than
+    # dropping the row silently.
+    import marlin.corpus_stream as corpus_stream
+
+    real = corpus_stream.safe_to_smiles
+
+    refused: list[str] = []
+
+    def refuse_one(safe, *args, **kwargs):
+        # Refuse the first SAFE string the stream offers, whichever molecule of
+        # the fixture it belongs to, so the test does not depend on the order the
+        # snapshot happens to be written in.
+        if not refused:
+            refused.append(safe)
+            return None
+        return real(safe, *args, **kwargs)
+
+    monkeypatch.setattr(corpus_stream, "safe_to_smiles", refuse_one)
+    stream = Fp2MolStream(
+        snapshot=snapshot,
+        tokenizer=_Tokenizer(),
+        limit=4,
+        allow_evaluation_structures=True,
+    )
+
+    examples = list(stream)
+
+    assert refused, "the stream never offered a SAFE string to decode"
+    assert stream.rejections.get("no_safe_round_trip", 0) > 0
+    assert all(example["safe"] != refused[0] for example in examples)
