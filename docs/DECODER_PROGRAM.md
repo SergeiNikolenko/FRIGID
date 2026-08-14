@@ -1390,3 +1390,33 @@ hyper-parameters.
    cost in this section is still marked unpriced.
 3. **Arm D is still owed** (§13.8 item 3). Without it, A−B prices the placement law
    but nothing separates "the corpus worked" from "the recipe fix worked".
+
+## 16. The decode cost, measured uncapped — the campaign's hard blocker
+
+Measured 2026-08-13/14, Slurm job 788 (`marlin-clean321-throughput`, partition gpu-shared,
+node spectrum), our own decoder at HEAD with the lazy probe ACTIVE (`--lazy-probe-width`
+defaults to 16, the sbatch passes no override), **no per-spectrum cap**:
+
+| | s/spectrum | 321-panel cost |
+|---|---:|---:|
+| our decoder, uncapped | **median 1871, mean 1649** (min 535, max 1931) | **147 GPU-hours** |
+| FRIGID's own sampler, same panel, same node | **2.22** | 12 minutes |
+
+10 spectra completed before the job was cancelled to free the card; 3 of those 10 returned
+nothing even with ~30 minutes each.
+
+Three consequences, none of them optional:
+
+1. **Every number this project holds is a lower bound.** The decisive oracle-vs-DreaMS pair
+   (19.00% vs 1.25%) truncated 261/321 and 298/321 rows respectively. The true values are
+   higher on both sides and the true gap is unknown.
+2. **The lazy probe did not fix throughput.** It fixed deadline OVERSHOOT (+36.6% → +0.10%,
+   §14). At width 16 the decode still costs 1649 s/spectrum, so the full-support fallback must
+   dominate — that fallback rate has never been measured in a real decode and is now the single
+   most valuable unmeasured quantity in the codebase.
+3. **We are ~740× slower than the parent model at the same task.** FRIGID's sampler carries no
+   grammar mask. Ours calls it roughly 800 times per spectrum (8 candidates × ~100 positions)
+   at ~2 s a call.
+
+Until this is fixed, no honest full-panel evaluation is affordable, which means no training
+result can be honestly scored. It outranks every training experiment in the queue.
