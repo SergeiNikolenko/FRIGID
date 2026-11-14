@@ -1,0 +1,10 @@
+Traceback (most recent call last):
+  File "/home/nikolenko/work/Projects/FRIGID/scripts/spec2mol_scaling.py", line 59, in <module>
+    from dlm.iceberg_sampler import IcebergSampler, IcebergConfig, ScalingConfig, normalize_instrument_type
+  File "/home/nikolenko/work/Projects/FRIGID/src/dlm/iceberg_sampler.py", line 46, in <module>
+    from ms_pred.dag_pred.iceberg_elucidation import iceberg_prediction, load_real_spec
+  File "/home/nikolenko/work/Projects/FRIGID/ms-pred/src/ms_pred/dag_pred/iceberg_elucidation.py", line 15, in <module>
+    from rdkit.Chem.Draw import IPythonConsole
+  File "/home/nikolenko/work/Projects/FRIGID/.venv/lib/python3.10/site-packages/rdkit/Chem/Draw/IPythonConsole.py", line 16, in <module>
+    import IPython
+ModuleNotFoundError: No module named 'IPython'

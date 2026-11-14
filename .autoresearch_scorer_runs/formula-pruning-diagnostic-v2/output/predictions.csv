@@ -1,0 +1,4 @@
+true_smiles,name,pred_smiles_1
+CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,MassSpecGymID0000201,CC[C@H](C)[C@H]1C(=O)O[C@@H](C(C)C)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)O[C@H](C(C)C)C(=O)N(C)[C@@H](c2ccccc2)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)N1C
+CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,MassSpecGymID0000202,CC[C@@H](C)C1C(=O)O[C@H](Cc2ccc(O)cc2)[C@@H](C)C(=O)CC(=O)C(Cc2ccccc2)N(C)C(=O)N(C)[C@@H](C(C)C)C(=O)O[C@H](Cc2ccccc2)C(=O)N1C
+CC(C)[C@@H]1C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O[C@@H](C(=O)N([C@H](C(=O)O1)CC2=CC=CC=C2)C)C(C)C)CC3=CC=CC=C3)C)C(C)C)CC4=CC=CC=C4)C,MassSpecGymID0000203,CC[C@@H](C)[C@@H]1CN(C)C(=O)[C@H](Cc2ccccc2)OC(=O)[C@H](C)C(=O)[C@@H](C(C)C)OC(=O)[C@H](Cc2ccccc2)N(C)C(=O)N(C)[C@@H](Cc2ccccc2)C(=O)O1

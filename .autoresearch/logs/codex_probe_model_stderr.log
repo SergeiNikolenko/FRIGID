@@ -1,0 +1,23 @@
+2026-06-18T16:03:15.537449Z ERROR codex_core::auth: Failed to refresh token: error sending request for url (https://auth.openai.com/oauth/token)
+2026-06-18T16:03:20.568866Z ERROR codex_core::models_manager::manager: failed to refresh available models: timeout waiting for child process to exit
+2026-06-18T16:03:50.868378Z ERROR codex_core::auth: Failed to refresh token: error sending request for url (https://auth.openai.com/oauth/token)
+OpenAI Codex v0.104.0 (research preview)
+--------
+workdir: /home/nikolenko/work/Projects/FRIGID
+model: gpt-5-codex
+provider: openai
+approval: never
+sandbox: workspace-write [workdir, /tmp, $TMPDIR]
+reasoning effort: medium
+reasoning summaries: auto
+session id: 019edb78-ff79-73b2-a905-3e03f698d61d
+--------
+user
+Return exactly: CODEX_REMOTE_MODEL_OK
+mcp: tmux starting
+mcp: context7 starting
+mcp: subagents starting
+mcp: subagents ready
+mcp: context7 ready
+mcp: tmux ready
+mcp startup: ready: subagents, context7, tmux

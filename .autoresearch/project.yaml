@@ -1,0 +1,19 @@
+repo: /Users/nikolenko/.codex/worktrees/f017/FRIGID
+remote_repo: /home/nikolenko/work/Projects/FRIGID
+remote_host: spectrum
+remote_gpu: NVIDIA A100 80GB PCIe
+commit: bcf395a249d9313b4fe1d60a5c048bce23408dbe
+known_remote_run: /home/nikolenko/work/Projects/FRIGID/repro_runs/20260618T_spectrum_msg_paper_repro
+data:
+  msg_dir: /home/nikolenko/work/Projects/FRIGID/repro_cache/msg
+  mist_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/mist_msg.pt
+  dlm_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/DLM.ckpt
+  iceberg_gen_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt
+  iceberg_inten_checkpoint: /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt
+environment:
+  venv: /home/nikolenko/work/Projects/FRIGID/.venv
+  dependency_notes:
+    - transformers must be pinned to 4.32.0 for safe-mol compatibility.
+    - ngboost is required by benchmark_spec2mol.py.
+    - h5py is required by MIST imports.
+    - ms-pred was installed with --no-build-isolation and Cython<3.

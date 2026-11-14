@@ -115,6 +115,41 @@ def parse_args():
         default=3.0,
         help='Lambda multiplier for NGBoost sigma-based sampling range (mean ± sigma*lambda)'
     )
+    parser.add_argument(
+        '--profile-generation',
+        action='store_true',
+        help='Record opt-in per-case generation timing diagnostics'
+    )
+    parser.add_argument(
+        '--num-tokens-unmask',
+        type=int,
+        default=1,
+        help='Number of masked tokens to unmask per diffusion step'
+    )
+    parser.add_argument(
+        '--confidence-temperature',
+        type=float,
+        default=1.0,
+        help='Confidence temperature used when selecting tokens to unmask'
+    )
+    parser.add_argument(
+        '--encoder-batch-size',
+        type=int,
+        default=1,
+        help='Batch size for the MIST encoder pass over spectra'
+    )
+    parser.add_argument(
+        '--formula-pruning-chunk-size',
+        type=int,
+        default=None,
+        help='Optional generation chunk size for formula-aware early stopping diagnostics'
+    )
+    parser.add_argument(
+        '--formula-pruning-tail-after-unique',
+        type=int,
+        default=None,
+        help='Optional number of extra generations to allow after the first unique formula match'
+    )
     return parser.parse_args()
 
 
@@ -374,6 +409,8 @@ def _worker_process_spectra(
     token_features=None,
     is_ngboost: bool = False,
     sigma_lambda: float = 3.0,
+    formula_pruning_tail_after_unique: Optional[int] = None,
+    confidence_temperature: float = 1.0,
 ):
     """
     Worker function for multi-GPU processing.
@@ -429,7 +466,7 @@ def _worker_process_spectra(
         pred_fp_binary = binarize_fingerprint(pred_fp_probs, fp_threshold)
         
         # Generate with formula filtering
-        matched_smiles, matched_sims, total_gen, total_valid, total_matched, counter, last_valid = \
+        matched_smiles, matched_sims, total_gen, total_valid, total_matched, counter, last_valid, gen_time = \
             generate_with_formula_filter(
                 sampler=sampler,
                 fingerprint_array=pred_fp_binary,
@@ -446,6 +483,8 @@ def _worker_process_spectra(
                 token_features=token_features,
                 is_ngboost=is_ngboost,
                 sigma_lambda=sigma_lambda,
+                formula_pruning_tail_after_unique=formula_pruning_tail_after_unique,
+                confidence_temperature=confidence_temperature,
             )
         
         # Build predictions list
@@ -483,6 +522,13 @@ def _worker_process_spectra(
         result['total_generated'] = total_gen
         result['total_valid'] = total_valid
         result['total_formula_matched'] = total_matched
+        unique_valid = len(counter)
+        result['unique_valid_smiles'] = unique_valid
+        result['duplicate_valid_smiles'] = max(total_valid - unique_valid, 0)
+        result['valid_duplicate_rate'] = (
+            result['duplicate_valid_smiles'] / total_valid if total_valid else 0.0
+        )
+        result['formula_duplicate_matches'] = max(total_matched - len(matched_smiles), 0)
         result['generation_time'] = gen_time
         result['original_idx'] = idx  # Track original index for ordering
         # Store all matched SMILES (already sorted by similarity descending)
@@ -504,6 +550,8 @@ def run_benchmark_multi_gpu(
     token_features=None,
     is_ngboost: bool = False,
     sigma_lambda: float = 3.0,
+    formula_pruning_chunk_size: Optional[int] = None,
+    formula_pruning_tail_after_unique: Optional[int] = None,
 ) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
     """
     Run the benchmark across multiple GPUs using multiprocessing.
@@ -566,6 +614,7 @@ def run_benchmark_multi_gpu(
                 token_features,
                 is_ngboost,
                 sigma_lambda,
+                formula_pruning_tail_after_unique,
             )
         )
         p.start()
@@ -618,6 +667,12 @@ def run_benchmark(
     token_features=None,
     is_ngboost: bool = False,
     sigma_lambda: float = 3.0,
+    profile_generation: bool = False,
+    num_tokens_unmask: int = 1,
+    confidence_temperature: float = 1.0,
+    formula_pruning_chunk_size: Optional[int] = None,
+    formula_pruning_tail_after_unique: Optional[int] = None,
+    encoder_batch_size: int = 1,
 ) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
     """Run the benchmark."""
     gen_cfg = config['generation']
@@ -644,36 +699,43 @@ def run_benchmark(
     print(f"FP threshold: {fp_threshold}")
     print(f"{'='*70}\n")
 
-    dataloader = get_paired_loader(dataset, shuffle=False, batch_size=1, num_workers=0)
+    dataloader = get_paired_loader(dataset, shuffle=False, batch_size=encoder_batch_size, num_workers=0)
     all_results = []
     start_time = time.time()
     num_to_process = min(len(dataset), max_spectra) if max_spectra else len(dataset)
 
-    for idx, batch in enumerate(tqdm(dataloader, total=num_to_process, desc='Processing spectra')):
-        if max_spectra and idx >= max_spectra:
+    processed = 0
+    for batch_idx, batch in enumerate(tqdm(dataloader, total=num_to_process, desc='Processing spectra')):
+        if max_spectra and processed >= max_spectra:
             break
 
         batch = {k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in batch.items()}
-
-        spec, mol = split_data[idx]
-        target_smiles = mol.get_smiles()
-        target_inchi_key = get_inchikey_first_block(mol.get_inchikey())
-        target_formula = normalize_formula(rdMolDescriptors.CalcMolFormula(Chem.MolFromSmiles(target_smiles)))
-        target_fp = compute_morgan_fingerprint(target_smiles, fp_bits, fp_radius)
-        
-        if target_fp is None:
-            print(f"Warning: Could not compute FP for {target_smiles}, skipping")
-            continue
+        current_batch_size = next((v.size(0) for v in batch.values() if isinstance(v, torch.Tensor)), 1)
 
         # Encode spectra to fingerprint
         with torch.no_grad():
             pred_fp_probs, _ = mist_encoder(batch)
-            pred_fp_probs = pred_fp_probs.cpu().numpy()[0]
-        pred_fp_binary = binarize_fingerprint(pred_fp_probs, fp_threshold)
+            pred_fp_probs = pred_fp_probs.cpu().numpy()
 
-        # Generate with formula filtering
-        matched_smiles, matched_sims, total_gen, total_valid, total_matched, counter, last_valid, gen_time = \
-            generate_with_formula_filter(
+        for local_idx in range(current_batch_size):
+            if max_spectra and processed >= max_spectra:
+                break
+            spec, mol = split_data[processed]
+            processed += 1
+
+            target_smiles = mol.get_smiles()
+            target_inchi_key = get_inchikey_first_block(mol.get_inchikey())
+            target_formula = normalize_formula(rdMolDescriptors.CalcMolFormula(Chem.MolFromSmiles(target_smiles)))
+            target_fp = compute_morgan_fingerprint(target_smiles, fp_bits, fp_radius)
+            
+            if target_fp is None:
+                print(f"Warning: Could not compute FP for {target_smiles}, skipping")
+                continue
+
+            pred_fp_binary = binarize_fingerprint(pred_fp_probs[local_idx], fp_threshold)
+
+            # Generate with formula filtering
+            generation_result = generate_with_formula_filter(
                 sampler=sampler,
                 fingerprint_array=pred_fp_binary,
                 target_formula=target_formula,
@@ -689,48 +751,95 @@ def run_benchmark(
                 token_features=token_features,
                 is_ngboost=is_ngboost,
                 sigma_lambda=sigma_lambda,
+                profile_generation=profile_generation,
+                num_tokens_unmask=num_tokens_unmask,
+                confidence_temperature=confidence_temperature,
+                formula_pruning_chunk_size=formula_pruning_chunk_size,
+                formula_pruning_tail_after_unique=formula_pruning_tail_after_unique,
             )
+            if profile_generation:
+                (
+                    matched_smiles,
+                    matched_sims,
+                    total_gen,
+                    total_valid,
+                    total_matched,
+                    counter,
+                    last_valid,
+                    gen_time,
+                    generation_diagnostics,
+                ) = generation_result
+            else:
+                (
+                    matched_smiles,
+                    matched_sims,
+                    total_gen,
+                    total_valid,
+                    total_matched,
+                    counter,
+                    last_valid,
+                    gen_time,
+                ) = generation_result
+                generation_diagnostics = {}
 
-        # Build predictions list
-        sim_records = defaultdict(list)
-        for smi, sim in zip(matched_smiles, matched_sims):
-            sim_records[smi].append(sim)
+            # Build predictions list
+            sim_records = defaultdict(list)
+            for smi, sim in zip(matched_smiles, matched_sims):
+                sim_records[smi].append(sim)
 
-        predictions = []
-        if sim_records:
-            for smi, sims in sim_records.items():
-                entry = build_prediction_entry(smi, np.mean(sims), len(sims), 'formula', fp_bits, fp_radius)
-                if entry:
-                    predictions.append(entry)
-            predictions.sort(key=lambda x: (x['frequency'], x['similarity']), reverse=True)
-            source = 'formula'
-        else:
-            source = 'fallback'
-            if last_valid:
-                fallback_fp = compute_morgan_fingerprint(last_valid, fp_bits, fp_radius)
-                sim = compute_tanimoto_similarity(pred_fp_binary, fallback_fp) if fallback_fp is not None else 0.0
-                entry = build_prediction_entry(last_valid, sim, 1, 'fallback', fp_bits, fp_radius)
-                if entry:
-                    predictions.append(entry)
+            predictions = []
+            if sim_records:
+                for smi, sims in sim_records.items():
+                    entry = build_prediction_entry(smi, np.mean(sims), len(sims), 'formula', fp_bits, fp_radius)
+                    if entry:
+                        predictions.append(entry)
+                predictions.sort(key=lambda x: (x['frequency'], x['similarity']), reverse=True)
+                source = 'formula'
+            else:
+                source = 'fallback'
+                if last_valid:
+                    fallback_fp = compute_morgan_fingerprint(last_valid, fp_bits, fp_radius)
+                    sim = compute_tanimoto_similarity(pred_fp_binary, fallback_fp) if fallback_fp is not None else 0.0
+                    entry = build_prediction_entry(last_valid, sim, 1, 'fallback', fp_bits, fp_radius)
+                    if entry:
+                        predictions.append(entry)
 
-        # Evaluate
-        preds_eval = predictions[:top_k] if top_k and top_k > 0 else predictions
-        result = evaluate_predictions(preds_eval, target_smiles, target_inchi_key, target_fp, fp_bits, fp_radius)
-        
-        # Add additional metrics
-        result['mist_tanimoto'] = compute_tanimoto_similarity(target_fp, pred_fp_binary)
-        result['spec_name'] = spec.get_spec_name()
-        result['proposal_smiles'] = predictions[0]['smiles'] if predictions else None
-        result['proposal_source'] = source if predictions else None
-        result['formula_matches_collected'] = len(matched_smiles)
-        result['total_generated'] = total_gen
-        result['total_valid'] = total_valid
-        result['total_formula_matched'] = total_matched
-        result['generation_time'] = gen_time
-        # Store all matched SMILES (already sorted by similarity descending)
-        result['all_matched_smiles'] = matched_smiles
+            # Evaluate
+            preds_eval = predictions[:top_k] if top_k and top_k > 0 else predictions
+            result = evaluate_predictions(preds_eval, target_smiles, target_inchi_key, target_fp, fp_bits, fp_radius)
+            
+            # Add additional metrics
+            result['mist_tanimoto'] = compute_tanimoto_similarity(target_fp, pred_fp_binary)
+            result['spec_name'] = spec.get_spec_name()
+            result['proposal_smiles'] = predictions[0]['smiles'] if predictions else None
+            result['proposal_source'] = source if predictions else None
+            result['formula_matches_collected'] = len(matched_smiles)
+            result['total_generated'] = total_gen
+            result['total_valid'] = total_valid
+            result['total_formula_matched'] = total_matched
+            unique_valid = len(counter)
+            result['unique_valid_smiles'] = unique_valid
+            result['duplicate_valid_smiles'] = max(total_valid - unique_valid, 0)
+            result['valid_duplicate_rate'] = (
+                result['duplicate_valid_smiles'] / total_valid if total_valid else 0.0
+            )
+            result['formula_duplicate_matches'] = max(total_matched - len(matched_smiles), 0)
+            result['formula_match_fraction_among_valid'] = (
+                total_matched / total_valid if total_valid else 0.0
+            )
+            result['unique_valid_fraction_among_valid'] = (
+                unique_valid / total_valid if total_valid else 0.0
+            )
+            result['generation_time'] = gen_time
+            result['num_tokens_unmask'] = int(num_tokens_unmask)
+            result['encoder_batch_size'] = int(encoder_batch_size)
+            for diag_key, diag_value in generation_diagnostics.items():
+                if diag_value is None or isinstance(diag_value, (str, bool, int, float, np.integer, np.floating)):
+                    result[f'generation_{diag_key}'] = diag_value
+            # Store all matched SMILES (already sorted by similarity descending)
+            result['all_matched_smiles'] = matched_smiles
 
-        all_results.append(result)
+            all_results.append(result)
 
     elapsed = time.time() - start_time
     aggregate = compute_aggregate_statistics(all_results, elapsed)
@@ -740,6 +849,7 @@ def run_benchmark(
     aggregate['total_generation_time'] = total_gen_time
     aggregate['generation_time_percentage'] = (total_gen_time / elapsed * 100) if elapsed > 0 else 0.0
     aggregate['total_elapsed_time_seconds'] = elapsed
+    aggregate['encoder_batch_size'] = encoder_batch_size
     
     # Add source distribution
     aggregate['proposal_source_counts'] = Counter([
@@ -831,9 +941,19 @@ def print_summary(aggregate: Dict[str, Any]):
     print(f"\nTotal spectra: {aggregate.get('total_spectra', 0)}")
     print(f"Time: {aggregate.get('elapsed_time_seconds', 0):.1f}s")
     print(f"Speed: {aggregate.get('spectra_per_second', 0):.2f} spectra/s")
+    if 'encoder_batch_size' in aggregate:
+        print(f"Encoder batch size: {aggregate.get('encoder_batch_size', 1)}")
     print(f"\n--- Generation Timing ---")
     print(f"Time in generation functions: {aggregate.get('total_generation_time', 0):.1f}s")
     print(f"Percentage of total time: {aggregate.get('generation_time_percentage', 0):.1f}%")
+    if 'total_generation_profile_model_forward_time' in aggregate:
+        print("\n--- Generation Profile ---")
+        print(f"Model forward time: {aggregate.get('total_generation_profile_model_forward_time', 0):.1f}s")
+        print(f"Sampling step time: {aggregate.get('total_generation_profile_sampling_step_time', 0):.1f}s")
+        print(f"Decode time: {aggregate.get('total_generation_profile_decode_time', 0):.1f}s")
+        print(f"Conditioning setup time: {aggregate.get('total_generation_profile_conditioning_setup_time', 0):.1f}s")
+        print(f"Avg target length: {aggregate.get('avg_generation_target_length_mean', 0):.1f}")
+        print(f"Avg estimated padding tokens/case: {aggregate.get('avg_generation_estimated_padding_tokens', 0):.1f}")
     
     print(f"\n--- MIST Encoder Quality ---")
     print(f"Mean Tanimoto (pred vs GT FP): {aggregate.get('mist_tanimoto_mean', 0):.4f}")
@@ -851,6 +971,22 @@ def print_summary(aggregate: Dict[str, Any]):
     print(f"Avg predictions collected (incl. padding): {aggregate.get('avg_predictions_collected', 0):.1f}")
     print(f"Avg generations: {aggregate.get('avg_total_generated', 0):.1f}")
     print(f"Avg attempts per match (successful only): {aggregate.get('avg_attempts_to_match', 0):.1f}")
+    print(f"Avg unique valid SMILES: {aggregate.get('avg_unique_valid_smiles', 0):.1f}")
+    print(f"Avg duplicate valid SMILES: {aggregate.get('avg_duplicate_valid_smiles', 0):.1f}")
+    print(f"Avg valid duplicate rate: {aggregate.get('avg_valid_duplicate_rate', 0)*100:.1f}%")
+    print(f"Avg formula duplicate matches: {aggregate.get('avg_formula_duplicate_matches', 0):.1f}")
+    if 'avg_formula_match_fraction_among_valid' in aggregate:
+        print(f"Avg formula match fraction among valid: {aggregate.get('avg_formula_match_fraction_among_valid', 0)*100:.1f}%")
+    if 'avg_unique_valid_fraction_among_valid' in aggregate:
+        print(f"Avg unique valid fraction among valid: {aggregate.get('avg_unique_valid_fraction_among_valid', 0)*100:.1f}%")
+    if 'avg_first_formula_match_at' in aggregate:
+        print(f"Avg first formula match at: {aggregate.get('avg_first_formula_match_at', 0):.1f}")
+    if 'avg_first_unique_formula_match_at' in aggregate:
+        print(f"Avg first unique formula match at: {aggregate.get('avg_first_unique_formula_match_at', 0):.1f}")
+    if 'avg_wasted_generated_after_first_formula_match' in aggregate:
+        print(f"Avg wasted generated after first formula match: {aggregate.get('avg_wasted_generated_after_first_formula_match', 0):.1f}")
+    if 'avg_wasted_generated_after_first_unique_formula_match' in aggregate:
+        print(f"Avg wasted generated after first unique formula match: {aggregate.get('avg_wasted_generated_after_first_unique_formula_match', 0):.1f}")
     
     print(f"{'='*70}")
 
@@ -903,7 +1039,9 @@ def main():
         aggregate, results = run_benchmark_multi_gpu(
             config, dataset, split_data,
             n_gpus, args.use_shared_cross_attention, max_spectra,
-            token_model, token_features, is_ngboost, args.sigma_lambda
+            token_model, token_features, is_ngboost, args.sigma_lambda,
+            args.formula_pruning_chunk_size,
+            args.formula_pruning_tail_after_unique,
         )
     else:
         # Single GPU mode: load models in main process
@@ -912,7 +1050,13 @@ def main():
         aggregate, results = run_benchmark(
             mist_encoder, sampler, dataset, split_data,
             config, device, max_spectra,
-            token_model, token_features, is_ngboost, args.sigma_lambda
+            token_model, token_features, is_ngboost, args.sigma_lambda,
+            args.profile_generation,
+            args.num_tokens_unmask,
+            args.confidence_temperature,
+            args.formula_pruning_chunk_size,
+            args.formula_pruning_tail_after_unique,
+            args.encoder_batch_size,
         )
 
     # Save and print results

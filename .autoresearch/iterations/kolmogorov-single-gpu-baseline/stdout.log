@@ -1,0 +1,69 @@
+Loading token model from token_models/models/best_ngboost_MSG.joblib
+Detected NGBoost model - will use sigma-based sampling
+Loaded 14 features from token_models/models/best_ngboost_MSG_features.json
+Using device: cuda
+
+Loading test split...
+Loaded 17082 total spectra-molecule pairs
+Using 17082 samples from test split
+
+Loading MIST encoder from: repro_cache/mist_msg.pt
+✓ Loaded MIST encoder weights
+
+Loading DLM decoder from: repro_cache/DLM.ckpt
+Using SHARED cross-attention mode
+[load_model] Removed 120 fingerprint_conditioner.cross_attention_layers keys for shared mode
+[DLM] Loading checkpoint with missing buffers (safe to skip): {'token_atom_counts'}
+[Sampler] Warning: data/len.pk not found. Using default length range.
+✓ Fingerprint conditioning: ENABLED
+✓ Formula conditioning: ENABLED
+Cross-attention mode: SHARED
+
+======================================================================
+SPEC2MOL BENCHMARK
+======================================================================
+Total spectra: 17082
+Formula matches required: 10
+Max attempts: 100
+Batch size: 16
+Temperature: 1.0
+Randomness: 10.0
+FP threshold: 0.187
+======================================================================
+
+
+Saved aggregate statistics to: /home/nikolenko/work/Projects/FRIGID/.autoresearch_scorer_runs/current/output/aggregate_statistics.json
+Saved detailed results to: /home/nikolenko/work/Projects/FRIGID/.autoresearch_scorer_runs/current/output/detailed_results.csv
+Saved predictions to: /home/nikolenko/work/Projects/FRIGID/.autoresearch_scorer_runs/current/output/predictions.csv
+
+======================================================================
+BENCHMARK SUMMARY
+======================================================================
+
+Total spectra: 16
+Time: 296.1s
+Speed: 0.05 spectra/s
+
+--- Generation Timing ---
+Time in generation functions: 293.8s
+Percentage of total time: 99.2%
+
+--- MIST Encoder Quality ---
+Mean Tanimoto (pred vs GT FP): 0.8610
+
+--- Core Metrics ---
+Exact Match Top-1: 0.00%
+Exact Match Top-10: 0.00%
+Tanimoto Top-1: 0.6611
+Tanimoto Top-10: 0.6641
+
+--- Formula Matching ---
+Success rate: 100.00%
+Never matched: 0.00%
+Avg actual formula matches: 8.0
+Avg predictions collected (incl. padding): 10.0
+Avg generations: 85.6
+Avg attempts per match (successful only): 12.4
+======================================================================
+
+Results saved to: /home/nikolenko/work/Projects/FRIGID/.autoresearch_scorer_runs/current/output/

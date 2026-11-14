@@ -1,0 +1,252 @@
+Using device: cuda
+config['mist_encoder']: {'checkpoint': '/home/nikolenko/work/Projects/FRIGID/repro_cache/mist_msg.pt', 'hidden_size': 640, 'magma_modulo': 2048, 'peak_attn_layers': 2, 'num_heads': 8, 'spectra_dropout': 0.1, 'output_size': 4096, 'form_embedder': 'pos-cos', 'set_pooling': 'cls', 'refine_layers': 4, 'pairwise_featurization': True, 'embed_instrument': False, 'inten_transform': 'float', 'inten_prob': 0.1, 'remove_prob': 0.5, 'cls_type': 'ms1', 'spec_features': 'peakformula', 'mol_features': 'fingerprint', 'top_layers': 1, 'max_peaks': None}
+
+Loading test split...
+Loaded instrument information for 231104 spectra
+  Instrument distribution: {'Orbitrap': 177281, 'QTOF': 53823}
+  Ionization distribution: {'[M+H]+': 195237, '[M+Na]+': 35867}
+Finding spectra files:   0%|          | 0/17556 [00:00<?, ?it/s]Finding spectra files:  13%|█▎        | 2321/17556 [00:00<00:00, 23201.45it/s]Finding spectra files:  27%|██▋       | 4728/17556 [00:00<00:00, 23710.00it/s]Finding spectra files:  41%|████      | 7148/17556 [00:00<00:00, 23931.30it/s]Finding spectra files:  54%|█████▍    | 9560/17556 [00:00<00:00, 24005.32it/s]Finding spectra files:  68%|██████▊   | 11983/17556 [00:00<00:00, 24084.58it/s]Finding spectra files:  82%|████████▏ | 14405/17556 [00:00<00:00, 24128.59it/s]Finding spectra files:  96%|█████████▌| 16847/17556 [00:00<00:00, 24183.49it/s]                                                                               0it [00:00, ?it/s]17556it [00:00, 1322447.53it/s]
+0it [00:00, ?it/s]1132it [00:00, 11311.54it/s]2296it [00:00, 11504.18it/s]3484it [00:00, 11671.85it/s]4652it [00:00, 10685.51it/s]5732it [00:00, 10279.94it/s]6938it [00:00, 10842.82it/s]8274it [00:00, 11627.97it/s]9447it [00:00, 11602.90it/s]10614it [00:00, 11255.39it/s]11746it [00:01, 11009.98it/s]12852it [00:01, 10570.71it/s]13915it [00:01, 10109.02it/s]14932it [00:01, 9912.49it/s] 15927it [00:01, 9766.75it/s]16906it [00:01, 9594.44it/s]17556it [00:01, 10438.91it/s]
+0it [00:00, ?it/s]17556it [00:00, 5655111.05it/s]
+Loaded 17082 total spectra-molecule pairs
+Using 17082 samples from test split
+Shuffling split data
+
+Loading MIST encoder from: /home/nikolenko/work/Projects/FRIGID/repro_cache/mist_msg.pt
+✓ Loaded MIST encoder weights
+
+Loading DLM decoder from: /home/nikolenko/work/Projects/FRIGID/repro_cache/DLM.ckpt
+[DLM] Loading checkpoint with missing buffers (safe to skip): {'token_atom_counts'}
+[Sampler] Warning: data/len.pk not found. Using default length range.
+✓ Fingerprint conditioning: ENABLED
+✓ Formula conditioning: ENABLED
+Using masking strategy: SimpleMaskingStrategy
+
+======================================================================
+SPEC2MOL BENCHMARK WITH BATCHED ICEBERG SCALING
+======================================================================
+Total spectra in dataset: 17082
+Scaling config:
+  - Batch size (B): 16
+  - Unique to refine (K): 4
+  - Masks per molecule (M): 2
+  - Num rounds (R): 1
+  - Mask probability: 0.5
+  - Collision energies: [10, 20, 30, 40, 50]
+FP threshold: 0.187
+======================================================================
+
+Phase 1: Preprocessing all test samples...
+Loading spectra:   0%|          | 0/5 [00:00<?, ?it/s]Loading spectra:  40%|████      | 2/5 [00:00<00:00, 19.24it/s]Loading spectra: 100%|██████████| 5/5 [00:00<00:00, 42.73it/s]
+/bin/sh: 1: /home/nikolenko/work/Projects/FRIGID/python: not found
+/bin/sh: 1: /home/nikolenko/work/Projects/FRIGID/python: not found
+/bin/sh: 1: /home/nikolenko/work/Projects/FRIGID/python: not found
+/bin/sh: 1: /home/nikolenko/work/Projects/FRIGID/python: not found
+/bin/sh: 1: /home/nikolenko/work/Projects/FRIGID/python: not found
+/bin/sh: 1: /home/nikolenko/work/Projects/FRIGID/python: not found
+Loaded 5 valid test samples
+
+Phase 2: Running batched scaling with 1 rounds...
+
+============================================================
+SCALING ROUND 1/1
+============================================================
+
+  Round 1: Generating 16 molecules from scratch...
+  Round 1: Running ICEBERG predictions for top 4 molecules...
+  Running ICEBERG for 16 molecules at CE=10eV, instrument=Orbitrap, ionization=[M+H]+...
+CUDA_VISIBLE_DEVICES=0 /home/nikolenko/work/Projects/FRIGID/python src/ms_pred/dag_pred/predict_smis.py \
+               --batch-size 4 \
+               --num-workers 6 \
+               --dataset-labels /home/nikolenko/.cache/ms-pred/iceberg-elucidation/bdbe818c66d43d60fbae5446bf9bcc69/cands_df_scaling_78791a1d.tsv \
+               --sparse-out \
+               --sparse-k 100 \
+               --max-nodes 100 \
+               --threshold 0.0 \
+               --gen-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt \
+               --inten-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt \
+               --save-dir /home/nikolenko/.cache/ms-pred/iceberg-elucidation/bdbe818c66d43d60fbae5446bf9bcc69 \
+               --adduct-shift \
+               --gpu
+Warning: ICEBERG prediction failed: [Errno 2] Unable to synchronously open file (unable to open file: name = '/home/nikolenko/.cache/ms-pred/iceberg-elucidation/bdbe818c66d43d60fbae5446bf9bcc69/preds.hdf5', errno = 2, error message = 'No such file or directory', flags = 0, o_flags = 0)
+  Running ICEBERG for 16 molecules at CE=20eV, instrument=Orbitrap, ionization=[M+H]+...
+CUDA_VISIBLE_DEVICES=0 /home/nikolenko/work/Projects/FRIGID/python src/ms_pred/dag_pred/predict_smis.py \
+               --batch-size 4 \
+               --num-workers 6 \
+               --dataset-labels /home/nikolenko/.cache/ms-pred/iceberg-elucidation/ecebea0a3ab54059c8638aad5acb274b/cands_df_scaling_b2fefbf1.tsv \
+               --sparse-out \
+               --sparse-k 100 \
+               --max-nodes 100 \
+               --threshold 0.0 \
+               --gen-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt \
+               --inten-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt \
+               --save-dir /home/nikolenko/.cache/ms-pred/iceberg-elucidation/ecebea0a3ab54059c8638aad5acb274b \
+               --adduct-shift \
+               --gpu
+Warning: ICEBERG prediction failed: [Errno 2] Unable to synchronously open file (unable to open file: name = '/home/nikolenko/.cache/ms-pred/iceberg-elucidation/ecebea0a3ab54059c8638aad5acb274b/preds.hdf5', errno = 2, error message = 'No such file or directory', flags = 0, o_flags = 0)
+  Running ICEBERG for 16 molecules at CE=30eV, instrument=Orbitrap, ionization=[M+H]+...
+CUDA_VISIBLE_DEVICES=0 /home/nikolenko/work/Projects/FRIGID/python src/ms_pred/dag_pred/predict_smis.py \
+               --batch-size 4 \
+               --num-workers 6 \
+               --dataset-labels /home/nikolenko/.cache/ms-pred/iceberg-elucidation/26b7b7f3d68dfe9d72c266c396d81460/cands_df_scaling_20bc6538.tsv \
+               --sparse-out \
+               --sparse-k 100 \
+               --max-nodes 100 \
+               --threshold 0.0 \
+               --gen-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt \
+               --inten-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt \
+               --save-dir /home/nikolenko/.cache/ms-pred/iceberg-elucidation/26b7b7f3d68dfe9d72c266c396d81460 \
+               --adduct-shift \
+               --gpu
+Warning: ICEBERG prediction failed: [Errno 2] Unable to synchronously open file (unable to open file: name = '/home/nikolenko/.cache/ms-pred/iceberg-elucidation/26b7b7f3d68dfe9d72c266c396d81460/preds.hdf5', errno = 2, error message = 'No such file or directory', flags = 0, o_flags = 0)
+  Running ICEBERG for 16 molecules at CE=40eV, instrument=Orbitrap, ionization=[M+H]+...
+CUDA_VISIBLE_DEVICES=0 /home/nikolenko/work/Projects/FRIGID/python src/ms_pred/dag_pred/predict_smis.py \
+               --batch-size 4 \
+               --num-workers 6 \
+               --dataset-labels /home/nikolenko/.cache/ms-pred/iceberg-elucidation/ddb45543f6b358f97e363ed421f5236a/cands_df_scaling_4dfb0b1e.tsv \
+               --sparse-out \
+               --sparse-k 100 \
+               --max-nodes 100 \
+               --threshold 0.0 \
+               --gen-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt \
+               --inten-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt \
+               --save-dir /home/nikolenko/.cache/ms-pred/iceberg-elucidation/ddb45543f6b358f97e363ed421f5236a \
+               --adduct-shift \
+               --gpu
+Warning: ICEBERG prediction failed: [Errno 2] Unable to synchronously open file (unable to open file: name = '/home/nikolenko/.cache/ms-pred/iceberg-elucidation/ddb45543f6b358f97e363ed421f5236a/preds.hdf5', errno = 2, error message = 'No such file or directory', flags = 0, o_flags = 0)
+  Running ICEBERG for 16 molecules at CE=50eV, instrument=Orbitrap, ionization=[M+H]+...
+CUDA_VISIBLE_DEVICES=0 /home/nikolenko/work/Projects/FRIGID/python src/ms_pred/dag_pred/predict_smis.py \
+               --batch-size 4 \
+               --num-workers 6 \
+               --dataset-labels /home/nikolenko/.cache/ms-pred/iceberg-elucidation/a8613baf0f405afaee5142178a00713e/cands_df_scaling_8a492fd2.tsv \
+               --sparse-out \
+               --sparse-k 100 \
+               --max-nodes 100 \
+               --threshold 0.0 \
+               --gen-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt \
+               --inten-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt \
+               --save-dir /home/nikolenko/.cache/ms-pred/iceberg-elucidation/a8613baf0f405afaee5142178a00713e \
+               --adduct-shift \
+               --gpu
+Warning: ICEBERG prediction failed: [Errno 2] Unable to synchronously open file (unable to open file: name = '/home/nikolenko/.cache/ms-pred/iceberg-elucidation/a8613baf0f405afaee5142178a00713e/preds.hdf5', errno = 2, error message = 'No such file or directory', flags = 0, o_flags = 0)
+  Running ICEBERG for 4 molecules at CE=10eV, instrument=QTOF, ionization=[M+Na]+...
+CUDA_VISIBLE_DEVICES=0 /home/nikolenko/work/Projects/FRIGID/python src/ms_pred/dag_pred/predict_smis.py \
+               --batch-size 4 \
+               --num-workers 6 \
+               --dataset-labels /home/nikolenko/.cache/ms-pred/iceberg-elucidation/3d9fef2c46f2eb936440ca777ec97954/cands_df_scaling_eef71e24.tsv \
+               --sparse-out \
+               --sparse-k 100 \
+               --max-nodes 100 \
+               --threshold 0.0 \
+               --gen-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt \
+               --inten-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt \
+               --save-dir /home/nikolenko/.cache/ms-pred/iceberg-elucidation/3d9fef2c46f2eb936440ca777ec97954 \
+               --adduct-shift \
+               --gpu
+Warning: ICEBERG prediction failed: [Errno 2] Unable to synchronously open file (unable to open file: name = '/home/nikolenko/.cache/ms-pred/iceberg-elucidation/3d9fef2c46f2eb936440ca777ec97954/preds.hdf5', errno = 2, error message = 'No such file or directory', flags = 0, o_flags = 0)
+  Running ICEBERG for 4 molecules at CE=20eV, instrument=QTOF, ionization=[M+Na]+...
+/bin/sh: 1: /home/nikolenko/work/Projects/FRIGID/python: not found
+/bin/sh: 1: /home/nikolenko/work/Projects/FRIGID/python: not found
+/bin/sh: 1: /home/nikolenko/work/Projects/FRIGID/python: not found
+/bin/sh: 1: /home/nikolenko/work/Projects/FRIGID/python: not found
+CUDA_VISIBLE_DEVICES=0 /home/nikolenko/work/Projects/FRIGID/python src/ms_pred/dag_pred/predict_smis.py \
+               --batch-size 4 \
+               --num-workers 6 \
+               --dataset-labels /home/nikolenko/.cache/ms-pred/iceberg-elucidation/adb1503aff928c44e965ca1f1febb272/cands_df_scaling_b6a58efe.tsv \
+               --sparse-out \
+               --sparse-k 100 \
+               --max-nodes 100 \
+               --threshold 0.0 \
+               --gen-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt \
+               --inten-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt \
+               --save-dir /home/nikolenko/.cache/ms-pred/iceberg-elucidation/adb1503aff928c44e965ca1f1febb272 \
+               --adduct-shift \
+               --gpu
+Warning: ICEBERG prediction failed: [Errno 2] Unable to synchronously open file (unable to open file: name = '/home/nikolenko/.cache/ms-pred/iceberg-elucidation/adb1503aff928c44e965ca1f1febb272/preds.hdf5', errno = 2, error message = 'No such file or directory', flags = 0, o_flags = 0)
+  Running ICEBERG for 4 molecules at CE=30eV, instrument=QTOF, ionization=[M+Na]+...
+CUDA_VISIBLE_DEVICES=0 /home/nikolenko/work/Projects/FRIGID/python src/ms_pred/dag_pred/predict_smis.py \
+               --batch-size 4 \
+               --num-workers 6 \
+               --dataset-labels /home/nikolenko/.cache/ms-pred/iceberg-elucidation/3ad2b20bd5af81a9f677d23dfb51f34e/cands_df_scaling_d747e02d.tsv \
+               --sparse-out \
+               --sparse-k 100 \
+               --max-nodes 100 \
+               --threshold 0.0 \
+               --gen-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt \
+               --inten-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt \
+               --save-dir /home/nikolenko/.cache/ms-pred/iceberg-elucidation/3ad2b20bd5af81a9f677d23dfb51f34e \
+               --adduct-shift \
+               --gpu
+Warning: ICEBERG prediction failed: [Errno 2] Unable to synchronously open file (unable to open file: name = '/home/nikolenko/.cache/ms-pred/iceberg-elucidation/3ad2b20bd5af81a9f677d23dfb51f34e/preds.hdf5', errno = 2, error message = 'No such file or directory', flags = 0, o_flags = 0)
+  Running ICEBERG for 4 molecules at CE=40eV, instrument=QTOF, ionization=[M+Na]+...
+CUDA_VISIBLE_DEVICES=0 /home/nikolenko/work/Projects/FRIGID/python src/ms_pred/dag_pred/predict_smis.py \
+               --batch-size 4 \
+               --num-workers 6 \
+               --dataset-labels /home/nikolenko/.cache/ms-pred/iceberg-elucidation/c52be8a335a9a154292715ef031b50cd/cands_df_scaling_8c86a55e.tsv \
+               --sparse-out \
+               --sparse-k 100 \
+               --max-nodes 100 \
+               --threshold 0.0 \
+               --gen-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt \
+               --inten-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt \
+               --save-dir /home/nikolenko/.cache/ms-pred/iceberg-elucidation/c52be8a335a9a154292715ef031b50cd \
+               --adduct-shift \
+               --gpu
+Warning: ICEBERG prediction failed: [Errno 2] Unable to synchronously open file (unable to open file: name = '/home/nikolenko/.cache/ms-pred/iceberg-elucidation/c52be8a335a9a154292715ef031b50cd/preds.hdf5', errno = 2, error message = 'No such file or directory', flags = 0, o_flags = 0)
+  Running ICEBERG for 4 molecules at CE=50eV, instrument=QTOF, ionization=[M+Na]+...
+CUDA_VISIBLE_DEVICES=0 /home/nikolenko/work/Projects/FRIGID/python src/ms_pred/dag_pred/predict_smis.py \
+               --batch-size 4 \
+               --num-workers 6 \
+               --dataset-labels /home/nikolenko/.cache/ms-pred/iceberg-elucidation/997d94db0518762e4e99e8ab0d39d806/cands_df_scaling_be856633.tsv \
+               --sparse-out \
+               --sparse-k 100 \
+               --max-nodes 100 \
+               --threshold 0.0 \
+               --gen-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model1.ckpt \
+               --inten-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/checkpoints/iceberg/iceberg_msg_model2.ckpt \
+               --save-dir /home/nikolenko/.cache/ms-pred/iceberg-elucidation/997d94db0518762e4e99e8ab0d39d806 \
+               --adduct-shift \
+               --gpu
+Warning: ICEBERG prediction failed: [Errno 2] Unable to synchronously open file (unable to open file: name = '/home/nikolenko/.cache/ms-pred/iceberg-elucidation/997d94db0518762e4e99e8ab0d39d806/preds.hdf5', errno = 2, error message = 'No such file or directory', flags = 0, o_flags = 0)
+  Total unique molecules: 76 (avg 15.2 per sample)
+  ICEBERG cache size: 0
+  Round time: 9.19s (1.8371s per sample)
+  Cumulative time: 9.19s (1.8371s per sample)
+
+  -> Saving intermediate predictions for round 1...
+Saved round 1 predictions to: /home/nikolenko/work/Projects/FRIGID/repro_runs/20260619T005535Z_iceberg_msg_smoke/results/predictions_round_1.csv
+Saved timing data to: /home/nikolenko/work/Projects/FRIGID/repro_runs/20260619T005535Z_iceberg_msg_smoke/results/round_timing.json
+
+Phase 3: Evaluating results...
+
+Saved aggregate statistics to: /home/nikolenko/work/Projects/FRIGID/repro_runs/20260619T005535Z_iceberg_msg_smoke/results/aggregate_statistics.json
+Saved detailed results to: /home/nikolenko/work/Projects/FRIGID/repro_runs/20260619T005535Z_iceberg_msg_smoke/results/detailed_results.csv
+Saved predictions to: /home/nikolenko/work/Projects/FRIGID/repro_runs/20260619T005535Z_iceberg_msg_smoke/results/predictions.csv
+
+======================================================================
+BENCHMARK SUMMARY
+======================================================================
+
+Total spectra: 5
+Time: 9.3s
+Speed: 0.54 spectra/s
+
+--- MIST Encoder Quality ---
+Mean Tanimoto (pred vs GT FP): 0.4954
+
+--- Core Metrics ---
+Exact Match Top-1: 20.00%
+Exact Match Top-10: 20.00%
+Tanimoto Top-1: 0.3297
+Tanimoto Top-10: 0.3460
+
+--- Scaling Statistics ---
+
+--- Per-Round GPU Timing ---
+round_1: cumulative=9.19s, per_sample=1.8371s
+======================================================================
+
+--- Round Timing Summary ---
+Round 1: cumulative=9.19s, per_sample=1.8371s
+
+Results saved to: /home/nikolenko/work/Projects/FRIGID/repro_runs/20260619T005535Z_iceberg_msg_smoke/results/

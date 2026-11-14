@@ -1,0 +1,31 @@
+experiment_command: bash .autoresearch/scorers/frigid_speed_quality_scorer.sh
+primary_metric: seconds_per_case
+direction: minimize
+metric_source: json:.autoresearch/artifacts/current/metrics.json:seconds_per_case
+guards:
+  - name: exact_top1
+    direction: maximize
+    max_regression: 0.03
+    metric_source: json:.autoresearch/artifacts/current/metrics.json:exact_top1
+  - name: tanimoto_top1
+    direction: maximize
+    max_regression: 0.05
+    metric_source: json:.autoresearch/artifacts/current/metrics.json:tanimoto_top1
+  - name: formula_success
+    direction: maximize
+    max_regression: 0.10
+    metric_source: json:.autoresearch/artifacts/current/metrics.json:formula_success
+budgets:
+  smoke:
+    max_spectra: 16
+    formula_matches: 10
+    max_attempts: 100
+  one_hour_gpu:
+    max_spectra: 64
+    formula_matches: 10
+    max_attempts: 100
+scorer_policy:
+  comparable_hardware: spectrum A100 80GB
+  no_concurrent_full_run: true
+  active_full_run_session: frigid_spectrum_base
+  require_material_hypothesis: true

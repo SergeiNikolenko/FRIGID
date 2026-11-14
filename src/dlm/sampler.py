@@ -34,6 +34,7 @@ import re
 import json
 import itertools
 import pickle
+import time
 import torch
 import random
 import numpy as np
@@ -265,7 +266,7 @@ class Sampler:
         except Exception:
             return None
         
-    @torch.no_grad()
+    @torch.inference_mode()
     def generate(self, x, softmax_temp=1.2, randomness=2, fix=True, gamma=0, w=2, formula=None, fingerprint=None):
         """
         Generate molecules from masked input.
@@ -284,9 +285,44 @@ class Sampler:
             List of generated SMILES strings
         """
         x = x.to(self.model.device)
+        num_tokens_unmask = int(getattr(self, 'num_tokens_unmask', 1))
+        confidence_temperature = float(getattr(self, 'confidence_temperature', 1.0))
+        profile_enabled = bool(getattr(self, 'profile_generation', False))
+        profile = None
+
+        def sync_cuda_if_needed():
+            if profile_enabled and torch.cuda.is_available():
+                torch.cuda.synchronize(self.model.device)
+
+        if profile_enabled:
+            profile = {
+                'batch_size': int(x.size(0)),
+                'sequence_length': int(x.size(1)),
+                'initial_mask_tokens': int((x == self.model.mask_index).sum().item()),
+                'initial_pad_tokens': int((x == self.pad_index).sum().item()),
+                'num_steps': 0,
+                'attention_mask_time': 0.0,
+                'conditioning_setup_time': 0.0,
+                'model_forward_time': 0.0,
+                'guidance_forward_time': 0.0,
+                'sampling_step_time': 0.0,
+                'decode_time': 0.0,
+            }
+
+        sync_cuda_if_needed()
+        setup_start = time.perf_counter()
         num_steps = max(self.mdlm.get_num_steps_confidence(x), 2)
         attention_mask = x != self.pad_index
+        extended_attention_mask = self.model.backbone.get_extended_attention_mask(
+            attention_mask, x.shape, x.device
+        )
+        sync_cuda_if_needed()
+        if profile is not None:
+            profile['num_steps'] = int(num_steps)
+            profile['attention_mask_time'] = time.perf_counter() - setup_start
         
+        sync_cuda_if_needed()
+        conditioning_start = time.perf_counter()
         # Convert single formula string to list if needed
         if formula is not None and isinstance(formula, str):
             formula = [formula] * x.size(0)
@@ -305,16 +341,53 @@ class Sampler:
                 device=fingerprint_tensor.device,
                 dtype=torch.float32
             )
-        
+
+        formula_cond_embeddings = None
+        formula_cond_mask = None
+        fingerprint_cond_embeddings = None
+        fingerprint_cond_mask = None
+        if formula is not None or fingerprint_tensor is not None:
+            formula_cond_embeddings, formula_cond_mask = self.model._prepare_formula_sequence_embeddings(formula, x)
+            fingerprint_cond_embeddings, fingerprint_cond_mask = self.model._prepare_fingerprint_sequence_embeddings(
+                fingerprint_tensor,
+                x,
+            )
+        sync_cuda_if_needed()
+        if profile is not None:
+            profile['conditioning_setup_time'] = time.perf_counter() - conditioning_start
+
         for i in range(num_steps):
             # Use model's forward method which supports formula conditioning
+            sync_cuda_if_needed()
+            forward_start = time.perf_counter()
+            previous_forward_profile = getattr(self.model, 'profile_forward', False)
+            if profile_enabled:
+                self.model.profile_forward = True
             logits = self.model(
                 x,
                 attention_mask,
                 formula=formula,
                 fingerprint=fingerprint_tensor,
-                fingerprint_mask=fingerprint_mask
+                fingerprint_mask=fingerprint_mask,
+                formula_embeddings=formula_cond_embeddings,
+                formula_condition_mask=formula_cond_mask,
+                fingerprint_embeddings=fingerprint_cond_embeddings,
+                fingerprint_condition_mask=fingerprint_cond_mask,
+                extended_attention_mask=extended_attention_mask,
             )
+            if profile_enabled:
+                self.model.profile_forward = previous_forward_profile
+            sync_cuda_if_needed()
+            if profile is not None:
+                profile['model_forward_time'] += time.perf_counter() - forward_start
+                forward_profile = getattr(self.model, 'last_forward_profile', None)
+                if isinstance(forward_profile, dict):
+                    profile['model_forward_total_time'] = profile.get('model_forward_total_time', 0.0) + float(
+                        forward_profile.get('forward_total_time', 0.0)
+                    )
+                    for key, value in forward_profile.items():
+                        if isinstance(value, (int, float)) and key not in {'forward_total_time'}:
+                            profile[f'model_forward_{key}'] = profile.get(f'model_forward_{key}', 0.0) + float(value)
 
             if gamma and w:
                 x_poor = x.clone()
@@ -327,18 +400,54 @@ class Sampler:
                 num_mask_poor = int(context_tokens.sum() * gamma)
                 mask_idx_poor = random.sample(context_token_ids, num_mask_poor)
                 x_poor[:, mask_idx_poor] = self.model.mask_index
+                sync_cuda_if_needed()
+                guidance_start = time.perf_counter()
+                previous_forward_profile = getattr(self.model, 'profile_forward', False)
+                if profile_enabled:
+                    self.model.profile_forward = True
                 logits_poor = self.model(
                     x_poor,
                     attention_mask=attention_mask,
                     formula=formula,
                     fingerprint=fingerprint_tensor,
-                    fingerprint_mask=fingerprint_mask
+                    fingerprint_mask=fingerprint_mask,
+                    formula_embeddings=formula_cond_embeddings,
+                    formula_condition_mask=formula_cond_mask,
+                    fingerprint_embeddings=fingerprint_cond_embeddings,
+                    fingerprint_condition_mask=fingerprint_cond_mask,
+                    extended_attention_mask=extended_attention_mask,
                 )
+                if profile_enabled:
+                    self.model.profile_forward = previous_forward_profile
+                sync_cuda_if_needed()
+                if profile is not None:
+                    profile['guidance_forward_time'] += time.perf_counter() - guidance_start
+                    guidance_forward_profile = getattr(self.model, 'last_forward_profile', None)
+                    if isinstance(guidance_forward_profile, dict):
+                        profile['guidance_forward_total_time'] = profile.get('guidance_forward_total_time', 0.0) + float(
+                            guidance_forward_profile.get('forward_total_time', 0.0)
+                        )
                 logits = w * logits + (1 - w) * logits_poor
 
-            x = self.mdlm.step_confidence(logits, x, i, num_steps, softmax_temp, randomness)
+            sync_cuda_if_needed()
+            sampling_start = time.perf_counter()
+            x = self.mdlm.step_confidence(
+                logits,
+                x,
+                i,
+                num_steps,
+                softmax_temp,
+                randomness,
+                confidence_temperature=confidence_temperature,
+                num_tokens_unmask=num_tokens_unmask,
+            )
+            sync_cuda_if_needed()
+            if profile is not None:
+                profile['sampling_step_time'] += time.perf_counter() - sampling_start
             
         # decode to SAFE strings
+        sync_cuda_if_needed()
+        decode_start = time.perf_counter()
         samples = self.model.tokenizer.batch_decode(x, skip_special_tokens=True)
         # convert to SMILES strings
         if self.model.config.training.get('use_bracket_safe'):
@@ -347,6 +456,21 @@ class Sampler:
             samples = [safe_to_smiles(s, fix=fix) for s in samples]
         # remove None and take the largest
         samples = [sorted(s.split('.'), key=len)[-1] for s in samples if s]
+        sync_cuda_if_needed()
+        if profile is not None:
+            profile['decode_time'] = time.perf_counter() - decode_start
+            profile['profile_total_time'] = sum(
+                profile[key]
+                for key in (
+                    'attention_mask_time',
+                    'conditioning_setup_time',
+                    'model_forward_time',
+                    'guidance_forward_time',
+                    'sampling_step_time',
+                    'decode_time',
+                )
+            )
+            self.last_generation_profile = profile
         return samples
 
     def _insert_mask(
@@ -415,7 +539,7 @@ class Sampler:
         ]
         return torch.stack(x_new)
     
-    @torch.no_grad()
+    @torch.inference_mode()
     def de_novo_generation(self, num_samples=1, softmax_temp=0.8, randomness=0.5):
         # Prepare Fully Masked Inputs
         x = torch.hstack([torch.full((1, 1), self.model.bos_index),
@@ -424,7 +548,7 @@ class Sampler:
         x = x.to(self.model.device)
         return self.generate(x, softmax_temp, randomness)
     
-    @torch.no_grad()
+    @torch.inference_mode()
     def formula_conditioned_generation(self, formula, num_samples=1, softmax_temp=0.8, randomness=0.5, sequence_lengths=None, min_add_len=40):
         """
         Generate molecules conditioned on a molecular formula.
@@ -460,7 +584,7 @@ class Sampler:
         
         return samples
 
-    @torch.no_grad()
+    @torch.inference_mode()
     def fingerprint_conditioned_generation(
         self,
         fingerprint,
@@ -501,7 +625,7 @@ class Sampler:
             self.model.train()
         return samples
     
-    @torch.no_grad()
+    @torch.inference_mode()
     def unified_conditioned_generation(
         self,
         formula: Optional[str] = None,
@@ -569,7 +693,7 @@ class Sampler:
         
         return samples
     
-    @torch.no_grad()
+    @torch.inference_mode()
     def formula_and_fingerprint_conditioned_generation(
         self,
         formula: str,

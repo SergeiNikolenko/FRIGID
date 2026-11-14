@@ -1,0 +1,17 @@
+protected_paths:
+  - repro_cache/
+  - data/
+  - results/
+  - repro_runs/
+  - ms-pred/
+  - checkpoints/
+  - .git/
+  - .venv/
+remote_protected_paths:
+  - /home/nikolenko/work/Projects/FRIGID/repro_cache/
+  - /home/nikolenko/work/Projects/FRIGID/results/
+  - /home/nikolenko/work/Projects/FRIGID/repro_runs/
+  - /home/nikolenko/work/Projects/FRIGID/.venv/
+notes:
+  - Scorer may write only under .autoresearch/artifacts/current locally and under remote .autoresearch_scorer_runs.
+  - Full benchmark outputs must not be overwritten by speed scorers.

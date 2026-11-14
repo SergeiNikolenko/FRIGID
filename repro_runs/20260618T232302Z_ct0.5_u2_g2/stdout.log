@@ -1,0 +1,84 @@
+Loading token model from token_models/models/best_ngboost_MSG.joblib
+Detected NGBoost model - will use sigma-based sampling
+Loaded 14 features from token_models/models/best_ngboost_MSG_features.json
+Using device: cuda
+
+Loading test split...
+Finding spectra files:   0%|          | 0/17556 [00:00<?, ?it/s]Finding spectra files:  20%|█▉        | 3483/17556 [00:00<00:00, 34821.73it/s]Finding spectra files:  40%|████      | 7065/17556 [00:00<00:00, 35403.00it/s]Finding spectra files:  61%|██████    | 10654/17556 [00:00<00:00, 35622.53it/s]Finding spectra files:  81%|████████  | 14248/17556 [00:00<00:00, 35744.09it/s]                                                                               0it [00:00, ?it/s]17556it [00:00, 1265796.86it/s]
+0it [00:00, ?it/s]1102it [00:00, 11010.80it/s]2252it [00:00, 11296.27it/s]3382it [00:00, 5775.89it/s] 4297it [00:00, 6618.52it/s]5280it [00:00, 7462.30it/s]6264it [00:00, 8111.42it/s]7568it [00:00, 9494.06it/s]8859it [00:01, 10471.08it/s]9983it [00:01, 10482.72it/s]11084it [00:01, 10409.69it/s]12162it [00:01, 10451.15it/s]13233it [00:01, 10044.07it/s]14258it [00:01, 9754.95it/s] 15248it [00:01, 9542.23it/s]16218it [00:01, 9584.34it/s]17184it [00:01, 9339.62it/s]17556it [00:01, 9146.55it/s]
+0it [00:00, ?it/s]17556it [00:00, 6031716.99it/s]
+Loaded 17082 total spectra-molecule pairs
+Using 17082 samples from test split
+
+Loading MIST encoder from: repro_cache/mist_msg.pt
+✓ Loaded MIST encoder weights
+
+Loading DLM decoder from: repro_cache/DLM.ckpt
+Using SHARED cross-attention mode
+[load_model] Removed 120 fingerprint_conditioner.cross_attention_layers keys for shared mode
+[DLM] Loading checkpoint with missing buffers (safe to skip): {'token_atom_counts'}
+[Sampler] Warning: data/len.pk not found. Using default length range.
+✓ Fingerprint conditioning: ENABLED
+✓ Formula conditioning: ENABLED
+Cross-attention mode: SHARED
+
+======================================================================
+SPEC2MOL BENCHMARK
+======================================================================
+Total spectra: 17082
+Formula matches required: 1
+Max attempts: 32
+Batch size: 32
+Temperature: 1.0
+Randomness: 10.0
+FP threshold: 0.187
+======================================================================
+
+Processing spectra:   0%|          | 0/32 [00:00<?, ?it/s]Processing spectra:   3%|▎         | 1/32 [00:04<02:29,  4.84s/it]Processing spectra:   6%|▋         | 2/32 [00:09<02:24,  4.80s/it]Processing spectra:   9%|▉         | 3/32 [00:14<02:17,  4.75s/it]Processing spectra:  12%|█▎        | 4/32 [00:19<02:12,  4.74s/it]Processing spectra:  16%|█▌        | 5/32 [00:23<02:07,  4.73s/it]Processing spectra:  19%|█▉        | 6/32 [00:28<02:02,  4.73s/it]Processing spectra:  22%|██▏       | 7/32 [00:33<01:58,  4.73s/it]Processing spectra:  25%|██▌       | 8/32 [00:37<01:53,  4.73s/it]Processing spectra:  28%|██▊       | 9/32 [00:42<01:48,  4.73s/it]Processing spectra:  31%|███▏      | 10/32 [00:47<01:44,  4.74s/it]Processing spectra:  34%|███▍      | 11/32 [00:52<01:39,  4.75s/it]Processing spectra:  38%|███▊      | 12/32 [00:57<01:35,  4.78s/it]Processing spectra:  41%|████      | 13/32 [01:01<01:31,  4.82s/it]Processing spectra:  44%|████▍     | 14/32 [01:06<01:27,  4.87s/it]Processing spectra:  47%|████▋     | 15/32 [01:12<01:26,  5.10s/it]Processing spectra:  50%|█████     | 16/32 [01:17<01:20,  5.01s/it]Processing spectra:  53%|█████▎    | 17/32 [01:22<01:14,  4.96s/it]Processing spectra:  56%|█████▋    | 18/32 [01:26<01:08,  4.90s/it]Processing spectra:  59%|█████▉    | 19/32 [01:31<01:03,  4.89s/it]Processing spectra:  62%|██████▎   | 20/32 [01:36<00:58,  4.86s/it]Processing spectra:  66%|██████▌   | 21/32 [01:42<00:55,  5.08s/it]Processing spectra:  69%|██████▉   | 22/32 [01:46<00:49,  4.99s/it]Processing spectra:  72%|███████▏  | 23/32 [01:51<00:44,  4.93s/it]Processing spectra:  75%|███████▌  | 24/32 [01:56<00:39,  4.91s/it]Processing spectra:  78%|███████▊  | 25/32 [02:01<00:34,  4.88s/it]Processing spectra:  81%|████████▏ | 26/32 [02:06<00:29,  4.85s/it]Processing spectra:  84%|████████▍ | 27/32 [02:11<00:24,  4.83s/it]Processing spectra:  88%|████████▊ | 28/32 [02:15<00:19,  4.82s/it]Processing spectra:  91%|█████████ | 29/32 [02:20<00:14,  4.81s/it]Processing spectra:  94%|█████████▍| 30/32 [02:25<00:09,  4.81s/it]Processing spectra:  97%|█████████▋| 31/32 [02:30<00:04,  4.80s/it]Processing spectra: 100%|██████████| 32/32 [02:34<00:00,  4.80s/it]Processing spectra: 100%|██████████| 32/32 [02:34<00:00,  4.84s/it]
+
+Saved aggregate statistics to: /home/nikolenko/work/Projects/FRIGID/repro_runs/20260618T232302Z_ct0.5_u2_g2/output/aggregate_statistics.json
+Saved detailed results to: /home/nikolenko/work/Projects/FRIGID/repro_runs/20260618T232302Z_ct0.5_u2_g2/output/detailed_results.csv
+Saved predictions to: /home/nikolenko/work/Projects/FRIGID/repro_runs/20260618T232302Z_ct0.5_u2_g2/output/predictions.csv
+
+======================================================================
+BENCHMARK SUMMARY
+======================================================================
+
+Total spectra: 32
+Time: 155.0s
+Speed: 0.21 spectra/s
+Encoder batch size: 1
+
+--- Generation Timing ---
+Time in generation functions: 153.0s
+Percentage of total time: 98.7%
+
+--- MIST Encoder Quality ---
+Mean Tanimoto (pred vs GT FP): 0.8563
+
+--- Core Metrics ---
+Exact Match Top-1: 0.00%
+Exact Match Top-10: 0.00%
+Tanimoto Top-1: 0.4552
+Tanimoto Top-10: 0.4552
+
+--- Formula Matching ---
+Success rate: 96.88%
+Never matched: 3.12%
+Avg actual formula matches: 1.0
+Avg predictions collected (incl. padding): 1.0
+Avg generations: 30.6
+Avg attempts per match (successful only): 30.6
+Avg unique valid SMILES: 10.1
+Avg duplicate valid SMILES: 2.3
+Avg valid duplicate rate: 11.9%
+Avg formula duplicate matches: 0.0
+Avg formula match fraction among valid: 24.7%
+Avg unique valid fraction among valid: 88.1%
+Avg first formula match at: 0.0
+Avg first unique formula match at: 0.0
+Avg wasted generated after first formula match: 0.0
+Avg wasted generated after first unique formula match: 0.0
+======================================================================
+
+Results saved to: /home/nikolenko/work/Projects/FRIGID/repro_runs/20260618T232302Z_ct0.5_u2_g2/output/

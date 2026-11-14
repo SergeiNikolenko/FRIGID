@@ -29,6 +29,7 @@ Usage:
 
 import os
 import itertools
+import time
 import warnings
 from typing import Dict, Any, Optional, List, Tuple, Union
 
@@ -84,7 +85,7 @@ class Spec2MolSampler:
         """Check if formula conditioning is enabled."""
         return self.decoder.use_formula_conditioning
 
-    @torch.no_grad()
+    @torch.inference_mode()
     def generate(
         self,
         x: torch.Tensor,
@@ -102,9 +103,44 @@ class Spec2MolSampler:
         from dlm.utils.bracket_safe_converter import bracketsafe2safe
 
         x = x.to(self.device)
+        num_tokens_unmask = int(getattr(self, 'num_tokens_unmask', 1))
+        confidence_temperature = float(getattr(self, 'confidence_temperature', 1.0))
+        profile_enabled = bool(getattr(self, 'profile_generation', False))
+        profile = None
+
+        def sync_cuda_if_needed():
+            if profile_enabled and torch.cuda.is_available():
+                torch.cuda.synchronize(self.device)
+
+        if profile_enabled:
+            profile = {
+                'batch_size': int(x.size(0)),
+                'sequence_length': int(x.size(1)),
+                'initial_mask_tokens': int((x == self.mask_index).sum().item()),
+                'initial_pad_tokens': int((x == self.pad_index).sum().item()),
+                'num_steps': 0,
+                'attention_mask_time': 0.0,
+                'conditioning_setup_time': 0.0,
+                'model_forward_time': 0.0,
+                'guidance_forward_time': 0.0,
+                'sampling_step_time': 0.0,
+                'decode_time': 0.0,
+            }
+
+        sync_cuda_if_needed()
+        setup_start = time.perf_counter()
         num_steps = max(self.mdlm.get_num_steps_confidence(x), 2)
         attention_mask = x != self.pad_index
+        extended_attention_mask = self.decoder.backbone.get_extended_attention_mask(
+            attention_mask, x.shape, x.device
+        )
+        sync_cuda_if_needed()
+        if profile is not None:
+            profile['num_steps'] = int(num_steps)
+            profile['attention_mask_time'] = time.perf_counter() - setup_start
 
+        sync_cuda_if_needed()
+        conditioning_start = time.perf_counter()
         if formula is not None and isinstance(formula, str):
             formula = [formula] * x.size(0)
 
@@ -120,14 +156,51 @@ class Spec2MolSampler:
                 dtype=torch.float32
             )
 
+        formula_cond_embeddings = None
+        formula_cond_mask = None
+        fingerprint_cond_embeddings = None
+        fingerprint_cond_mask = None
+        if formula is not None or fingerprint_tensor is not None:
+            formula_cond_embeddings, formula_cond_mask = self.decoder._prepare_formula_sequence_embeddings(formula, x)
+            fingerprint_cond_embeddings, fingerprint_cond_mask = self.decoder._prepare_fingerprint_sequence_embeddings(
+                fingerprint_tensor,
+                x,
+            )
+        sync_cuda_if_needed()
+        if profile is not None:
+            profile['conditioning_setup_time'] = time.perf_counter() - conditioning_start
+
         for i in range(num_steps):
+            sync_cuda_if_needed()
+            forward_start = time.perf_counter()
+            previous_forward_profile = getattr(self.decoder, 'profile_forward', False)
+            if profile_enabled:
+                self.decoder.profile_forward = True
             logits = self.decoder(
                 x,
                 attention_mask,
                 formula=formula,
                 fingerprint=fingerprint_tensor,
-                fingerprint_mask=fingerprint_mask
+                fingerprint_mask=fingerprint_mask,
+                formula_embeddings=formula_cond_embeddings,
+                formula_condition_mask=formula_cond_mask,
+                fingerprint_embeddings=fingerprint_cond_embeddings,
+                fingerprint_condition_mask=fingerprint_cond_mask,
+                extended_attention_mask=extended_attention_mask,
             )
+            if profile_enabled:
+                self.decoder.profile_forward = previous_forward_profile
+            sync_cuda_if_needed()
+            if profile is not None:
+                profile['model_forward_time'] += time.perf_counter() - forward_start
+                forward_profile = getattr(self.decoder, 'last_forward_profile', None)
+                if isinstance(forward_profile, dict):
+                    profile['model_forward_total_time'] = profile.get('model_forward_total_time', 0.0) + float(
+                        forward_profile.get('forward_total_time', 0.0)
+                    )
+                    for key, value in forward_profile.items():
+                        if isinstance(value, (int, float)) and key not in {'forward_total_time'}:
+                            profile[f'model_forward_{key}'] = profile.get(f'model_forward_{key}', 0.0) + float(value)
 
             if gamma and w:
                 x_poor = x.clone()
@@ -139,23 +212,74 @@ class Spec2MolSampler:
                 num_mask_poor = int(context_tokens.sum() * gamma)
                 mask_idx_poor = random.sample(context_token_ids, num_mask_poor)
                 x_poor[:, mask_idx_poor] = self.mask_index
+                sync_cuda_if_needed()
+                guidance_start = time.perf_counter()
+                previous_forward_profile = getattr(self.decoder, 'profile_forward', False)
+                if profile_enabled:
+                    self.decoder.profile_forward = True
                 logits_poor = self.decoder(
                     x_poor,
                     attention_mask=attention_mask,
                     formula=formula,
                     fingerprint=fingerprint_tensor,
-                    fingerprint_mask=fingerprint_mask
+                    fingerprint_mask=fingerprint_mask,
+                    formula_embeddings=formula_cond_embeddings,
+                    formula_condition_mask=formula_cond_mask,
+                    fingerprint_embeddings=fingerprint_cond_embeddings,
+                    fingerprint_condition_mask=fingerprint_cond_mask,
+                    extended_attention_mask=extended_attention_mask,
                 )
+                if profile_enabled:
+                    self.decoder.profile_forward = previous_forward_profile
+                sync_cuda_if_needed()
+                if profile is not None:
+                    profile['guidance_forward_time'] += time.perf_counter() - guidance_start
+                    guidance_forward_profile = getattr(self.decoder, 'last_forward_profile', None)
+                    if isinstance(guidance_forward_profile, dict):
+                        profile['guidance_forward_total_time'] = profile.get('guidance_forward_total_time', 0.0) + float(
+                            guidance_forward_profile.get('forward_total_time', 0.0)
+                        )
                 logits = w * logits + (1 - w) * logits_poor
 
-            x = self.mdlm.step_confidence(logits, x, i, num_steps, softmax_temp, randomness)
+            sync_cuda_if_needed()
+            sampling_start = time.perf_counter()
+            x = self.mdlm.step_confidence(
+                logits,
+                x,
+                i,
+                num_steps,
+                softmax_temp,
+                randomness,
+                confidence_temperature=confidence_temperature,
+                num_tokens_unmask=num_tokens_unmask,
+            )
+            sync_cuda_if_needed()
+            if profile is not None:
+                profile['sampling_step_time'] += time.perf_counter() - sampling_start
 
+        sync_cuda_if_needed()
+        decode_start = time.perf_counter()
         samples = self.tokenizer.batch_decode(x, skip_special_tokens=True)
         if self.decoder.config.training.get('use_bracket_safe'):
             samples = [safe_to_smiles(bracketsafe2safe(s), fix=fix) for s in samples]
         else:
             samples = [safe_to_smiles(s, fix=fix) for s in samples]
         samples = [sorted(s.split('.'), key=len)[-1] for s in samples if s]
+        sync_cuda_if_needed()
+        if profile is not None:
+            profile['decode_time'] = time.perf_counter() - decode_start
+            profile['profile_total_time'] = sum(
+                profile[key]
+                for key in (
+                    'attention_mask_time',
+                    'conditioning_setup_time',
+                    'model_forward_time',
+                    'guidance_forward_time',
+                    'sampling_step_time',
+                    'decode_time',
+                )
+            )
+            self.last_generation_profile = profile
         return samples
 
     def _insert_mask(
@@ -207,7 +331,7 @@ class Spec2MolSampler:
         ]
         return torch.stack(x_new)
 
-    @torch.no_grad()
+    @torch.inference_mode()
     def fingerprint_conditioned_generation(
         self,
         fingerprint: np.ndarray,
@@ -238,7 +362,7 @@ class Spec2MolSampler:
             self.decoder.train()
         return samples
     
-    @torch.no_grad()
+    @torch.inference_mode()
     def unified_conditioned_generation(
         self,
         formula: Optional[str] = None,
@@ -414,7 +538,7 @@ class Spec2MolModel(nn.Module):
         print(f"✓ Spec2Mol model loaded on {device}")
         return model
 
-    @torch.no_grad()
+    @torch.inference_mode()
     def encode_spectra(self, batch: Dict[str, torch.Tensor]) -> Tuple[np.ndarray, np.ndarray]:
         """
         Encode spectra batch to fingerprint predictions.
@@ -436,7 +560,7 @@ class Spec2MolModel(nn.Module):
 
         return fp_probs, fp_binary
 
-    @torch.no_grad()
+    @torch.inference_mode()
     def generate_from_fingerprint(
         self,
         fingerprint: np.ndarray,
@@ -452,7 +576,7 @@ class Spec2MolModel(nn.Module):
             randomness=randomness,
         )
 
-    @torch.no_grad()
+    @torch.inference_mode()
     def predict(
         self,
         batch: Dict[str, torch.Tensor],
