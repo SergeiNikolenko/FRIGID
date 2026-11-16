@@ -1,0 +1,90 @@
+{
+  "date": "2026-06-29",
+  "objective": "Full remote DreaMS fingerprint-head training on spectrum and real MassSpecGym validation metrics.",
+  "local_docs_dir": "docs/FRIGID_dreams_fingerprint_head_20260629",
+  "git": {
+    "branch": "dreams-fingerprint-head",
+    "remote": "https://github.com/SergeiNikolenko/FRIGID.git",
+    "commit": "aff6e67882dfb8166af18d5d9c128d3ace2b8924"
+  },
+  "remote": {
+    "host": "spectrum",
+    "checkout": "/home/nikolenko/work/Projects/FRIGID_dreams_fingerprint_head",
+    "run_dir": "/home/nikolenko/work/Projects/FRIGID_dreams_fingerprint_head/runs/dreams_fingerprint_head_msg_full_20260629T110040Z",
+    "data_root": "/home/nikolenko/work/Projects/FRIGID/repro_cache/msg",
+    "dlm_checkpoint": "/home/nikolenko/work/Projects/FRIGID/repro_cache/DLM.ckpt"
+  },
+  "stored_locally": [
+    {
+      "path": "run_report.md",
+      "description": "Human-readable run report and interpretation."
+    },
+    {
+      "path": "run_full_dreams_pipeline.sh",
+      "description": "Remote execution script used for the full run."
+    },
+    {
+      "path": "train_dataset/summary.json",
+      "description": "Full train split preparation summary."
+    },
+    {
+      "path": "val_dataset/summary.json",
+      "description": "Full validation split preparation summary."
+    },
+    {
+      "path": "train_embeddings/summary.json",
+      "description": "Train DreaMS embedding extraction summary."
+    },
+    {
+      "path": "val_embeddings/summary.json",
+      "description": "Validation DreaMS embedding extraction summary."
+    },
+    {
+      "path": "fingerprint_head/training_metrics.json",
+      "description": "20-epoch fingerprint-head training history."
+    },
+    {
+      "path": "val_predictions/summary.json",
+      "description": "Validation prediction artifact summary."
+    },
+    {
+      "path": "val_evaluation/fingerprint_metrics.json",
+      "description": "Full validation fingerprint metrics."
+    }
+  ],
+  "large_remote_artifacts_not_stored_in_git": [
+    "train_dataset/spectra.mgf",
+    "train_dataset/spectra.hdf5",
+    "train_dataset/fingerprints.npz",
+    "train_embeddings/dreams_embeddings.npz",
+    "val_dataset/spectra.mgf",
+    "val_dataset/spectra.hdf5",
+    "val_dataset/fingerprints.npz",
+    "val_embeddings/dreams_embeddings.npz",
+    "fingerprint_head/dreams_fingerprint_head.pt",
+    "val_predictions/fingerprints.npz"
+  ],
+  "result": {
+    "train_rows": 191216,
+    "val_rows": 19043,
+    "embedding_dim": 1024,
+    "fingerprint_bits": 4096,
+    "epochs": 20,
+    "mean_tanimoto": 0.12380483226693835,
+    "median_tanimoto": 0.10489510744810104,
+    "bit_accuracy": 0.9300574224698708,
+    "bit_precision": 0.12387949614343159,
+    "bit_recall": 0.5741983661794373,
+    "bit_f1": 0.2037921788609628,
+    "mean_active_bits": 295.96014404296875,
+    "mean_target_active_bits": 63.8514404296875,
+    "decision": "Negative result: frozen DreaMS embeddings plus a shallow supervised fingerprint head do not pass the MIST-quality gate."
+  },
+  "downstream_dlm": {
+    "attempted": true,
+    "completed": false,
+    "aggregate_statistics_json": null,
+    "last_observed_progress": "59 / 200 spectra after about 41 minutes",
+    "decision": "Stopped because full-validation fingerprint metrics were already far below the quality gate."
+  }
+}
