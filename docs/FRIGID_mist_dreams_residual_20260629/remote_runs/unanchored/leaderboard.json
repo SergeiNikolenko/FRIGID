@@ -1,0 +1,40 @@
+{
+  "rows": [
+    {
+      "variant": "balanced_count",
+      "best_epoch": 0,
+      "mean_tanimoto": 0.5420425046339575,
+      "delta_vs_mist": 0.0,
+      "mode": "threshold",
+      "value": 0.25,
+      "passed_encoder_gate": false
+    },
+    {
+      "variant": "conservative_bce",
+      "best_epoch": 0,
+      "mean_tanimoto": 0.5420425046339575,
+      "delta_vs_mist": 0.0,
+      "mode": "threshold",
+      "value": 0.25,
+      "passed_encoder_gate": false
+    },
+    {
+      "variant": "pos10_soft_count",
+      "best_epoch": 0,
+      "mean_tanimoto": 0.5420425046339575,
+      "delta_vs_mist": 0.0,
+      "mode": "threshold",
+      "value": 0.25,
+      "passed_encoder_gate": false
+    },
+    {
+      "variant": "pos5_count",
+      "best_epoch": 0,
+      "mean_tanimoto": 0.5420425046339575,
+      "delta_vs_mist": 0.0,
+      "mode": "threshold",
+      "value": 0.25,
+      "passed_encoder_gate": false
+    }
+  ]
+}

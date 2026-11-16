@@ -1,0 +1,7 @@
+RUN=/home/nikolenko/work/Projects/FRIGID_dreams_fingerprint_head/runs/mist_dreams_residual_anchored_20260629T160033Z
+Mon Jun 29 16:00:33 UTC 2026
+branch=dreams-fingerprint-head
+commit=8e0201632ef9576f1f6c1f2cc2a3b3bc11d9f768
+python=/home/nikolenko/work/Projects/FRIGID/.venv/bin/python
+torch 2.6.0+cu124
+0 NVIDIA A100 80GB PCIe 85093777408

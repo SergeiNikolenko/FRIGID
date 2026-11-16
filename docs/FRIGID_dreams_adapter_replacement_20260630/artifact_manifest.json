@@ -1,0 +1,71 @@
+{
+  "experiment_id": "dreams_adapter_replacement_20260630",
+  "source_host": "spectrum",
+  "source_run_dir": "/home/nikolenko/work/Projects/FRIGID_dreams_fingerprint_head/runs/dreams_adapter_replacement_<UTC>",
+  "artifacts": [
+    {
+      "name": "training script",
+      "path": "scripts/train_dreams_adapter_replacement.py",
+      "type": "script",
+      "size_bytes": null,
+      "sha256": null,
+      "notes": "Staged DreaMS adapter training script committed in the FRIGID worktree."
+    },
+    {
+      "name": "slurm launcher",
+      "path": "docs/FRIGID_dreams_adapter_replacement_20260630/run_dreams_adapter_replacement.sbatch",
+      "type": "script",
+      "size_bytes": null,
+      "sha256": null,
+      "notes": "Submit from the remote FRIGID checkout on spectrum."
+    },
+    {
+      "name": "training log",
+      "path": "/home/nikolenko/work/Projects/FRIGID_dreams_fingerprint_head/runs/dreams_adapter_replacement_<UTC>/train.log",
+      "type": "log",
+      "size_bytes": null,
+      "sha256": null,
+      "notes": "Created by the Slurm job."
+    },
+    {
+      "name": "run config",
+      "path": "/home/nikolenko/work/Projects/FRIGID_dreams_fingerprint_head/runs/dreams_adapter_replacement_<UTC>/model/run_config.json",
+      "type": "metrics",
+      "size_bytes": null,
+      "sha256": null,
+      "notes": "Static data sizes, baseline, device, and arguments."
+    },
+    {
+      "name": "MIST baseline metrics",
+      "path": "/home/nikolenko/work/Projects/FRIGID_dreams_fingerprint_head/runs/dreams_adapter_replacement_<UTC>/model/mist_baseline_metrics.json",
+      "type": "metrics",
+      "size_bytes": null,
+      "sha256": null,
+      "notes": "Validation MIST baseline recomputed with the same sweep."
+    },
+    {
+      "name": "training metrics",
+      "path": "/home/nikolenko/work/Projects/FRIGID_dreams_fingerprint_head/runs/dreams_adapter_replacement_<UTC>/model/training_metrics.json",
+      "type": "metrics",
+      "size_bytes": null,
+      "sha256": null,
+      "notes": "Epoch history and best validation metrics."
+    },
+    {
+      "name": "best checkpoint",
+      "path": "/home/nikolenko/work/Projects/FRIGID_dreams_fingerprint_head/runs/dreams_adapter_replacement_<UTC>/model/best_model.pt",
+      "type": "checkpoint",
+      "size_bytes": null,
+      "sha256": null,
+      "notes": "Best checkpoint by validation mean fingerprint Tanimoto."
+    },
+    {
+      "name": "validation predictions",
+      "path": "/home/nikolenko/work/Projects/FRIGID_dreams_fingerprint_head/runs/dreams_adapter_replacement_<UTC>/model/val_predictions.npz",
+      "type": "metrics",
+      "size_bytes": null,
+      "sha256": null,
+      "notes": "Probability rows aligned to val_prediction_metadata.csv."
+    }
+  ]
+}
