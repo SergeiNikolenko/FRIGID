@@ -1,13 +1,35 @@
-# FRIGID Agent Documentation Index
+# FRIGID project evidence
 
-This file is the agent-facing index for FRIGID project documentation and
-experiment artifacts.
+Start with [the archive guide](FRIGID_project/README.md), the
+[technical audit](FRIGID_TECHNICAL_AUDIT.md), and
+[benchmark system](FRIGID_BENCHMARK_SYSTEM.md).
+
+The source tree keeps compact reports and baseline summaries. Large historical
+run artifacts are preserved separately on the existing Gauss research host,
+with original and portable archives and verified SHA-256 manifests.
+
+The portable archive preserves every original regular file. Twelve internal
+links resolve relatively; 252 external dataset references are explicitly
+listed as unavailable. It is an evidence package, not a complete runnable
+training dataset. Do not claim that archive portability repairs the historical
+benchmark's missing rows, denominator errors, or scientific limitations.
+
+Use [operational usage](FRIGID_OPERATIONAL_USAGE.md) for stable CLI entry points.
+Keep inspection and lightweight smoke checks local; run training and heavy
+benchmarks on an authorized compute host. Preserve original archives and Git
+history when repackaging results.
+
+## Experiment documentation
+
+The following experiment statuses are June 2026 records, not a live scheduler
+view. Check current jobs and checkpoints before continuing a run. The opt-in
+DreaMS workflows preserve the existing MIST/DLM production entry points.
 
 ## Operational Docs
 
 - `docs/FRIGID_EXPERIMENT_REGISTRY.md`: top-level experiment index with status,
   plan/result links, decisions, and the active Linear project URL.
-- `docs/FRIGID_EXPERIMENT_STATUS_AND_IDEAS.md`: live board for active runs,
+- `docs/FRIGID_EXPERIMENT_STATUS_AND_IDEAS.md`: historical status board for June 2026 runs,
   near-term queue, backlog ideas, blockers, stop rules, and Linear issue IDs.
 - `docs/FRIGID_EXPERIMENT_TEMPLATE.md`: required template for new experiment
   plans, run reports, and artifact manifests.
@@ -56,35 +78,15 @@ experiment artifacts.
   DreaMS replacement experiment. This should be treated as the serious DreaMS
   continuation, not another repeat of the failed frozen-head or plain
   full-fine-tune runs.
-- `docs/FRIGID_dreams_adapter_replacement_20260630/`: active package for the
+- `docs/FRIGID_dreams_adapter_replacement_20260630/`: historical package for the
   serious DreaMS continuation. Use this directory for launch status and
   artifacts.
 - `docs/FRIGID_NEXT_EXPERIMENT_DECISION_20260630.md`: decision memo selecting
   DLM adaptation to MIST-predicted fingerprints as the next serious experiment.
-- `docs/FRIGID_dlm_mist_fingerprint_adaptation_20260630/`: active DLM
+- `docs/FRIGID_dlm_mist_fingerprint_adaptation_20260630/`: historical DLM
   adaptation run on full train-split MIST binary fingerprints, including launch
   fixes, run directory, monitoring, checkpoint schedule, and next evaluation
   command.
 - `docs/FRIGID_spectral_jepa_pretraining_20260630/`: planned JEPA-like spectrum
   representation experiment. It should run after active GPU jobs clear and be
   judged first by frozen-encoder fingerprint metrics.
-
-## Consolidated Artifact Package
-
-- `docs/FRIGID_project/`: consolidated local artifact package copied from the
-  Desktop project bundle. Treat this as a historical artifact handoff package;
-  do not duplicate or reorganize it unless explicitly requested.
-
-## Current Decision State
-
-MIST remains the strongest validated spectrum-to-fingerprint path. Direct
-DreaMS replacement attempts have failed across frozen heads, distillation,
-blend/residual adapters, and plain full encoder fine-tuning. The active run is
-DLM adaptation to the MIST-predicted fingerprint distribution, because the
-largest measured gap is the DLM quality drop from clean ground-truth
-fingerprints to realistic MIST binary fingerprints. The next DreaMS path should
-use the adapter replacement plan with MIST anchoring and decoder-sensitive
-weighting rather than repeating the previous DreaMS objectives.
-The separate spectral JEPA experiment is implemented as a lower-priority
-representation-learning path and should not displace the active DLM adaptation
-until it has fingerprint-gate evidence.

@@ -1,0 +1,28 @@
+{
+  "dataset_complete": false,
+  "external_reference_count": 252,
+  "external_targets": [
+    "/home/nikolenko/work/Projects/FRIGID/repro_cache/msg/atom_types.txt",
+    "/home/nikolenko/work/Projects/FRIGID/repro_cache/msg/edge_types.txt",
+    "/home/nikolenko/work/Projects/FRIGID/repro_cache/msg/labels.tsv",
+    "/home/nikolenko/work/Projects/FRIGID/repro_cache/msg/n_counts.txt",
+    "/home/nikolenko/work/Projects/FRIGID/repro_cache/msg/neuraldecipher",
+    "/home/nikolenko/work/Projects/FRIGID/repro_cache/msg/spec_files",
+    "/home/nikolenko/work/Projects/FRIGID/repro_cache/msg/subformulae"
+  ],
+  "original_archive": {
+    "bytes": 59280684,
+    "filename": "frigid-original-artifacts-a3e47c4.tar.gz",
+    "sha256": "fe7788027b0b6312e3ede7139668df9f67940e81ff7b0aa42eb4e07ecb630ef8"
+  },
+  "portable_archive": {
+    "bytes": 59366576,
+    "filename": "frigid-evidence-a3e47c4.tar.gz",
+    "sha256": "311eef202e66ef1900e386962b551344b00aea3493ad8a786e78cd6aba1a4a78"
+  },
+  "regular_file_bytes": 481451150,
+  "regular_files": 760,
+  "relative_internal_links": 12,
+  "schema_version": 1,
+  "source_commit": "a3e47c4d33d12458c13c27668ceea4930b403161"
+}
