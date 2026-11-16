@@ -1,0 +1,140 @@
+# Fine-tune DLM on MIST-predicted fingerprints exported from spectra.
+#
+# Generate the dataset first:
+#   python scripts/export_mist_fingerprints.py \
+#     --config configs/spec2mol_benchmark_msg.yaml \
+#     --split train \
+#     --output-dir results/mist_fingerprints_train
+#
+# Then run:
+#   python scripts/train.py --config-name fp2mol_finetune_mist_fingerprints \
+#     load_weights_only=/path/to/DLM.ckpt \
+#     data.predicted_fingerprint_metadata=results/mist_fingerprints_train/metadata.csv \
+#     data.predicted_fingerprint_npz=results/mist_fingerprints_train/fingerprints.npz
+
+hydra:
+  run:
+    dir: results/dlm_mist_fingerprint_finetune
+  job:
+    chdir: True
+
+data:
+  use_safe_hf: False
+  hf_cache_dir: /path/to/data/safes/
+  remove_stereo: True
+  exclude_inchikeys_file: null
+  predicted_fingerprint_metadata: /path/to/mist_fingerprints_train/metadata.csv
+  predicted_fingerprint_npz: /path/to/mist_fingerprints_train/fingerprints.npz
+  predicted_fingerprint_key: mist_binary
+  split: train
+
+wandb:
+  project: frigid
+  name: dlm_mist_fingerprint_finetune
+
+load_weights_only: null
+load_weights_strict: False
+
+loader:
+  global_batch_size: 512
+  batch_size: ${div_up:${.global_batch_size}, ${eval:${trainer.devices} * ${trainer.num_nodes}}}
+  num_workers: 8
+  pin_memory: True
+  persistent_workers: True
+  resume_step: null
+
+optim:
+  weight_decay: 0
+  lr: 0.00005
+  beta1: 0.9
+  beta2: 0.999
+  eps: 1e-8
+
+trainer:
+  _target_: lightning.Trainer
+  accelerator: cuda
+  num_nodes: 1
+  devices: ${device_count:}
+  accumulate_grad_batches: ${div_up:${loader.global_batch_size}, ${eval:${trainer.devices} * ${loader.batch_size} * ${trainer.num_nodes}}}
+  gradient_clip_val: 1.0
+  precision: 'bf16'
+  max_steps: 50000
+  log_every_n_steps: 100
+
+model:
+  attention_probs_dropout_prob: 0.1
+  hidden_act: 'gelu'
+  hidden_dropout_prob: 0.1
+  hidden_size: 768
+  initializer_range: 0.02
+  intermediate_size: 3072
+  layer_norm_eps: 1e-12
+  max_position_embeddings: 256
+  model_type: 'bert'
+  num_attention_heads: 12
+  num_hidden_layers: 12
+  pad_token_id: 3
+  position_embedding_type: 'absolute'
+  torch_dtype: 'float32'
+  type_vocab_size: 2
+  use_cache: True
+  vocab_size: 1880
+
+  use_shared_cross_attention: True
+
+  use_formula_conditioning: True
+  formula_conditioner_type: 'cross_attention'
+  formula_normalize: 'none'
+  formula_use_count_embedding: True
+  formula_dropout_prob: 0.0
+
+  use_fingerprint_conditioning: True
+  fingerprint_conditioner_type: 'cross_attention'
+  fingerprint_bits: 4096
+  fingerprint_radius: 2
+  fingerprint_seq_max_len: 256
+  fingerprint_num_self_attention_layers: 3
+  fingerprint_activation_threshold: 0.0
+  fingerprint_dropout_prob: 0.25
+  fingerprint_flip_prob: 0.000
+
+  lr_scheduler:
+    _target_: torch.optim.lr_scheduler.CosineAnnealingLR
+    T_max: 50000
+    eta_min: 1e-8
+    warmup_steps: 2000
+
+noise:
+  type: loglinear
+
+training:
+  T: 0
+  ema: 0.9999
+  antithetic_sampling: True
+  sampling_eps: 1e-3
+  global_mean_loss: True
+  use_bracket_safe: False
+  formula_loss_weight: 0.0
+
+callback:
+  _target_: lightning.pytorch.callbacks.ModelCheckpoint
+  dirpath: ${cwd:}/checkpoints
+  filename: '{step}'
+  save_top_k: -1
+  auto_insert_metric_name: False
+  enable_version_counter: False
+  every_n_train_steps: 2500
+
+validation:
+  enabled: False
+  csv_path: /path/to/validation.csv
+  n_mols: 120
+  n_samples: 100
+  n_steps: 5000
+  softmax_temp: 1.0
+  randomness: 10.0
+  batch_size: ${div_up:${loader.global_batch_size}, ${eval:${trainer.devices} * ${trainer.num_nodes}}}
+  token_model: /path/to/token_models/models/best_ngboost_MSG_pubchem.joblib
+  sigma_lambda: 1.55
+  fp_bits: ${model.fingerprint_bits}
+  fp_radius: ${model.fingerprint_radius}
