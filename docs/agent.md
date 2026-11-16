@@ -90,4 +90,3 @@ DreaMS workflows preserve the existing MIST/DLM production entry points.
 - `docs/FRIGID_spectral_jepa_pretraining_20260630/`: planned JEPA-like spectrum
   representation experiment. It should run after active GPU jobs clear and be
   judged first by frozen-encoder fingerprint metrics.
-
