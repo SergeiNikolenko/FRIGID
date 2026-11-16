@@ -4,7 +4,7 @@ This repository keeps project-specific agent guidance in `docs/`.
 
 Start here:
 
-- `docs/agent.md`: agent-facing handoff for the consolidated FRIGID project artifact package.
+- `docs/agent.md`: agent-facing handoff for the FRIGID project evidence archive.
 - `docs/FRIGID_OPERATIONAL_USAGE.md`: stable CLI entry points, required inputs, expected outputs, and run artifact layout.
 - `docs/FRIGID_TECHNICAL_AUDIT.md`: architecture, component limitations, bottlenecks, baseline conclusions, and improvement priorities.
 - `docs/FRIGID_BENCHMARK_SYSTEM.md`: benchmark tiers, required artifacts, metric definitions, quality gates, and comparison protocol.
@@ -14,7 +14,7 @@ Start here:
 
 Repository-specific rules:
 
-- Treat `docs/FRIGID_project/` as the canonical local artifact package. Do not duplicate or move it unless explicitly requested.
+- Treat `docs/FRIGID_project/README.md` and `archive-summary.json` as the archive index. Large historical artifacts live in the documented Gauss evidence archive, not in the source checkout. Preserve the original archive and Git history.
 - Remote paths under `/home/nikolenko/work/Projects/FRIGID` are provenance references to server-side runs and checkpoints. Do not assume those files were copied into this repository.
 - The full MSG aggregate is diagnostic evidence, not a clean final paper reproduction, until the documented QA blockers are resolved.
 - Keep local work limited to inspection, documentation, packaging, and lightweight smoke checks. Run heavyweight FRIGID benchmarks or training on the configured remote host.

@@ -98,11 +98,12 @@ For full reproduction runs, also report `manifest_test_samples`, `missing_test_o
 Use `scripts/summarize_benchmark_runs.py` to turn completed runs into comparable JSON and CSV:
 
 ```bash
+artifact_root=/path/to/extracted/docs/FRIGID_project
 python3 scripts/summarize_benchmark_runs.py \
-  --run msg_full_ngboost=docs/FRIGID_project/FRIGID_experiments_20260618/E28_msg_base_full_ngboost_aggregate \
-  --qa-summary msg_full_ngboost=docs/FRIGID_project/FRIGID_spectrum_base_final_20260621/reproduction_qa_sources/qa_summary.json \
-  --run iceberg_msg_50_r2_cefix=docs/FRIGID_project/FRIGID_experiments_20260618/E37_iceberg_scaling_msg_50_r2_cpuiceberg_cefix/results \
-  --run oracle_fingerprint_balanced_200=docs/FRIGID_project/FRIGID_experiments_20260618/E26_oracle_fingerprint_balanced_200 \
+  --run msg_full_ngboost="${artifact_root}/FRIGID_experiments_20260618/E28_msg_base_full_ngboost_aggregate" \
+  --qa-summary msg_full_ngboost="${artifact_root}/FRIGID_spectrum_base_final_20260621/reproduction_qa_sources/qa_summary.json" \
+  --run iceberg_msg_50_r2_cefix="${artifact_root}/FRIGID_experiments_20260618/E37_iceberg_scaling_msg_50_r2_cpuiceberg_cefix/results" \
+  --run oracle_fingerprint_balanced_200="${artifact_root}/FRIGID_experiments_20260618/E26_oracle_fingerprint_balanced_200" \
   --output-json docs/FRIGID_project/FRIGID_project_report_20260622/benchmark_baselines.json \
   --output-csv docs/FRIGID_project/FRIGID_project_report_20260622/benchmark_baselines.csv
 ```

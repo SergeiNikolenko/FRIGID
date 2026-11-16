@@ -132,7 +132,7 @@ frigid/
 │   ├── FRIGID_TECHNICAL_AUDIT.md       # Current architecture, bottlenecks, and limitations
 │   ├── FRIGID_BENCHMARK_SYSTEM.md      # Benchmark tiers, metrics, gates, and comparisons
 │   ├── agent.md                        # Agent-facing artifact package guide
-│   └── FRIGID_project/                 # Consolidated project reports and copied artifacts
+│   └── FRIGID_project/                 # Compact reports and external evidence archive index
 │
 ├── data/
 │   ├── canopus/                        # NPLIB1/CANOPUS dataset

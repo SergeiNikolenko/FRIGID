@@ -2,7 +2,7 @@
 
 Date: 2026-06-23
 
-This audit covers the current repository state and the consolidated artifact package in `docs/FRIGID_project/`. It is based on inspected code paths, existing run artifacts, and the project report dated 2026-06-22. Heavy model evaluation was not rerun locally.
+This audit covers the current repository state and the historical artifact package indexed by [the archive guide](FRIGID_project/README.md). It is based on inspected code paths, existing run artifacts, and the project report dated 2026-06-22. Heavy model evaluation was not rerun locally.
 
 ## Scope
 

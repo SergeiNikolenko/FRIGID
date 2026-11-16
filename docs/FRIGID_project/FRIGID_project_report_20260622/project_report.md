@@ -1,3 +1,5 @@
+> Archive note (2026-11-16): this is the historical June report. Large results and report assets are in the [portable evidence archive](../README.md). Extract the archive to browse the original linked artifacts; the source checkout keeps only compact summaries. Missing source datasets remain explicitly listed in its manifest.
+
 # FRIGID Project Work Report
 
 Date: 2026-06-22
