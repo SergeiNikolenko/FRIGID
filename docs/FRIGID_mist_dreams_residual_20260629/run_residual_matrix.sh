@@ -29,7 +29,7 @@ PY
 } | tee "$RUN/run_info.txt"
 
 if [ ! -f "$RUN/mist_train/fingerprints.npz" ]; then
-  "$PY" scripts/export_mist_fingerprints.py \
+  "$PY" scripts/export_mist_for_dreams.py \
     --config configs/spec2mol_benchmark_msg.yaml \
     --data-dir "$DATA" \
     --mist-checkpoint "$MIST_CKPT" \

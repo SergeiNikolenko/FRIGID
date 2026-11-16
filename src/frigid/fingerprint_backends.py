@@ -16,7 +16,6 @@ import numpy as np
 import pandas as pd
 import torch
 
-from mist.models import SpectraEncoderGrowing
 
 
 class FingerprintBackend:
@@ -123,6 +122,8 @@ class PrecomputedFingerprintBackend(FingerprintBackend):
 
 def load_mist_encoder(config: Dict[str, Any], device: torch.device) -> torch.nn.Module:
     """Load a MIST encoder from the existing FRIGID config shape."""
+    from mist.models import SpectraEncoderGrowing
+
     checkpoint_path = config["checkpoint"]
     print(f"\nLoading MIST encoder from: {checkpoint_path}")
 

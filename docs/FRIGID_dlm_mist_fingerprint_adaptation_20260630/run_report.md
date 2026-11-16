@@ -288,3 +288,13 @@ cross-attention mode.
 The decision metric is whether the adapted DLM improves `mist_binary` decoding
 quality relative to the original DLM without collapsing `ground_truth`
 conditioning.
+
+## Integration note (2026-11-16)
+
+The commands above document the June experiment. Its architecture is now
+preserved as `configs/experimental_dlm_mist_adaptation.yaml`; the shared
+`fp2mol_finetune_mist_fingerprints.yaml` retains the main-branch defaults.
+The experimental config must be selected explicitly when reproducing this run.
+The historical training-step patch is retained in Git history, not applied to
+the shared DLM implementation. Checkpoint loading was inspected during integration;
+no new training or full molecule-generation benchmark was launched.

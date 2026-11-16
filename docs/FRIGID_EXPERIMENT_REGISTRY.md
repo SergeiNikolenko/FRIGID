@@ -2,6 +2,8 @@
 
 Date: 2026-06-30
 
+Historical snapshot: statuses below refer to this date, not current scheduler state.
+
 This is the top-level index for FRIGID experiment records. It should answer:
 
 - What was tried?

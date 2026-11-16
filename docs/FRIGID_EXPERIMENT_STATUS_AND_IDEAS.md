@@ -1,5 +1,7 @@
 # FRIGID Experiment Status And Ideas
 
+Historical snapshot of June 2026 experiments; queue and job states are not live.
+
 Date: 2026-06-30
 
 This document is the live experiment board. It should be updated whenever a run

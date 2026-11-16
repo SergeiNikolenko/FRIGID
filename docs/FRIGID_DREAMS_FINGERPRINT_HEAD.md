@@ -168,7 +168,7 @@ First success criterion:
 ### 5. Run DLM with DreaMS-Head Fingerprints
 
 ```bash
-python scripts/benchmark_spec2mol.py \
+python scripts/benchmark_dreams_spec2mol.py \
   --config configs/spec2mol_benchmark_msg.yaml \
   --data-dir /home/nikolenko/work/Projects/FRIGID/data/msg \
   --dlm-checkpoint /home/nikolenko/work/Projects/FRIGID/repro_cache/DLM.ckpt \
@@ -214,3 +214,19 @@ not a longer DLM run with the same weak fingerprints.
   adaptation on DreaMS-predicted fingerprints.
 - If both improve, promote DreaMS-head to a first-class encoder backend and run
   full split validation with the benchmark quality gates.
+
+## Integration boundary (2026-11-16)
+
+These experiments are opt-in. The existing MIST benchmark/export entry points,
+DLM implementation, and `fp2mol_finetune_mist_fingerprints.yaml` remain unchanged.
+Use `scripts/benchmark_dreams_spec2mol.py` for precomputed fingerprint backends
+and `scripts/export_mist_for_dreams.py` for the experimental export schema.
+The export requires batch size 1 so spectrum IDs remain aligned to predictions.
+
+`configs/experimental_dlm_mist_adaptation.yaml` preserves the June experiment's
+896-wide, 14-head, independent-cross-attention architecture separately. It is
+not a replacement for the default adaptation config. Historical run reports
+record commands and status at their stated dates; those are not current job
+status or evidence that adapted checkpoints pass the MIST/DLM benchmark gate.
+The original training-step patch remains in PR history and is not promoted to
+the shared DLM implementation.

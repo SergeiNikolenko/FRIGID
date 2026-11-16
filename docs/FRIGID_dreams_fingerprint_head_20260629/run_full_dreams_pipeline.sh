@@ -65,7 +65,7 @@ PYTHONPATH="$FRIGID/src:$DREAMS_SRC" "$DREAMS_PY" scripts/evaluate_fingerprint_e
   --output-dir "$RUN_DIR/val_evaluation" \
   --threshold 0.5
 
-PYTHONPATH="$FRIGID/src" "$FRIGID_PY" scripts/benchmark_spec2mol.py \
+PYTHONPATH="$FRIGID/src" "$FRIGID_PY" scripts/benchmark_dreams_spec2mol.py \
   --config configs/spec2mol_benchmark_msg.yaml \
   --data-dir "$DATA" \
   --dlm-checkpoint "$DLM" \
